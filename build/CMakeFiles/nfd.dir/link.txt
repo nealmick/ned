@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libnfd.a CMakeFiles/nfd.dir/nativefiledialog/src/nfd_common.c.o CMakeFiles/nfd.dir/nativefiledialog/src/nfd_cocoa.m.o
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libnfd.a

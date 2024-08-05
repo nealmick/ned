@@ -1,0 +1,4 @@
+/Users/neal/editor/build/CMakeFiles/nfd.dir
+/Users/neal/editor/build/CMakeFiles/text_editor.dir
+/Users/neal/editor/build/CMakeFiles/edit_cache.dir
+/Users/neal/editor/build/CMakeFiles/rebuild_cache.dir
