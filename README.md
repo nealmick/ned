@@ -2,7 +2,7 @@
 NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offers syntax highlighting, file management, and a customizable interface.
 
 
-<img src="https://i.imgur.com/Sb9geeH.png" alt="Pro Note Logo" width="100%" style="display: block; margin: auto; border-radius: 10px;">
+<img src="https://i.imgur.com/Sb9geeH.png" alt="Ned Logo" width="100%" style="display: block; margin: auto; border-radius: 10px;">
 
 #### Features
 - File Tree Explorer
