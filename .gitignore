@@ -32,7 +32,12 @@ Temporary Items
 *.dylib
 *.so
 
-
+# CMake build directory
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
 
 # IDE specific files
 .vscode/
