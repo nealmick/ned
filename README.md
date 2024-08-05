@@ -1,12 +1,18 @@
 # Text Editor written in C++
 NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offers syntax highlighting, file management, and a customizable interface.
+
+
+<img src="https://i.imgur.com/Sb9geeH.png" alt="Pro Note Logo" width="70%" style="display: block; margin: auto; border-radius: 10px;">
+
 #### Features
- - Syntax highlighting for multiple programming languages
- - File explorer with intuitive navigation
- - Customizable themes
- - Undo/Redo functionality
- - Find and Replace
- - Line numbering
+- File Tree Explorer
+- Resizable panes
+- Custom themes with JSON settings file
+- Find and Replace
+- Line numbering
+- Syntax highlighting for Python, C++, JavaScript, and more
+- Rainbow cursor and line numbers
+- File type icons
 
 # Getting Started
 Prerequisites
@@ -44,3 +50,8 @@ NED uses a JSON configuration file located at ~/.ned.json You can modify this fi
 
 Contributing
 Contributions are welcome! 
+
+TODO:
+ - Tokenizer to reduce the number of syntax operations by grouping together
+ - Write lexer to replace regex syntax logic
+ - Multi-cursor
