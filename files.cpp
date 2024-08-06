@@ -10,9 +10,9 @@
 #include "imgui_impl_opengl3.h"
 #include "settings.h"
 #define NANOSVG_IMPLEMENTATION
-#include "nanosvg.h"
+#include "lib/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
-#include "nanosvgrast.h"
+#include "lib/nanosvgrast.h"
 
 
 FileExplorer gFileExplorer;
