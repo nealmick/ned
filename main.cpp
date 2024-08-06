@@ -15,7 +15,7 @@
 #include <thread>
 #include "settings.h"
 #include "files.h"
-#include "syntax_highlighter.h"
+#include "editor.h"
 #include <filesystem>
 #include <unistd.h>
 #include <chrono>
@@ -164,7 +164,7 @@ int main() {
     InitializeImGui(window);
 
     gSettings.loadSettings();
-    gSyntaxHighlighter.setTheme(gSettings.getCurrentTheme());
+    gEditor.setTheme(gSettings.getCurrentTheme());
 
     bool windowFocused = true;
     ApplySettings(ImGui::GetStyle());
@@ -214,7 +214,7 @@ int main() {
         if (gSettings.hasSettingsChanged()) {
             ApplySettings(ImGui::GetStyle());
             if (gSettings.hasThemeChanged()) {
-                gSyntaxHighlighter.setTheme(gSettings.getCurrentTheme());
+                gEditor.setTheme(gSettings.getCurrentTheme());
                 gFileExplorer.refreshSyntaxHighlighting();
                 gSettings.resetThemeChanged();
             }

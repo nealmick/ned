@@ -1,4 +1,4 @@
-#include "syntax_highlighter.h"
+#include "editor.h"
 #include "settings.h"
 #include <iostream>
 #include <algorithm>
@@ -8,7 +8,7 @@ int GetCharIndexFromCoords(const std::string& text, const ImVec2& click_pos, con
 
 void HandleCursorMovement(const std::string& text, EditorState& state, const ImVec2& text_pos, float line_height, float window_height, float window_width);
 
-SyntaxHighlighter gSyntaxHighlighter;
+Editor gEditor;
 
 
 ImVec4 GetRainbowColor(float t) {
@@ -191,7 +191,7 @@ void PasteText(std::string& text, std::vector<ImVec4>& colors, EditorState& stat
             text_changed = true;
             
             // Trigger syntax highlighting for the pasted content
-            gSyntaxHighlighter.highlightContent(text, colors, paste_start, paste_end);
+            gEditor.highlightContent(text, colors, paste_start, paste_end);
         }
     }
 }
@@ -475,7 +475,7 @@ void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState
         int line_end = input_end < text.size() ? state.line_starts[GetLineFromPos(state.line_starts, input_end) + 1] : text.size();
         
         // Update syntax highlighting only for the affected lines
-        gSyntaxHighlighter.highlightContent(text, colors, line_start, line_end);
+        gEditor.highlightContent(text, colors, line_start, line_end);
         
         // Update line starts
         UpdateLineStarts(text, state.line_starts);
@@ -900,7 +900,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
     return text_changed;
 }
 
-void SyntaxHighlighter::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
+void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
     std::cout << "Highlighting content from " << start_pos << " to " << end_pos << std::endl;
 
     if (start_pos < 0) start_pos = 0;
@@ -941,7 +941,7 @@ void SyntaxHighlighter::highlightContent(const std::string& content, std::vector
         applyTagRules(*it, cssRules);
     }
 }
-void SyntaxHighlighter::applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules) {
+void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules) {
     // Set all colors to the default text color first
     std::fill(colors.begin() + start_pos, colors.begin() + start_pos + view.length(), themeColors["text"]);
 
@@ -976,7 +976,7 @@ void SyntaxHighlighter::applyRules(const std::string& view, std::vector<ImVec4>&
     }
 }
 // Syntax highlighting functions
-void SyntaxHighlighter::setLanguage(const std::string& extension) {
+void Editor::setLanguage(const std::string& extension) {
     std::cout << "Setting language for extension: " << extension << std::endl;
     setupHtmlRules();
     setupJavaScriptRules();
@@ -1005,10 +1005,10 @@ void SyntaxHighlighter::setLanguage(const std::string& extension) {
         rules.clear();
     }
 }
-void SyntaxHighlighter::setTheme(const std::string& themeName) {
+void Editor::setTheme(const std::string& themeName) {
     loadTheme(themeName);
 }
-void SyntaxHighlighter::setupCppRules() {
+void Editor::setupCppRules() {
     cppRules = {
         {std::regex(R"(\b(int|float|double|char|void|bool|auto|const|static|struct|class|namespace|using|return|if|else|for|while|do|switch|case|break|continue|true|false|nullptr)\b)"), themeColors["keyword"]},
         {std::regex(R"("(?:\\.|[^\\"])*")"), themeColors["string"]},
@@ -1017,7 +1017,7 @@ void SyntaxHighlighter::setupCppRules() {
     };
 }
 
-void SyntaxHighlighter::setupPythonRules() {
+void Editor::setupPythonRules() {
     pythonRules = {
         // Comments (moved to the top to ensure they're not overwritten)
         {std::regex(R"(#[^\n]*)"), themeColors["comment"]},
@@ -1065,7 +1065,7 @@ void SyntaxHighlighter::setupPythonRules() {
 
 
 // Add these new setup functions
-void SyntaxHighlighter::setupMarkdownRules() {
+void Editor::setupMarkdownRules() {
     rules = {
         {std::regex(R"(^#+\s.+$)"), themeColors["heading"]},
         {std::regex(R"(\*\*.*?\*\*|__.*?__)"), themeColors["bold"]},
@@ -1075,7 +1075,7 @@ void SyntaxHighlighter::setupMarkdownRules() {
         {std::regex(R"(`.*?`)"), themeColors["inline_code"]},
     };
 }
-void SyntaxHighlighter::setupHtmlRules() {
+void Editor::setupHtmlRules() {
     htmlRules = {
         {std::regex(R"(<[^>]*>)"), themeColors["tag"]},
         {std::regex(R"((\w+)=)"), themeColors["attribute"]},
@@ -1084,7 +1084,7 @@ void SyntaxHighlighter::setupHtmlRules() {
     };
 }
 
-void SyntaxHighlighter::setupJavaScriptRules() {
+void Editor::setupJavaScriptRules() {
     javascriptRules = {
         {std::regex(R"(\b(var|let|const|function|class|if|else|for|while|do|switch|case|break|continue|return|true|false|null|undefined)\b)"), themeColors["keyword"]},
         {std::regex(R"("(?:\\.|[^\\"])*"|'(?:\\.|[^\\'])*'|`(?:\\.|[^\\`])*`)"), themeColors["string"]},
@@ -1093,7 +1093,7 @@ void SyntaxHighlighter::setupJavaScriptRules() {
     };
 }
 
-void SyntaxHighlighter::setupCssRules() {
+void Editor::setupCssRules() {
     cssRules = {
         {std::regex(R"([\.\#]?\w+\s*\{)"), themeColors["selector"]},
         {std::regex(R"([\w-]+\s*:)"), themeColors["property"]},
@@ -1102,7 +1102,7 @@ void SyntaxHighlighter::setupCssRules() {
     };
 }
 
-void SyntaxHighlighter::setupJsonRules() {
+void Editor::setupJsonRules() {
     rules = {
         {std::regex(R"(".*?"\s*:)"), themeColors["key"]},
         {std::regex(R"(:\s*".*?")"), themeColors["string"]},
@@ -1111,7 +1111,7 @@ void SyntaxHighlighter::setupJsonRules() {
     };
 }
 
-void SyntaxHighlighter::loadTheme(const std::string& themeName) {
+void Editor::loadTheme(const std::string& themeName) {
     auto& settings = gSettings.getSettings();
     if (settings.contains("themes") && settings["themes"].contains(themeName)) {
         auto& theme = settings["themes"][themeName];

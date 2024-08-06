@@ -1,5 +1,4 @@
 #pragma once
-
 #include <string>
 #include <vector>
 #include <regex>
@@ -36,7 +35,7 @@ struct CursorVisibility {
 
 
 
-class SyntaxHighlighter {
+class Editor {
 public:
     void setLanguage(const std::string& extension);
     void highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos);
@@ -65,7 +64,7 @@ private:
     void applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules);
 };
 extern EditorState editor_state;
-extern SyntaxHighlighter gSyntaxHighlighter;
+extern Editor gEditor;
 
 
 void HandleEditorInput(const std::string& text, EditorState& state, const ImVec2& text_start_pos, float line_height, bool& text_changed, std::vector<ImVec4>& colors);

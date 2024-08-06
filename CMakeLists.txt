@@ -26,7 +26,7 @@ add_executable(text_editor
     main.cpp
     settings.cpp
     files.cpp
-    syntax_highlighter.cpp
+    editor.cpp
     imgui/imgui.cpp
     imgui/imgui_demo.cpp
     imgui/imgui_draw.cpp

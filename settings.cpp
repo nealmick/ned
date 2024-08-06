@@ -115,3 +115,7 @@ void Settings::checkSettingsFile() {
         }
     }
 }
+
+
+
+

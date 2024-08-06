@@ -232,8 +232,8 @@ void FileExplorer::openFolderDialog() {
 void FileExplorer::refreshSyntaxHighlighting() {
     if (!currentFile.empty()) {
         std::string extension = fs::path(currentFile).extension().string();
-        gSyntaxHighlighter.setLanguage(extension);
-        gSyntaxHighlighter.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        gEditor.setLanguage(extension);
+        gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
     }
 }
 void FileExplorer::loadFileContent(const std::string& path) {
@@ -261,11 +261,11 @@ void FileExplorer::loadFileContent(const std::string& path) {
         //currentUndoManager->addState(fileContent);
 
         std::string extension = fs::path(path).extension().string();
-        gSyntaxHighlighter.setLanguage(extension);
+        gEditor.setLanguage(extension);
         
         fileColors.clear();
         fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        gSyntaxHighlighter.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
 
         std::cout << "Loaded file: " << path << std::endl;
         std::cout << "File size: " << fileContent.size() << std::endl;
@@ -393,8 +393,8 @@ void FileExplorer::handleUndo() {
         int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
         
         std::string extension = fs::path(currentFile).extension().string();
-        gSyntaxHighlighter.setLanguage(extension);
-        gSyntaxHighlighter.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
+        gEditor.setLanguage(extension);
+        gEditor.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
         
         _unsavedChanges = true;
     }
@@ -432,8 +432,8 @@ void FileExplorer::handleRedo() {
         int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
         
         std::string extension = fs::path(currentFile).extension().string();
-        gSyntaxHighlighter.setLanguage(extension);
-        gSyntaxHighlighter.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
+        gEditor.setLanguage(extension);
+        gEditor.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
         
         _unsavedChanges = true;
     }

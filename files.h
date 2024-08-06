@@ -4,11 +4,10 @@
 #include <vector>
 #include <filesystem>
 #include <map>
-#include "syntax_highlighter.h"
+#include "editor.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include "undo_redo_manager.h"
-#include "syntax_highlighter.h"
 
 
 namespace fs = std::filesystem;
@@ -76,5 +75,6 @@ private:
 
 };
 
-extern SyntaxHighlighter gSyntaxHighlighter;
+extern Editor gEditor;
 extern FileExplorer gFileExplorer;
+
