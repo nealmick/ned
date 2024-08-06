@@ -157,6 +157,15 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleVar();
     ImGui::End();
 }
+void updateFileExplorer() {
+    static float last_refresh_time = 0.0f;
+    float current_time = ImGui::GetTime();
+    
+    if (current_time - last_refresh_time > 5.0f) {  // Refresh every 5 seconds
+        gFileExplorer.refreshFileTree();
+        last_refresh_time = current_time;
+    }
+}
 
 int main() {
     InitializeGLFW();
@@ -208,7 +217,7 @@ int main() {
             gFileExplorer.saveCurrentFile();
         }
         windowFocused = currentFocus;
-
+        gFileExplorer.refreshFileTree();
         gSettings.checkSettingsFile();
 
         if (gSettings.hasSettingsChanged()) {

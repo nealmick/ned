@@ -67,6 +67,14 @@ extern EditorState editor_state;
 extern Editor gEditor;
 
 
+inline ImVec4 GetRainbowColor(float t) {
+    float r = sin(t) * 0.5f + 0.5f;
+    float g = sin(t + 2.0944f) * 0.5f + 0.5f; // 2.0944 is 2π/3
+    float b = sin(t + 4.1888f) * 0.5f + 0.5f; // 4.1888 is 4π/3
+    return ImVec4(r, g, b, 1.0f);
+}
+
+
 void HandleEditorInput(const std::string& text, EditorState& state, const ImVec2& text_start_pos, float line_height, bool& text_changed, std::vector<ImVec4>& colors);
 bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>& colors, EditorState& editor_state);
 ScrollChange EnsureCursorVisible(const ImVec2& text_pos, const std::string& text, EditorState& state, float line_height, float window_height, float window_width);

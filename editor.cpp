@@ -11,13 +11,6 @@ void HandleCursorMovement(const std::string& text, EditorState& state, const ImV
 Editor gEditor;
 
 
-ImVec4 GetRainbowColor(float t) {
-    float r = sin(t) * 0.5f + 0.5f;
-    float g = sin(t + 2.0944f) * 0.5f + 0.5f; // 2.0944 is 2π/3
-    float b = sin(t + 4.1888f) * 0.5f + 0.5f; // 4.1888 is 4π/3
-    return ImVec4(r, g, b, 1.0f);
-}
-
 
 
 void UpdateLineStarts(const std::string& text, std::vector<int>& line_starts) {
@@ -384,6 +377,30 @@ void HandleEnterKey(std::string& text, std::vector<ImVec4>& colors, EditorState&
         input_end = state.cursor_pos;
     }
 }
+void HandleDeleteKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_end) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
+        if (state.selection_start != state.selection_end) {
+            // There's a selection, delete it
+            int start = GetSelectionStart(state);
+            int end = GetSelectionEnd(state);
+            text.erase(start, end - start);
+            colors.erase(colors.begin() + start, colors.begin() + end);
+            state.cursor_pos = start;
+            text_changed = true;
+            input_end = start;
+        } else if (state.cursor_pos < text.size()) {
+            // No selection, delete the character at cursor position
+            text.erase(state.cursor_pos, 1);
+            colors.erase(colors.begin() + state.cursor_pos);
+            text_changed = true;
+            input_end = state.cursor_pos + 1;
+        }
+        
+        // Clear selection after deletion
+        state.selection_start = state.selection_end = state.cursor_pos;
+        state.is_selecting = false;
+    }
+}
 
 void HandleBackspaceKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_start) {
     if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
@@ -394,7 +411,6 @@ void HandleBackspaceKey(std::string& text, std::vector<ImVec4>& colors, EditorSt
             text.erase(start, end - start);
             colors.erase(colors.begin() + start, colors.begin() + end);
             state.cursor_pos = start;
-            state.selection_start = state.selection_end = start;
             text_changed = true;
             input_start = start;
         } else if (state.cursor_pos > 0) {
@@ -405,27 +421,10 @@ void HandleBackspaceKey(std::string& text, std::vector<ImVec4>& colors, EditorSt
             text_changed = true;
             input_start = state.cursor_pos;
         }
-    }
-}
-void HandleDeleteKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_end) {
-    if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
-        if (state.selection_start != state.selection_end) {
-            // There's a selection, delete it
-            int start = GetSelectionStart(state);
-            int end = GetSelectionEnd(state);
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
-            state.cursor_pos = start;  // Changed from cstart to start
-            state.selection_start = state.selection_end = start;
-            text_changed = true;
-            input_end = start;
-        } else if (state.cursor_pos < text.size()) {
-            // No selection, delete the character at cursor position
-            text.erase(state.cursor_pos, 1);
-            colors.erase(colors.begin() + state.cursor_pos);
-            text_changed = true;
-            input_end = state.cursor_pos + 1;
-        }
+        
+        // Clear selection after deletion
+        state.selection_start = state.selection_end = state.cursor_pos;
+        state.is_selecting = false;
     }
 }
 
@@ -890,7 +889,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     // Render line numbers with clipping
     ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
-   RenderLineNumbers(line_numbers_pos, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, false);
+   RenderLineNumbers(line_numbers_pos, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, true);
     ImGui::PopClipRect();
 
     ImGui::EndGroup();
@@ -899,22 +898,27 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     return text_changed;
 }
-
 void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
-    std::cout << "Highlighting content from " << start_pos << " to " << end_pos << std::endl;
+    if (content.size() != colors.size()) {
+        std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
+                  << ", colors: " << colors.size() << std::endl;
+        return;
+    }
 
     if (start_pos < 0) start_pos = 0;
     if (end_pos > static_cast<int>(content.size()) || end_pos < 0) end_pos = static_cast<int>(content.size());
 
-    // Reset colors for the modified range to default (text color)
-    std::fill(colors.begin() + start_pos, colors.begin() + end_pos, themeColors["text"]);
+    if (start_pos >= end_pos || start_pos >= static_cast<int>(content.size())) {
+        std::cerr << "Error: Invalid start_pos or end_pos in highlightContent. "
+                  << "start_pos: " << start_pos << ", end_pos: " << end_pos 
+                  << ", content size: " << content.size() << std::endl;
+        return;
+    }
 
     std::string view = content.substr(start_pos, end_pos - start_pos);
 
-    // Apply the main language rules
     applyRules(view, colors, start_pos, rules);
 
-    // Check for script and style tags
     std::regex scriptTag(R"(<script\b[^>]*>([\s\S]*?)</script>)");
     std::regex styleTag(R"(<style\b[^>]*>([\s\S]*?)</style>)");
 
@@ -925,7 +929,9 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
         if (tagEnd > start_pos && tagStart < end_pos) {
             int highlightStart = std::max(start_pos, tagStart);
             int highlightEnd = std::min(end_pos, tagEnd);
-            applyRules(content.substr(highlightStart, highlightEnd - highlightStart), colors, highlightStart, tagRules);
+            if (highlightStart < highlightEnd && highlightStart < static_cast<int>(content.size())) {
+                applyRules(content.substr(highlightStart, highlightEnd - highlightStart), colors, highlightStart, tagRules);
+            }
         }
     };
     
@@ -941,8 +947,21 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
         applyTagRules(*it, cssRules);
     }
 }
+
 void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules) {
-    // Set all colors to the default text color first
+    if (start_pos < 0 || start_pos >= static_cast<int>(colors.size())) {
+        std::cerr << "Error: Invalid start_pos in applyRules. start_pos: " << start_pos 
+                  << ", colors size: " << colors.size() << std::endl;
+        return;
+    }
+
+    if (start_pos + view.length() > colors.size()) {
+        std::cerr << "Error: View extends beyond colors vector in applyRules. "
+                  << "start_pos: " << start_pos << ", view length: " << view.length() 
+                  << ", colors size: " << colors.size() << std::endl;
+        return;
+    }
+
     std::fill(colors.begin() + start_pos, colors.begin() + start_pos + view.length(), themeColors["text"]);
 
     for (const auto& rule : rules) {
@@ -953,8 +972,14 @@ void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, in
             size_t match_start = start_pos + it->position();
             size_t match_end = match_start + it->length();
 
-            for (size_t i = match_start; i < match_end && i < colors.size(); ++i) {
-                // Use the rule color if it's not transparent, otherwise use the default text color
+            if (match_start >= colors.size() || match_end > colors.size()) {
+                std::cerr << "Error: Match extends beyond colors vector in applyRules. "
+                          << "match_start: " << match_start << ", match_end: " << match_end 
+                          << ", colors size: " << colors.size() << std::endl;
+                break;
+            }
+
+            for (size_t i = match_start; i < match_end; ++i) {
                 colors[i] = (rule.color.w > 0.0f) ? rule.color : themeColors["text"];
             }
 
@@ -972,7 +997,7 @@ void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, in
 
     // Print out all colors for debugging
     for (const auto& [key, color] : themeColors) {
-        std::cout << "Color '" << key << "': (" << color.x << ", " << color.y << ", " << color.z << ", " << color.w << ")" << std::endl;
+        //std::cout << "Color '" << key << "': (" << color.x << ", " << color.y << ", " << color.z << ", " << color.w << ")" << std::endl;
     }
 }
 // Syntax highlighting functions
@@ -1019,8 +1044,7 @@ void Editor::setupCppRules() {
 
 void Editor::setupPythonRules() {
     pythonRules = {
-        // Comments (moved to the top to ensure they're not overwritten)
-        {std::regex(R"(#[^\n]*)"), themeColors["comment"]},
+        
         // Keywords
         {std::regex(R"(\b(def|class|if|else|elif|for|while|try|except|finally|with|as|import|from|return|and|or|not|in|is|lambda|None|True|False|async|await)\b)"), themeColors["keyword"]},
         
@@ -1041,7 +1065,8 @@ void Editor::setupPythonRules() {
         
         // Decorators
         {std::regex(R"(^@\w+)"), themeColors["decorator"]},
-        
+        // Comments (moved to the top to ensure they're not overwritten)
+        {std::regex(R"(#[^\n]*)"), themeColors["comment"]},
         // Function calls
         {std::regex(R"(\b\w+(?=\s*\())"), themeColors["function"]},
     };

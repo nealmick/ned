@@ -110,6 +110,7 @@ void FileExplorer::loadIcons() {
 
 
 
+
 ImTextureID FileExplorer::getIconForFile(const std::string& filename) {
     std::string extension = fs::path(filename).extension().string();
     if (!extension.empty() && extension[0] == '.') {
@@ -121,26 +122,67 @@ ImTextureID FileExplorer::getIconForFile(const std::string& filename) {
     return fileTypeIcons["default"]; // Use default icon if specific icon not found
 }
 void FileExplorer::buildFileTree(const fs::path& path, FileNode& node) {
-    node.children.clear();
+    std::vector<FileNode> newChildren;
     try {
         for (const auto& entry : fs::directory_iterator(path)) {
             FileNode child;
             child.name = entry.path().filename().string();
             child.fullPath = entry.path().string();
             child.isDirectory = entry.is_directory();
-            node.children.push_back(std::move(child));
+            
+            // Check if this child already exists and preserve its open state
+            auto it = std::find_if(node.children.begin(), node.children.end(),
+                [&child](const FileNode& existingChild) {
+                    return existingChild.fullPath == child.fullPath;
+                });
+            if (it != node.children.end()) {
+                child.isOpen = it->isOpen;
+                if (child.isDirectory && child.isOpen) {
+                    buildFileTree(child.fullPath, child);
+                }
+            }
+            
+            newChildren.push_back(std::move(child));
         }
-        std::sort(node.children.begin(), node.children.end(),
-                  [](const FileNode& a, const FileNode& b) {
-                      if (a.isDirectory != b.isDirectory) {
-                          return a.isDirectory > b.isDirectory;
-                      }
-                      return a.name < b.name;
-                  });
     } catch (const fs::filesystem_error& e) {
         std::cerr << "Error accessing directory " << path << ": " << e.what() << std::endl;
     }
+    
+    node.children = std::move(newChildren);
+    
+    std::sort(node.children.begin(), node.children.end(),
+              [](const FileNode& a, const FileNode& b) {
+                  if (a.isDirectory != b.isDirectory) {
+                      return a.isDirectory > b.isDirectory;
+                  }
+                  return a.name < b.name;
+              });
 }
+void FileExplorer::preserveOpenStates(const FileNode& oldNode, FileNode& newNode) {
+    for (auto& newChild : newNode.children) {
+        auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(),
+            [&newChild](const FileNode& oldChild) {
+                return oldChild.fullPath == newChild.fullPath;
+            });
+        if (it != oldNode.children.end()) {
+            newChild.isOpen = it->isOpen;
+            if (newChild.isDirectory && newChild.isOpen) {
+                preserveOpenStates(*it, newChild);
+            }
+        }
+    }
+}
+void FileExplorer::refreshFileTree() {
+    if (!selectedFolder.empty()) {
+        rootNode.name = fs::path(selectedFolder).filename().string();
+        rootNode.fullPath = selectedFolder;
+        rootNode.isDirectory = true;
+        rootNode.children.clear();
+        buildFileTree(selectedFolder, rootNode);
+    }
+}
+
+
 void FileExplorer::displayFileTree(FileNode& node) {
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
     if (!node.isDirectory) flags |= ImGuiTreeNodeFlags_Leaf;
@@ -148,10 +190,17 @@ void FileExplorer::displayFileTree(FileNode& node) {
     ImGui::PushID(node.fullPath.c_str());
 
     if (node.isDirectory) {
-        bool isOpened = ImGui::TreeNodeEx(node.name.c_str(), flags);
+        bool isOpened = ImGui::TreeNodeEx(node.name.c_str(), flags, "%s", node.name.c_str());
 
         if (ImGui::IsItemClicked() && node.children.empty()) {
             buildFileTree(node.fullPath, node);
+        }
+
+        if (isOpened != node.isOpen) {
+            node.isOpen = isOpened;
+            if (isOpened && node.children.empty()) {
+                buildFileTree(node.fullPath, node);
+            }
         }
 
         if (isOpened) {
@@ -161,52 +210,63 @@ void FileExplorer::displayFileTree(FileNode& node) {
             ImGui::TreePop();
         }
     } else {
-    ImTextureID icon = getIconForFile(node.name);
-    
-    float icon_width = 20.0f; // Width of your icon
-    float icon_spacing = 6.0f; // Space between icon and text
-    float tree_node_spacing = ImGui::GetTreeNodeToLabelSpacing();
-    float adjusted_indent = tree_node_spacing - (icon_width + icon_spacing);
+        ImTextureID icon = getIconForFile(node.name);
+        
+        float icon_width = 20.0f;
+        float icon_spacing = 6.0f;
+        float tree_node_spacing = ImGui::GetTreeNodeToLabelSpacing();
+        float adjusted_indent = tree_node_spacing - (icon_width + icon_spacing);
 
-    // Add reduced spacing to the left of the file icon
-    ImGui::Indent(adjusted_indent);
-    
-    ImGui::BeginGroup();
-    
-    // Use Selectable for consistent spacing, but don't use its click behavior
-    bool selected = false;
-    ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0, 0.5f));
-    ImGui::Selectable("##hidden", &selected, ImGuiSelectableFlags_AllowItemOverlap, ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeight()));
-    ImGui::PopStyleVar();
+        ImGui::Indent(adjusted_indent);
+        
+        ImGui::BeginGroup();
+        
+        bool selected = false;
+        ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0, 0.5f));
+        ImGui::Selectable("##hidden", &selected, ImGuiSelectableFlags_AllowItemOverlap, ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeight()));
+        ImGui::PopStyleVar();
 
-    // Check if the entire area was clicked
-    bool clicked = ImGui::IsItemClicked();
+        bool clicked = ImGui::IsItemClicked();
 
-    // Render icon and text over the selectable area
-    ImGui::SameLine(0, 0);
-    ImGui::SetCursorPosX(ImGui::GetItemRectMin().x);
-    ImGui::Image(icon, ImVec2(icon_width, icon_width));
-    ImGui::SameLine(0, icon_spacing);
-    if (node.fullPath == currentOpenFile) {
-        ImGui::PushStyleColor(ImGuiCol_Text, openedFileColor);
-    } 
-    ImGui::TextUnformatted(node.name.c_str());
-    
-     if (node.fullPath == currentOpenFile) {
-        ImGui::PopStyleColor();
-    } 
-    ImGui::EndGroup();
-
-    // Handle click
-    if (clicked) {
-        loadFileContent(node.fullPath);
+        ImGui::SameLine(0, 0);
+        ImGui::SetCursorPosX(ImGui::GetItemRectMin().x);
+        ImGui::Image(icon, ImVec2(icon_width, icon_width));
+        ImGui::SameLine(0, icon_spacing);
+        bool useRainbowEffect = false;
+        // Use rainbow color for the active file
+        if (node.fullPath == currentOpenFile) {
+        ImVec4 fileColor;
+        if (useRainbowEffect) {
+            static float last_update_time = 0.0f;
+            static ImVec4 last_rainbow_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+            float current_time = ImGui::GetTime();
+            
+            if (current_time - last_update_time > 0.05f) {
+                last_rainbow_color = GetRainbowColor(current_time * 2.0f);
+                last_update_time = current_time;
+            }
+            fileColor = last_rainbow_color;
+        } else {
+            fileColor = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);//non rainbow active file color
+        }
+        
+        ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
     }
-    
-    // Undo the indentation
-    ImGui::Unindent(adjusted_indent);
-}
+        
+        ImGui::TextUnformatted(node.name.c_str());
+        
+        if (node.fullPath == currentOpenFile) {
+            ImGui::PopStyleColor();
+        }
+        
+        ImGui::EndGroup();
 
-
+        if (clicked) {
+            loadFileContent(node.fullPath);
+        }
+        
+        ImGui::Unindent(adjusted_indent);
+    }
 
     ImGui::PopID();
 }
