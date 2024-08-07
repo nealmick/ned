@@ -443,7 +443,37 @@ void HandleTabKey(std::string& text, std::vector<ImVec4>& colors, EditorState& s
         input_end = state.cursor_pos;
     }
 }
+void Editor::moveWordForward(const std::string& text, EditorState& state) {
+    size_t pos = state.cursor_pos;
+    size_t len = text.length();
 
+    // Skip current word
+    while (pos < len && std::isalnum(text[pos])) pos++;
+    // Skip spaces
+    while (pos < len && std::isspace(text[pos])) pos++;
+    // Find start of next word
+    while (pos < len && !std::isalnum(text[pos]) && !std::isspace(text[pos])) pos++;
+
+    // If we've reached the end, wrap around to the beginning
+    if (pos == len) pos = 0;
+
+    state.cursor_pos = pos;
+    state.selection_start = state.selection_end = pos;
+}
+
+void Editor::moveWordBackward(const std::string& text, EditorState& state) {
+    size_t pos = state.cursor_pos;
+    
+    // If at the beginning, wrap around to the end
+    if (pos == 0) pos = text.length();
+
+    // Move back to the start of the current word
+    while (pos > 0 && !std::isalnum(text[pos - 1])) pos--;
+    while (pos > 0 && std::isalnum(text[pos - 1])) pos--;
+
+    state.cursor_pos = pos;
+    state.selection_start = state.selection_end = pos;
+}
 void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed){
     int input_start = state.cursor_pos;
     int input_end = state.cursor_pos;
@@ -653,7 +683,15 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 
                 gFileExplorer.currentUndoManager->printStacks();  // Print stack sizes for debugging
             }
-
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) {
+                if (shift_pressed) {
+                    gEditor.moveWordBackward(text, state);
+                } else {
+                    gEditor.moveWordForward(text, state);
+                }
+                ensure_cursor_visible.horizontal = true;
+                ensure_cursor_visible.vertical = true;
+            }
             else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
                 // Jump to start of line
                 int current_line = GetLineFromPos(state.line_starts, state.cursor_pos);

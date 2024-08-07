@@ -81,6 +81,10 @@ CMD Z
 	- Undo last change
 CMD SHIFT Z
 	- Redo last change
+CMD W
+	- move cursor to next word
+CMD SHIFT W
+	- move curosr to last word
 
  
 

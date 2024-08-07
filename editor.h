@@ -41,6 +41,9 @@ public:
     void highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos);
     void setTheme(const std::string& themeName);
     
+    void moveWordForward(const std::string& text, EditorState& state);
+    void moveWordBackward(const std::string& text, EditorState& state);
+
 private:
     std::vector<SyntaxRule> rules;
     std::vector<SyntaxRule> htmlRules;
