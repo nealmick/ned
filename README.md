@@ -63,35 +63,38 @@ CMD F
 	- Open finder window
 	- Enter/return - find next
 	- shift enter/return - find previous
+
 CMD V
 	- Paste current clipboard content to cursor
+
 CMD C
 	- Copy cursor selection
+
 CMD A
 	- Select full file
+
 CMD LEFT
 	- Move cursor to line start
+
 CMD RIGHT
 	- Move cursor to line end
+
 CMD UP
 	- Move cursor up 6 lines
+
 CMD DOWN
 	- Move cursor down 6 lines
+
 CMD Z
 	- Undo last change
+
 CMD SHIFT Z
 	- Redo last change
+
 CMD W
 	- move cursor to next word
+
 CMD SHIFT W
 	- move curosr to last word
 
  
-
-
-
-
-
-
-
-
