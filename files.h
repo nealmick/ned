@@ -45,6 +45,8 @@ public:
     std::string findText = "";
     void findNext();
     void findPrevious();
+    size_t lastFoundPos = std::string::npos;
+    
     void loadIcons();
     ImTextureID getIconForFile(const std::string& filename);
     
@@ -62,6 +64,7 @@ public:
     ImVec4 openedFileColor = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);  //grey vistedfiles
     void refreshFileTree();
     void preserveOpenStates(const FileNode& oldNode, FileNode& newNode);
+
 private:
     std::string selectedFolder;
     std::string currentFile;

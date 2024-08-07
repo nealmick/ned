@@ -337,52 +337,82 @@ void FileExplorer::loadFileContent(const std::string& path) {
         currentUndoManager = nullptr;
     }
 }
-
 void FileExplorer::findNext() {
     if (findText.empty()) return;
     
-    size_t startPos = editor_state.cursor_pos + 1;
+    size_t startPos;
+    if (lastFoundPos == std::string::npos) {
+        startPos = editor_state.cursor_pos;
+    } else {
+        startPos = lastFoundPos + 1;
+    }
+    
+    if (startPos >= fileContent.length()) startPos = 0;  // Wrap around if at end
+    
     size_t foundPos = fileContent.find(findText, startPos);
+    
+    std::cout << "Searching for '" << findText << "' starting from position " << startPos << std::endl;
     
     if (foundPos == std::string::npos) {
         // Wrap around to the beginning
         foundPos = fileContent.find(findText);
+        std::cout << "Wrapped search to beginning" << std::endl;
     }
     
     if (foundPos != std::string::npos) {
+        lastFoundPos = foundPos;
         editor_state.cursor_pos = foundPos;
         editor_state.selection_start = foundPos;
         editor_state.selection_end = foundPos + findText.length();
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
+    } else {
+        std::cout << "Not found" << std::endl;
     }
 }
+
+void FileExplorer::findPrevious() {
+    if (findText.empty()) return;
+    
+    size_t startPos;
+    if (lastFoundPos == std::string::npos) {
+        startPos = editor_state.cursor_pos;
+    } else {
+        startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
+    }
+    
+    size_t foundPos = fileContent.rfind(findText, startPos);
+    
+    std::cout << "Searching backwards for '" << findText << "' starting from position " << startPos << std::endl;
+    
+    if (foundPos == std::string::npos) {
+        // Wrap around to the end
+        foundPos = fileContent.rfind(findText);
+        std::cout << "Wrapped search to end" << std::endl;
+    }
+    
+    if (foundPos != std::string::npos) {
+        lastFoundPos = foundPos;
+        editor_state.cursor_pos = foundPos;
+        editor_state.selection_start = foundPos;
+        editor_state.selection_end = foundPos + findText.length();
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
+    } else {
+        std::cout << "Not found" << std::endl;
+    }
+}
+
+
 void FileExplorer::addUndoState(int changeStart, int changeEnd) {
     if (currentUndoManager) {
         currentUndoManager->addState(fileContent, changeStart, changeEnd);
     }
 }
-void FileExplorer::findPrevious() {
-    if (findText.empty()) return;
-    
-    size_t startPos = (editor_state.cursor_pos == 0) ? fileContent.length() : editor_state.cursor_pos - 1;
-    size_t foundPos = fileContent.rfind(findText, startPos);
-    
-    if (foundPos == std::string::npos) {
-        // Wrap around to the end
-        foundPos = fileContent.rfind(findText);
-    }
-    
-    if (foundPos != std::string::npos) {
-        editor_state.cursor_pos = foundPos;
-        editor_state.selection_start = foundPos;
-        editor_state.selection_end = foundPos + findText.length();
-    }
-}
-
 void FileExplorer::renderFileContent() {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_F)) {
+    bool cmd_pressed = ImGui::GetIO().KeySuper;  // For macOS Command key
+    if ((ctrl_pressed || cmd_pressed) && ImGui::IsKeyPressed(ImGuiKey_F)) {
         editor_state.activateFindBox = !editor_state.activateFindBox;
         editor_state.blockInput = editor_state.activateFindBox;
         if (editor_state.activateFindBox) {
@@ -391,30 +421,34 @@ void FileExplorer::renderFileContent() {
     }
     
     if (editor_state.activateFindBox) {
-        // Render find box
         ImGui::SetNextItemWidth(-1);
         static char inputBuffer[256] = "";
         ImGui::SetKeyboardFocusHere();
         ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
         if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags)) {
             findText = inputBuffer;
+            lastFoundPos = std::string::npos;  // Reset lastFoundPos for new search
             findNext();
         }
         
-        // Handle Enter and Shift+Enter
         bool shift_pressed = ImGui::GetIO().KeyShift;
-        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-            if (shift_pressed) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
+            if (shift_pressed || cmd_pressed) {
+                std::cout << "Searching previous" << std::endl;
                 findPrevious();
             } else {
+                std::cout << "Searching next" << std::endl;
                 findNext();
             }
         }
+        
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             editor_state.activateFindBox = false;
             editor_state.blockInput = false;
         }
     }
+
+
 
     // Always render the editor
     bool text_changed = CustomTextEditor("##editor", fileContent, fileColors, editor_state);
