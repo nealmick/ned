@@ -4,6 +4,10 @@
 #include <regex>
 #include <unordered_map>
 #include "imgui.h"
+#include <future>
+#include <atomic>
+#include <mutex>
+
 
 struct SyntaxRule {
     std::regex pattern;
@@ -67,6 +71,10 @@ private:
     void loadTheme(const std::string& themeName);
     std::unordered_map<std::string, ImVec4> themeColors;
     void applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules);
+    std::future<void> highlightFuture;
+    std::atomic<bool> highlightingInProgress{false};
+    std::mutex colorsMutex;
+    
 };
 extern EditorState editor_state;
 extern Editor gEditor;

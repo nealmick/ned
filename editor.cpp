@@ -1076,53 +1076,74 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
     return text_changed;
 }
 void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
-    if (content.size() != colors.size()) {
-        std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
-                  << ", colors: " << colors.size() << std::endl;
-        return;
-    }
+    std::cout << "start_pos: " << start_pos << ", end_pos: " << end_pos 
+              << ", content size: " << content.size() << std::endl;
 
-    if (start_pos < 0) start_pos = 0;
-    if (end_pos > static_cast<int>(content.size()) || end_pos < 0) end_pos = static_cast<int>(content.size());
-
-    if (start_pos >= end_pos || start_pos >= static_cast<int>(content.size())) {
-        std::cerr << "Error: Invalid start_pos or end_pos in highlightContent. "
-                  << "start_pos: " << start_pos << ", end_pos: " << end_pos 
-                  << ", content size: " << content.size() << std::endl;
-        return;
-    }
-
-    std::string view = content.substr(start_pos, end_pos - start_pos);
-
-    applyRules(view, colors, start_pos, rules);
-
-    std::regex scriptTag(R"(<script\b[^>]*>([\s\S]*?)</script>)");
-    std::regex styleTag(R"(<style\b[^>]*>([\s\S]*?)</style>)");
-
-    auto applyTagRules = [&](const std::smatch& match, const std::vector<SyntaxRule>& tagRules) {
-        std::string tagContent = match[1].str();
-        int tagStart = start_pos + static_cast<int>(match.position(1));
-        int tagEnd = tagStart + static_cast<int>(tagContent.length());
-        if (tagEnd > start_pos && tagStart < end_pos) {
-            int highlightStart = std::max(start_pos, tagStart);
-            int highlightEnd = std::min(end_pos, tagEnd);
-            if (highlightStart < highlightEnd && highlightStart < static_cast<int>(content.size())) {
-                applyRules(content.substr(highlightStart, highlightEnd - highlightStart), colors, highlightStart, tagRules);
-            }
+    if (highlightingInProgress) {
+        // If a highlighting task is already in progress, we'll wait for it to finish
+        if (highlightFuture.valid()) {
+            highlightFuture.wait();
         }
-    };
-    
-    int content_start = std::max(0, start_pos - 100);
-    int content_end = std::min(static_cast<int>(content.size()), end_pos + 100);
-    std::string content_str = content.substr(content_start, content_end - content_start);
-
-    for (std::sregex_iterator it(content_str.begin(), content_str.end(), scriptTag), end_it; it != end_it; ++it) {
-        applyTagRules(*it, javascriptRules);
     }
 
-    for (std::sregex_iterator it(content_str.begin(), content_str.end(), styleTag), end_it; it != end_it; ++it) {
-        applyTagRules(*it, cssRules);
-    }
+    highlightingInProgress = true;
+    highlightFuture = std::async(std::launch::async, [this, content, &colors, start_pos, end_pos]() {
+        if (content.size() != colors.size()) {
+            std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
+                      << ", colors: " << colors.size() << std::endl;
+            highlightingInProgress = false;
+            return;
+        }
+
+        int local_start_pos = start_pos < 0 ? 0 : start_pos;
+        int local_end_pos = end_pos > static_cast<int>(content.size()) || end_pos < 0 ? static_cast<int>(content.size()) : end_pos;
+
+        if (local_start_pos >= local_end_pos || local_start_pos >= static_cast<int>(content.size())) {
+            std::cerr << "Error: Invalid start_pos or end_pos in highlightContent. "
+                      << "start_pos: " << local_start_pos << ", end_pos: " << local_end_pos 
+                      << ", content size: " << content.size() << std::endl;
+            highlightingInProgress = false;
+            return;
+        }
+
+        std::string view = content.substr(local_start_pos, local_end_pos - local_start_pos);
+
+        {
+            std::lock_guard<std::mutex> lock(colorsMutex);
+            applyRules(view, colors, local_start_pos, rules);
+        }
+
+        std::regex scriptTag(R"(<script\b[^>]*>([\s\S]*?)</script>)");
+        std::regex styleTag(R"(<style\b[^>]*>([\s\S]*?)</style>)");
+
+        auto applyTagRules = [&](const std::smatch& match, const std::vector<SyntaxRule>& tagRules) {
+            std::string tagContent = match[1].str();
+            int tagStart = local_start_pos + static_cast<int>(match.position(1));
+            int tagEnd = tagStart + static_cast<int>(tagContent.length());
+            if (tagEnd > local_start_pos && tagStart < local_end_pos) {
+                int highlightStart = std::max(local_start_pos, tagStart);
+                int highlightEnd = std::min(local_end_pos, tagEnd);
+                if (highlightStart < highlightEnd && highlightStart < static_cast<int>(content.size())) {
+                    std::lock_guard<std::mutex> lock(colorsMutex);
+                    applyRules(content.substr(highlightStart, highlightEnd - highlightStart), colors, highlightStart, tagRules);
+                }
+            }
+        };
+        
+        int content_start = std::max(0, local_start_pos - 100);
+        int content_end = std::min(static_cast<int>(content.size()), local_end_pos + 100);
+        std::string content_str = content.substr(content_start, content_end - content_start);
+
+        for (std::sregex_iterator it(content_str.begin(), content_str.end(), scriptTag), end_it; it != end_it; ++it) {
+            applyTagRules(*it, javascriptRules);
+        }
+
+        for (std::sregex_iterator it(content_str.begin(), content_str.end(), styleTag), end_it; it != end_it; ++it) {
+            applyTagRules(*it, cssRules);
+        }
+
+        highlightingInProgress = false;
+    });
 }
 
 void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules) {
