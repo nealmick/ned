@@ -481,30 +481,37 @@ void Editor::removeIndentation(std::string& text, EditorState& state) {
         lineStart--;
     }
 
-    // Count the number of spaces at the beginning of the line
+    // Check for spaces or tab at the beginning of the line
     int spacesToRemove = 0;
-    int i = lineStart;
-    while (i < text.length() && (text[i] == ' ' || text[i] == '\t')) {
-        if (text[i] == '\t') {
-            spacesToRemove = 4; // Remove a full tab
-            break;
-        }
-        spacesToRemove++;
-        if (spacesToRemove == 4) break; // Remove up to 4 spaces
-        i++;
+    if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ") {
+        spacesToRemove = 4;
+    } else if (lineStart < text.length() && text[lineStart] == '\t') {
+        spacesToRemove = 1;
     }
 
-    // Remove the spaces or tab
+    // If spaces or tab found, remove them
     if (spacesToRemove > 0) {
         text.erase(lineStart, spacesToRemove);
         
         // Adjust cursor position and selection
-        state.cursor_pos = std::max(state.cursor_pos - spacesToRemove, lineStart);
-        state.selection_start = std::max(state.selection_start - spacesToRemove, lineStart);
-        state.selection_end = std::max(state.selection_end - spacesToRemove, lineStart);
+        int adjustment = spacesToRemove;
+        state.cursor_pos = std::max(state.cursor_pos - adjustment, lineStart);
+        state.selection_start = std::max(state.selection_start - adjustment, lineStart);
+        state.selection_end = std::max(state.selection_end - adjustment, lineStart);
+
+        // Update colors vector
+        auto& colors = gFileExplorer.getFileColors();
+        if (colors.size() > lineStart) {
+            colors.erase(colors.begin() + lineStart, colors.begin() + lineStart + spacesToRemove);
+        }
+
+        // Update line starts
+        UpdateLineStarts(text, state.line_starts);
+
+        // Mark text as changed
+        gFileExplorer.setUnsavedChanges(true);
     }
 }
-
 
 void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed){
     int input_start = state.cursor_pos;
@@ -668,6 +675,15 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
     if (ImGui::IsWindowFocused() && !state.blockInput) {
+        //remove indent shift tab
+        if (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {  // false to not repeat
+            gEditor.removeIndentation(text, state);
+            text_changed = true;
+            ensure_cursor_visible.horizontal = true;
+            ensure_cursor_visible.vertical = true;
+            ImGui::SetKeyboardFocusHere(-1);  // Prevent default tab behavior
+            return;  // Exit the function to prevent further processing
+        }
         if (ctrl_pressed) {
             //select all cmd a
             if (ImGui::IsKeyPressed(ImGuiKey_A)) {
@@ -675,12 +691,6 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 ensure_cursor_visible.vertical = true;
                 ensure_cursor_visible.horizontal = true;
                 std::cout << "Ctrl+A: Selected all text" << std::endl;
-            }
-            //remove indent shift tab
-            if (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-                gEditor.removeIndentation(text, state);
-                text_changed = true;
-                ensure_cursor_visible.horizontal = true;
             }
             //cmd z undo
             if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
