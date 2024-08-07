@@ -427,22 +427,65 @@ void HandleBackspaceKey(std::string& text, std::vector<ImVec4>& colors, EditorSt
         state.is_selecting = false;
     }
 }
-
 void HandleTabKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_end) {
     if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-        // Insert a single tab character
-        text.insert(state.cursor_pos, 1, '\t');
-        colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        state.cursor_pos += 1;
-        
-        // Reset selection state
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-        
+        if (state.is_selecting) {
+            // Handle multi-line indentation
+            int start = std::min(state.selection_start, state.selection_end);
+            int end = std::max(state.selection_start, state.selection_end);
+
+            // Find the start of the first line
+            int firstLineStart = start;
+            while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
+                firstLineStart--;
+            }
+
+            // Find the end of the last line
+            int lastLineEnd = end;
+            while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
+                lastLineEnd++;
+            }
+
+            int tabsInserted = 0;
+            int lineStart = firstLineStart;
+            while (lineStart < lastLineEnd) {
+                // Insert tab at the beginning of the line
+                text.insert(lineStart, 1, '\t');
+                colors.insert(colors.begin() + lineStart, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                tabsInserted++;
+
+                // Move to the next line
+                lineStart = text.find('\n', lineStart) + 1;
+                if (lineStart == 0) break; // If we've reached the end of the text
+            }
+
+            // Adjust cursor and selection positions
+            state.cursor_pos += (state.cursor_pos >= start) ? tabsInserted : 0;
+            state.selection_start += (state.selection_start > start) ? tabsInserted : 0;
+            state.selection_end += tabsInserted;
+
+            input_end = lastLineEnd + tabsInserted;
+        } else {
+            // Insert a single tab character at cursor position
+            text.insert(state.cursor_pos, 1, '\t');
+            colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            state.cursor_pos++;
+            state.selection_start = state.selection_end = state.cursor_pos;
+            input_end = state.cursor_pos;
+        }
+
+        // Mark text as changed and update
         text_changed = true;
-        input_end = state.cursor_pos;
+        UpdateLineStarts(text, state.line_starts);
+        gFileExplorer.setUnsavedChanges(true);
+
+        // Trigger syntax highlighting for the affected area
+        gEditor.highlightContent(text, colors, 
+                                 std::min(state.selection_start, state.selection_end),
+                                 std::max(state.selection_end, input_end));
     }
 }
+
 void Editor::moveWordForward(const std::string& text, EditorState& state) {
     size_t pos = state.cursor_pos;
     size_t len = text.length();
@@ -474,44 +517,88 @@ void Editor::moveWordBackward(const std::string& text, EditorState& state) {
     state.cursor_pos = pos;
     state.selection_start = state.selection_end = pos;
 }
+
 void Editor::removeIndentation(std::string& text, EditorState& state) {
-    // Find the start of the current line
-    int lineStart = state.cursor_pos;
-    while (lineStart > 0 && text[lineStart - 1] != '\n') {
-        lineStart--;
+    int start, end;
+    if (state.is_selecting) {
+        start = std::min(state.selection_start, state.selection_end);
+        end = std::max(state.selection_start, state.selection_end);
+    } else {
+        // If no selection, work on the current line
+        start = end = state.cursor_pos;
     }
 
-    // Check for spaces or tab at the beginning of the line
-    int spacesToRemove = 0;
-    if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ") {
-        spacesToRemove = 4;
-    } else if (lineStart < text.length() && text[lineStart] == '\t') {
-        spacesToRemove = 1;
+    // Find the start of the first line
+    int firstLineStart = start;
+    while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
+        firstLineStart--;
     }
 
-    // If spaces or tab found, remove them
-    if (spacesToRemove > 0) {
-        text.erase(lineStart, spacesToRemove);
-        
-        // Adjust cursor position and selection
-        int adjustment = spacesToRemove;
-        state.cursor_pos = std::max(state.cursor_pos - adjustment, lineStart);
-        state.selection_start = std::max(state.selection_start - adjustment, lineStart);
-        state.selection_end = std::max(state.selection_end - adjustment, lineStart);
+    // Find the end of the last line
+    int lastLineEnd = end;
+    while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
+        lastLineEnd++;
+    }
 
-        // Update colors vector
-        auto& colors = gFileExplorer.getFileColors();
-        if (colors.size() > lineStart) {
-            colors.erase(colors.begin() + lineStart, colors.begin() + lineStart + spacesToRemove);
+    int totalSpacesRemoved = 0;
+    std::string newText;
+    newText.reserve(text.length());
+
+    // Copy text before the affected lines
+    newText.append(text.substr(0, firstLineStart));
+
+    // Process each line
+    size_t lineStart = firstLineStart;
+    while (lineStart <= lastLineEnd) {
+        // Check for spaces or tab at the beginning of the line
+        int spacesToRemove = 0;
+        if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ") {
+            spacesToRemove = 4;
+        } else if (lineStart < text.length() && text[lineStart] == '\t') {
+            spacesToRemove = 1;
         }
 
-        // Update line starts
-        UpdateLineStarts(text, state.line_starts);
-
-        // Mark text as changed
-        gFileExplorer.setUnsavedChanges(true);
+        // Append the line without leading indentation
+        size_t lineEnd = text.find('\n', lineStart);
+        if (lineEnd == std::string::npos || lineEnd > lastLineEnd) lineEnd = lastLineEnd;
+        newText.append(text.substr(lineStart + spacesToRemove, lineEnd - lineStart - spacesToRemove));
+        if (lineEnd < lastLineEnd) newText.push_back('\n');
+        
+        totalSpacesRemoved += spacesToRemove;
+        lineStart = lineEnd + 1;
     }
+
+    // Copy text after the affected lines
+    newText.append(text.substr(lastLineEnd));
+
+    // Update text and adjust cursor and selection
+    text = std::move(newText);
+    state.cursor_pos = std::max(state.cursor_pos - totalSpacesRemoved, firstLineStart);
+    if (state.is_selecting) {
+        state.selection_start = std::max(state.selection_start - totalSpacesRemoved, firstLineStart);
+        state.selection_end = std::max(state.selection_end - totalSpacesRemoved, firstLineStart);
+    } else {
+        state.selection_start = state.selection_end = state.cursor_pos;
+    }
+
+    // Update colors vector
+    auto& colors = gFileExplorer.getFileColors();
+    colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
+    colors.insert(colors.begin() + firstLineStart, 
+                  lastLineEnd - firstLineStart - totalSpacesRemoved, 
+                  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));  // Insert default color
+
+    // Update line starts
+    UpdateLineStarts(text, state.line_starts);
+
+    // Mark text as changed
+    gFileExplorer.setUnsavedChanges(true);
+
+    // Trigger syntax highlighting for the affected area
+    gEditor.highlightContent(text, colors, firstLineStart, lastLineEnd - totalSpacesRemoved);
 }
+
+
 
 void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed){
     int input_start = state.cursor_pos;
