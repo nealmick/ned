@@ -474,6 +474,38 @@ void Editor::moveWordBackward(const std::string& text, EditorState& state) {
     state.cursor_pos = pos;
     state.selection_start = state.selection_end = pos;
 }
+void Editor::removeIndentation(std::string& text, EditorState& state) {
+    // Find the start of the current line
+    int lineStart = state.cursor_pos;
+    while (lineStart > 0 && text[lineStart - 1] != '\n') {
+        lineStart--;
+    }
+
+    // Count the number of spaces at the beginning of the line
+    int spacesToRemove = 0;
+    int i = lineStart;
+    while (i < text.length() && (text[i] == ' ' || text[i] == '\t')) {
+        if (text[i] == '\t') {
+            spacesToRemove = 4; // Remove a full tab
+            break;
+        }
+        spacesToRemove++;
+        if (spacesToRemove == 4) break; // Remove up to 4 spaces
+        i++;
+    }
+
+    // Remove the spaces or tab
+    if (spacesToRemove > 0) {
+        text.erase(lineStart, spacesToRemove);
+        
+        // Adjust cursor position and selection
+        state.cursor_pos = std::max(state.cursor_pos - spacesToRemove, lineStart);
+        state.selection_start = std::max(state.selection_start - spacesToRemove, lineStart);
+        state.selection_end = std::max(state.selection_end - spacesToRemove, lineStart);
+    }
+}
+
+
 void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed){
     int input_start = state.cursor_pos;
     int input_end = state.cursor_pos;
@@ -637,13 +669,20 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
 
     if (ImGui::IsWindowFocused() && !state.blockInput) {
         if (ctrl_pressed) {
-            
+            //select all cmd a
             if (ImGui::IsKeyPressed(ImGuiKey_A)) {
                 SelectAllText(state, text);
                 ensure_cursor_visible.vertical = true;
                 ensure_cursor_visible.horizontal = true;
                 std::cout << "Ctrl+A: Selected all text" << std::endl;
             }
+            //remove indent shift tab
+            if (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Tab)) {
+                gEditor.removeIndentation(text, state);
+                text_changed = true;
+                ensure_cursor_visible.horizontal = true;
+            }
+            //cmd z undo
             if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
                 std::cout << "Z key pressed. Ctrl: " << ctrl_pressed << ", Shift: " << shift_pressed << std::endl;
                 
@@ -683,6 +722,7 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 
                 gFileExplorer.currentUndoManager->printStacks();  // Print stack sizes for debugging
             }
+            //cmd w next word
             if (ImGui::IsKeyPressed(ImGuiKey_W)) {
                 if (shift_pressed) {
                     gEditor.moveWordBackward(text, state);
@@ -692,6 +732,7 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 ensure_cursor_visible.horizontal = true;
                 ensure_cursor_visible.vertical = true;
             }
+            //left
             else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
                 // Jump to start of line
                 int current_line = GetLineFromPos(state.line_starts, state.cursor_pos);
@@ -699,6 +740,7 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 ensure_cursor_visible.horizontal = true;
                 std::cout << "Ctrl/Cmd+Left: Cursor moved to " << state.cursor_pos << std::endl;
             }
+            //right
             else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
                 // Jump to end of line
                 int current_line = GetLineFromPos(state.line_starts, state.cursor_pos);
@@ -711,15 +753,15 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
                 ensure_cursor_visible.horizontal = true;
                 std::cout << "Ctrl+Right: Cursor moved to " << state.cursor_pos << std::endl;
             }
+            //up
             else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-                // Jump 5 lines up
                 MoveCursorVertically(text, state, -5);
                 ensure_cursor_visible.vertical = true;
                 ensure_cursor_visible.horizontal = true;
                 std::cout << "Ctrl+Up: Cursor moved 5 lines up to " << state.cursor_pos << std::endl;
             }
+            //down
             else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-                // Jump 5 lines down
                 MoveCursorVertically(text, state, 5);
                 ensure_cursor_visible.vertical = true;
                 ensure_cursor_visible.horizontal = true;

@@ -43,7 +43,9 @@ public:
     
     void moveWordForward(const std::string& text, EditorState& state);
     void moveWordBackward(const std::string& text, EditorState& state);
+    void removeIndentation(std::string& text, EditorState& state);
 
+    
 private:
     std::vector<SyntaxRule> rules;
     std::vector<SyntaxRule> htmlRules;
