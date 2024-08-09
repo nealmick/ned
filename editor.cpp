@@ -344,19 +344,27 @@ void HandleCharacterInput(std::string& text, std::vector<ImVec4>& colors, Editor
         if (state.selection_start != state.selection_end) {
             int start = GetSelectionStart(state);
             int end = GetSelectionEnd(state);
+            if (start < 0 || end > static_cast<int>(text.size()) || start > end) {
+                std::cerr << "Error: Invalid selection range in HandleCharacterInput" << std::endl;
+                return;
+            }
             text.erase(start, end - start);
             colors.erase(colors.begin() + start, colors.begin() + end);
             state.cursor_pos = start;
         }
         
         // Insert new text
+        if (state.cursor_pos < 0 || state.cursor_pos > static_cast<int>(text.size())) {
+            std::cerr << "Error: Invalid cursor position in HandleCharacterInput" << std::endl;
+            return;
+        }
         text.insert(state.cursor_pos, input);
         colors.insert(colors.begin() + state.cursor_pos, input.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         state.cursor_pos += input.size();
         
         // Reset selection state
         state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;  // Add this line to ensure selection mode is turned off
+        state.is_selecting = false;
         
         text_changed = true;
         input_end = state.cursor_pos;
@@ -645,9 +653,14 @@ void RenderTextWithSelection(ImDrawList* draw_list, const ImVec2& pos, const std
     int selection_start = GetSelectionStart(state);
     int selection_end = GetSelectionEnd(state);
 
-    for (int i = 0; i < text.size(); i++) {
+    for (size_t i = 0; i < text.size(); i++) {
+        if (i >= colors.size()) {
+            std::cerr << "Error: Color index out of bounds in RenderTextWithSelection" << std::endl;
+            break;
+        }
+
         if (text[i] == '\n') {
-            text_pos.x = pos.x; // Reset x to the original position (including left margin)
+            text_pos.x = pos.x;
             text_pos.y += line_height;
         } else {
             if (i >= selection_start && i < selection_end) {
@@ -663,7 +676,6 @@ void RenderTextWithSelection(ImDrawList* draw_list, const ImVec2& pos, const std
         }
     }
 }
-
 void RenderCursor(ImDrawList* draw_list, const ImVec2& cursor_screen_pos, float line_height, bool rainbow_cursor, float blink_time) {
     float blink_alpha = (sinf(blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
     ImU32 cursor_color;
@@ -1086,7 +1098,11 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
     std::cout << "start_pos: " << start_pos << ", end_pos: " << end_pos 
               << ", content size: " << content.size() << std::endl;
-
+    if (content.size() != colors.size()) {
+        std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
+                  << ", colors: " << colors.size() << std::endl;
+        return;
+    }
     if (highlightingInProgress) {
         // If a highlighting task is already in progress, we'll wait for it to finish
         if (highlightFuture.valid()) {
