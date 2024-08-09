@@ -7,7 +7,7 @@
 #include <future>
 #include <atomic>
 #include <mutex>
-
+//
 
 struct SyntaxRule {
     std::regex pattern;

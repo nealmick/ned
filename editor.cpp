@@ -701,6 +701,9 @@ int GetCharIndexFromCoords(const std::string& text, const ImVec2& click_pos, con
     
     return line_end;
 }
+
+
+
 void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, float scroll_y, float window_height, const EditorState& editor_state, float blink_time, bool rainbow_mode) {
     static char line_number_buffer[16];
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -747,6 +750,11 @@ void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, floa
         draw_list->AddText(ImVec2(pos.x, y_pos), line_number_color, line_number_buffer);
     }
 }
+
+
+
+
+
 float CalculateTextWidth(const std::string& text, const std::vector<int>& line_starts) {
     float max_width = 0.0f;
     for (size_t i = 0; i < line_starts.size(); ++i) {
