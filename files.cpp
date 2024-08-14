@@ -310,6 +310,14 @@ void FileExplorer::loadFileContent(const std::string& path) {
             currentOpenFile = path;
         }
         _unsavedChanges = false;
+        
+        // Resize fileColors to match fileContent
+        fileColors.clear();
+        fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        if (fileContent.size() != fileColors.size()) {
+            std::cerr << "Error: Mismatch between fileContent and fileColors size after loading" << std::endl;
+            return;
+        }
         auto it = fileUndoManagers.find(path);
         if (it == fileUndoManagers.end()) {
             it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
@@ -318,14 +326,16 @@ void FileExplorer::loadFileContent(const std::string& path) {
             std::cout << "Using existing UndoRedoManager for " << path << std::endl;
         }
         currentUndoManager = &(it->second);
-        //currentUndoManager->addState(fileContent);
 
         std::string extension = fs::path(path).extension().string();
         gEditor.setLanguage(extension);
         
-        fileColors.clear();
-        fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        // Check if fileContent and fileColors have the same size before highlighting
+        if (fileContent.size() == fileColors.size()) {
+            gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        } else {
+            std::cerr << "Error: fileContent and fileColors size mismatch" << std::endl;
+        }
 
         std::cout << "Loaded file: " << path << std::endl;
         std::cout << "File size: " << fileContent.size() << std::endl;
