@@ -3,6 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include "files.h"
+#include "bookmarks.h"
 
 int GetCharIndexFromCoords(const std::string& text, const ImVec2& click_pos, const ImVec2& text_start_pos, const std::vector<int>& line_starts, float line_height);
 
@@ -782,6 +783,8 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
     if (ImGui::IsWindowFocused() && !state.blockInput) {
+        //bookmarks
+        gBookmarks.handleBookmarkInput(gFileExplorer, state);
         //remove indent shift tab
         if (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {  // false to not repeat
             gEditor.removeIndentation(text, state);
@@ -1096,13 +1099,36 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
     return text_changed;
 }
 void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
-    std::cout << "start_pos: " << start_pos << ", end_pos: " << end_pos 
-              << ", content size: " << content.size() << std::endl;
-    if (content.size() != colors.size()) {
-        std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
-                  << ", colors: " << colors.size() << std::endl;
+    std::cout << "Entering highlightContent. content size: " << content.size() 
+              << ", colors size: " << colors.size() 
+              << ", start_pos: " << start_pos 
+              << ", end_pos: " << end_pos << std::endl;
+
+    if (content.empty()) {
+        std::cerr << "Error: Empty content in highlightContent" << std::endl;
         return;
     }
+
+    if (colors.empty()) {
+        std::cerr << "Error: Empty colors vector in highlightContent" << std::endl;
+        return;
+    }
+
+    if (content.size() != colors.size()) {
+        std::cerr << "Error: Mismatch between content and colors size in highlightContent" << std::endl;
+        return;
+    }
+
+    if (start_pos < 0 || start_pos >= static_cast<int>(content.size())) {
+        std::cerr << "Error: Invalid start_pos in highlightContent" << std::endl;
+        return;
+    }
+
+    if (end_pos < start_pos || end_pos > static_cast<int>(content.size())) {
+        std::cerr << "Error: Invalid end_pos in highlightContent" << std::endl;
+        return;
+    }
+
     if (highlightingInProgress) {
         // If a highlighting task is already in progress, we'll wait for it to finish
         if (highlightFuture.valid()) {
@@ -1169,8 +1195,30 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
         highlightingInProgress = false;
     });
 }
-
 void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules) {
+    std::cout << "Entering applyRules. view size: " << view.size() 
+              << ", colors size: " << colors.size() 
+              << ", start_pos: " << start_pos << std::endl;
+
+    if (view.empty()) {
+        std::cerr << "Error: Empty view in applyRules" << std::endl;
+        return;
+    }
+
+    if (colors.empty()) {
+        std::cerr << "Error: Empty colors vector in applyRules" << std::endl;
+        return;
+    }
+
+    if (start_pos < 0 || start_pos >= static_cast<int>(colors.size())) {
+        std::cerr << "Error: Invalid start_pos in applyRules" << std::endl;
+        return;
+    }
+
+    if (start_pos + view.length() > colors.size()) {
+        std::cerr << "Error: View extends beyond colors vector in applyRules" << std::endl;
+        return;
+    }
     if (start_pos < 0 || start_pos >= static_cast<int>(colors.size())) {
         std::cerr << "Error: Invalid start_pos in applyRules. start_pos: " << start_pos 
                   << ", colors size: " << colors.size() << std::endl;
