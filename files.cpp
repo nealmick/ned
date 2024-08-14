@@ -232,7 +232,7 @@ void FileExplorer::displayFileTree(FileNode& node) {
         ImGui::SetCursorPosX(ImGui::GetItemRectMin().x);
         ImGui::Image(icon, ImVec2(icon_width, icon_width));
         ImGui::SameLine(0, icon_spacing);
-        bool useRainbowEffect = false;
+        bool useRainbowEffect = true;
         // Use rainbow color for the active file
         if (node.fullPath == currentOpenFile) {
         ImVec4 fileColor;
@@ -432,14 +432,22 @@ void FileExplorer::renderFileContent() {
     
     if (editor_state.activateFindBox) {
         ImGui::SetNextItemWidth(-1);
+        
+        // Push the new style color for the input text background
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // Dark gray background
+        
         static char inputBuffer[256] = "";
         ImGui::SetKeyboardFocusHere();
         ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
+        
         if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags)) {
             findText = inputBuffer;
             lastFoundPos = std::string::npos;  // Reset lastFoundPos for new search
             findNext();
         }
+        
+        // Pop the style color to restore the original color
+        ImGui::PopStyleColor();
         
         bool shift_pressed = ImGui::GetIO().KeyShift;
         if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
@@ -457,8 +465,6 @@ void FileExplorer::renderFileContent() {
             editor_state.blockInput = false;
         }
     }
-
-
 
     // Always render the editor
     bool text_changed = CustomTextEditor("##editor", fileContent, fileColors, editor_state);

@@ -781,10 +781,10 @@ float CalculateTextWidth(const std::string& text, const std::vector<int>& line_s
 void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text_start_pos, float line_height, bool& text_changed, std::vector<ImVec4>& colors, CursorVisibility& ensure_cursor_visible) {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     bool shift_pressed = ImGui::GetIO().KeyShift;
-
+    //bookmarks
+    gBookmarks.handleBookmarkInput(gFileExplorer, state);
     if (ImGui::IsWindowFocused() && !state.blockInput) {
-        //bookmarks
-        gBookmarks.handleBookmarkInput(gFileExplorer, state);
+        
         //remove indent shift tab
         if (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {  // false to not repeat
             gEditor.removeIndentation(text, state);
@@ -999,7 +999,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
     ImGui::SetNextWindowContentSize(ImVec2(content_width, 0.0f));
     ImGui::BeginChild(label, ImVec2(remaining_width, size.y), false, ImGuiWindowFlags_HorizontalScrollbar);
     // Set keyboard focus to this child window
-    if (!editor_state.blockInput) {
+    if (!gBookmarks.isWindowOpen() && !editor_state.blockInput) {
         if (ImGui::IsWindowAppearing() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive())) {
             ImGui::SetKeyboardFocusHere();
         }
@@ -1271,11 +1271,15 @@ void Editor::applyRules(const std::string& view, std::vector<ImVec4>& colors, in
     }
 }
 // Syntax highlighting functions
+
 void Editor::setLanguage(const std::string& extension) {
     std::cout << "Setting language for extension: " << extension << std::endl;
     setupHtmlRules();
     setupJavaScriptRules();
     setupCssRules();
+    setupGoRules();
+    setupJavaRules();
+    setupCSharpRules();
     
     if (extension == ".cpp" || extension == ".h") {
         setupCppRules();
@@ -1295,6 +1299,12 @@ void Editor::setLanguage(const std::string& extension) {
     } else if (extension == ".json") {
         setupJsonRules();
         rules = jsonRules;
+    } else if (extension == ".go") {
+        rules = goRules;
+    } else if (extension == ".java") {
+        rules = javaRules;
+    } else if (extension == ".cs") {
+        rules = csharpRules;
     } else {
         // Default to no syntax highlighting
         rules.clear();
@@ -1303,6 +1313,44 @@ void Editor::setLanguage(const std::string& extension) {
 void Editor::setTheme(const std::string& themeName) {
     loadTheme(themeName);
 }
+
+
+void Editor::setupGoRules() {
+    goRules = {
+        {std::regex(R"(\b(package|import|func|return|defer|go|select|interface|struct|map|chan|const|var|type|for|range|if|else|switch|case|default|break|continue|goto|fallthrough)\b)"), themeColors["keyword"]},
+        {std::regex(R"(\b(string|int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|float32|float64|complex64|complex128|byte|rune|bool|error)\b)"), themeColors["type"]},
+        {std::regex(R"("(?:\\.|[^\\"])*")"), themeColors["string"]},
+        {std::regex(R"('(?:\\.|[^\\'])')"), themeColors["char"]},
+        {std::regex(R"(\b\d+(\.\d+)?([eE][+-]?\d+)?\b)"), themeColors["number"]},
+        {std::regex(R"(//.*|/\*[\s\S]*?\*/)"), themeColors["comment"]},
+        {std::regex(R"(\b[A-Z][A-Za-z0-9]*\b)"), themeColors["class"]},
+    };
+}
+
+void Editor::setupJavaRules() {
+    javaRules = {
+        {std::regex(R"(\b(abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|native|new|package|private|protected|public|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while)\b)"), themeColors["keyword"]},
+        {std::regex(R"(\b(true|false|null)\b)"), themeColors["constant"]},
+        {std::regex(R"("(?:\\.|[^\\"])*")"), themeColors["string"]},
+        {std::regex(R"('(?:\\.|[^\\'])')"), themeColors["char"]},
+        {std::regex(R"(\b\d+(\.\d+)?([eE][+-]?\d+)?\b)"), themeColors["number"]},
+        {std::regex(R"(//.*|/\*[\s\S]*?\*/)"), themeColors["comment"]},
+        {std::regex(R"(\b[A-Z][A-Za-z0-9]*\b)"), themeColors["class"]},
+    };
+}
+
+void Editor::setupCSharpRules() {
+    csharpRules = {
+        {std::regex(R"(\b(abstract|as|base|bool|break|byte|case|catch|char|checked|class|const|continue|decimal|default|delegate|do|double|else|enum|event|explicit|extern|false|finally|fixed|float|for|foreach|goto|if|implicit|in|int|interface|internal|is|lock|long|namespace|new|null|object|operator|out|override|params|private|protected|public|readonly|ref|return|sbyte|sealed|short|sizeof|stackalloc|static|string|struct|switch|this|throw|true|try|typeof|uint|ulong|unchecked|unsafe|ushort|using|virtual|void|volatile|while)\b)"), themeColors["keyword"]},
+        {std::regex(R"(\b(var|dynamic|async|await)\b)"), themeColors["keyword2"]},
+        {std::regex(R"("(?:\\.|[^\\"])*")"), themeColors["string"]},
+        {std::regex(R"('(?:\\.|[^\\'])')"), themeColors["char"]},
+        {std::regex(R"(\b\d+(\.\d+)?([eE][+-]?\d+)?\b)"), themeColors["number"]},
+        {std::regex(R"(//.*|/\*[\s\S]*?\*/)"), themeColors["comment"]},
+        {std::regex(R"(\b[A-Z][A-Za-z0-9]*\b)"), themeColors["class"]},
+    };
+}
+
 void Editor::setupCppRules() {
     cppRules = {
         {std::regex(R"(\b(int|float|double|char|void|bool|auto|const|static|struct|class|namespace|using|return|if|else|for|while|do|switch|case|break|continue|true|false|nullptr)\b)"), themeColors["keyword"]},
