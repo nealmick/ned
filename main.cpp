@@ -159,6 +159,9 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::End();
+    gBookmarks.renderBookmarksWindow();
+
+
 }
 void updateFileExplorer() {
     static float last_refresh_time = 0.0f;
