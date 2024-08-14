@@ -19,6 +19,9 @@
 #include <filesystem>
 #include <unistd.h>
 #include <chrono>
+#include "bookmarks.h"
+Bookmarks gBookmarks;
+
 
 float Clamp(float value, float min, float max) {
     if (value < min) return min;
@@ -172,7 +175,7 @@ int main() {
     GLFWwindow* window = CreateWindow();
     InitializeImGui(window);
 
-    gSettings.loadSettings();
+    gSettings.loadSettings();   
     gEditor.setTheme(gSettings.getCurrentTheme());
 
     bool windowFocused = true;
@@ -267,7 +270,6 @@ int main() {
 
         last_frame_time = frame_start;
     }
-
     gSettings.saveSettings();
     gFileExplorer.saveCurrentFile();
 
