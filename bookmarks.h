@@ -1,5 +1,4 @@
 #pragma once
-
 #include <array>
 #include <string>
 #include "editor.h"
@@ -54,23 +53,21 @@ public:
             return;
         }
 
-        if (!showBookmarksWindow) {  // Only handle number keys when bookmarks window is closed
-            const ImGuiKey numberKeys[9] = {
-                ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5,
-                ImGuiKey_6, ImGuiKey_7, ImGuiKey_8, ImGuiKey_9
-            };
+        const ImGuiKey numberKeys[9] = {
+            ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5,
+            ImGuiKey_6, ImGuiKey_7, ImGuiKey_8, ImGuiKey_9
+        };
 
-            for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
-                if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
-                    if (shift_pressed || alt_pressed) {
-                        setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_pos, editorState.current_line);
-                        std::cout << "Bookmark " << (i + 1) << " set at line " << editorState.current_line << std::endl;
+        for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
+            if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
+                if (shift_pressed || alt_pressed) {
+                    setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_pos, editorState.current_line);
+                    std::cout << "Bookmark " << (i + 1) << " set at line " << editorState.current_line << std::endl;
+                } else {
+                    if (jumpToBookmark(i, fileExplorer, editorState)) {
+                        std::cout << "Jumped to bookmark " << (i + 1) << std::endl;
                     } else {
-                        if (jumpToBookmark(i, fileExplorer, editorState)) {
-                            std::cout << "Jumped to bookmark " << (i + 1) << std::endl;
-                        } else {
-                            std::cout << "Bookmark " << (i + 1) << " not set" << std::endl;
-                        }
+                        std::cout << "Bookmark " << (i + 1) << " not set" << std::endl;
                     }
                 }
             }
