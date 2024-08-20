@@ -298,7 +298,7 @@ void FileExplorer::refreshSyntaxHighlighting() {
 }
 void FileExplorer::loadFileContent(const std::string& path) {
     saveCurrentFile(); // Save the current file before loading a new one
-
+    gEditor.cancelHighlighting(); // Cancel any ongoing highlighting
     std::ifstream file(path);
     if (file) {
         std::stringstream buffer;

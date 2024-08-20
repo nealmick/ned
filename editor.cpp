@@ -126,10 +126,11 @@ ScrollChange EnsureCursorVisible(const ImVec2& text_pos, const std::string& text
 
 
 void SelectAllText(EditorState& state, const std::string& text) {
+    const size_t MAX_SELECTION_SIZE = 100000; // Adjust this value as needed
     state.is_selecting = true;
     state.selection_start = 0;
-    state.cursor_pos = text.size(); // Move cursor to the end of the file
-    state.selection_end = text.size();
+    state.cursor_pos = std::min(text.size(), MAX_SELECTION_SIZE);
+    state.selection_end = state.cursor_pos;
 }
 void CutSelectedText(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed) {
     if (state.selection_start != state.selection_end) {
@@ -375,7 +376,7 @@ void HandleCharacterInput(std::string& text, std::vector<ImVec4>& colors, Editor
 void HandleEnterKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_end) {
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         text.insert(state.cursor_pos, 1, '\n');
-        colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        colors.insert(colors.begin() + state.cursor_pos-1, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         state.cursor_pos++;
         
         // Reset selection state
@@ -389,18 +390,18 @@ void HandleEnterKey(std::string& text, std::vector<ImVec4>& colors, EditorState&
 void HandleDeleteKey(std::string& text, std::vector<ImVec4>& colors, EditorState& state, bool& text_changed, int& input_end) {
     if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
         if (state.selection_start != state.selection_end) {
-            // There's a selection, delete it
+			// There's a selection, delete it
             int start = GetSelectionStart(state);
-            int end = GetSelectionEnd(state);
+			int end = GetSelectionEnd(state);
             text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
+            colors.erase(colors.begin() + start, colors.begin() + end -1);
             state.cursor_pos = start;
             text_changed = true;
             input_end = start;
         } else if (state.cursor_pos < text.size()) {
             // No selection, delete the character at cursor position
             text.erase(state.cursor_pos, 1);
-            colors.erase(colors.begin() + state.cursor_pos);
+            colors.erase(colors.begin() + state.cursor_pos -1);
             text_changed = true;
             input_end = state.cursor_pos + 1;
         }
@@ -636,7 +637,7 @@ void HandleTextInput(std::string& text, std::vector<ImVec4>& colors, EditorState
         int line_start = state.line_starts[GetLineFromPos(state.line_starts, input_start)];
         
         // Get the end of the line where the change ended (or the end of the text if it's the last line)
-        int line_end = input_end < text.size() ? state.line_starts[GetLineFromPos(state.line_starts, input_end) + 1] : text.size();
+        int line_end = input_end < text.size() ? state.line_starts[GetLineFromPos(state.line_starts, input_end) ] : text.size();
         
         // Update syntax highlighting only for the affected lines
         gEditor.highlightContent(text, colors, line_start, line_end);
@@ -653,7 +654,15 @@ void RenderTextWithSelection(ImDrawList* draw_list, const ImVec2& pos, const std
     ImVec2 text_pos = pos;
     int selection_start = GetSelectionStart(state);
     int selection_end = GetSelectionEnd(state);
+    const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
 
+    // Calculate visible range
+    float scroll_y = ImGui::GetScrollY();
+    float window_height = ImGui::GetWindowHeight();
+    int start_line = static_cast<int>(scroll_y / line_height);
+    int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
+
+    int current_line = 0;
     for (size_t i = 0; i < text.size(); i++) {
         if (i >= colors.size()) {
             std::cerr << "Error: Color index out of bounds in RenderTextWithSelection" << std::endl;
@@ -661,10 +670,16 @@ void RenderTextWithSelection(ImDrawList* draw_list, const ImVec2& pos, const std
         }
 
         if (text[i] == '\n') {
+            current_line++;
+            if (current_line > end_line) break; // Stop if we've passed the visible area
             text_pos.x = pos.x;
             text_pos.y += line_height;
-        } else {
-            if (i >= selection_start && i < selection_end) {
+        } else if (current_line >= start_line && current_line <= end_line) {
+            // Only render if we're in the visible range
+            bool should_highlight = (i >= selection_start && i < selection_end &&
+                                     (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
+            
+            if (should_highlight) {
                 ImVec2 sel_start = text_pos;
                 ImVec2 sel_end = ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i+1]).x, text_pos.y + line_height);
                 draw_list->AddRectFilled(sel_start, sel_end, IM_COL32(100, 100, 200, 100));
@@ -778,6 +793,8 @@ float CalculateTextWidth(const std::string& text, const std::vector<int>& line_s
     }
     return max_width;
 }
+
+
 void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text_start_pos, float line_height, bool& text_changed, std::vector<ImVec4>& colors, CursorVisibility& ensure_cursor_visible) {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -996,8 +1013,10 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     float remaining_width = size.x - line_number_width;
     float content_width = CalculateTextWidth(text, editor_state.line_starts);
-    ImGui::SetNextWindowContentSize(ImVec2(content_width, 0.0f));
+    float content_height = editor_state.line_starts.size() * line_height;
+    ImGui::SetNextWindowContentSize(ImVec2(content_width, content_height));
     ImGui::BeginChild(label, ImVec2(remaining_width, size.y), false, ImGuiWindowFlags_HorizontalScrollbar);
+
     // Set keyboard focus to this child window
     if (!gBookmarks.isWindowOpen() && !editor_state.blockInput) {
         if (ImGui::IsWindowAppearing() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive())) {
@@ -1098,6 +1117,17 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     return text_changed;
 }
+
+
+void Editor::cancelHighlighting() {
+    cancelHighlightFlag = true;
+    if (highlightFuture.valid()) {
+        highlightFuture.wait();
+    }
+    cancelHighlightFlag = false;
+}
+
+
 void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos) {
     std::cout << "Entering highlightContent. content size: " << content.size() 
               << ", colors size: " << colors.size() 
@@ -1136,8 +1166,10 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
         }
     }
 
+    cancelHighlightFlag = false;
     highlightingInProgress = true;
     highlightFuture = std::async(std::launch::async, [this, content, &colors, start_pos, end_pos]() {
+
         if (content.size() != colors.size()) {
             std::cerr << "Error: content and colors size mismatch. content: " << content.size() 
                       << ", colors: " << colors.size() << std::endl;
