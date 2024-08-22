@@ -37,11 +37,11 @@ public:
             }
             editorState.cursor_pos = bookmarks[slot].cursorPosition;
             editorState.current_line = bookmarks[slot].lineNumber;
+            editorState.ensure_cursor_visible_frames = 5;  // Set to ensure visibility for 5 frames
             return true;
         }
         return false;
     }
-  
     inline void handleBookmarkInput(FileExplorer& fileExplorer, EditorState& editorState) {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
