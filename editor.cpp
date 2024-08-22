@@ -767,7 +767,7 @@ void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, floa
         snprintf(line_number_buffer, sizeof(line_number_buffer), "%3d", i + 1);
         
         ImU32 line_number_color;
-        if (i >= selection_start_line && i <= selection_end_line && editor_state.is_selecting) {
+        if (i >= selection_start_line && i < selection_end_line && editor_state.is_selecting) {
             line_number_color = selected_line_color;
         } else if (i == editor_state.current_line) {
             line_number_color = rainbow_mode ? rainbow_color : current_line_color;
@@ -969,6 +969,7 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
         ensure_cursor_visible.horizontal = true;
     }
 }
+
 bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>& colors, EditorState& editor_state) {
     if (colors.size() != text.size()) {
         std::cout << "Warning: colors vector size (" << colors.size() 
@@ -1065,7 +1066,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
         }
     }
 
-    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal) {
+    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal || editor_state.ensure_cursor_visible_frames > 0 ) {
         ScrollChange scroll_change = EnsureCursorVisible(text_pos, text, editor_state, line_height, size.y, size.x);
         if (scroll_change.vertical) {
             current_scroll_y = editor_state.scroll_pos.y;
@@ -1073,6 +1074,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
         if (scroll_change.horizontal) {
             current_scroll_x = editor_state.scroll_x;
         }
+        editor_state.ensure_cursor_visible_frames--;
     }
 
     // Apply the calculated scroll position
@@ -1108,7 +1110,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     // Render line numbers with clipping
     ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
-   RenderLineNumbers(line_numbers_pos, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, true);
+    RenderLineNumbers(line_numbers_pos, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, true);
     ImGui::PopClipRect();
 
     ImGui::EndGroup();
@@ -1125,6 +1127,7 @@ void Editor::cancelHighlighting() {
         highlightFuture.wait();
     }
     cancelHighlightFlag = false;
+
 }
 
 

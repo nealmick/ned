@@ -27,8 +27,9 @@ struct EditorState {
     bool activateFindBox;
     bool blockInput;
     bool full_text_selected;
+    int ensure_cursor_visible_frames;
     EditorState()
-        : cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
+        :  ensure_cursor_visible_frames(0),cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
         line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true),
         cursor_blink_time(0.0f), activateFindBox(false), blockInput(false), current_line(0) {}
 };
@@ -51,6 +52,7 @@ public:
     void moveWordBackward(const std::string& text, EditorState& state);
     void removeIndentation(std::string& text, EditorState& state);
     void cancelHighlighting();
+    
 private:
     std::vector<SyntaxRule> rules;
     std::vector<SyntaxRule> htmlRules;
