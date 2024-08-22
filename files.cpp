@@ -296,9 +296,14 @@ void FileExplorer::refreshSyntaxHighlighting() {
         gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
     }
 }
+
 void FileExplorer::loadFileContent(const std::string& path) {
     saveCurrentFile(); // Save the current file before loading a new one
     gEditor.cancelHighlighting(); // Cancel any ongoing highlighting
+    editor_state.cursor_pos = 0;
+    editor_state.current_line = 0;
+    
+    
     std::ifstream file(path);
     if (file) {
         std::stringstream buffer;
@@ -326,7 +331,8 @@ void FileExplorer::loadFileContent(const std::string& path) {
             std::cout << "Using existing UndoRedoManager for " << path << std::endl;
         }
         currentUndoManager = &(it->second);
-
+        currentUndoManager->addState(fileContent, 0, fileContent.size());
+        
         std::string extension = fs::path(path).extension().string();
         gEditor.setLanguage(extension);
         
