@@ -1206,12 +1206,23 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
             highlightingInProgress = false;
             return;
         }
+        std::string view = content.substr(start_pos, end_pos - start_pos);
 
-        std::string view = content.substr(local_start_pos, local_end_pos - local_start_pos);
+        std::string extension = fs::path(gFileExplorer.getCurrentFile()).extension().string();
+        std::cout << "File extension: " << extension << std::endl;
 
-        {
-            std::lock_guard<std::mutex> lock(colorsMutex);
-            applyRules(view, colors, local_start_pos, rules);
+        if (extension == ".py") {
+            std::cout << "Applying Python highlighting" << std::endl;
+            try {
+                pythonLexer.applyHighlighting(view, colors, start_pos);
+                std::cout << "Python highlighting completed" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error in Python highlighting: " << e.what() << std::endl;
+                std::fill(colors.begin() + start_pos, colors.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+        } else {
+            std::cout << "Applying regular highlighting rules" << std::endl;
+            applyRules(view, colors, start_pos, rules);
         }
 
         std::regex scriptTag(R"(<script\b[^>]*>([\s\S]*?)</script>)");
@@ -1336,8 +1347,7 @@ void Editor::setLanguage(const std::string& extension) {
         setupCppRules();
         rules = cppRules;
     } else if (extension == ".py") {
-        setupPythonRules();
-        rules = pythonRules;
+        //custom lexer.. no rules here
     } else if (extension == ".js") {
         rules = javascriptRules;
     } else if (extension == ".md") {
@@ -1409,51 +1419,6 @@ void Editor::setupCppRules() {
         {std::regex(R"(\b[0-9]+\b)"), themeColors["number"]},
         {std::regex(R"(//.*|/\*[\s\S]*?\*/)"), themeColors["comment"]},
     };
-}
-
-void Editor::setupPythonRules() {
-    pythonRules = {
-        
-        // Keywords
-        {std::regex(R"(\b(def|class|if|else|elif|for|while|try|except|finally|with|as|import|from|return|and|or|not|in|is|lambda|None|True|False|async|await)\b)"), themeColors["keyword"]},
-        
-        // Self and cls
-        {std::regex(R"(\b(self|cls)\b)"), themeColors["self"]},
-        
-        // Multiline strings (triple-quoted)
-        {std::regex(R"('''[\s\S]*?'''|"""[\s\S]*?""")"), themeColors["multiline_string"]},
-        
-        // Single-line strings
-        {std::regex(R"("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')"), themeColors["string"]},
-        
-        // Numbers
-        {std::regex(R"(\b\d+(\.\d*)?([eE][+-]?\d+)?\b)"), themeColors["number"]},
-        
-        // Built-in functions
-        {std::regex(R"(\b(print|len|range|list|dict|set|tuple|int|float|str|bool|abs|all|any|chr|dir|divmod|enumerate|filter|hex|id|input|isinstance|map|max|min|oct|ord|pow|repr|round|sorted|sum|zip)\b)"), themeColors["builtin"]},
-        
-        // Decorators
-        {std::regex(R"(^@\w+)"), themeColors["decorator"]},
-        // Comments (moved to the top to ensure they're not overwritten)
-        {std::regex(R"(#[^\n]*)"), themeColors["comment"]},
-        // Function calls
-        {std::regex(R"(\b\w+(?=\s*\())"), themeColors["function"]},
-    };
-
-    // Ensure we have all necessary colors
-    std::vector<std::string> requiredColors = {"text", "comment", "keyword", "self", "multiline_string", "string", "number", "builtin", "decorator", "function"};
-    for (const auto& color : requiredColors) {
-        if (themeColors.find(color) == themeColors.end()) {
-            themeColors[color] = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);  // Default to light grey if not found
-        }
-    }
-
-    std::cout << "Python rules set up with " << pythonRules.size() << " rules." << std::endl;
-    for (const auto& [key, color] : themeColors) {
-        std::cout << "Theme color '" << key << "': (" 
-                << color.x << ", " << color.y << ", " 
-                << color.z << ", " << color.w << ")" << std::endl;
-    }
 }
 
 
