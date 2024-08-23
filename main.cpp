@@ -197,6 +197,7 @@ int main() {
     auto last_frame_time = std::chrono::high_resolution_clock::now();
 
     float explorerWidth = 0.0f, editorWidth = 0.0f;
+    bool needFontReload = false;
 
     while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
@@ -233,12 +234,8 @@ int main() {
                 gFileExplorer.refreshSyntaxHighlighting();
                 gSettings.resetThemeChanged();
             }
-            if (gSettings.hasFontChanged()) {
-                ImGui::GetIO().Fonts->Clear();
-                currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
-                ImGui::GetIO().Fonts->Build();
-                ImGui_ImplOpenGL3_CreateFontsTexture();
-                gSettings.resetFontChanged();
+            if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged()) {
+                needFontReload = true;
             }
             gSettings.resetSettingsChanged();
         }
@@ -263,6 +260,18 @@ int main() {
         glViewport(0, 0, display_w, display_h);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        if (needFontReload) {
+            ImGui_ImplOpenGL3_DestroyFontsTexture();
+            ImGui::GetIO().Fonts->Clear();
+            currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getFontSize());
+            ImGui::GetIO().Fonts->Build();
+            ImGui_ImplOpenGL3_CreateFontsTexture();
+            gSettings.resetFontChanged();
+            gSettings.resetFontSizeChanged();
+            needFontReload = false;
+        }
+
         glfwSwapBuffers(window);
 
         auto frame_end = std::chrono::high_resolution_clock::now();
