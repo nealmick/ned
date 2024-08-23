@@ -812,6 +812,22 @@ void HandleEditorInput(std::string& text, EditorState& state, const ImVec2& text
             return;  // Exit the function to prevent further processing
         }
         if (ctrl_pressed) {
+            if (ImGui::IsKeyPressed(ImGuiKey_Equal)) {  // '+' key
+                float currentSize = gSettings.getFontSize();
+                gSettings.setFontSize(currentSize + 2.0f);
+                ensure_cursor_visible.vertical = true;
+                ensure_cursor_visible.horizontal = true;
+                std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_Minus)) {  // '-' key
+                float currentSize = gSettings.getFontSize();
+                gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));  // Prevent font size from becoming too small
+                ensure_cursor_visible.vertical = true;
+                ensure_cursor_visible.horizontal = true;
+                std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
+            }
+        }
+        if (ctrl_pressed) {
             //select all cmd a
             if (ImGui::IsKeyPressed(ImGuiKey_A)) {
                 SelectAllText(state, text);
