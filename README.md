@@ -6,6 +6,7 @@ NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offe
 
 #### Features
 - Resizable panes
+- Bookmarks
 - Custom themes with JSON settings file
 - Find and Replace
 - File Tree Explorer
@@ -21,7 +22,6 @@ C++17 compatible compiler
 OpenGL
 GLFW3
 
-Cloning the Repository
 
 Clone the repository with its submodules:
 ```sh
@@ -45,13 +45,16 @@ make
 
 
 Configuration
-NED uses a JSON configuration file located at ~/.ned.json You can modify this file to change themes, font sizes, and other editor preferences.
+NED uses a JSON configuration file in your home folder ~/.ned.json You can modify this file to change themes, font sizes, and other editor preferences.
 
 
-Contributing
+
 Contributions are welcome! 
 
 TODO:
- - Tokenizer to reduce the number of syntax operations by grouping together
- - Write lexer to replace regex syntax logic
- - Multi-cursor
+ - Tokenizer: add more langues currently only python is supported, all other languages are  highligted single character at a time.  
+ - Lexer:  add more languages currently only python is supported, all other languages use basic regex patterns to detirmine syntax colors.
+ - Multi-cursor:  add keybind to create cursor at end of all find selection
+ - Selection keybinds: currently cmd-a selects full file, but cmd-shift-a would be nice to select current indentation or current {} [] () "" '' `` blocks...
+ - Jump to function definition with cmd click.
+ - shift click select from old cursor positon to click position.
