@@ -7,7 +7,7 @@
 #include <future>
 #include <atomic>
 #include <mutex>
-
+#include "lexers/python.h"
 
 struct SyntaxRule {
     std::regex pattern;
@@ -59,15 +59,13 @@ private:
     std::vector<SyntaxRule> javascriptRules;
     std::vector<SyntaxRule> cssRules;
     std::vector<SyntaxRule> cppRules;
-    std::vector<SyntaxRule> pythonRules;
     std::vector<SyntaxRule> markdownRules;
     std::vector<SyntaxRule> jsonRules;
     std::vector<SyntaxRule> goRules;
     std::vector<SyntaxRule> javaRules;
     std::vector<SyntaxRule> csharpRules;
-
+    PythonLexer::Lexer pythonLexer;
     void setupCppRules();
-    void setupPythonRules();
     void setupJavaScriptRules();
     void setupMarkdownRules();
     void setupHtmlRules();
@@ -80,7 +78,9 @@ private:
     void loadTheme(const std::string& themeName);
     std::unordered_map<std::string, ImVec4> themeColors;
     void applyRules(const std::string& view, std::vector<ImVec4>& colors, int start_pos, const std::vector<SyntaxRule>& rules);
-    
+    void applyPythonHighlighting(const std::string& view, std::vector<ImVec4>& colors, int start_pos);
+
+
     std::future<void> highlightFuture;
     std::atomic<bool> highlightingInProgress{false};
     std::mutex colorsMutex;
