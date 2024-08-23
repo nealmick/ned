@@ -64,10 +64,10 @@ public:
     ImVec4 openedFileColor = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);  //grey vistedfiles
     void refreshFileTree();
     void preserveOpenStates(const FileNode& oldNode, FileNode& newNode);
+    std::string currentFile;
 
 private:
     std::string selectedFolder;
-    std::string currentFile;
     bool _showFileDialog = true;
     FileNode rootNode;
     bool _unsavedChanges = false;
