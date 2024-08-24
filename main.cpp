@@ -23,6 +23,7 @@
 Bookmarks gBookmarks;
 
 
+
 float Clamp(float value, float min, float max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -282,6 +283,7 @@ int main() {
 
         last_frame_time = frame_start;
     }
+
     gSettings.saveSettings();
     gFileExplorer.saveCurrentFile();
 

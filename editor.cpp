@@ -13,7 +13,6 @@ Editor gEditor;
 
 
 
-
 void UpdateLineStarts(const std::string& text, std::vector<int>& line_starts) {
     line_starts.clear();
     line_starts.reserve(text.size() / 40);  // Estimate average line length
@@ -730,9 +729,7 @@ int GetCharIndexFromCoords(const std::string& text, const ImVec2& click_pos, con
     return line_end;
 }
 
-
-
-void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, float scroll_y, float window_height, const EditorState& editor_state, float blink_time, bool rainbow_mode) {
+void RenderLineNumbers(const ImVec2& pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState& editor_state, float blink_time, bool rainbow_mode) {
     static char line_number_buffer[16];
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const ImU32 default_line_number_color = IM_COL32(128, 128, 128, 255);
@@ -764,7 +761,7 @@ void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, floa
 
     for (int i = start_line; i < end_line; i++) {
         float y_pos = pos.y + (i * line_height) - scroll_y;
-        snprintf(line_number_buffer, sizeof(line_number_buffer), "%3d", i + 1);
+        snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
         
         ImU32 line_number_color;
         if (i >= selection_start_line && i < selection_end_line && editor_state.is_selecting) {
@@ -775,7 +772,11 @@ void RenderLineNumbers(const ImVec2& pos, float line_height, int num_lines, floa
             line_number_color = default_line_number_color;
         }
         
-        draw_list->AddText(ImVec2(pos.x, y_pos), line_number_color, line_number_buffer);
+        // Calculate the position for right-aligned text
+        float text_width = ImGui::CalcTextSize(line_number_buffer).x;
+        float x_pos = pos.x + line_number_width - text_width - 8.0f; // 4.0f is a small right margin
+        
+        draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color, line_number_buffer);
     }
 }
 
@@ -1001,7 +1002,9 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
     ImVec2 size = ImGui::GetContentRegionAvail();
     
     int num_lines = std::count(text.begin(), text.end(), '\n') + 1;
-    float line_number_width = ImGui::CalcTextSize("999").x + 5.0f;
+    //dynamically size line numbers based on number of charectes in number
+    //int max_digits = static_cast<int>(std::log10(editor_state.line_starts.size())) + 1;
+    float line_number_width = ImGui::CalcTextSize("0").x * 4 + 8.0f;
     float line_height = ImGui::GetTextLineHeight();
     float editor_top_margin = 2.0f;
     float text_left_margin = 7.0f;
@@ -1126,7 +1129,7 @@ bool CustomTextEditor(const char* label, std::string& text, std::vector<ImVec4>&
 
     // Render line numbers with clipping
     ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
-    RenderLineNumbers(line_numbers_pos, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, true);
+    RenderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time, true);
     ImGui::PopClipRect();
 
     ImGui::EndGroup();
@@ -1211,7 +1214,16 @@ void Editor::highlightContent(const std::string& content, std::vector<ImVec4>& c
         std::string extension = fs::path(gFileExplorer.getCurrentFile()).extension().string();
         std::cout << "File extension: " << extension << std::endl;
 
-        if (extension == ".py") {
+        if (extension == ".cpp" || extension == ".h") {
+            std::cout << "Applying C++ highlighting" << std::endl;
+            try {
+                cppLexer.applyHighlighting(content, colors, start_pos);
+                std::cout << "C++ highlighting completed" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error in C++ highlighting: " << e.what() << std::endl;
+                std::fill(colors.begin() + start_pos, colors.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+        } else if (extension == ".py") {
             std::cout << "Applying Python highlighting" << std::endl;
             try {
                 pythonLexer.applyHighlighting(view, colors, start_pos);
@@ -1344,8 +1356,7 @@ void Editor::setLanguage(const std::string& extension) {
     setupCSharpRules();
     
     if (extension == ".cpp" || extension == ".h") {
-        setupCppRules();
-        rules = cppRules;
+        //custom lexer
     } else if (extension == ".py") {
         //custom lexer.. no rules here
     } else if (extension == ".js") {

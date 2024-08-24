@@ -2399,6 +2399,7 @@ static void nsvg__parsePath(NSVGparser* p, const char** attr)
 
 	nsvg__addShape(p);
 }
+//hello world
 
 static void nsvg__parseRect(NSVGparser* p, const char** attr)
 {
