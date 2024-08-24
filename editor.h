@@ -8,6 +8,8 @@
 #include <atomic>
 #include <mutex>
 #include "lexers/python.h"
+#include "lexers/cpp.h"
+
 
 struct SyntaxRule {
     std::regex pattern;
@@ -65,6 +67,7 @@ private:
     std::vector<SyntaxRule> javaRules;
     std::vector<SyntaxRule> csharpRules;
     PythonLexer::Lexer pythonLexer;
+    CppLexer::Lexer cppLexer;
     void setupCppRules();
     void setupJavaScriptRules();
     void setupMarkdownRules();

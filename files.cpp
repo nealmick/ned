@@ -554,6 +554,7 @@ void FileExplorer::handleRedo() {
         _unsavedChanges = true;
     }
 }
+
 void FileExplorer::saveCurrentFile() {
     if (!currentFile.empty() && _unsavedChanges) {
         std::ofstream file(currentFile);
