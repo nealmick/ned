@@ -22,7 +22,20 @@ C++17 compatible compiler
 OpenGL
 GLFW3
 
+### MacOS Install
+You can install Ned using Homebrew:
 
+```bash
+# Add the tap and install Ned
+brew tap nealmick/tap
+brew install ned
+
+# Run the editor
+ned
+```
+
+
+#### Build from source
 Clone the repository with its submodules:
 ```sh
 git clone --recursive https://github.com/yourusername/ned.git
