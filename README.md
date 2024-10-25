@@ -15,12 +15,7 @@ NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offe
 - Rainbow cursor
 - File type icons
 
-# Getting Started
-Prerequisites
-CMake (version 3.10 or higher)
-C++17 compatible compiler
-OpenGL
-GLFW3
+
 
 ### MacOS Install
 You can install Ned using Homebrew:
@@ -36,6 +31,13 @@ ned
 
 
 #### Build from source
+# Getting Started
+Prerequisites
+CMake (version 3.10 or higher)
+C++17 compatible compiler
+OpenGL
+GLFW3
+
 Clone the repository with its submodules:
 ```sh
 git clone --recursive https://github.com/yourusername/ned.git
