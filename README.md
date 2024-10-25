@@ -27,8 +27,20 @@ brew install ned
 
 # Run the editor
 ned
+# note you must copy the .ned.json settings file into your homefolder ~
 ```
 
+
+### Ubuntu and Windows install via WSL
+You can install Ned using Homebrew:
+
+```bash
+git clone --recursive https://github.com/yourusername/ned.git
+cd ned
+sudo apt install -y build-essential libgl1-mesa-dev xorg-dev libglfw3 libglfw3-dev
+dpkg-deb --build ned-1.0.0.deb
+ned
+```
 
 #### Build from source
 # Getting Started
