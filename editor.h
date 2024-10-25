@@ -9,7 +9,7 @@
 #include <mutex>
 #include "lexers/python.h"
 #include "lexers/cpp.h"
-
+#include <cmath>
 
 struct SyntaxRule {
     std::regex pattern;
