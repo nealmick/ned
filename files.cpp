@@ -439,7 +439,7 @@ void FileExplorer::refreshSyntaxHighlighting() {
   }
 }
 
-void FileExplorer::loadFileContent(const std::string &path) {
+void FileExplorer::loadFileContent(const std::string& path, std::function<void()> afterLoadCallback) {
   saveCurrentFile(); // Save the current file before loading a new one
   gEditor.cancelHighlighting(); // Cancel any ongoing highlighting
   editor_state.cursor_pos = 0;
@@ -487,7 +487,9 @@ void FileExplorer::loadFileContent(const std::string &path) {
       std::cerr << "Error: fileContent and fileColors size mismatch"
                 << std::endl;
     }
-
+    if (afterLoadCallback) {
+        afterLoadCallback();
+    }
     std::cout << "Loaded file: " << path << std::endl;
     std::cout << "File size: " << fileContent.size() << std::endl;
     std::cout << "Colors size: " << fileColors.size() << std::endl;

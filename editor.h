@@ -30,6 +30,9 @@ struct EditorState {
     bool blockInput;
     bool full_text_selected;
     int ensure_cursor_visible_frames;
+    bool pendingBookmarkScroll = false;
+    float pendingScrollX = 0;
+    float pendingScrollY = 0;
     EditorState()
         :  ensure_cursor_visible_frames(0),cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
         line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true),

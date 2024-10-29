@@ -68,7 +68,7 @@ void InitializeGLFW() {
 }
 
 GLFWwindow* CreateWindow() {
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Text Editor", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1200, 750, "Text Editor", NULL, NULL);
     if (window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
