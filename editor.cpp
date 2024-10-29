@@ -82,6 +82,7 @@ float CalculateCursorXPosition(const ImVec2 &text_pos, const std::string &text,
   }
   return x;
 }
+
 ScrollChange EnsureCursorVisible(const ImVec2 &text_pos,
                                  const std::string &text, EditorState &state,
                                  float line_height, float window_height,
@@ -109,25 +110,21 @@ ScrollChange EnsureCursorVisible(const ImVec2 &text_pos,
   }
 
   // Horizontal scrolling
-  float buffer = ImGui::GetFontSize() * 3.0f;
+  float buffer = ImGui::GetFontSize() * 5.0f;  // Increased buffer
   float target_scroll_x = scroll_x;
 
   if (cursor_x < visible_start_x + buffer) {
-    // Scrolling left
-    target_scroll_x = cursor_x - text_pos.x - buffer;
-    changed.horizontal = true;
-  } else if (cursor_x > visible_end_x - buffer) {
-    // Scrolling right
-    target_scroll_x = cursor_x - window_width + buffer - text_pos.x;
-    changed.horizontal = true;
+      // Scrolling left - immediately jump
+      state.scroll_x = cursor_x - text_pos.x - buffer * 2;  // Double buffer on left
+      changed.horizontal = true;
+  } else if (cursor_x > visible_end_x - buffer * 1.5f) {  // Start scrolling earlier
+      // Scrolling right - immediately jump
+      state.scroll_x = cursor_x - window_width + buffer * 2;  // More space on right
+      changed.horizontal = true;
   }
 
   // Ensure we don't scroll past the start of the text
-  target_scroll_x = std::max(0.0f, target_scroll_x);
-
-  // Apply scrolling with increased speed
-  state.scroll_x = state.scroll_x + (target_scroll_x - state.scroll_x);
-
+  state.scroll_x = std::max(0.0f, state.scroll_x);
   return changed;
 }
 
@@ -1189,6 +1186,8 @@ bool CustomTextEditor(const char *label, std::string &text,
   ImVec2 text_start_pos = text_pos;
 
   int initial_cursor_pos = editor_state.cursor_pos;
+
+
   if (!editor_state.blockInput) {
     HandleEditorInput(text, editor_state, text_start_pos, line_height,
                       text_changed, colors, ensure_cursor_visible);
@@ -1231,6 +1230,11 @@ bool CustomTextEditor(const char *label, std::string &text,
       current_scroll_x = editor_state.scroll_x;
     }
     editor_state.ensure_cursor_visible_frames--;
+  }
+  // Check for pending scroll request
+  if (gEditor.handleScrollRequest(current_scroll_x, current_scroll_y)) {
+      // Disable ensure cursor visible since we're explicitly setting scroll
+      editor_state.ensure_cursor_visible_frames = -1;
   }
 
   // Apply the calculated scroll position

@@ -11,11 +11,21 @@ private:
         std::string filePath;
         int cursorPosition;
         int lineNumber;
+        float scrollX;
+        float scrollY;
         bool isSet;
 
-        Bookmark() : filePath(""), cursorPosition(0), lineNumber(0), isSet(false) {}
-        Bookmark(const std::string& path, int cursor, int line, bool set)
-            : filePath(path), cursorPosition(cursor), lineNumber(line), isSet(set) {}
+        // Default constructor
+        Bookmark() : filePath(""), cursorPosition(0), lineNumber(0), scrollX(0), scrollY(0), isSet(false) {}
+        
+        // Main constructor - updated to include scroll positions
+        Bookmark(const std::string& path, int cursor, int line, float sx, float sy, bool set)
+            : filePath(path), 
+              cursorPosition(cursor), 
+              lineNumber(line), 
+              scrollX(sx), 
+              scrollY(sy), 
+              isSet(set) {}
     };
 
     static constexpr size_t NUM_BOOKMARKS = 9;
@@ -25,23 +35,37 @@ private:
 public:
     inline void setBookmark(size_t slot, const std::string& filePath, int cursorPosition, int lineNumber) {
         if (slot < NUM_BOOKMARKS) {
-            bookmarks[slot] = Bookmark(filePath, cursorPosition, lineNumber, true);
+            float scrollX = ImGui::GetScrollX();
+            float scrollY = ImGui::GetScrollY();
+            bookmarks[slot] = Bookmark(filePath, cursorPosition, lineNumber, scrollX, scrollY, true);
+            
+            // Debug print
+            std::cout << "Set bookmark " << slot << " with scroll positions - X: " 
+                      << scrollX << ", Y: " << scrollY << std::endl;
         }
     }
-
     inline bool jumpToBookmark(size_t slot, FileExplorer& fileExplorer, EditorState& editorState) {
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
             if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
-                fileExplorer.saveCurrentFile();
-                fileExplorer.loadFileContent(bookmarks[slot].filePath);
+                // Create callback to set scroll after file loads
+                auto setScroll = [this, slot]() {
+                    gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+                };
+                
+                fileExplorer.loadFileContent(bookmarks[slot].filePath, setScroll);
+            } else {
+                // Same file, request scroll immediately
+                gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
             }
+            
             editorState.cursor_pos = bookmarks[slot].cursorPosition;
             editorState.current_line = bookmarks[slot].lineNumber;
-            editorState.ensure_cursor_visible_frames = 5;  // Set to ensure visibility for 5 frames
+            editorState.ensure_cursor_visible_frames = -1;
             return true;
         }
         return false;
     }
+    
     inline void handleBookmarkInput(FileExplorer& fileExplorer, EditorState& editorState) {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
