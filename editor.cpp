@@ -1189,6 +1189,8 @@ bool CustomTextEditor(const char *label, std::string &text,
   ImVec2 text_start_pos = text_pos;
 
   int initial_cursor_pos = editor_state.cursor_pos;
+ 
+
   if (!editor_state.blockInput) {
     HandleEditorInput(text, editor_state, text_start_pos, line_height,
                       text_changed, colors, ensure_cursor_visible);
@@ -1231,6 +1233,11 @@ bool CustomTextEditor(const char *label, std::string &text,
       current_scroll_x = editor_state.scroll_x;
     }
     editor_state.ensure_cursor_visible_frames--;
+  }
+  // Check for pending scroll request
+  if (gEditor.handleScrollRequest(current_scroll_x, current_scroll_y)) {
+      // Disable ensure cursor visible since we're explicitly setting scroll
+      editor_state.ensure_cursor_visible_frames = -1;
   }
 
   // Apply the calculated scroll position

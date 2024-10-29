@@ -54,6 +54,23 @@ public:
     void moveWordBackward(const std::string& text, EditorState& state);
     void removeIndentation(std::string& text, EditorState& state);
     void cancelHighlighting();
+    void requestScroll(float x, float y) {
+        requestedScrollX = x;
+        requestedScrollY = y;
+        hasScrollRequest = true;
+    }
+    
+    // Add this new method to handle scroll requests
+    bool handleScrollRequest(float& outScrollX, float& outScrollY) {
+        if (hasScrollRequest) {
+            outScrollX = requestedScrollX;
+            outScrollY = requestedScrollY;
+            hasScrollRequest = false;
+            return true;
+        }
+        return false;
+    }
+
     
 private:
     std::vector<SyntaxRule> rules;
@@ -88,6 +105,11 @@ private:
     std::atomic<bool> highlightingInProgress{false};
     std::mutex colorsMutex;
     std::atomic<bool> cancelHighlightFlag{false};
+
+    //bookmark scroll jumps
+    float requestedScrollX = 0;
+    float requestedScrollY = 0;
+    bool hasScrollRequest = false;
 };
 extern EditorState editor_state;
 extern Editor gEditor;
