@@ -47,16 +47,19 @@ public:
     inline bool jumpToBookmark(size_t slot, FileExplorer& fileExplorer, EditorState& editorState) {
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
             if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
-                fileExplorer.saveCurrentFile();
-                fileExplorer.loadFileContent(bookmarks[slot].filePath);
+                // Create callback to set scroll after file loads
+                auto setScroll = [this, slot]() {
+                    gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+                };
+                
+                fileExplorer.loadFileContent(bookmarks[slot].filePath, setScroll);
+            } else {
+                // Same file, request scroll immediately
+                gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
             }
             
             editorState.cursor_pos = bookmarks[slot].cursorPosition;
             editorState.current_line = bookmarks[slot].lineNumber;
-            
-            // Request scroll through Editor instead of trying to set it directly
-            gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
-            
             editorState.ensure_cursor_visible_frames = -1;
             return true;
         }
