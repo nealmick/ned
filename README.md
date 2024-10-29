@@ -32,7 +32,7 @@ ned
 
 
 ### Ubuntu and Windows install via WSL
-You can install Ned using Homebrew:
+You can install Ned using the .deb package
 
 ```bash
 git clone --recursive https://github.com/yourusername/ned.git
@@ -52,7 +52,7 @@ GLFW3
 
 Clone the repository with its submodules:
 ```sh
-git clone --recursive https://github.com/yourusername/ned.git
+git clone --recursive https://github.com/nealmick/ned
 cd ned
 git submodule init
 git submodule update
@@ -79,9 +79,11 @@ NED uses a JSON configuration file in your home folder ~/.ned.json You can modif
 Contributions are welcome! 
 
 TODO:
- - Tokenizer: add more langues currently only python is supported, all other languages are  highligted single character at a time.  
- - Lexer:  add more languages currently only python is supported, all other languages use basic regex patterns to detirmine syntax colors.
+ - Tokenizer: add more langues currently only cpp anad python is supported, all other languages are  highligted single character at a time.  
+ - Lexer:  add more languages currently only cpp and python is supported, all other languages use basic regex patterns to detirmine syntax colors.
  - Multi-cursor:  add keybind to create cursor at end of all find selection
  - Selection keybinds: currently cmd-a selects full file, but cmd-shift-a would be nice to select current indentation or current {} [] () "" '' `` blocks...
  - Jump to function definition with cmd click.
  - shift click select from old cursor positon to click position.
+ - Bookmark jumps move scroll position so the cursor is in middle of editor....
+
