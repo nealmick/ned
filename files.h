@@ -24,7 +24,8 @@ public:
     EditorState editor_state;
     void openFolderDialog();
     void buildFileTree(const fs::path& path, FileNode& node);
-    void loadFileContent(const std::string& path);
+    void loadFileContent(const std::string& path, std::function<void()> afterLoadCallback = nullptr);
+
     void displayFileTree(FileNode& node);
     std::string getSelectedFolder() const { return selectedFolder; }
     std::string getCurrentFile() const { return currentFile; }

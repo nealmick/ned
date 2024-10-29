@@ -30,6 +30,9 @@ struct EditorState {
     bool blockInput;
     bool full_text_selected;
     int ensure_cursor_visible_frames;
+    bool pendingBookmarkScroll = false;
+    float pendingScrollX = 0;
+    float pendingScrollY = 0;
     EditorState()
         :  ensure_cursor_visible_frames(0),cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
         line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true),
@@ -54,6 +57,23 @@ public:
     void moveWordBackward(const std::string& text, EditorState& state);
     void removeIndentation(std::string& text, EditorState& state);
     void cancelHighlighting();
+    void requestScroll(float x, float y) {
+        requestedScrollX = x;
+        requestedScrollY = y;
+        hasScrollRequest = true;
+    }
+    
+    // Add this new method to handle scroll requests
+    bool handleScrollRequest(float& outScrollX, float& outScrollY) {
+        if (hasScrollRequest) {
+            outScrollX = requestedScrollX;
+            outScrollY = requestedScrollY;
+            hasScrollRequest = false;
+            return true;
+        }
+        return false;
+    }
+
     
 private:
     std::vector<SyntaxRule> rules;
@@ -88,6 +108,11 @@ private:
     std::atomic<bool> highlightingInProgress{false};
     std::mutex colorsMutex;
     std::atomic<bool> cancelHighlightFlag{false};
+
+    //bookmark scroll jumps
+    float requestedScrollX = 0;
+    float requestedScrollY = 0;
+    bool hasScrollRequest = false;
 };
 extern EditorState editor_state;
 extern Editor gEditor;
