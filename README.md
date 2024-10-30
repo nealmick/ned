@@ -21,6 +21,8 @@ NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offe
 You can install Ned using Homebrew:
 
 ```bash
+git clone --recursive https://github.com/nealmick/ned
+cd ned
 # Add the tap and install Ned
 brew tap nealmick/tap
 brew install ned
