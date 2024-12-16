@@ -13,13 +13,14 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include "settings.h"
+#include "util/settings.h"
 #include "files.h"
 #include "editor.h"
 #include <filesystem>
 #include <unistd.h>
 #include <chrono>
 #include "util/bookmarks.h"
+
 Bookmarks gBookmarks;
 
 

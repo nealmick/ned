@@ -34,14 +34,19 @@ ned
 
 
 ### Ubuntu and Windows install via WSL
-You can install Ned using the .deb package
+You can install Ned using Ubuntu
 
 ```bash
 git clone --recursive https://github.com/yourusername/ned.git
 cd ned
 sudo apt install -y build-essential libgl1-mesa-dev xorg-dev libglfw3 libglfw3-dev
-dpkg-deb --build ned-1.0.0.deb
-ned
+mkdir build
+cd build
+cmake ..
+
+make
+
+./text_editor
 ```
 
 

@@ -53,7 +53,7 @@ target_link_libraries(util PUBLIC
 # Main executable
 add_executable(text_editor
     main.cpp
-    settings.cpp
+    util/settings.cpp
     files.cpp
     editor.cpp
     imgui/imgui.cpp
