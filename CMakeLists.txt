@@ -5,9 +5,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 
-# NFD
+# NFD setup
 set(NFD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nativefiledialog)
-
 if(APPLE)
     add_library(nfd STATIC
         ${NFD_DIR}/src/nfd_common.c
@@ -20,7 +19,6 @@ elseif(UNIX)
         ${NFD_DIR}/src/nfd_common.c
         ${NFD_DIR}/src/nfd_gtk.c
     )
-    # Add GTK dependency
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
     target_include_directories(nfd PRIVATE ${GTK3_INCLUDE_DIRS})
@@ -32,8 +30,27 @@ target_include_directories(nfd PUBLIC
     ${NFD_DIR}/src/include
 )
 
+# Copy resources
 file(COPY ${CMAKE_SOURCE_DIR}/fonts DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${CMAKE_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
 
+# Add util library
+add_library(util STATIC
+    util/line_jump.cpp
+)
+
+target_include_directories(util PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui/backends
+)
+
+target_link_libraries(util PUBLIC
+    ${OPENGL_LIBRARIES}
+    glfw
+)
+
+# Main executable
 add_executable(text_editor
     main.cpp
     settings.cpp
@@ -53,13 +70,21 @@ target_include_directories(text_editor PRIVATE
     imgui/backends 
     ${NFD_DIR}/src
     ${NFD_DIR}/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
-file(COPY ${CMAKE_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
-
-target_link_libraries(text_editor PRIVATE ${OPENGL_LIBRARIES} glfw nfd)
+# Link libraries
+target_link_libraries(text_editor PRIVATE 
+    ${OPENGL_LIBRARIES} 
+    glfw 
+    nfd
+    util
+)
 
 if(APPLE)
-    target_link_libraries(text_editor PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
-endif() 
+    target_link_libraries(text_editor PRIVATE 
+        "-framework Cocoa" 
+        "-framework IOKit" 
+        "-framework CoreVideo"
+    )
+endif()

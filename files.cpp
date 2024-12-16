@@ -12,6 +12,8 @@
 #include "lib/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
+#include "util/line_jump.h"
+
 
 FileExplorer gFileExplorer;
 void FileExplorer::loadIcons() {
@@ -578,6 +580,9 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd) {
   }
 }
 void FileExplorer::renderFileContent() {
+  gLineJump.handleLineJumpInput(editor_state);
+  gLineJump.renderLineJumpWindow(editor_state);
+
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
   bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
