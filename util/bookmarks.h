@@ -97,24 +97,33 @@ public:
             }
         }
     }
+    
     inline void renderBookmarksWindow() {
         if (showBookmarksWindow) {
-            ImGui::SetNextWindowSize(ImVec2(600, 400));
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_Always);
+            ImGui::SetNextWindowPos(
+                ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), 
+                ImGuiCond_Always, 
+                ImVec2(0.5f, 0.5f)
+            );
             
-            ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | 
-                                           ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | 
-                                           ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar;
+            ImGuiWindowFlags windowFlags = 
+                ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoScrollWithMouse;
 
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.0f);
-            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // Solid, opaque dark gray background
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+            // Push custom styles for the window
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);  // Add rounded corners
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f); // Add border
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
             
             ImGui::Begin("Bookmarks", nullptr, windowFlags);
             
-            ImGui::SetWindowFontScale(1.2f);
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Bookmarks");
+            ImGui::TextUnformatted("Bookmarks");
             ImGui::Separator();
 
             ImGui::BeginChild("ScrollingRegion", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), false, ImGuiWindowFlags_HorizontalScrollbar);
@@ -122,9 +131,9 @@ public:
                 if (bookmarks[i].isSet) {
                     ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "%zu:", i + 1);
                     ImGui::SameLine();
-                    ImGui::TextWrapped("%s (Line %d, Pos %d)", 
+                    ImGui::TextWrapped("%s Line %d", 
                         bookmarks[i].filePath.c_str(), 
-                        bookmarks[i].lineNumber, bookmarks[i].cursorPosition);
+                        bookmarks[i].lineNumber);
                 } else {
                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), " %zu: Empty slot", i + 1);
                 }
@@ -136,11 +145,11 @@ public:
 
             ImGui::End();
 
-            ImGui::PopStyleColor(2);
+            // Pop the styles we pushed earlier
+            ImGui::PopStyleColor(3);
             ImGui::PopStyleVar(2);
         }
     }
-
     inline bool isWindowOpen() const {
         return showBookmarksWindow;
     }
