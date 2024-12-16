@@ -1,10 +1,11 @@
 #include "editor.h"
-#include "bookmarks.h"
+#include "util/bookmarks.h"
 #include "files.h"
 #include "settings.h"
+#include "util/line_jump.h"
+
 #include <algorithm>
 #include <iostream>
-
 int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
                            const ImVec2 &text_start_pos,
                            const std::vector<int> &line_starts,
@@ -408,23 +409,23 @@ void HandleCharacterInput(std::string &text, std::vector<ImVec4> &colors,
   }
 }
 //write function that prints hello world
-
-
 void HandleEnterKey(std::string &text, std::vector<ImVec4> &colors,
                     EditorState &state, bool &text_changed, int &input_end) {
-  if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-    text.insert(state.cursor_pos, 1, '\n');
-    colors.insert(colors.begin() + state.cursor_pos - 1, 1,
-                  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    state.cursor_pos++;
-
-    // Reset selection state
-    state.selection_start = state.selection_end = state.cursor_pos;
-    state.is_selecting = false;
-
-    text_changed = true;
-    input_end = state.cursor_pos;
-  }
+    // Don't process Enter if we just jumped lines
+    if (gLineJump.hasJustJumped()) {
+        return;
+    }
+    
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+        text.insert(state.cursor_pos, 1, '\n');
+        colors.insert(colors.begin() + state.cursor_pos - 1, 1,
+                      ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        state.cursor_pos++;
+        state.selection_start = state.selection_end = state.cursor_pos;
+        state.is_selecting = false;
+        text_changed = true;
+        input_end = state.cursor_pos;
+    }
 }
 void HandleDeleteKey(std::string &text, std::vector<ImVec4> &colors,
                      EditorState &state, bool &text_changed, int &input_end) {
