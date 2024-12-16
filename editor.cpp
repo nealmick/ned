@@ -1,11 +1,11 @@
 #include "editor.h"
 #include "util/bookmarks.h"
 #include "files.h"
-#include "settings.h"
+#include "util/settings.h"
 #include "util/line_jump.h"
-
 #include <algorithm>
 #include <iostream>
+
 int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
                            const ImVec2 &text_start_pos,
                            const std::vector<int> &line_starts,
