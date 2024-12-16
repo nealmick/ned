@@ -39,6 +39,8 @@ public:
         state.blockInput = true;
 
         // Push custom styles for the window
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);  // Add rounded corners
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f); // Add border
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
@@ -85,7 +87,9 @@ public:
         }
         ImGui::End();
 
+        // Pop the styles we pushed earlier
         ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
     }
 
     inline void jumpToLine(int lineNumber, EditorState& state) {

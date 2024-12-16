@@ -323,17 +323,51 @@ void FileExplorer::refreshFileTree() {
   }
 }
 
+
 void FileExplorer::displayFileTree(FileNode &node) {
-  ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-  if (!node.isDirectory)
+  // Basic style setup
+  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
+  // Increase spacing between items to prevent overlap
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 2));
+  
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | 
+                            ImGuiTreeNodeFlags_OpenOnDoubleClick;
+  
+  if (!node.isDirectory) {
     flags |= ImGuiTreeNodeFlags_Leaf;
+  }
 
   ImGui::PushID(node.fullPath.c_str());
 
   if (node.isDirectory) {
-    bool isOpened =
-        ImGui::TreeNodeEx(node.name.c_str(), flags, "%s", node.name.c_str());
+    // Disable default header colors
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0,0,0,0));
+    
+    // Calculate hover area with padding
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    float item_height = ImGui::GetFrameHeight() - 2.0f; // Slightly reduce height
+    
+    ImVec2 hover_min = ImVec2(cursor_pos.x, cursor_pos.y + 1.0f); // Add small top padding
+    ImVec2 hover_max = ImVec2(
+        cursor_pos.x + ImGui::GetContentRegionAvail().x,
+        cursor_pos.y + item_height
+    );
+    
+    // Draw custom hover background with adjusted area
+    if (ImGui::IsMouseHoveringRect(hover_min, hover_max)) {
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            hover_min,
+            hover_max,
+            ImGui::GetColorU32(ImVec4(0.26f, 0.59f, 0.98f, 0.31f)),
+            6.0f
+        );
+    }
+    
+    bool isOpened = ImGui::TreeNodeEx(node.name.c_str(), flags);
+    ImGui::PopStyleColor(3);
 
     if (ImGui::IsItemClicked() && node.children.empty()) {
       buildFileTree(node.fullPath, node);
@@ -361,15 +395,37 @@ void FileExplorer::displayFileTree(FileNode &node) {
     float adjusted_indent = tree_node_spacing - (icon_width + icon_spacing);
 
     ImGui::Indent(adjusted_indent);
-
     ImGui::BeginGroup();
 
+    // Disable default colors
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0,0,0,0));
+
+    // Calculate hover area for files
+    ImVec2 p_min = ImGui::GetCursorScreenPos();
+    ImVec2 p_max = ImVec2(
+        p_min.x + ImGui::GetContentRegionAvail().x, 
+        p_min.y + ImGui::GetFrameHeight() - 2.0f // Slightly reduce height
+    );
+    
+    // Draw hover background
+    if (ImGui::IsMouseHoveringRect(p_min, p_max)) {
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            ImVec2(p_min.x, p_min.y + 1.0f), // Add small top padding
+            p_max,
+            ImGui::GetColorU32(ImVec4(0.26f, 0.59f, 0.98f, 0.31f)),
+            6.0f
+        );
+    }
+
     bool selected = false;
-    ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0, 0.5f));
-    ImGui::Selectable(
-        "##hidden", &selected, ImGuiSelectableFlags_AllowItemOverlap,
-        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeight()));
-    ImGui::PopStyleVar();
+    ImGui::Selectable("##hidden", &selected, 
+        ImGuiSelectableFlags_AllowItemOverlap,
+        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() - 2.0f)
+    );
+    
+    ImGui::PopStyleColor(3);
 
     bool clicked = ImGui::IsItemClicked();
 
@@ -377,25 +433,9 @@ void FileExplorer::displayFileTree(FileNode &node) {
     ImGui::SetCursorPosX(ImGui::GetItemRectMin().x);
     ImGui::Image(icon, ImVec2(icon_width, icon_width));
     ImGui::SameLine(0, icon_spacing);
-    bool useRainbowEffect = true;
-    // Use rainbow color for the active file
+
     if (node.fullPath == currentOpenFile) {
-      ImVec4 fileColor;
-      if (useRainbowEffect) {
-        static float last_update_time = 0.0f;
-        static ImVec4 last_rainbow_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-        float current_time = ImGui::GetTime();
-
-        if (current_time - last_update_time > 0.05f) {
-          last_rainbow_color = GetRainbowColor(current_time * 2.0f);
-          last_update_time = current_time;
-        }
-        fileColor = last_rainbow_color;
-      } else {
-        fileColor =
-            ImVec4(0.65f, 0.65f, 0.65f, 1.0f); // non rainbow active file color
-      }
-
+      ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
       ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
     }
 
@@ -415,7 +455,12 @@ void FileExplorer::displayFileTree(FileNode &node) {
   }
 
   ImGui::PopID();
+  ImGui::PopStyleVar(3);
 }
+
+
+
+
 
 void FileExplorer::openFolderDialog() {
   nfdchar_t *outPath = NULL;
@@ -598,10 +643,15 @@ void FileExplorer::renderFileContent() {
   if (editor_state.activateFindBox) {
     ImGui::SetNextItemWidth(-1);
 
-    // Push the new style color for the input text background
+    // Push styles for rounded borders and custom background
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);  // Rounded corners
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f); // Border
     ImGui::PushStyleColor(
         ImGuiCol_FrameBg,
         ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // Dark gray background
+    ImGui::PushStyleColor(
+        ImGuiCol_Border,
+        ImVec4(0.3f, 0.3f, 0.3f, 1.0f)); // Subtle border color
 
     static char inputBuffer[256] = "";
     ImGui::SetKeyboardFocusHere();
@@ -615,8 +665,9 @@ void FileExplorer::renderFileContent() {
       findNext();
     }
 
-    // Pop the style color to restore the original color
-    ImGui::PopStyleColor();
+    // Pop the style variables and colors
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
 
     bool shift_pressed = ImGui::GetIO().KeyShift;
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
