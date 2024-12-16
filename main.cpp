@@ -19,7 +19,7 @@
 #include <filesystem>
 #include <unistd.h>
 #include <chrono>
-#include "bookmarks.h"
+#include "util/bookmarks.h"
 Bookmarks gBookmarks;
 
 
