@@ -7,8 +7,7 @@
 #include "editor.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
-#include "undo_redo_manager.h"
-
+#include "util/undo_redo_manager.h"
 namespace fs = std::filesystem;
 
 struct FileNode {
