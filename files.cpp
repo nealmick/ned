@@ -2,7 +2,7 @@
 #include "files.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
-#include "settings.h"
+#include "util/settings.h"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
