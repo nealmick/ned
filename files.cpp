@@ -1,4 +1,5 @@
 
+#define GL_SILENCE_DEPRECATION
 #include "files.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -74,6 +75,8 @@ void FileExplorer::loadIcons() {
                                         "font.svg",
                                         "git.svg",
                                         "git_folder.svg",
+                                        "folder.svg",
+                                        "folder-open.svg",
                                         "git_ignore.svg",
                                         "github.svg",
                                         "gitlab.svg",
@@ -260,44 +263,7 @@ ImTextureID FileExplorer::getIconForFile(const std::string &filename) {
   return fileTypeIcons["default"]; // Use default icon if specific icon not
                                    // found
 }
-void FileExplorer::buildFileTree(const fs::path &path, FileNode &node) {
-  std::vector<FileNode> newChildren;
-  try {
-    for (const auto &entry : fs::directory_iterator(path)) {
-      FileNode child;
-      child.name = entry.path().filename().string();
-      child.fullPath = entry.path().string();
-      child.isDirectory = entry.is_directory();
 
-      // Check if this child already exists and preserve its open state
-      auto it = std::find_if(node.children.begin(), node.children.end(),
-                             [&child](const FileNode &existingChild) {
-                               return existingChild.fullPath == child.fullPath;
-                             });
-      if (it != node.children.end()) {
-        child.isOpen = it->isOpen;
-        if (child.isDirectory && child.isOpen) {
-          buildFileTree(child.fullPath, child);
-        }
-      }
-
-      newChildren.push_back(std::move(child));
-    }
-  } catch (const fs::filesystem_error &e) {
-    std::cerr << "Error accessing directory " << path << ": " << e.what()
-              << std::endl;
-  }
-
-  node.children = std::move(newChildren);
-
-  std::sort(node.children.begin(), node.children.end(),
-            [](const FileNode &a, const FileNode &b) {
-              if (a.isDirectory != b.isDirectory) {
-                return a.isDirectory > b.isDirectory;
-              }
-              return a.name < b.name;
-            });
-}
 void FileExplorer::preserveOpenStates(const FileNode &oldNode,
                                       FileNode &newNode) {
   for (auto &newChild : newNode.children) {
@@ -313,154 +279,200 @@ void FileExplorer::preserveOpenStates(const FileNode &oldNode,
     }
   }
 }
+
 void FileExplorer::refreshFileTree() {
-  if (!selectedFolder.empty()) {
-    rootNode.name = fs::path(selectedFolder).filename().string();
-    rootNode.fullPath = selectedFolder;
-    rootNode.isDirectory = true;
-    rootNode.children.clear();
-    buildFileTree(selectedFolder, rootNode);
-  }
+    if (!selectedFolder.empty()) {
+        // Store the old root node to preserve states
+        FileNode oldRoot = rootNode;
+        
+        // Reset root node but preserve its open state
+        rootNode.name = fs::path(selectedFolder).filename().string();
+        rootNode.fullPath = selectedFolder;
+        rootNode.isDirectory = true;
+        rootNode.isOpen = true;  // Root should stay open
+        
+        // Build the new tree
+        buildFileTree(selectedFolder, rootNode);
+        
+        // Restore open states from old tree
+        preserveOpenStates(oldRoot, rootNode);
+    }
 }
 
 
+
+
+
+void FileExplorer::buildFileTree(const fs::path &path, FileNode &node) {
+    // Don't clear children if they already exist and the node is open
+    if (!node.isOpen && !node.children.empty()) {
+        return;
+    }
+
+    std::vector<FileNode> newChildren;
+    try {
+        for (const auto &entry : fs::directory_iterator(path)) {
+            FileNode child;
+            child.name = entry.path().filename().string();
+            child.fullPath = entry.path().string();
+            child.isDirectory = entry.is_directory();
+            
+            // Find existing child to preserve its state
+            auto existingChild = std::find_if(node.children.begin(), node.children.end(),
+                [&child](const FileNode &existing) {
+                    return existing.fullPath == child.fullPath;
+                });
+            
+            if (existingChild != node.children.end()) {
+                // Preserve the existing child's state and children
+                child.isOpen = existingChild->isOpen;
+                child.children = std::move(existingChild->children);
+            }
+            
+            // If it's a directory and it's open, build its tree
+            if (child.isDirectory && child.isOpen) {
+                buildFileTree(child.fullPath, child);
+            }
+            
+            newChildren.push_back(std::move(child));
+        }
+    } catch (const fs::filesystem_error &e) {
+        std::cerr << "Error accessing directory " << path << ": " << e.what() << std::endl;
+    }
+
+    // Sort directories first, then files by name
+    std::sort(newChildren.begin(), newChildren.end(),
+              [](const FileNode &a, const FileNode &b) {
+                  if (a.isDirectory != b.isDirectory) {
+                      return a.isDirectory > b.isDirectory;
+                  }
+                  return a.name < b.name;
+              });
+
+    node.children = std::move(newChildren);
+}
 void FileExplorer::displayFileTree(FileNode &node) {
-  // Basic style setup
-  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
-  // Increase spacing between items to prevent overlap
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 2));
-  
-  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | 
-                            ImGuiTreeNodeFlags_OpenOnDoubleClick;
-  
-  if (!node.isDirectory) {
-    flags |= ImGuiTreeNodeFlags_Leaf;
-  }
-
-  ImGui::PushID(node.fullPath.c_str());
-
-  if (node.isDirectory) {
-    // Disable default header colors
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0,0,0,0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0,0,0,0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0,0,0,0));
+    float currentFontSize = gSettings.getFontSize();
     
-    // Calculate hover area with padding
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    float item_height = ImGui::GetFrameHeight() - 2.0f; // Slightly reduce height
+    // Set icon sizes based on font size
+    float folderIconSize = currentFontSize * .8f;  // 20% larger than font
+    float fileIconSize = currentFontSize * 1.2f;    // Same as folder for consistency
     
-    ImVec2 hover_min = ImVec2(cursor_pos.x, cursor_pos.y + 1.0f); // Add small top padding
-    ImVec2 hover_max = ImVec2(
-        cursor_pos.x + ImGui::GetContentRegionAvail().x,
-        cursor_pos.y + item_height
-    );
-    
-    // Draw custom hover background with adjusted area
-    if (ImGui::IsMouseHoveringRect(hover_min, hover_max)) {
-        ImGui::GetWindowDrawList()->AddRectFilled(
-            hover_min,
-            hover_max,
-            ImGui::GetColorU32(ImVec4(0.26f, 0.59f, 0.98f, 0.31f)),
-            6.0f
-        );
-    }
-    
-    bool isOpened = ImGui::TreeNodeEx(node.name.c_str(), flags);
-    ImGui::PopStyleColor(3);
-
-    if (ImGui::IsItemClicked() && node.children.empty()) {
-      buildFileTree(node.fullPath, node);
+    static bool printedSizes = false;  // To prevent spamming console
+    if (!printedSizes) {
+        std::cout << "Font Size: " << currentFontSize << std::endl;
+        std::cout << "Folder Icon Size: " << folderIconSize << std::endl;
+        std::cout << "File Icon Size: " << fileIconSize << std::endl;
+        printedSizes = true;
     }
 
-    if (isOpened != node.isOpen) {
-      node.isOpen = isOpened;
-      if (isOpened && node.children.empty()) {
-        buildFileTree(node.fullPath, node);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 3));
+    ImGui::PushID(node.fullPath.c_str());
+    float item_height = ImGui::GetFrameHeight();
+    ImVec2 cursor_pos = ImGui::GetCursorPos();
+    
+    static int current_depth = 0;
+    float indent_width = 28.0f;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + current_depth * indent_width);
+    
+    if (node.isDirectory) {
+      ImVec2 iconSize(folderIconSize, folderIconSize);
+      // Calculate vertical centering
+      float verticalPadding = (item_height - iconSize.y) * 0.5f;  // Center vertically
+      float horizontalPadding = 8.0f;  // Add some left/right padding
+
+      // Select folder icon based on open state
+      ImTextureID folderIcon;
+      if (node.isOpen) {
+          folderIcon = fileTypeIcons["folder-open"];
+          if (!folderIcon) {
+              folderIcon = fileTypeIcons["folder"];
+          }
+      } else {
+          folderIcon = fileTypeIcons["folder"];
       }
-    }
-
-    if (isOpened) {
-      for (auto &child : node.children) {
-        displayFileTree(child);
+      
+      if (!folderIcon) {
+          folderIcon = fileTypeIcons["default"];
       }
-      ImGui::TreePop();
+
+      // Folder button with custom styling - add padding to the button
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 0.31f));
+      ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(horizontalPadding, verticalPadding));
+      bool isOpen = ImGui::Button(("##" + node.fullPath).c_str(), 
+          ImVec2(ImGui::GetContentRegionAvail().x, item_height));
+      ImGui::PopStyleVar();
+      ImGui::PopStyleColor(2);
+      
+      // Draw icon with adjusted position
+      ImGui::SetCursorPos(ImVec2(
+          cursor_pos.x + current_depth * indent_width + horizontalPadding,  // Add horizontal padding
+          cursor_pos.y + verticalPadding  // Add vertical centering
+      ));
+      ImGui::Image(folderIcon, iconSize);
+      
+      // Draw folder name with more spacing after icon
+      float textPadding = 14.0f;  // Space between icon and text
+      ImGui::SameLine(current_depth * indent_width + iconSize.x + horizontalPadding + textPadding);
+      ImGui::SetCursorPosY(cursor_pos.y + (item_height - ImGui::GetTextLineHeight()) * 0.5f);  // Center text vertically
+      ImGui::Text("%s", node.name.c_str());
+        
+        if (isOpen) {
+            node.isOpen = !node.isOpen;
+            if (node.isOpen) {
+                buildFileTree(node.fullPath, node);
+            }
+        }
+        
+        // Recursively display children if open
+        if (node.isOpen) {
+            current_depth++;
+            for (auto &child : node.children) {
+                displayFileTree(child);
+            }
+            current_depth--;
+        }
+    } else {
+        ImVec2 iconSize(fileIconSize, fileIconSize);
+        ImTextureID fileIcon = getIconForFile(node.name);
+        float leftMargin = 3.0f;  // Add margin before the icon
+        
+        // File button with custom styling
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 0.31f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        bool clicked = ImGui::Button(("##" + node.fullPath).c_str(), 
+            ImVec2(ImGui::GetContentRegionAvail().x, item_height));
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(2);
+        
+        // Draw icon with left margin
+        ImGui::SetCursorPos(cursor_pos);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + current_depth * indent_width + leftMargin);
+        ImGui::Image(fileIcon, iconSize);
+        
+        // Draw file name (adjust the padding to account for the new margin)
+        ImGui::SameLine(current_depth * indent_width + iconSize.x + leftMargin + 10);
+        
+        if (node.fullPath == currentOpenFile) {
+            ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
+            ImGui::Text("%s", node.name.c_str());
+            ImGui::PopStyleColor();
+        } else {
+            ImGui::Text("%s", node.name.c_str());
+        }
+        
+        if (clicked) {
+            loadFileContent(node.fullPath);
+        }
     }
-  } else {
-    ImTextureID icon = getIconForFile(node.name);
-
-    float icon_width = 20.0f;
-    float icon_spacing = 6.0f;
-    float tree_node_spacing = ImGui::GetTreeNodeToLabelSpacing();
-    float adjusted_indent = tree_node_spacing - (icon_width + icon_spacing);
-
-    ImGui::Indent(adjusted_indent);
-    ImGui::BeginGroup();
-
-    // Disable default colors
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0,0,0,0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0,0,0,0));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0,0,0,0));
-
-    // Calculate hover area for files
-    ImVec2 p_min = ImGui::GetCursorScreenPos();
-    ImVec2 p_max = ImVec2(
-        p_min.x + ImGui::GetContentRegionAvail().x, 
-        p_min.y + ImGui::GetFrameHeight() - 2.0f // Slightly reduce height
-    );
-    
-    // Draw hover background
-    if (ImGui::IsMouseHoveringRect(p_min, p_max)) {
-        ImGui::GetWindowDrawList()->AddRectFilled(
-            ImVec2(p_min.x, p_min.y + 1.0f), // Add small top padding
-            p_max,
-            ImGui::GetColorU32(ImVec4(0.26f, 0.59f, 0.98f, 0.31f)),
-            6.0f
-        );
-    }
-
-    bool selected = false;
-    ImGui::Selectable("##hidden", &selected, 
-        ImGuiSelectableFlags_AllowItemOverlap,
-        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() - 2.0f)
-    );
-    
-    ImGui::PopStyleColor(3);
-
-    bool clicked = ImGui::IsItemClicked();
-
-    ImGui::SameLine(0, 0);
-    ImGui::SetCursorPosX(ImGui::GetItemRectMin().x);
-    ImGui::Image(icon, ImVec2(icon_width, icon_width));
-    ImGui::SameLine(0, icon_spacing);
-
-    if (node.fullPath == currentOpenFile) {
-      ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
-      ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
-    }
-
-    ImGui::TextUnformatted(node.name.c_str());
-
-    if (node.fullPath == currentOpenFile) {
-      ImGui::PopStyleColor();
-    }
-
-    ImGui::EndGroup();
-
-    if (clicked) {
-      loadFileContent(node.fullPath);
-    }
-
-    ImGui::Unindent(adjusted_indent);
-  }
-
-  ImGui::PopID();
-  ImGui::PopStyleVar(3);
+    ImGui::PopID();
+    ImGui::PopStyleVar(3);
 }
-
-
-
-
 
 void FileExplorer::openFolderDialog() {
   nfdchar_t *outPath = NULL;

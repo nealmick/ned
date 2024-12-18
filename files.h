@@ -73,7 +73,7 @@ private:
     std::string fileContent;
     std::vector<ImVec4> fileColors;
     std::map<std::string, ImTextureID> fileTypeIcons;
-
+    
 };
 
 extern Editor gEditor;
