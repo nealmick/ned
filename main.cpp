@@ -128,7 +128,9 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
+
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
+        
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
