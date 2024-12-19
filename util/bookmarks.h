@@ -97,10 +97,14 @@ public:
             }
         }
     }
-    
+
+
+
+
+
     inline void renderBookmarksWindow() {
         if (showBookmarksWindow) {
-            ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
             ImGui::SetNextWindowPos(
                 ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), 
                 ImGuiCond_Always, 

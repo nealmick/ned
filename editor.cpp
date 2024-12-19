@@ -916,6 +916,7 @@ void HandleEditorInput(std::string &text, EditorState &state,
       ImGui::SetKeyboardFocusHere(-1); // Prevent default tab behavior
       return; // Exit the function to prevent further processing
     }
+    
     if (ctrl_pressed) {
       if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
         float currentSize = gSettings.getFontSize();
