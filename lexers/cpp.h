@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include "imgui.h"
 #include <iostream>
+#include "../util/settings.h"  // Add this include
+
+class Settings;  // Forward declaration
+extern Settings gSettings;  // Declare the external global variable
 
 namespace CppLexer {
 
@@ -36,6 +40,15 @@ struct Token {
 
 class Lexer {
 public:
+    // Theme colors cache
+    struct ThemeColors {
+        ImVec4 keyword;
+        ImVec4 string;
+        ImVec4 number;
+        ImVec4 comment;
+        ImVec4 text;
+    };
+
     Lexer() {
         keywords = {"auto", "break", "case", "char", "const", "continue", "default", "do", "double",
                     "else", "enum", "extern", "float", "for", "goto", "if", "int", "long", "register",
@@ -58,7 +71,9 @@ public:
             {".*", TokenType::Operator}, {"->*", TokenType::Operator}, {"::", TokenType::Operator}
         };
     }
-
+    void themeChanged() {
+        colorsNeedUpdate = true;
+    }
     std::vector<Token> tokenize(const std::string& code) {
         std::cout << "Inside C++ tokenizer.." << std::endl;
         std::vector<Token> tokens;
@@ -140,6 +155,26 @@ public:
 private:
     std::unordered_set<std::string> keywords;
     std::unordered_map<std::string, TokenType> operators;
+    mutable ThemeColors cachedColors;
+    mutable bool colorsNeedUpdate = true;
+    void updateThemeColors() const {
+        if (!colorsNeedUpdate) return;
+        
+        auto& theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
+        
+        auto loadColor = [&theme](const char* key) -> ImVec4 {
+            auto& c = theme[key];
+            return ImVec4(c[0], c[1], c[2], c[3]);
+        };
+
+        cachedColors.keyword = loadColor("keyword");
+        cachedColors.string = loadColor("string");
+        cachedColors.number = loadColor("number");
+        cachedColors.comment = loadColor("comment");
+        cachedColors.text = loadColor("text");
+        
+        colorsNeedUpdate = false;
+    }
 
     bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
     bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
@@ -232,15 +267,15 @@ private:
     }
 
     ImVec4 getColorForTokenType(TokenType type) const {
+        updateThemeColors();
+        
         switch (type) {
-            case TokenType::Keyword: return ImVec4(0.0f, 0.4f, 1.0f, 1.0f);     // Blue
-            case TokenType::String: return ImVec4(0.87f, 0.87f, 0.0f, 1.0f);    // Yellow
-            case TokenType::Number: return ImVec4(0.0f, 0.8f, 0.8f, 1.0f);      // Cyan
-            case TokenType::Comment: return ImVec4(0.5f, 0.5f, 0.5f, 1.0f);     // Gray
-            case TokenType::Preprocessor: return ImVec4(0.7f, 0.4f, 0.0f, 1.0f);// Orange
-            case TokenType::Operator: return ImVec4(1.0f, 0.4f, 0.4f, 1.0f);    // Red
-            case TokenType::Identifier: return ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // White
-            default: return ImVec4(1.0f, 1.0f, 1.0f, 1.0f);                     // White
+            case TokenType::Keyword:  return cachedColors.keyword;
+            case TokenType::String:   return cachedColors.string;
+            case TokenType::Number:   return cachedColors.number;
+            case TokenType::Comment:  return cachedColors.comment;
+            case TokenType::Identifier:
+            default:                  return cachedColors.text;
         }
     }
 };
