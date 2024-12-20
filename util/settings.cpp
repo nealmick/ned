@@ -3,6 +3,7 @@
 #include <fstream>
 #include "imgui.h"
 #include <GLFW/glfw3.h>
+#include "../editor.h" 
 //testomg asdfasdf 
 Settings gSettings;
 
@@ -207,10 +208,16 @@ void Settings::renderSettingsWindow() {
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
-            saveSettings();
+            //saveSettings();
+            gEditor.forceColorUpdate(); 
         }
     };
+    bool shouldClose = ImGui::IsKeyPressed(ImGuiKey_Escape) || 
+    (ImGui::IsMouseClicked(0) && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows));
 
+    if (shouldClose) {
+        saveSettings();  // Save when window closes for any reason
+    }
     ImGui::Spacing();
     ImGui::TextUnformatted("Syntax Colors");
     ImGui::Separator();
@@ -228,6 +235,7 @@ void Settings::renderSettingsWindow() {
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSettingsWindow = false;
+        saveSettings();  // Save all changes at once when window closes
     }
 
     ImGui::End();
