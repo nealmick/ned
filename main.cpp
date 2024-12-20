@@ -89,12 +89,30 @@ void InitializeImGui(GLFWwindow* window) {
 }
 
 void ApplySettings(ImGuiStyle& style) {
+    // Background color
     style.Colors[ImGuiCol_WindowBg] = ImVec4(
         gSettings.getSettings()["backgroundColor"][0].get<float>(),
         gSettings.getSettings()["backgroundColor"][1].get<float>(),
         gSettings.getSettings()["backgroundColor"][2].get<float>(),
         gSettings.getSettings()["backgroundColor"][3].get<float>()
     );
+
+    // Get text color from current theme
+    std::string currentTheme = gSettings.getCurrentTheme();
+    auto& textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
+    ImVec4 textCol(
+        textColor[0].get<float>(),
+        textColor[1].get<float>(),
+        textColor[2].get<float>(),
+        textColor[3].get<float>()
+    );
+
+    // Apply text color to all text-related ImGui elements
+    style.Colors[ImGuiCol_Text] = textCol;                // Regular text
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(textCol.x * 0.3f, textCol.y * 0.3f, textCol.z * 0.7f, 0.5f);
+
+    // Rest of your existing settings
     style.ScrollbarSize = 30.0f;
     style.ScaleAllSizes(1.0f);
     
@@ -107,6 +125,11 @@ void ApplySettings(ImGuiStyle& style) {
 }
 
 void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth) {
+    bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
+        std::cout << "Settings window toggled with Cmd+Comma" << std::endl;
+        gSettings.toggleSettingsWindow();
+    }
     ImGui::PushFont(currentFont);
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
@@ -164,6 +187,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleVar();
     ImGui::End();
     gBookmarks.renderBookmarksWindow();
+    gSettings.renderSettingsWindow();
 
 
 }
@@ -181,7 +205,7 @@ int main() {
     InitializeGLFW();
     GLFWwindow* window = CreateWindow();
     InitializeImGui(window);
-
+    bool showSettingsWindow = false;
     gSettings.loadSettings();   
     gEditor.setTheme(gSettings.getCurrentTheme());
 
