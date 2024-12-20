@@ -131,14 +131,17 @@ public:
             std::cerr << "Exception in applyHighlighting: " << e.what() << std::endl;
         }
     }
-
-private:
+    void forceColorUpdate() {
+        colorsNeedUpdate = true;
+    }
+private:    
     std::unordered_set<std::string> keywords;
     std::unordered_map<std::string, TokenType> operators;
     mutable ThemeColors cachedColors;
     mutable bool colorsNeedUpdate = true;
 
     void updateThemeColors() const {
+        // Check both our flag AND settings theme changed
         if (!colorsNeedUpdate) return;
         
         auto& theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];

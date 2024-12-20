@@ -152,13 +152,16 @@ public:
             std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
     }
+    void forceColorUpdate() {
+       colorsNeedUpdate = true;
+    }
 private:
     std::unordered_set<std::string> keywords;
     std::unordered_map<std::string, TokenType> operators;
     mutable ThemeColors cachedColors;
     mutable bool colorsNeedUpdate = true;
     void updateThemeColors() const {
-        if (!colorsNeedUpdate) return;
+        if (!colorsNeedUpdate) return;  // Already have this
         
         auto& theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
         
@@ -175,6 +178,7 @@ private:
         
         colorsNeedUpdate = false;
     }
+
 
     bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
     bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }

@@ -73,7 +73,10 @@ public:
         }
         return false;
     }
-
+    void forceColorUpdate() {
+        pythonLexer.forceColorUpdate();
+        cppLexer.forceColorUpdate();
+    }
     
 private:
     std::vector<SyntaxRule> rules;
