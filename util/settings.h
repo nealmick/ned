@@ -38,7 +38,13 @@ public:
     }
     bool hasFontSizeChanged() const { return fontSizeChanged; }
     void resetFontSizeChanged() { fontSizeChanged = false; }
-
+    bool showSettingsWindow = false;
+    void renderSettingsWindow();
+    void toggleSettingsWindow() { 
+        showSettingsWindow = !showSettingsWindow;
+        blockInput = showSettingsWindow;  // Block input when window is open
+    }
+    bool isBlockingInput() const { return blockInput; }
 private:
     json settings;
     std::string settingsPath;
@@ -48,6 +54,7 @@ private:
     bool themeChanged = false;
     bool fontChanged = false;
     bool fontSizeChanged = false;
+    bool blockInput = false;
 };
 
 extern Settings gSettings;
