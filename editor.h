@@ -49,6 +49,7 @@ struct CursorVisibility {
 };
 
 class Editor {
+    std::mutex highlight_mutex; 
 public:
     void setLanguage(const std::string& extension);
     void highlightContent(const std::string& content, std::vector<ImVec4>& colors, int start_pos, int end_pos);

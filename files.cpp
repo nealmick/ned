@@ -18,7 +18,11 @@
 
 FileExplorer gFileExplorer;
 void FileExplorer::loadIcons() {
-  std::vector<std::string> iconFiles = {"py.svg",
+  std::vector<std::string> iconFiles = {
+                                        "close.svg",
+                                        "gear.svg",
+                                        "gear-hover.svg",
+                                        "py.svg",
                                         "h.svg",
                                         "hpp.svg",
                                         "gitignore.svg",

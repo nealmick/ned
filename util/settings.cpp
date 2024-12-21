@@ -4,6 +4,7 @@
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include "../editor.h" 
+#include "../files.h" 
 //testomg asdfasdf 
 Settings gSettings;
 
@@ -151,15 +152,39 @@ void Settings::renderSettingsWindow() {
         showSettingsWindow = false;
     }
 
-    ImGui::TextUnformatted("Settings");
-    ImGui::Separator();
-    
-    
-    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 300));  // Made taller to fit all colors
-    
-    ImGui::Spacing();
-    // General Settings
+    // Start header group with proper spacing
+    ImGui::BeginGroup();
 
+    // Get text height for consistent sizing
+    float textHeight = ImGui::GetTextLineHeight();
+
+    // Display "Settings" text
+    ImGui::TextUnformatted("Settings");
+
+    // Calculate position for close button to align with text
+    float closeIconSize = textHeight - 5;  // Match text height exactly
+    ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20); // More padding from right edge
+
+    // Create invisible button with icon
+    ImVec2 cursor_pos = ImGui::GetCursorPos();
+    if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize))) {
+        showSettingsWindow = false;
+        saveSettings();
+    }
+
+    bool isHovered = ImGui::IsItemHovered();
+    ImGui::SetCursorPos(cursor_pos);
+
+    // Draw the close icon
+    ImTextureID closeIcon = gFileExplorer.getIcon("close");
+    ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), 
+                 ImVec2(0,0), ImVec2(1,1),
+                 isHovered ? ImVec4(1,1,1,0.6f) : ImVec4(1,1,1,1));
+
+    ImGui::EndGroup();
+    ImGui::Separator();
+
+    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 300));    ImGui::Spacing();
     
     // Font Size Settings
     float fontSize = settings["fontSize"].get<float>();
@@ -171,8 +196,6 @@ void Settings::renderSettingsWindow() {
         saveSettings();
     }
     ImGui::Spacing();
-    
-
     
     // Background Color
     auto& bgColorArray = settings["backgroundColor"];
@@ -208,16 +231,10 @@ void Settings::renderSettingsWindow() {
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
-            //saveSettings();
             gEditor.forceColorUpdate(); 
         }
     };
-    bool shouldClose = ImGui::IsKeyPressed(ImGuiKey_Escape) || 
-    (ImGui::IsMouseClicked(0) && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows));
 
-    if (shouldClose) {
-        saveSettings();  // Save when window closes for any reason
-    }
     ImGui::Spacing();
     ImGui::TextUnformatted("Syntax Colors");
     ImGui::Separator();
@@ -235,7 +252,7 @@ void Settings::renderSettingsWindow() {
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSettingsWindow = false;
-        saveSettings();  // Save all changes at once when window closes
+        saveSettings();
     }
 
     ImGui::End();

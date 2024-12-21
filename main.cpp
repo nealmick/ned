@@ -178,7 +178,56 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
     ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
+
+    // Create a group for the header line
+    ImGui::BeginGroup();
+
+    // Push font for the text
+    ImGui::PushFont(currentFont);
+
+
+    // Display the file path and get line height while font is pushed
+    float lineHeight = ImGui::GetTextLineHeight();
     ImGui::Text("Editor - %s", gFileExplorer.getCurrentFile().empty() ? "No file selected" : gFileExplorer.getCurrentFile().c_str());
+
+    // Calculate sizes
+    float iconSize = lineHeight - 5;
+    float verticalOffset = (lineHeight - iconSize) / 2;
+
+    // Position for the icon
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - iconSize - 8);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + verticalOffset);
+
+    // Pop font before handling the icon
+    ImGui::PopFont();
+
+    bool settingsOpen = gSettings.showSettingsWindow;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0,0));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0,0,0,0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0,0,0,0));
+
+    if (!settingsOpen) {
+        ImVec2 cursor_pos = ImGui::GetCursorPos();
+        
+        if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize))) {
+            gSettings.toggleSettingsWindow();
+        }
+        
+        bool isHovered = ImGui::IsItemHovered();
+        
+        ImGui::SetCursorPos(cursor_pos);
+        ImTextureID icon = isHovered ? gFileExplorer.getIcon("gear-hover") : gFileExplorer.getIcon("gear");
+        ImGui::Image(icon, ImVec2(iconSize, iconSize));
+    } else {
+        ImGui::Image(gFileExplorer.getIcon("gear"), ImVec2(iconSize, iconSize));
+    }
+
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar();
+
+    ImGui::EndGroup();
     ImGui::Separator();
 
     gFileExplorer.renderFileContent();
