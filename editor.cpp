@@ -916,7 +916,7 @@ void HandleEditorInput(std::string &text, EditorState &state,
       ImGui::SetKeyboardFocusHere(-1); // Prevent default tab behavior
       return; // Exit the function to prevent further processing
     }
-    
+
     if (ctrl_pressed) {
       if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
         float currentSize = gSettings.getFontSize();
@@ -1304,6 +1304,7 @@ void Editor::cancelHighlighting() {
 void Editor::highlightContent(const std::string &content,
                               std::vector<ImVec4> &colors, int start_pos,
                               int end_pos) {
+  std::lock_guard<std::mutex> lock(highlight_mutex);
   std::cout << "Entering highlightContent. content size: " << content.size()
             << ", colors size: " << colors.size()
             << ", start_pos: " << start_pos << ", end_pos: " << end_pos
