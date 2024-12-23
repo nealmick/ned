@@ -408,18 +408,26 @@ void HandleCharacterInput(std::string &text, std::vector<ImVec4> &colors,
     input_end = state.cursor_pos;
   }
 }
-//write function that prints hello world
 void HandleEnterKey(std::string &text, std::vector<ImVec4> &colors,
                     EditorState &state, bool &text_changed, int &input_end) {
-    // Don't process Enter if we just jumped lines
+    
     if (gLineJump.hasJustJumped()) {
         return;
     }
     
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+        // Insert the newline character
         text.insert(state.cursor_pos, 1, '\n');
-        colors.insert(colors.begin() + state.cursor_pos - 1, 1,
-                      ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        
+        // Safely insert the color
+        if (state.cursor_pos <= colors.size()) {
+            colors.insert(colors.begin() + state.cursor_pos, 1,
+                         ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        } else {
+            std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
+            colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        }
+        
         state.cursor_pos++;
         state.selection_start = state.selection_end = state.cursor_pos;
         state.is_selecting = false;
@@ -770,12 +778,13 @@ void RenderTextWithSelection(ImDrawList *draw_list, const ImVec2 &pos,
   }
 }
 void RenderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos,
-                  float line_height, bool rainbow_cursor, float blink_time) {
+                  float line_height, float blink_time) {
   float blink_alpha =
       (sinf(blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
   ImU32 cursor_color;
-
-  if (rainbow_cursor) {
+  bool rainbow_mode = gSettings.getRainbowMode();  // Get setting here
+  
+  if (rainbow_mode) {
     ImVec4 rainbow = GetRainbowColor(blink_time * 2.0f); // Rainbow frequency
     cursor_color = ImGui::ColorConvertFloat4ToU32(rainbow);
   } else {
@@ -818,7 +827,7 @@ int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
 void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
                        float line_height, int num_lines, float scroll_y,
                        float window_height, const EditorState &editor_state,
-                       float blink_time, bool rainbow_mode) {
+                       float blink_time) {
   static char line_number_buffer[16];
   ImDrawList *draw_list = ImGui::GetWindowDrawList();
   const ImU32 default_line_number_color = IM_COL32(128, 128, 128, 255);
@@ -832,6 +841,7 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
 
   // Pre-calculate rainbow color
   ImU32 rainbow_color = current_line_color;
+  bool rainbow_mode = gSettings.getRainbowMode();  // Get setting here
   if (rainbow_mode) {
     // Update color less frequently
     static float last_update_time = 0.0f;
@@ -916,7 +926,7 @@ void HandleEditorInput(std::string &text, EditorState &state,
       ImGui::SetKeyboardFocusHere(-1); // Prevent default tab behavior
       return; // Exit the function to prevent further processing
     }
-    
+
     if (ctrl_pressed) {
       if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
         float currentSize = gSettings.getFontSize();
@@ -1257,8 +1267,7 @@ bool CustomTextEditor(const char *label, std::string &text,
     }
   }
 
-  RenderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height,
-               editor_state.rainbow_cursor, editor_state.cursor_blink_time);
+  RenderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height +
                        editor_top_margin);
@@ -1281,7 +1290,7 @@ bool CustomTextEditor(const char *label, std::string &text,
   RenderLineNumbers(line_numbers_pos, line_number_width, line_height,
                     editor_state.line_starts.size(), editor_state.scroll_pos.y,
                     size.y - editor_top_margin, editor_state,
-                    editor_state.cursor_blink_time, true);
+                    editor_state.cursor_blink_time);
   ImGui::PopClipRect();
 
   ImGui::EndGroup();
@@ -1304,6 +1313,7 @@ void Editor::cancelHighlighting() {
 void Editor::highlightContent(const std::string &content,
                               std::vector<ImVec4> &colors, int start_pos,
                               int end_pos) {
+
   std::cout << "Entering highlightContent. content size: " << content.size()
             << ", colors size: " << colors.size()
             << ", start_pos: " << start_pos << ", end_pos: " << end_pos
@@ -1427,6 +1437,9 @@ void Editor::highlightContent(const std::string &content,
           applyTagRules(*it, cssRules);
         }
       }
+      std::cout << "debug message ---------- highlight content sequence complete" << std::endl;
+
+
     } catch (const std::exception &e) {
       std::cerr << "Error in highlighting: " << e.what() << std::endl;
       std::fill(colors.begin() + start_pos, colors.begin() + end_pos,

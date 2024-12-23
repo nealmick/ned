@@ -45,6 +45,7 @@ public:
         blockInput = showSettingsWindow;  // Block input when window is open
     }
     bool isBlockingInput() const { return blockInput; }
+    bool getRainbowMode() const { return settings["rainbow"].get<bool>(); }
 private:
     json settings;
     std::string settingsPath;
