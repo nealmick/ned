@@ -408,18 +408,26 @@ void HandleCharacterInput(std::string &text, std::vector<ImVec4> &colors,
     input_end = state.cursor_pos;
   }
 }
-//write function that prints hello world
 void HandleEnterKey(std::string &text, std::vector<ImVec4> &colors,
                     EditorState &state, bool &text_changed, int &input_end) {
-    // Don't process Enter if we just jumped lines
+    
     if (gLineJump.hasJustJumped()) {
         return;
     }
     
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+        // Insert the newline character
         text.insert(state.cursor_pos, 1, '\n');
-        colors.insert(colors.begin() + state.cursor_pos - 1, 1,
-                      ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        
+        // Safely insert the color
+        if (state.cursor_pos <= colors.size()) {
+            colors.insert(colors.begin() + state.cursor_pos, 1,
+                         ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        } else {
+            std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
+            colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        }
+        
         state.cursor_pos++;
         state.selection_start = state.selection_end = state.cursor_pos;
         state.is_selecting = false;
@@ -1304,7 +1312,7 @@ void Editor::cancelHighlighting() {
 void Editor::highlightContent(const std::string &content,
                               std::vector<ImVec4> &colors, int start_pos,
                               int end_pos) {
-  std::lock_guard<std::mutex> lock(highlight_mutex);
+
   std::cout << "Entering highlightContent. content size: " << content.size()
             << ", colors size: " << colors.size()
             << ", start_pos: " << start_pos << ", end_pos: " << end_pos
@@ -1428,6 +1436,9 @@ void Editor::highlightContent(const std::string &content,
           applyTagRules(*it, cssRules);
         }
       }
+      std::cout << "debug message ---------- highlight content sequence complete" << std::endl;
+
+
     } catch (const std::exception &e) {
       std::cerr << "Error in highlighting: " << e.what() << std::endl;
       std::fill(colors.begin() + start_pos, colors.begin() + end_pos,
