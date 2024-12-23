@@ -97,16 +97,42 @@ public:
         if (lineNumber >= static_cast<int>(state.line_starts.size())) {
             lineNumber = static_cast<int>(state.line_starts.size()) - 1;
         }
-
+        
         // Set cursor to the beginning of the requested line
         state.cursor_pos = state.line_starts[lineNumber];
         state.selection_start = state.cursor_pos;
         state.selection_end = state.cursor_pos;
         state.current_line = lineNumber;
         state.is_selecting = false;
-        state.ensure_cursor_visible_frames = 2;
+        
+        // Calculate the target scroll position
+        float line_height = ImGui::GetTextLineHeight();
+        float window_height = ImGui::GetWindowHeight();
+        
+        // Calculate number of visible lines
+        float visible_lines = window_height / line_height;
+        
+        // Target the 12th line position (adjust this number to your preference)
+        const float TARGET_LINE = 14.0f;
+        
+        // Calculate scroll position to put cursor at the target line
+        float target_scroll = (lineNumber * line_height) - (TARGET_LINE * line_height);
+        
+        // Ensure we don't scroll past the boundaries
+        target_scroll = std::max(0.0f, target_scroll);
+        
+        // Use the editor's scroll request system
+        gEditor.requestScroll(state.scroll_x, target_scroll);
+        
+        state.ensure_cursor_visible_frames = 0;
+        state.pendingBookmarkScroll = true;
+        state.pendingScrollY = target_scroll;
 
-        std::cout << "Jumped to line " << (lineNumber + 1) << std::endl;
+        std::cout << "Jumping to line " << (lineNumber + 1) 
+                  << " (target scroll pos: " << target_scroll 
+                  << ", window height: " << window_height 
+                  << ", visible lines: " << visible_lines 
+                  << ", line height: " << line_height << ")" << std::endl;
     }
 
     inline bool isWindowOpen() const {
