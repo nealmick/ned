@@ -18,7 +18,11 @@
 
 FileExplorer gFileExplorer;
 void FileExplorer::loadIcons() {
-  std::vector<std::string> iconFiles = {"py.svg",
+  std::vector<std::string> iconFiles = {
+                                        "close.svg",
+                                        "gear.svg",
+                                        "gear-hover.svg",
+                                        "py.svg",
                                         "h.svg",
                                         "hpp.svg",
                                         "gitignore.svg",
@@ -458,10 +462,18 @@ void FileExplorer::displayFileTree(FileNode &node) {
         ImGui::SameLine(current_depth * indent_width + iconSize.x + leftMargin + 10);
         
         if (node.fullPath == currentOpenFile) {
-            ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
-            ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
-            ImGui::Text("%s", node.name.c_str());
-            ImGui::PopStyleColor();
+            if (gSettings.getRainbowMode()) {
+                // Rainbow mode - use animated rainbow color
+                ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
+                ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
+                ImGui::Text("%s", node.name.c_str());
+                ImGui::PopStyleColor();
+            } else {
+                // Non-rainbow mode - use a static highlight color
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f)); // Light gray
+                ImGui::Text("%s", node.name.c_str());
+                ImGui::PopStyleColor();
+            }
         } else {
             ImGui::Text("%s", node.name.c_str());
         }

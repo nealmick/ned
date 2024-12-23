@@ -4,14 +4,17 @@
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include "../editor.h" 
-//testomg asdfasdf 
+#include "../files.h" 
+#include <unistd.h>
+#include "config.h"
 Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f) {}
 
 void Settings::loadSettings() {
-    settingsPath = std::string(getenv("HOME")) + "/.ned.json";
+    settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
     std::cout << "Attempting to load settings from: " << settingsPath << std::endl;
+    
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
@@ -25,6 +28,8 @@ void Settings::loadSettings() {
         std::cout << "Settings file not found, using defaults" << std::endl;
         settings = json::object(); // Create an empty JSON object
     }
+
+    // Rest of your existing default settings initialization...
     if (!settings.contains("font")) {
         settings["font"] = "default";
     }
@@ -40,6 +45,9 @@ void Settings::loadSettings() {
     }
     if (!settings.contains("theme")) {
         settings["theme"] = "default";
+    }
+    if (!settings.contains("rainbow")) {
+        settings["rainbow"] = true;  // default to true
     }
     if (!settings.contains("themes")) {
     settings["themes"] = {
@@ -103,6 +111,7 @@ void Settings::checkSettingsFile() {
             oldSettings["splitPos"] != settings["splitPos"] ||
             oldSettings["theme"] != settings["theme"] ||
             oldSettings["themes"] != settings["themes"] ||
+            oldSettings["rainbow"] != settings["rainbow"] ||
             oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
             
@@ -122,7 +131,7 @@ void Settings::renderSettingsWindow() {
     if (!showSettingsWindow) return;
 
     // Center the window - make height auto-adjustable
-    ImGui::SetNextWindowSize(ImVec2(700, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(800, 0), ImGuiCond_Always);
     ImGui::SetNextWindowPos(
         ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f),
         ImGuiCond_Always,
@@ -151,15 +160,39 @@ void Settings::renderSettingsWindow() {
         showSettingsWindow = false;
     }
 
-    ImGui::TextUnformatted("Settings");
-    ImGui::Separator();
-    
-    
-    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 300));  // Made taller to fit all colors
-    
-    ImGui::Spacing();
-    // General Settings
+    // Start header group with proper spacing
+    ImGui::BeginGroup();
 
+    // Get text height for consistent sizing
+    float textHeight = ImGui::GetTextLineHeight();
+
+    // Display "Settings" text
+    ImGui::TextUnformatted("Settings");
+
+    // Calculate position for close button to align with text
+    float closeIconSize = textHeight - 5;  // Match text height exactly
+    ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20); // More padding from right edge
+
+    // Create invisible button with icon
+    ImVec2 cursor_pos = ImGui::GetCursorPos();
+    if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize))) {
+        showSettingsWindow = false;
+        saveSettings();
+    }
+
+    bool isHovered = ImGui::IsItemHovered();
+    ImGui::SetCursorPos(cursor_pos);
+
+    // Draw the close icon
+    ImTextureID closeIcon = gFileExplorer.getIcon("close");
+    ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), 
+                 ImVec2(0,0), ImVec2(1,1),
+                 isHovered ? ImVec4(1,1,1,0.6f) : ImVec4(1,1,1,1));
+
+    ImGui::EndGroup();
+    ImGui::Separator();
+
+    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 400));    ImGui::Spacing();
     
     // Font Size Settings
     float fontSize = settings["fontSize"].get<float>();
@@ -171,9 +204,10 @@ void Settings::renderSettingsWindow() {
         saveSettings();
     }
     ImGui::Spacing();
-    
+        
 
-    
+
+
     // Background Color
     auto& bgColorArray = settings["backgroundColor"];
     ImVec4 bgColor(
@@ -208,26 +242,38 @@ void Settings::renderSettingsWindow() {
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
-            //saveSettings();
             gEditor.forceColorUpdate(); 
         }
     };
-    bool shouldClose = ImGui::IsKeyPressed(ImGuiKey_Escape) || 
-    (ImGui::IsMouseClicked(0) && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows));
 
-    if (shouldClose) {
-        saveSettings();  // Save when window closes for any reason
-    }
     ImGui::Spacing();
     ImGui::TextUnformatted("Syntax Colors");
+
     ImGui::Separator();
-    
+    ImGui::Spacing();
+
     editThemeColor("Text Color", "text");
     editThemeColor("Keywords", "keyword");
     editThemeColor("Strings", "string");
     editThemeColor("Numbers", "number");
     editThemeColor("Comments", "comment");
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Toggle");
+
+    ImGui::Separator();
+    ImGui::Spacing();
     
+
+    // Rainbow Mode Toggle
+    bool rainbowMode = settings["rainbow"].get<bool>();
+    if (ImGui::Checkbox("Rainbow Mode", &rainbowMode)) {
+        settings["rainbow"] = rainbowMode;
+        settingsChanged = true;
+        saveSettings();
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
+    ImGui::Spacing();
     ImGui::EndChild();
 
     ImGui::Separator();
@@ -235,7 +281,7 @@ void Settings::renderSettingsWindow() {
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSettingsWindow = false;
-        saveSettings();  // Save all changes at once when window closes
+        saveSettings();
     }
 
     ImGui::End();

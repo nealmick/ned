@@ -63,7 +63,13 @@ public:
     void refreshFileTree();
     void preserveOpenStates(const FileNode& oldNode, FileNode& newNode);
     std::string currentFile;
-
+    ImTextureID getIcon(const std::string& iconName) const {
+        auto it = fileTypeIcons.find(iconName);
+        if (it != fileTypeIcons.end()) {
+            return it->second;
+        }
+        return fileTypeIcons.at("default"); // Return default icon if not found
+    }
 private:
     std::string selectedFolder;
     bool _showFileDialog = true;
