@@ -6,7 +6,8 @@
         0.3
     ],
     "font": "SourceCodePro-Regular",
-    "fontSize": 19.0,
+    "fontSize": 18.0,
+    "rainbow": true,
     "splitPos": 0.23679576814174652,
     "theme": "default",
     "themes": {

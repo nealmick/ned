@@ -5,14 +5,16 @@
 #include <GLFW/glfw3.h>
 #include "../editor.h" 
 #include "../files.h" 
-//testomg asdfasdf 
+#include <unistd.h>
+#include "config.h"
 Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f) {}
 
 void Settings::loadSettings() {
-    settingsPath = std::string(getenv("HOME")) + "/.ned.json";
+    settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
     std::cout << "Attempting to load settings from: " << settingsPath << std::endl;
+    
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
@@ -26,6 +28,8 @@ void Settings::loadSettings() {
         std::cout << "Settings file not found, using defaults" << std::endl;
         settings = json::object(); // Create an empty JSON object
     }
+
+    // Rest of your existing default settings initialization...
     if (!settings.contains("font")) {
         settings["font"] = "default";
     }
@@ -41,6 +45,9 @@ void Settings::loadSettings() {
     }
     if (!settings.contains("theme")) {
         settings["theme"] = "default";
+    }
+    if (!settings.contains("rainbow")) {
+        settings["rainbow"] = true;  // default to true
     }
     if (!settings.contains("themes")) {
     settings["themes"] = {
@@ -104,6 +111,7 @@ void Settings::checkSettingsFile() {
             oldSettings["splitPos"] != settings["splitPos"] ||
             oldSettings["theme"] != settings["theme"] ||
             oldSettings["themes"] != settings["themes"] ||
+            oldSettings["rainbow"] != settings["rainbow"] ||
             oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
             
@@ -123,7 +131,7 @@ void Settings::renderSettingsWindow() {
     if (!showSettingsWindow) return;
 
     // Center the window - make height auto-adjustable
-    ImGui::SetNextWindowSize(ImVec2(700, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(800, 0), ImGuiCond_Always);
     ImGui::SetNextWindowPos(
         ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f),
         ImGuiCond_Always,
@@ -184,7 +192,7 @@ void Settings::renderSettingsWindow() {
     ImGui::EndGroup();
     ImGui::Separator();
 
-    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 300));    ImGui::Spacing();
+    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 400));    ImGui::Spacing();
     
     // Font Size Settings
     float fontSize = settings["fontSize"].get<float>();
@@ -196,7 +204,10 @@ void Settings::renderSettingsWindow() {
         saveSettings();
     }
     ImGui::Spacing();
-    
+        
+
+
+
     // Background Color
     auto& bgColorArray = settings["backgroundColor"];
     ImVec4 bgColor(
@@ -237,14 +248,32 @@ void Settings::renderSettingsWindow() {
 
     ImGui::Spacing();
     ImGui::TextUnformatted("Syntax Colors");
+
     ImGui::Separator();
-    
+    ImGui::Spacing();
+
     editThemeColor("Text Color", "text");
     editThemeColor("Keywords", "keyword");
     editThemeColor("Strings", "string");
     editThemeColor("Numbers", "number");
     editThemeColor("Comments", "comment");
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Toggle");
+
+    ImGui::Separator();
+    ImGui::Spacing();
     
+
+    // Rainbow Mode Toggle
+    bool rainbowMode = settings["rainbow"].get<bool>();
+    if (ImGui::Checkbox("Rainbow Mode", &rainbowMode)) {
+        settings["rainbow"] = rainbowMode;
+        settingsChanged = true;
+        saveSettings();
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
+    ImGui::Spacing();
     ImGui::EndChild();
 
     ImGui::Separator();
