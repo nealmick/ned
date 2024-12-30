@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <chrono>
 #include "util/bookmarks.h"
+#include "util/terminal.h"
+
 
 Bookmarks gBookmarks;
 
@@ -126,9 +128,17 @@ void ApplySettings(ImGuiStyle& style) {
 
 void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth) {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
+        // Add terminal toggle with Cmd/Ctrl+T
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
+        gTerminal.toggleVisibility();
+    }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
         std::cout << "Settings window toggled with Cmd+Comma" << std::endl;
         gSettings.toggleSettingsWindow();
+    }
+    if (gTerminal.isTerminalVisible()) {
+        gTerminal.render();
+        return;
     }
     ImGui::PushFont(currentFont);
     ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -151,7 +161,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
-
+        gTerminal.setWorkingDirectory(gFileExplorer.getSelectedFolder());
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
         
     }
