@@ -1683,7 +1683,6 @@ void Editor::setupJsonRules() {
 
 
 
-
 void Editor::loadTheme(const std::string &themeName) {
   auto &settings = gSettings.getSettings();
   if (settings.contains("themes") && settings["themes"].contains(themeName)) {
