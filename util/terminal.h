@@ -10,7 +10,7 @@ public:
     Terminal();
     ~Terminal();
     
-    void toggleVisibility() { isVisible = !isVisible; }
+    void toggleVisibility();
     bool isTerminalVisible() const { return isVisible; }
     void render();
     void setWorkingDirectory(const std::string& path);
@@ -18,9 +18,11 @@ public:
 private:
     // Core terminal state
     bool isVisible = false;
+    bool needsFocus = false;
     int ptyFd = -1;
     pid_t childPid = -1;
     bool shellStarted = false;
+    bool set_dir = false;
     
     // Selection operations
     void copySelection();
@@ -59,6 +61,7 @@ private:
         ImVec4 currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
         ImVec4 currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
         uint16_t currentAttrs = 0;
+        bool skipNext = false;  // signal to not render char
     } ansiState;
 
     // Thread management
@@ -103,7 +106,15 @@ private:
     bool isTyping = false;            // Tracks if user is currently typing
     float typeIdleTime = 0.0f;        // Time since last keystroke
     const float TYPE_TIMEOUT = 1.0f;   // Time before considering typing finished
-     bool needsScroll = false;  // Flag to indicate scroll needed
+    bool needsScroll = false;  // Flag to indicate scroll needed
+
+    //alternate buffer rendering
+    int savedCursorX = 0;
+    int savedCursorY = 0;
+    int scrollRegionTop = 0;
+    int scrollRegionBottom = bufferHeight - 1;
+
+    
 
 
 };

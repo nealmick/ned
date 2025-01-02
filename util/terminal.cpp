@@ -10,25 +10,6 @@
 
 Terminal gTerminal;
 
-void Terminal::copySelection() {
-    if (!selection.active) return;
-    
-    std::string selectedText;
-    int startX = std::min(selection.startX, selection.endX);
-    int endX = std::max(selection.startX, selection.endX);
-    int startY = std::min(selection.startY, selection.endY);
-    int endY = std::max(selection.startY, selection.endY);
-    
-    for (int y = startY; y <= endY; y++) {
-        if (y > startY) selectedText += '\n';
-        for (int x = (y == startY ? startX : 0); 
-             x <= (y == endY ? endX : bufferWidth - 1); x++) {
-            selectedText += static_cast<char>(buffer[y][x].ch);
-        }
-    }
-    
-    ImGui::SetClipboardText(selectedText.c_str());
-}
 
 Terminal::Terminal() {
     buffer.resize(bufferHeight, std::vector<Cell>(bufferWidth));
@@ -164,6 +145,7 @@ void Terminal::readOutput() {
         }
     }
 }
+
 void Terminal::writeToBuffer(const char* data, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
@@ -180,10 +162,18 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             } else if (data[i] == '[') {
                 ansiState.inCSI = true;
                 ansiState.currentSequence.clear();
+            } else if (data[i] == '(' || data[i] == ')') {
+                // Skip the next character (usually 'B' for ASCII charset)
+                ansiState.skipNext = true;
+                ansiState.inEscape = false;
             } else {
-                handleEscapeSequence();
                 ansiState.inEscape = false;
             }
+            continue;
+        }
+
+        if (ansiState.skipNext) {
+            ansiState.skipNext = false;
             continue;
         }
 
@@ -192,35 +182,26 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             continue;
         }
 
-        if (data[i] == '\x08') {  // Backspace
-            if (cursorX > 0) {
-                cursorX--;
-            }
+        // Rest of the function stays the same
+        if (data[i] == '\x08') {
+            if (cursorX > 0) cursorX--;
             continue;
         }
 
-        if (data[i] >= 32) {  // Printable characters
+        if (data[i] >= 32) {
             buffer[cursorY][cursorX].ch = data[i];
             buffer[cursorY][cursorX].fg = ansiState.currentFg;
             buffer[cursorY][cursorX].bg = ansiState.currentBg;
             buffer[cursorY][cursorX].attrs = ansiState.currentAttrs;
             cursorX++;
-            
-            // Update lastLineLength if we're extending the line
-            if (cursorX > lastLineLength) {
-                lastLineLength = cursorX;
-            }
+            if (cursorX > lastLineLength) lastLineLength = cursorX;
         } else {
-            processChar(data[i]);  // Handle other control characters
+            processChar(data[i]);
         }
     }
     
-    if (autoScroll) {
-        needsScroll = true;
-    }
+    if (autoScroll) needsScroll = true;
 }
-
-
 
 void Terminal::processChar(char32_t c) {
     bool needScroll = false;
@@ -318,45 +299,26 @@ void Terminal::scrollBuffer(int lines) {
         scrollPosition = maxScrollPosition;
     }
 }
-
 void Terminal::handleCSI(const std::string& seq) {
     if (seq.empty()) return;
     
     char cmd = seq.back();
     std::vector<int> params;
     
-    size_t start = 0;
-    size_t end = 0;
-    
-    // Safely parse parameters
-    while ((end = seq.find(';', start)) != std::string::npos) {
-        std::string paramStr = seq.substr(start, end - start);
-        try {
-            if (paramStr.empty()) {
-                params.push_back(0);  // Default value for empty parameter
-            } else {
-                params.push_back(std::stoi(paramStr));
-            }
-        } catch (const std::exception&) {
-            params.push_back(0);  // Default value on conversion error
-        }
-        start = end + 1;
-    }
-    
-    // Handle the last parameter before the command character
-    if (start < seq.length() - 1) {
-        std::string paramStr = seq.substr(start, seq.length() - 1 - start);
-        try {
-            if (paramStr.empty()) {
-                params.push_back(0);
-            } else {
-                params.push_back(std::stoi(paramStr));
-            }
-        } catch (const std::exception&) {
-            params.push_back(0);
+    // Extract numeric parameters
+    std::string numStr;
+    for (size_t i = 0; i < seq.length() - 1; i++) {
+        if (isdigit(seq[i])) {
+            numStr += seq[i];
+        } else if (seq[i] == ';') {
+            params.push_back(numStr.empty() ? 0 : std::stoi(numStr));
+            numStr.clear();
         }
     }
-    
+    if (!numStr.empty()) {
+        params.push_back(std::stoi(numStr));
+    }
+
     switch (cmd) {
         case 'H': // Cursor Position
         case 'f': // Alternative Cursor Position
@@ -366,81 +328,105 @@ void Terminal::handleCSI(const std::string& seq) {
                 setCursorPos(0, 0);
             }
             break;
+            
         case 'A': // Cursor Up
             cursorY = std::max(0, cursorY - (params.empty() ? 1 : params[0]));
             break;
+            
         case 'B': // Cursor Down
             cursorY = std::min(bufferHeight - 1, cursorY + (params.empty() ? 1 : params[0]));
             break;
+            
         case 'C': // Cursor Forward
             cursorX = std::min(bufferWidth - 1, cursorX + (params.empty() ? 1 : params[0]));
             break;
+            
         case 'D': // Cursor Back
-            if (cursorX > 0) {
-                cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
+            cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
+            break;
+            
+        case 'G': // Cursor horizontal absolute
+            if (!params.empty()) {
+                cursorX = std::min(bufferWidth - 1, std::max(0, params[0] - 1));
+            } else {
+                cursorX = 0;
             }
             break;
+            
+        case 'K': // Erase in Line
+            if (params.empty() || params[0] == 0) {
+                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
+            } else if (params[0] == 1) {
+                clearRange(0, cursorY, cursorX, cursorY);
+            } else if (params[0] == 2) {
+                clearRange(0, cursorY, bufferWidth - 1, cursorY);
+            }
+            break;
+            
         case 'J': // Erase in Display
             if (params.empty() || params[0] == 2) {
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
             } else if (params[0] == 0) {
-                // Clear from cursor to end of screen
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
                 if (cursorY < bufferHeight - 1) {
                     clearRange(0, cursorY + 1, bufferWidth - 1, bufferHeight - 1);
                 }
-            } else if (params[0] == 1) {
-                // Clear from start to cursor
-                clearRange(0, 0, bufferWidth - 1, cursorY - 1);
-                clearRange(0, cursorY, cursorX, cursorY);
             }
             break;
-        case 'K': // Erase in Line
+
+        case 'h': // Set Mode
+        case 'l': // Reset Mode
+            if (!params.empty() && params[0] == 1049) { // Alternate screen buffer
+                if (cmd == 'h') {
+                    clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
+                    cursorX = cursorY = 0;
+                }
+            }
+            break;
+            
+        case 's': // Save cursor position
+            savedCursorX = cursorX;
+            savedCursorY = cursorY;
+            break;
+            
+        case 'u': // Restore cursor position
+            cursorX = savedCursorX;
+            cursorY = savedCursorY;
+            break;
+
+        case 'r': // Set scrolling region
+            if (params.size() >= 2) {
+                scrollRegionTop = std::max(0, params[0] - 1);
+                scrollRegionBottom = std::min(bufferHeight - 1, params[1] - 1);
+            }
+            break;
+            
+        case 'm': // SGR (Select Graphic Rendition)
             if (params.empty() || params[0] == 0) {
-                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY); // Clear to end of line
-            } else if (params[0] == 1) {
-                clearRange(0, cursorY, cursorX, cursorY); // Clear to start of line
-            } else if (params[0] == 2) {
-                clearRange(0, cursorY, bufferWidth - 1, cursorY); // Clear entire line
-            }
-            break;
-        case 'm': // Select Graphic Rendition (SGR)
-            if (params.empty()) {
                 ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
                 ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
                 ansiState.currentAttrs = 0;
+                return;
             }
             for (int param : params) {
                 switch (param) {
-                    case 0: // Reset
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-                        ansiState.currentAttrs = 0;
-                        break;
-                    case 1: // Bold
-                        ansiState.currentAttrs |= 1;
-                        break;
-                    case 31: // Red foreground
-                        ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-                        break;
-                    case 32: // Green foreground
-                        ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-                        break;
-                    case 33: // Yellow foreground
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
-                        break;
-                    case 34: // Blue foreground
-                        ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f);
-                        break;
-                    case 35: // Magenta foreground
-                        ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
-                        break;
-                    case 36: // Cyan foreground
-                        ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f);
-                        break;
-                    case 37: // White foreground
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        break;
+                    case 1: ansiState.currentAttrs |= 1; break;  // Bold
+                    case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;
+                    case 31: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
+                    case 32: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
+                    case 33: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
+                    case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;
+                    case 35: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;
+                    case 36: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;
+                    case 37: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
+                    case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;
+                    case 41: ansiState.currentBg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
+                    case 42: ansiState.currentBg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
+                    case 43: ansiState.currentBg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
+                    case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;
+                    case 45: ansiState.currentBg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;
+                    case 46: ansiState.currentBg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;
+                    case 47: ansiState.currentBg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
                 }
             }
             break;
@@ -465,19 +451,25 @@ void Terminal::clearRange(int startX, int startY, int endX, int endY) {
         }
     }
 }
-
 void Terminal::processInput(const std::string& input) {
     if (ptyFd >= 0) {
-        // Count the prompt length (e.g. "neal@computer:~/$ ")
         int promptLen = 0;
         for (int x = 0; x < bufferWidth; x++) {
             if (buffer[cursorY][x].ch == '$' || buffer[cursorY][x].ch == '#' || buffer[cursorY][x].ch == '>') {
-                promptLen = x + 2;  // +2 to account for the symbol and space after it
+                promptLen = x + 2;
                 break;
             }
         }
 
-        // Just send input to PTY and let writeToBuffer handle cursor movement
+        if (input == "\x7f" && cursorX > promptLen) { // Backspace
+            // Shift buffer left
+            for (int x = cursorX - 1; x < lastLineLength - 1; x++) {
+                buffer[cursorY][x] = buffer[cursorY][x + 1];
+            }
+            buffer[cursorY][lastLineLength - 1] = Cell{};
+            lastLineLength--;
+        }
+
         if (cursorX >= promptLen || input == "\r\n") {
             write(ptyFd, input.c_str(), input.length());
         }
@@ -488,6 +480,13 @@ void Terminal::processInput(const std::string& input) {
         if (autoScroll) {
             needsScroll = true;
         }
+    }
+}
+
+void Terminal::toggleVisibility() { 
+    isVisible = !isVisible; 
+    if (isVisible) {
+        needsFocus = true;
     }
 }
 
@@ -532,6 +531,9 @@ void Terminal::render() {
 
     // Create scrollable content area
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
+    if (needsFocus) {
+        ImGui::SetNextWindowFocus();
+    }
     ImGui::BeginChild("TerminalContent", ImGui::GetContentRegionAvail(), true);
     if (needsScroll) {
         float windowHeight = ImGui::GetContentRegionAvail().y;
@@ -589,16 +591,30 @@ void Terminal::render() {
             ImVec2 mousePos = ImGui::GetMousePos();
             int termX, termY;
             screenToTerminal(mousePos, pos, charWidth, lineHeight, &termX, &termY);
-            selection.active = true;
             selection.startX = selection.endX = termX;
             selection.startY = selection.endY = termY;
+            selection.active = false; // Don't activate until we drag
         }
-        else if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && selection.active) {
+        else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             ImVec2 mousePos = ImGui::GetMousePos();
             int termX, termY;
             screenToTerminal(mousePos, pos, charWidth, lineHeight, &termX, &termY);
             selection.endX = termX;
             selection.endY = termY;
+            
+            // Only activate selection if we've moved more than one character
+            int dx = abs(selection.endX - selection.startX);
+            int dy = abs(selection.endY - selection.startY);
+            if (dx > 1 || dy > 0) {
+                selection.active = true;
+            }
+        }
+        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            // Clear selection if it wasn't activated
+            if (!selection.active) {
+                selection.startX = selection.endX = 0;
+                selection.startY = selection.endY = 0;
+            }
         }
     }
 
@@ -622,8 +638,11 @@ void Terminal::render() {
                     copySelection();
                     selection.active = false;
                 } else {
-                    processInput("\x03");
+                    processInput("\x03");  // Ctrl-C SIGINT
                 }
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_X)) {
+                processInput("\x18");  // Ctrl-X for nano
             }
             else if (ImGui::IsKeyPressed(ImGuiKey_V)) {
                 const char* clipText = ImGui::GetClipboardText();
@@ -638,10 +657,13 @@ void Terminal::render() {
         else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) processInput("\x1b[C");
         else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) processInput("\x1b[D");
     }
-
+    if (needsFocus && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
+        needsFocus = false;
+    }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     ImGui::End();
+
 }
 void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight) {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
@@ -651,17 +673,19 @@ void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight
     int totalLines = historyBuffer.size() + bufferHeight;
     int startLine = static_cast<int>(scrollPosition);
     
-    // Calculate which lines to display
+    // Calculate selection bounds for highlighting
+    int selStartX = std::min(selection.startX, selection.endX);
+    int selEndX = std::max(selection.startX, selection.endX);
+    int selStartY = std::min(selection.startY, selection.endY);
+    int selEndY = std::max(selection.startY, selection.endY);
+    
     for (int displayLine = 0; displayLine < visibleLines; displayLine++) {
         int sourceLine = startLine + displayLine;
         
-        // Get the line of cells to render
         const std::vector<Cell>* lineToRender = nullptr;
         if (sourceLine < historyBuffer.size()) {
-            // Render from history buffer
             lineToRender = &historyBuffer[sourceLine];
         } else if (sourceLine < totalLines) {
-            // Render from current buffer
             int bufferLine = sourceLine - historyBuffer.size();
             if (bufferLine < bufferHeight) {
                 lineToRender = &buffer[bufferLine];
@@ -670,6 +694,29 @@ void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight
         
         if (lineToRender) {
             float yOffset = displayLine * lineHeight;
+            
+            // Render selection highlight if this line is within selection
+            if (selection.active && sourceLine >= selStartY && sourceLine <= selEndY) {
+                int highlightStart = (sourceLine == selStartY) ? selStartX : 0;
+                int highlightEnd = (sourceLine == selEndY) ? selEndX : bufferWidth - 1;
+                
+                ImVec2 highlightPos(
+                    pos.x + highlightStart * charWidth,
+                    pos.y + yOffset
+                );
+                ImVec2 highlightEndPos(
+                    pos.x + (highlightEnd + 1) * charWidth,
+                    pos.y + yOffset + lineHeight
+                );
+                
+                drawList->AddRectFilled(
+                    highlightPos,
+                    highlightEndPos,
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                );
+            }
+
+            // Render characters
             for (int x = 0; x < bufferWidth; x++) {
                 const Cell& cell = (*lineToRender)[x];
                 ImVec2 cellPos(pos.x + x * charWidth, pos.y + yOffset);
@@ -720,21 +767,64 @@ void Terminal::renderCursor(const ImVec2& pos, float charWidth, float lineHeight
         );
     }
 }
-
 void Terminal::screenToTerminal(const ImVec2& screenPos, const ImVec2& terminalPos,
                          float charWidth, float lineHeight,
                          int* termX, int* termY) {
-    // Convert screen coordinates to terminal coordinates
     *termX = static_cast<int>((screenPos.x - terminalPos.x) / charWidth);
-    *termY = static_cast<int>((screenPos.y - terminalPos.y) / lineHeight);
+    int displayY = static_cast<int>((screenPos.y - terminalPos.y) / lineHeight);
     
-    // Clamp to terminal bounds
+    // Convert display Y to buffer position including scroll and history
+    *termY = static_cast<int>(scrollPosition) + displayY;
+    
+    // Clamp to valid range
     *termX = std::max(0, std::min(*termX, bufferWidth - 1));
-    *termY = std::max(0, std::min(*termY, bufferHeight - 1));
+    *termY = std::max(0, std::min(*termY, static_cast<int>(historyBuffer.size()) + bufferHeight - 1));
 }
 
-void Terminal::setWorkingDirectory(const std::string& path) {
-    if (!path.empty()) {
-        processInput("cd " + path + "\n");
+
+void Terminal::copySelection() {
+    if (!selection.active) return;
+    
+    std::string selectedText;
+    int startX = std::min(selection.startX, selection.endX);
+    int endX = std::max(selection.startX, selection.endX);
+    int startY = std::min(selection.startY, selection.endY);
+    int endY = std::max(selection.startY, selection.endY);
+
+    for (int y = startY; y <= endY; y++) {
+        if (y > startY) selectedText += '\n';
+        
+        const std::vector<Cell>* line;
+        if (y < historyBuffer.size()) {
+            line = &historyBuffer[y];
+        } else {
+            int bufferY = y - historyBuffer.size();
+            if (bufferY >= bufferHeight) continue;
+            line = &buffer[bufferY];
+        }
+        
+        for (int x = (y == startY ? startX : 0);
+             x <= (y == endY ? endX : bufferWidth - 1); x++) {
+            selectedText += static_cast<char>((*line)[x].ch);
+        }
     }
+    
+    // Trim trailing whitespace from each line
+    size_t pos = selectedText.find_last_not_of(" \t\n");
+    if (pos != std::string::npos) {
+        selectedText = selectedText.substr(0, pos + 1);
+    }
+    
+    ImGui::SetClipboardText(selectedText.c_str());
+}
+
+
+void Terminal::setWorkingDirectory(const std::string& path) {
+    if(set_dir == false){
+        if (!path.empty()) {
+            processInput("cd " + path + "\n");
+        }
+        set_dir = true;
+    }
+
 }
