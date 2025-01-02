@@ -38,6 +38,7 @@ public:
     }
     bool hasFontSizeChanged() const { return fontSizeChanged; }
     void resetFontSizeChanged() { fontSizeChanged = false; }
+    void ScrollRegion() const{}
     bool showSettingsWindow = false;
     void renderSettingsWindow();
     void toggleSettingsWindow() { 

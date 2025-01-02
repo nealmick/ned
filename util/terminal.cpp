@@ -164,7 +164,6 @@ void Terminal::readOutput() {
         }
     }
 }
-
 void Terminal::writeToBuffer(const char* data, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
@@ -193,37 +192,83 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             continue;
         }
 
-        processChar(data[i]);
+        if (data[i] == '\x08') {  // Backspace
+            if (cursorX > 0) {
+                cursorX--;
+            }
+            continue;
+        }
+
+        if (data[i] >= 32) {  // Printable characters
+            buffer[cursorY][cursorX].ch = data[i];
+            buffer[cursorY][cursorX].fg = ansiState.currentFg;
+            buffer[cursorY][cursorX].bg = ansiState.currentBg;
+            buffer[cursorY][cursorX].attrs = ansiState.currentAttrs;
+            cursorX++;
+            
+            // Update lastLineLength if we're extending the line
+            if (cursorX > lastLineLength) {
+                lastLineLength = cursorX;
+            }
+        } else {
+            processChar(data[i]);  // Handle other control characters
+        }
+    }
+    
+    if (autoScroll) {
+        needsScroll = true;
     }
 }
 
+
+
 void Terminal::processChar(char32_t c) {
+    bool needScroll = false;
+    
     if (c == '\r') {
         cursorX = 0;
+        lastLineLength = 0;
     } else if (c == '\n') {
         cursorX = 0;
+        lastLineLength = 0;
         cursorY++;
         if (cursorY >= bufferHeight) {
             scrollBuffer(1);
             cursorY = bufferHeight - 1;
+            needScroll = true;
         }
+        // After newline, next output will be shell prompt
+        promptEndX = 0;
+        promptEndY = cursorY;
     } else if (c == '\t') {
-        cursorX = (cursorX + 8) & ~7;
-        if (cursorX >= bufferWidth) {
+        int newX = (cursorX + 8) & ~7;
+        if (newX >= bufferWidth) {
             cursorX = 0;
+            lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
                 scrollBuffer(1);
                 cursorY = bufferHeight - 1;
+                needScroll = true;
             }
+        } else {
+            cursorX = newX;
+            lastLineLength = std::max(lastLineLength, cursorX);
+        }
+        // Update prompt end position if we're still receiving shell output
+        if (!isTyping) {
+            promptEndX = cursorX;
+            promptEndY = cursorY;
         }
     } else if (c >= 32) {
         if (cursorX >= bufferWidth) {
             cursorX = 0;
+            lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
                 scrollBuffer(1);
                 cursorY = bufferHeight - 1;
+                needScroll = true;
             }
         }
 
@@ -232,20 +277,33 @@ void Terminal::processChar(char32_t c) {
         buffer[cursorY][cursorX].bg = ansiState.currentBg;
         buffer[cursorY][cursorX].attrs = ansiState.currentAttrs;
         cursorX++;
+        lastLineLength = std::max(lastLineLength, cursorX);
+        
+        // Update prompt end position if we're still receiving shell output
+        if (!isTyping) {
+            promptEndX = cursorX;
+            promptEndY = cursorY;
+        }
+    }
+    
+    if (needScroll && autoScroll) {
+        needsScroll = true;
     }
 }
 
+
 void Terminal::scrollBuffer(int lines) {
     if (lines <= 0) return;
-    
-    if (lines >= bufferHeight) {
-        for (auto& row : buffer) {
-            std::fill(row.begin(), row.end(), Cell{});
+
+    // Add the top lines to history before scrolling
+    for (int i = 0; i < lines && i < bufferHeight; i++) {
+        historyBuffer.push_back(buffer[i]);
+        if (historyBuffer.size() > maxHistoryLines) {
+            historyBuffer.erase(historyBuffer.begin());
         }
-        return;
     }
 
-    // Move lines up
+    // Move lines up in the visible buffer
     for (int y = 0; y < bufferHeight - lines; y++) {
         buffer[y] = std::move(buffer[y + lines]);
     }
@@ -253,6 +311,11 @@ void Terminal::scrollBuffer(int lines) {
     // Clear new lines at bottom
     for (int y = bufferHeight - lines; y < bufferHeight; y++) {
         buffer[y] = std::vector<Cell>(bufferWidth);
+    }
+
+    // Update scroll position if auto-scroll is enabled
+    if (autoScroll) {
+        scrollPosition = maxScrollPosition;
     }
 }
 
@@ -313,7 +376,9 @@ void Terminal::handleCSI(const std::string& seq) {
             cursorX = std::min(bufferWidth - 1, cursorX + (params.empty() ? 1 : params[0]));
             break;
         case 'D': // Cursor Back
-            cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
+            if (cursorX > 0) {
+                cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
+            }
             break;
         case 'J': // Erase in Display
             if (params.empty() || params[0] == 2) {
@@ -403,9 +468,29 @@ void Terminal::clearRange(int startX, int startY, int endX, int endY) {
 
 void Terminal::processInput(const std::string& input) {
     if (ptyFd >= 0) {
-        write(ptyFd, input.c_str(), input.length());
+        // Count the prompt length (e.g. "neal@computer:~/$ ")
+        int promptLen = 0;
+        for (int x = 0; x < bufferWidth; x++) {
+            if (buffer[cursorY][x].ch == '$' || buffer[cursorY][x].ch == '#' || buffer[cursorY][x].ch == '>') {
+                promptLen = x + 2;  // +2 to account for the symbol and space after it
+                break;
+            }
+        }
+
+        // Just send input to PTY and let writeToBuffer handle cursor movement
+        if (cursorX >= promptLen || input == "\r\n") {
+            write(ptyFd, input.c_str(), input.length());
+        }
+
+        isTyping = true;
+        typeIdleTime = 0.0f;
+        
+        if (autoScroll) {
+            needsScroll = true;
+        }
     }
 }
+
 
 void Terminal::updateTerminalSize() {
     if (ptyFd >= 0) {
@@ -424,6 +509,15 @@ void Terminal::render() {
     if (!shellStarted) {
         startShell();
     }
+    float deltaTime = ImGui::GetIO().DeltaTime;
+    if (isTyping) {
+        typeIdleTime += deltaTime;
+        if (typeIdleTime >= TYPE_TIMEOUT) {
+            isTyping = false;
+            typeIdleTime = 0.0f;
+        }
+    }
+
 
     // Create main window
     ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -439,15 +533,45 @@ void Terminal::render() {
     // Create scrollable content area
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
     ImGui::BeginChild("TerminalContent", ImGui::GetContentRegionAvail(), true);
-
+    if (needsScroll) {
+        float windowHeight = ImGui::GetContentRegionAvail().y;
+        float lineHeight = ImGui::GetTextLineHeight();
+        int visibleLines = static_cast<int>(windowHeight / lineHeight);
+        int totalLines = historyBuffer.size() + bufferHeight;
+        maxScrollPosition = std::max(0.0f, static_cast<float>(totalLines - visibleLines));
+        scrollPosition = maxScrollPosition;
+        needsScroll = false;
+    }
     // Handle scrolling
     if (ImGui::IsWindowHovered()) {
         float wheel = ImGui::GetIO().MouseWheel;
         if (wheel != 0) {
-            if (ImGui::GetIO().KeyShift) {
-                ImGui::SetScrollX(ImGui::GetScrollX() - wheel * 50.0f);
-            } else {
-                ImGui::SetScrollY(ImGui::GetScrollY() - wheel * ImGui::GetTextLineHeight() * 3);
+            // Only change autoScroll if we're not typing
+            if (!isTyping) {
+                // Disable auto-scroll when scrolling up
+                if (wheel > 0) {
+                    autoScroll = false;
+                }
+                
+                // Update scroll position
+                scrollPosition -= wheel * 3.0f;  // 3 lines per scroll tick
+                
+                // Calculate max scroll position
+                float windowHeight = ImGui::GetContentRegionAvail().y;
+                float lineHeight = ImGui::GetTextLineHeight();
+                int visibleLines = static_cast<int>(windowHeight / lineHeight);
+                int totalLines = historyBuffer.size() + bufferHeight;
+                maxScrollPosition = std::max(0.0f, 
+                    static_cast<float>(totalLines - visibleLines));
+                
+                // Clamp scroll position
+                scrollPosition = std::max(0.0f, 
+                    std::min(scrollPosition, maxScrollPosition));
+                
+                // Re-enable auto-scroll if we scroll to bottom
+                if (scrollPosition >= maxScrollPosition) {
+                    autoScroll = true;
+                }
             }
         }
     }
@@ -519,72 +643,82 @@ void Terminal::render() {
     ImGui::PopStyleColor();
     ImGui::End();
 }
-
-
-
 void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight) {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     std::lock_guard<std::mutex> lock(bufferMutex);
     
-    // Normalize selection coordinates
-    int selStartX = selection.active ? std::min(selection.startX, selection.endX) : -1;
-    int selStartY = selection.active ? std::min(selection.startY, selection.endY) : -1;
-    int selEndX = selection.active ? std::max(selection.startX, selection.endX) : -1;
-    int selEndY = selection.active ? std::max(selection.startY, selection.endY) : -1;
+    int visibleLines = static_cast<int>(ImGui::GetContentRegionAvail().y / lineHeight);
+    int totalLines = historyBuffer.size() + bufferHeight;
+    int startLine = static_cast<int>(scrollPosition);
     
-    for (int y = 0; y < bufferHeight; y++) {
-        for (int x = 0; x < bufferWidth; x++) {
-            const Cell& cell = buffer[y][x];
-            ImVec2 cellPos(pos.x + x * charWidth, pos.y + y * lineHeight);
-            
-            // Check if this cell is selected
-            bool isSelected = selection.active &&
-                ((y > selStartY && y < selEndY) ||
-                 (y == selStartY && y == selEndY && x >= selStartX && x <= selEndX) ||
-                 (y == selStartY && y < selEndY && x >= selStartX) ||
-                 (y > selStartY && y == selEndY && x <= selEndX));
-            
-            // Draw selection background
-            if (isSelected) {
-                drawList->AddRectFilled(
-                    cellPos,
-                    ImVec2(cellPos.x + charWidth, cellPos.y + lineHeight),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.5f))
-                );
+    // Calculate which lines to display
+    for (int displayLine = 0; displayLine < visibleLines; displayLine++) {
+        int sourceLine = startLine + displayLine;
+        
+        // Get the line of cells to render
+        const std::vector<Cell>* lineToRender = nullptr;
+        if (sourceLine < historyBuffer.size()) {
+            // Render from history buffer
+            lineToRender = &historyBuffer[sourceLine];
+        } else if (sourceLine < totalLines) {
+            // Render from current buffer
+            int bufferLine = sourceLine - historyBuffer.size();
+            if (bufferLine < bufferHeight) {
+                lineToRender = &buffer[bufferLine];
             }
-            // Draw cell background if needed
-            else if (cell.bg.w > 0.0f) {
-                drawList->AddRectFilled(
-                    cellPos,
-                    ImVec2(cellPos.x + charWidth, cellPos.y + lineHeight),
-                    ImGui::ColorConvertFloat4ToU32(cell.bg)
-                );
-            }
-            
-            // Draw character
-            if (cell.ch != ' ') {
-                char text[2] = {(char)cell.ch, 0};
-                drawList->AddText(cellPos, ImGui::ColorConvertFloat4ToU32(cell.fg), text);
+        }
+        
+        if (lineToRender) {
+            float yOffset = displayLine * lineHeight;
+            for (int x = 0; x < bufferWidth; x++) {
+                const Cell& cell = (*lineToRender)[x];
+                ImVec2 cellPos(pos.x + x * charWidth, pos.y + yOffset);
+                
+                if (cell.bg.w > 0.0f) {
+                    drawList->AddRectFilled(
+                        cellPos,
+                        ImVec2(cellPos.x + charWidth, cellPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(cell.bg)
+                    );
+                }
+                
+                if (cell.ch != ' ') {
+                    char text[2] = {(char)cell.ch, 0};
+                    drawList->AddText(cellPos, 
+                        ImGui::ColorConvertFloat4ToU32(cell.fg), text);
+                }
             }
         }
     }
 }
 
 void Terminal::renderCursor(const ImVec2& pos, float charWidth, float lineHeight) {
-    cursorBlinkTime += ImGui::GetIO().DeltaTime;
-    float alpha = (sinf(cursorBlinkTime * 4.0f) + 1.0f) * 0.5f;
+    // Don't render cursor if it's outside visible area
+    int cursorBufferLine = cursorY;
+    int visibleLines = static_cast<int>(ImGui::GetContentRegionAvail().y / lineHeight);
+    int totalLines = historyBuffer.size() + bufferHeight;
+    int startLine = static_cast<int>(scrollPosition);
     
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    ImVec2 cursorPos(
-        pos.x + cursorX * charWidth,
-        pos.y + cursorY * lineHeight
-    );
+    // Convert cursor position to screen space
+    int cursorScreenLine = cursorBufferLine + historyBuffer.size() - startLine;
     
-    drawList->AddRectFilled(
-        cursorPos,
-        ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-        ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, alpha * 0.5f))
-    );
+    // Only render if cursor is in visible area
+    if (cursorScreenLine >= 0 && cursorScreenLine < visibleLines) {
+        cursorBlinkTime += ImGui::GetIO().DeltaTime;
+        float alpha = (sinf(cursorBlinkTime * 4.0f) + 1.0f) * 0.5f;
+        
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 cursorPos(
+            pos.x + cursorX * charWidth,
+            pos.y + cursorScreenLine * lineHeight
+        );
+        
+        drawList->AddRectFilled(
+            cursorPos,
+            ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, alpha * 0.5f))
+        );
+    }
 }
 
 void Terminal::screenToTerminal(const ImVec2& screenPos, const ImVec2& terminalPos,

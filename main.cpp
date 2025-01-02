@@ -1,5 +1,4 @@
 
-
 #define GL_SILENCE_DEPRECATION
 #if defined(__APPLE__)
 #define GL_GLEXT_PROTOTYPES 1

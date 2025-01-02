@@ -39,7 +39,9 @@ private:
     int cursorX = 0;
     int cursorY = 0;
     float cursorBlinkTime = 0;
-    
+    int lastLineLength = 0;  
+    int promptEndX = 0;
+    int promptEndY = 0;
     // Selection state
     struct {
         bool active = false;
@@ -89,6 +91,21 @@ private:
     // Rendering
     void renderBuffer(const ImVec2& pos, float charWidth, float lineHeight);
     void renderCursor(const ImVec2& pos, float charWidth, float lineHeight);
+
+
+    std::vector<std::vector<Cell>> historyBuffer;  // Stores scrolled-off lines
+    int maxHistoryLines = 1000;                    // Maximum history size
+    float scrollPosition = 0.0f;                   // Current scroll position
+    float maxScrollPosition = 0.0f;                // Maximum scroll position
+    bool autoScroll = true;                        // Whether to auto-scroll on new output
+
+
+    bool isTyping = false;            // Tracks if user is currently typing
+    float typeIdleTime = 0.0f;        // Time since last keystroke
+    const float TYPE_TIMEOUT = 1.0f;   // Time before considering typing finished
+     bool needsScroll = false;  // Flag to indicate scroll needed
+
+
 };
 
 extern Terminal gTerminal;
