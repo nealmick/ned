@@ -89,12 +89,11 @@ void Terminal::startShell() {
             std::cerr << "Failed to get terminal attributes" << std::endl;
             exit(1);
         }
-
         // Configure terminal for full operation
         tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
         tios.c_oflag = OPOST | ONLCR;
         tios.c_cflag = CREAD | CS8 | HUPCL;
-        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
+        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | ECHOPRT;
 
         // Set control characters
         tios.c_cc[VMIN] = 1;
@@ -145,8 +144,25 @@ void Terminal::readOutput() {
         }
     }
 }
-
 void Terminal::writeToBuffer(const char* data, size_t length) {
+    if (data[0] == '\033') {  // ESC character
+        std::cerr << "Escape sequence received at buffer state=" 
+                  << (useAlternateBuffer ? "alt" : "normal") << std::endl;
+    }
+    // Add these debug statements at the start
+    std::cerr << "writeToBuffer called, useAlternateBuffer=" 
+              << (useAlternateBuffer ? "true" : "false") << std::endl;
+              
+    if (useAlternateBuffer) {
+        std::cerr << "VIM raw bytes (len=" << length << "): ";
+        for (size_t i = 0; i < length; i++) {
+            unsigned char c = data[i];
+            if (c == '\033') std::cerr << "ESC";
+            else if (c < 32) std::cerr << "^" << (char)(c + 64);
+            else std::cerr << c;
+        }
+        std::cerr << std::endl;
+    }
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
             if (ansiState.inCSI) {
@@ -202,7 +218,6 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
     
     if (autoScroll) needsScroll = true;
 }
-
 void Terminal::processChar(char32_t c) {
     bool needScroll = false;
     
@@ -213,11 +228,26 @@ void Terminal::processChar(char32_t c) {
         cursorX = 0;
         lastLineLength = 0;
         cursorY++;
-        if (cursorY >= bufferHeight) {
-            scrollBuffer(1);
+        
+        // If we're within a scroll region and hit the bottom
+        if (scrollRegionBottom != (bufferHeight - 1) && cursorY > scrollRegionBottom) {
+            // Scroll just the region
+            std::cerr << "Scrolling region " << scrollRegionTop << " to " << scrollRegionBottom << std::endl;
+            for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
+                buffer[y] = std::move(buffer[y + 1]);
+            }
+            buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
+            cursorY = scrollRegionBottom;
+        }
+        // Normal scrolling behavior
+        else if (cursorY >= bufferHeight) {
+            if (!useAlternateBuffer) {
+                scrollBuffer(1);
+            }
             cursorY = bufferHeight - 1;
             needScroll = true;
         }
+        
         // After newline, next output will be shell prompt
         promptEndX = 0;
         promptEndY = cursorY;
@@ -228,7 +258,9 @@ void Terminal::processChar(char32_t c) {
             lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
-                scrollBuffer(1);
+                if (!useAlternateBuffer) {
+                    scrollBuffer(1);
+                }
                 cursorY = bufferHeight - 1;
                 needScroll = true;
             }
@@ -247,7 +279,9 @@ void Terminal::processChar(char32_t c) {
             lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
-                scrollBuffer(1);
+                if (!useAlternateBuffer) {
+                    scrollBuffer(1);
+                }
                 cursorY = bufferHeight - 1;
                 needScroll = true;
             }
@@ -274,8 +308,9 @@ void Terminal::processChar(char32_t c) {
 
 
 void Terminal::scrollBuffer(int lines) {
-    if (lines <= 0) return;
 
+    if (lines <= 0) return;
+    if (lines <= 0 || useAlternateBuffer) return;
     // Add the top lines to history before scrolling
     for (int i = 0; i < lines && i < bufferHeight; i++) {
         historyBuffer.push_back(buffer[i]);
@@ -302,12 +337,26 @@ void Terminal::scrollBuffer(int lines) {
 void Terminal::handleCSI(const std::string& seq) {
     if (seq.empty()) return;
     
+    // Debug logging
+    std::cerr << "CSI seq: '" << seq << "' (";
+    for (char c : seq) {
+        if (c < 32) std::cerr << "^" << (char)(c + 64);
+        else std::cerr << c;
+    }
+    std::cerr << ")" << std::endl;
+    
     char cmd = seq.back();
     std::vector<int> params;
     
     // Extract numeric parameters
     std::string numStr;
+    bool isPrivateMode = false;
+    
     for (size_t i = 0; i < seq.length() - 1; i++) {
+        if (i == 0 && seq[i] == '?') {
+            isPrivateMode = true;
+            continue;
+        }
         if (isdigit(seq[i])) {
             numStr += seq[i];
         } else if (seq[i] == ';') {
@@ -319,6 +368,41 @@ void Terminal::handleCSI(const std::string& seq) {
         params.push_back(std::stoi(numStr));
     }
 
+    // Handle private mode sequences first
+    if (isPrivateMode) {
+        switch (cmd) {
+            case 'h':
+                if (isPrivateMode && !params.empty()) {
+                    std::cerr << "Private mode set: " << params[0] << std::endl;
+                    if (params[0] == 1049 || params[0] == 1047 || params[0] == 47) {
+                        std::cerr << "Enabling alternate buffer via private mode" << std::endl;
+                        useAlternateBuffer = true;
+                    }
+                }
+                break;
+            case 'l': // Disable mode
+                if (!params.empty()) {
+                    std::cerr << "Private mode handler: " << params[0] << " cmd: " << cmd << std::endl;
+                    switch (params[0]) {
+                        case 47:   // Original alternate buffer
+                        case 1047: // Alternate screen buffer
+                        case 1049: // Alternate screen buffer + clear
+                            if (cmd == 'h') {
+                                std::cerr << "Enabling alternate buffer mode" << std::endl;
+                                clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
+                                useAlternateBuffer = true;
+                            } else {
+                                std::cerr << "Disabling alternate buffer mode" << std::endl;
+                                useAlternateBuffer = false;
+                            }
+                            break;
+                    }
+                }
+                return;
+        }
+        return;
+    }
+    // Handle regular CSI sequences
     switch (cmd) {
         case 'H': // Cursor Position
         case 'f': // Alternative Cursor Position
@@ -336,7 +420,18 @@ void Terminal::handleCSI(const std::string& seq) {
         case 'B': // Cursor Down
             cursorY = std::min(bufferHeight - 1, cursorY + (params.empty() ? 1 : params[0]));
             break;
-            
+        case 'c': // Reset terminal
+            if (seq[0] == '>') {  // Device Attributes request
+                std::cerr << "Device attributes request - preserving state" << std::endl;
+            } else {
+                std::cerr << "Full terminal reset requested" << std::endl;
+                ansiState = {};
+                clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
+                cursorX = cursorY = 0;
+                scrollRegionTop = 0;
+                scrollRegionBottom = bufferHeight - 1;
+            }
+            break;
         case 'C': // Cursor Forward
             cursorX = std::min(bufferWidth - 1, cursorX + (params.empty() ? 1 : params[0]));
             break;
@@ -353,41 +448,118 @@ void Terminal::handleCSI(const std::string& seq) {
             }
             break;
             
-        case 'K': // Erase in Line
-            if (params.empty() || params[0] == 0) {
-                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
-            } else if (params[0] == 1) {
-                clearRange(0, cursorY, cursorX, cursorY);
-            } else if (params[0] == 2) {
-                clearRange(0, cursorY, bufferWidth - 1, cursorY);
-            }
-            break;
-            
+
         case 'J': // Erase in Display
             if (params.empty() || params[0] == 2) {
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
+                cursorX = 0;
+                cursorY = 0;
             } else if (params[0] == 0) {
+                // Clear from cursor to end of screen
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
-                if (cursorY < bufferHeight - 1) {
-                    clearRange(0, cursorY + 1, bufferWidth - 1, bufferHeight - 1);
+                for (int y = cursorY + 1; y < bufferHeight; y++) {
+                    clearRange(0, y, bufferWidth - 1, y);
+                }
+            } else if (params[0] == 1) {
+                // Clear from beginning of screen to cursor
+                for (int y = 0; y < cursorY; y++) {
+                    clearRange(0, y, bufferWidth - 1, y);
+                }
+                clearRange(0, cursorY, cursorX, cursorY);
+            }
+            break;
+
+        case 'K': // Erase in Line
+            if (params.empty() || params[0] == 0) {
+                // Clear from cursor to end of line
+                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
+            } else if (params[0] == 1) {
+                // Clear from beginning of line to cursor
+                clearRange(0, cursorY, cursorX, cursorY);
+            } else if (params[0] == 2) {
+                // Clear entire line
+                clearRange(0, cursorY, bufferWidth - 1, cursorY);
+            }
+            break;
+
+        case 'S': // Scroll up
+            if (params.empty()) params = {1};
+            {
+                int count = params[0];
+                for (int y = 0; y < bufferHeight - count; y++) {
+                    buffer[y] = std::move(buffer[y + count]);
+                }
+                for (int y = bufferHeight - count; y < bufferHeight; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
                 }
             }
             break;
 
-        case 'h': // Set Mode
-        case 'l': // Reset Mode
-            if (!params.empty() && params[0] == 1049) { // Alternate screen buffer
-                if (cmd == 'h') {
-                    clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
-                    cursorX = cursorY = 0;
+        case 'T': // Scroll down
+            if (params.empty()) params = {1};
+            {
+                int count = params[0];
+                for (int y = bufferHeight - 1; y >= count; y--) {
+                    buffer[y] = std::move(buffer[y - count]);
+                }
+                for (int y = 0; y < count; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
                 }
             }
             break;
-            
-        case 's': // Save cursor position
-            savedCursorX = cursorX;
-            savedCursorY = cursorY;
+
+        case 'P': // Delete characters
+            if (params.empty() || params[0] == 0) params = {1};
+            {
+                int count = params[0];
+                for (int x = cursorX; x < bufferWidth - count; x++) {
+                    buffer[cursorY][x] = buffer[cursorY][x + count];
+                }
+                for (int x = bufferWidth - count; x < bufferWidth; x++) {
+                    buffer[cursorY][x] = Cell{};
+                }
+            }
             break;
+
+        case '@': // Insert characters
+            if (params.empty() || params[0] == 0) params = {1};
+            {
+                int count = params[0];
+                for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
+                    buffer[cursorY][x] = buffer[cursorY][x - count];
+                }
+                for (int x = cursorX; x < cursorX + count && x < bufferWidth; x++) {
+                    buffer[cursorY][x] = Cell{};
+                }
+            }
+            break;
+
+        case 'L': // Insert lines
+            if (params.empty() || params[0] == 0) params = {1};
+            {
+                int count = std::min(params[0], bufferHeight - cursorY);
+                for (int y = bufferHeight - 1; y >= cursorY + count; y--) {
+                    buffer[y] = buffer[y - count];
+                }
+                for (int y = cursorY; y < cursorY + count; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
+                }
+            }
+            break;
+
+        case 'M': // Delete lines
+            if (params.empty() || params[0] == 0) params = {1};
+            {
+                int count = std::min(params[0], bufferHeight - cursorY);
+                for (int y = cursorY; y < bufferHeight - count; y++) {
+                    buffer[y] = buffer[y + count];
+                }
+                for (int y = bufferHeight - count; y < bufferHeight; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
+                }
+            }
+            break;
+
             
         case 'u': // Restore cursor position
             cursorX = savedCursorX;
@@ -396,6 +568,13 @@ void Terminal::handleCSI(const std::string& seq) {
 
         case 'r': // Set scrolling region
             if (params.size() >= 2) {
+                std::cerr << "Setting scroll region " << params[0] << " to " << params[1] << std::endl;
+                // vim specific startup sequence
+                if ((params[0] == 1 && params[1] == 22) || 
+                    (params[0] == 1 && params[1] == 24)) {
+                    std::cerr << "Detected vim startup sequence" << std::endl;
+                    useAlternateBuffer = true;
+                }
                 scrollRegionTop = std::max(0, params[0] - 1);
                 scrollRegionBottom = std::min(bufferHeight - 1, params[1] - 1);
             }
@@ -406,7 +585,7 @@ void Terminal::handleCSI(const std::string& seq) {
                 ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
                 ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
                 ansiState.currentAttrs = 0;
-                return;
+                break;
             }
             for (int param : params) {
                 switch (param) {
@@ -460,7 +639,10 @@ void Terminal::processInput(const std::string& input) {
                 break;
             }
         }
-
+        if (input == "\t") { // tab completions
+            write(ptyFd, "\t", 1);  
+            return;
+        }
         if (input == "\x7f" && cursorX > promptLen) { // Backspace
             // Shift buffer left
             for (int x = cursorX - 1; x < lastLineLength - 1; x++) {
@@ -631,7 +813,9 @@ void Terminal::render() {
                 processInput(std::string(1, c));
             }
         }
-        
+        if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
+            processInput("\t");
+        }
         if (io.KeyCtrl) {
             if (ImGui::IsKeyPressed(ImGuiKey_C)) {
                 if (selection.active) {

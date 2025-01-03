@@ -109,12 +109,18 @@ private:
     bool needsScroll = false;  // Flag to indicate scroll needed
 
     //alternate buffer rendering
+    bool useAlternateBuffer = false;
+    std::vector<std::vector<Cell>> alternateBuffer;
+    int alternateCursorX = 0;
+    int alternateCursorY = 0;
+
+
     int savedCursorX = 0;
     int savedCursorY = 0;
     int scrollRegionTop = 0;
     int scrollRegionBottom = bufferHeight - 1;
 
-    
+
 
 
 };
