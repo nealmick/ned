@@ -1170,7 +1170,8 @@ bool CustomTextEditor(const char *label, std::string &text,
   ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12.0f);
 
   float remaining_width = size.x - line_number_width;
-  float content_width = CalculateTextWidth(text, editor_state.line_starts);
+  float content_width = CalculateTextWidth(text, editor_state.line_starts) + ImGui::GetFontSize() * 10.0f; // Add padding
+
   float content_height = editor_state.line_starts.size() * line_height;
   ImGui::SetNextWindowContentSize(ImVec2(content_width, content_height));
   ImGui::BeginChild(label, ImVec2(remaining_width, size.y), false,
@@ -1678,7 +1679,6 @@ void Editor::setupJsonRules() {
       {std::regex(R"(:\s*(true|false|null))"), themeColors["keyword"]},
   };
 }
-
 
 
 

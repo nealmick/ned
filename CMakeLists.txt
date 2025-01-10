@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(text_editor)
+project(ned)
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/config.h"
@@ -56,9 +56,10 @@ target_link_libraries(util PUBLIC
 )
 
 # Main executable
-add_executable(text_editor
+add_executable(ned
     main.cpp
     util/settings.cpp
+    util/terminal.cpp   
     files.cpp
     editor.cpp
     imgui/imgui.cpp
@@ -70,7 +71,7 @@ add_executable(text_editor
     imgui/backends/imgui_impl_opengl3.cpp
 )
 
-target_include_directories(text_editor PRIVATE 
+target_include_directories(ned PRIVATE 
     imgui 
     imgui/backends 
     ${NFD_DIR}/src
@@ -80,7 +81,7 @@ target_include_directories(text_editor PRIVATE
 )
 
 # Link libraries
-target_link_libraries(text_editor PRIVATE 
+target_link_libraries(ned PRIVATE 
     ${OPENGL_LIBRARIES} 
     glfw 
     nfd
@@ -88,7 +89,7 @@ target_link_libraries(text_editor PRIVATE
 )
 
 if(APPLE)
-    target_link_libraries(text_editor PRIVATE 
+    target_link_libraries(ned PRIVATE 
         "-framework Cocoa" 
         "-framework IOKit" 
         "-framework CoreVideo"
