@@ -3,11 +3,11 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <signal.h>
 #include <iostream>
 #include <cmath>
-
 Terminal gTerminal;
 
 
@@ -118,6 +118,7 @@ void Terminal::startShell() {
             std::cerr << "Failed to set terminal attributes" << std::endl;
             exit(1);
         }
+        setenv("TERM", "xterm-256color", 1);
 
         const char* shell = getenv("SHELL");
         if (!shell) shell = "/bin/bash";
@@ -145,24 +146,6 @@ void Terminal::readOutput() {
     }
 }
 void Terminal::writeToBuffer(const char* data, size_t length) {
-    if (data[0] == '\033') {  // ESC character
-        std::cerr << "Escape sequence received at buffer state=" 
-                  << (useAlternateBuffer ? "alt" : "normal") << std::endl;
-    }
-    // Add these debug statements at the start
-    std::cerr << "writeToBuffer called, useAlternateBuffer=" 
-              << (useAlternateBuffer ? "true" : "false") << std::endl;
-              
-    if (useAlternateBuffer) {
-        std::cerr << "VIM raw bytes (len=" << length << "): ";
-        for (size_t i = 0; i < length; i++) {
-            unsigned char c = data[i];
-            if (c == '\033') std::cerr << "ESC";
-            else if (c < 32) std::cerr << "^" << (char)(c + 64);
-            else std::cerr << c;
-        }
-        std::cerr << std::endl;
-    }
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
             if (ansiState.inCSI) {
@@ -212,6 +195,7 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             cursorX++;
             if (cursorX > lastLineLength) lastLineLength = cursorX;
         } else {
+
             processChar(data[i]);
         }
     }
@@ -228,24 +212,29 @@ void Terminal::processChar(char32_t c) {
         cursorX = 0;
         lastLineLength = 0;
         cursorY++;
-        
-        // If we're within a scroll region and hit the bottom
-        if (scrollRegionBottom != (bufferHeight - 1) && cursorY > scrollRegionBottom) {
-            // Scroll just the region
-            std::cerr << "Scrolling region " << scrollRegionTop << " to " << scrollRegionBottom << std::endl;
+
+        // If we're within the scroll region and hit the bottom
+        if (cursorY > scrollRegionBottom) {
+            
+            // Scroll within the defined scroll region
             for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
+
                 buffer[y] = std::move(buffer[y + 1]);
             }
             buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
             cursorY = scrollRegionBottom;
         }
-        // Normal scrolling behavior
+        // Normal scrolling behavior if outside scroll region
         else if (cursorY >= bufferHeight) {
-            if (!useAlternateBuffer) {
+            // Only scroll if we're not within the last 2 lines of the buffer
+            if (cursorY > bufferHeight - 3) {
+                std::cerr << "out of scroll region currently" << std::endl;
                 scrollBuffer(1);
+                cursorY = bufferHeight - 1;
+                needScroll = true;
+            } else {
+                cursorY = bufferHeight - 1;
             }
-            cursorY = bufferHeight - 1;
-            needScroll = true;
         }
         
         // After newline, next output will be shell prompt
@@ -258,9 +247,7 @@ void Terminal::processChar(char32_t c) {
             lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
-                if (!useAlternateBuffer) {
-                    scrollBuffer(1);
-                }
+                scrollBuffer(1);
                 cursorY = bufferHeight - 1;
                 needScroll = true;
             }
@@ -279,9 +266,7 @@ void Terminal::processChar(char32_t c) {
             lastLineLength = 0;
             cursorY++;
             if (cursorY >= bufferHeight) {
-                if (!useAlternateBuffer) {
-                    scrollBuffer(1);
-                }
+                scrollBuffer(1);
                 cursorY = bufferHeight - 1;
                 needScroll = true;
             }
@@ -306,11 +291,41 @@ void Terminal::processChar(char32_t c) {
     }
 }
 
-
+ImVec4 Terminal::convert256ToRGB(int color) {
+    // Handle standard colors (0-15)
+    if (color < 16) {
+        bool bright = color > 7;
+        float intensity = bright ? 1.0f : 0.8f;
+        color = color % 8;
+        
+        switch (color) {
+            case 0: return ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  // Black
+            case 1: return ImVec4(intensity, 0.0f, 0.0f, 1.0f);  // Red
+            case 2: return ImVec4(0.0f, intensity, 0.0f, 1.0f);  // Green
+            case 3: return ImVec4(intensity, intensity, 0.0f, 1.0f);  // Yellow
+            case 4: return ImVec4(0.0f, 0.0f, intensity, 1.0f);  // Blue
+            case 5: return ImVec4(intensity, 0.0f, intensity, 1.0f);  // Magenta
+            case 6: return ImVec4(0.0f, intensity, intensity, 1.0f);  // Cyan
+            case 7: return ImVec4(intensity, intensity, intensity, 1.0f);  // White
+        }
+    }
+    
+    // Handle 216 colors (16-231)
+    if (color < 232) {
+        int adjusted = color - 16;
+        float r = (adjusted / 36) * (1.0f / 5.0f);
+        float g = ((adjusted / 6) % 6) * (1.0f / 5.0f);
+        float b = (adjusted % 6) * (1.0f / 5.0f);
+        return ImVec4(r, g, b, 1.0f);
+    }
+    
+    // Handle grayscale (232-255)
+    float gray = (color - 232) * (1.0f / 23.0f);
+    return ImVec4(gray, gray, gray, 1.0f);
+}
 void Terminal::scrollBuffer(int lines) {
 
     if (lines <= 0) return;
-    if (lines <= 0 || useAlternateBuffer) return;
     // Add the top lines to history before scrolling
     for (int i = 0; i < lines && i < bufferHeight; i++) {
         historyBuffer.push_back(buffer[i]);
@@ -337,13 +352,7 @@ void Terminal::scrollBuffer(int lines) {
 void Terminal::handleCSI(const std::string& seq) {
     if (seq.empty()) return;
     
-    // Debug logging
-    std::cerr << "CSI seq: '" << seq << "' (";
-    for (char c : seq) {
-        if (c < 32) std::cerr << "^" << (char)(c + 64);
-        else std::cerr << c;
-    }
-    std::cerr << ")" << std::endl;
+    std::cerr << "Received CSI sequence: '" << seq << "'" << std::endl;
     
     char cmd = seq.back();
     std::vector<int> params;
@@ -367,45 +376,47 @@ void Terminal::handleCSI(const std::string& seq) {
     if (!numStr.empty()) {
         params.push_back(std::stoi(numStr));
     }
-
-    // Handle private mode sequences first
     if (isPrivateMode) {
         switch (cmd) {
-            case 'h':
-                if (isPrivateMode && !params.empty()) {
-                    std::cerr << "Private mode set: " << params[0] << std::endl;
-                    if (params[0] == 1049 || params[0] == 1047 || params[0] == 47) {
-                        std::cerr << "Enabling alternate buffer via private mode" << std::endl;
-                        useAlternateBuffer = true;
-                    }
-                }
-                break;
             case 'l': // Disable mode
                 if (!params.empty()) {
-                    std::cerr << "Private mode handler: " << params[0] << " cmd: " << cmd << std::endl;
-                    switch (params[0]) {
-                        case 47:   // Original alternate buffer
-                        case 1047: // Alternate screen buffer
-                        case 1049: // Alternate screen buffer + clear
-                            if (cmd == 'h') {
-                                std::cerr << "Enabling alternate buffer mode" << std::endl;
-                                clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
-                                useAlternateBuffer = true;
-                            } else {
-                                std::cerr << "Disabling alternate buffer mode" << std::endl;
-                                useAlternateBuffer = false;
-                            }
-                            break;
-                    }
+                    std::cerr << "Private mode handler: " << params[0] << ", cmd: " << cmd << std::endl;
+                    // Add your custom handling here
                 }
                 return;
         }
         return;
     }
-    // Handle regular CSI sequences
     switch (cmd) {
+        case 'r': // Set scrolling region
+            if (params.size() >= 2) {
+                std::cerr << "Scroll region before: " << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
+ 
+                int top = std::max(0, params[0] - 1);
+                int bottom = std::min(bufferHeight - 1, params[1] - 1);
+                
+                std::cerr << "Received scroll region command: Top=" << top << ", Bottom=" << bottom << std::endl;
+                
+                // Update the scroll region based on Vim's request, but clamp to the buffer height
+                scrollRegionTop = top;
+                scrollRegionBottom = bottom;
+                std::cerr << "Scroll region after: " << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
+
+            }
+            break;
+        
         case 'H': // Cursor Position
-        case 'f': // Alternative Cursor Position
+            if (params.size() >= 2) {
+                int row = params[0] - 1;
+                int col = params[1] - 1;
+                
+                std::cerr << "Received cursor position command: Row=" << row << ", Col=" << col << std::endl;
+                
+                // Update the cursor position based on Vim's request, but clamp to the buffer dimensions
+                setCursorPos(col, row);
+            }
+            break;
+        case 'f': 
             if (params.size() >= 2) {
                 setCursorPos(params[1] - 1, params[0] - 1);
             } else {
@@ -450,6 +461,7 @@ void Terminal::handleCSI(const std::string& seq) {
             
 
         case 'J': // Erase in Display
+            
             if (params.empty() || params[0] == 2) {
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
                 cursorX = 0;
@@ -471,13 +483,13 @@ void Terminal::handleCSI(const std::string& seq) {
 
         case 'K': // Erase in Line
             if (params.empty() || params[0] == 0) {
-                // Clear from cursor to end of line
+                std::cerr << "Clear line at Y=" << cursorY << " mode=0" << std::endl;
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
             } else if (params[0] == 1) {
-                // Clear from beginning of line to cursor
+                std::cerr << "Clear line at Y=" << cursorY << " mode=1" << std::endl;
                 clearRange(0, cursorY, cursorX, cursorY);
             } else if (params[0] == 2) {
-                // Clear entire line
+                std::cerr << "Clear line at Y=" << cursorY << " mode=2" << std::endl;
                 clearRange(0, cursorY, bufferWidth - 1, cursorY);
             }
             break;
@@ -566,50 +578,78 @@ void Terminal::handleCSI(const std::string& seq) {
             cursorY = savedCursorY;
             break;
 
-        case 'r': // Set scrolling region
-            if (params.size() >= 2) {
-                std::cerr << "Setting scroll region " << params[0] << " to " << params[1] << std::endl;
-                // vim specific startup sequence
-                if ((params[0] == 1 && params[1] == 22) || 
-                    (params[0] == 1 && params[1] == 24)) {
-                    std::cerr << "Detected vim startup sequence" << std::endl;
-                    useAlternateBuffer = true;
-                }
-                scrollRegionTop = std::max(0, params[0] - 1);
-                scrollRegionBottom = std::min(bufferHeight - 1, params[1] - 1);
-            }
-            break;
+
             
         case 'm': // SGR (Select Graphic Rendition)
             if (params.empty() || params[0] == 0) {
-                ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+                ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // Reset to white
+                ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);  // Reset to transparent black
                 ansiState.currentAttrs = 0;
                 break;
             }
-            for (int param : params) {
+            for (size_t i = 0; i < params.size(); i++) {
+                int param = params[i];
                 switch (param) {
+                    case 0:  // Reset all
+                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+                        ansiState.currentAttrs = 0;
+                        break;
                     case 1: ansiState.currentAttrs |= 1; break;  // Bold
-                    case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;
-                    case 31: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
-                    case 32: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
-                    case 33: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
-                    case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;
-                    case 35: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;
-                    case 36: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;
-                    case 37: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
-                    case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;
-                    case 41: ansiState.currentBg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
-                    case 42: ansiState.currentBg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
-                    case 43: ansiState.currentBg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
-                    case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;
-                    case 45: ansiState.currentBg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;
-                    case 46: ansiState.currentBg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;
-                    case 47: ansiState.currentBg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
+                    case 2: ansiState.currentAttrs |= 2; break;  // Dim
+                    case 3: ansiState.currentAttrs |= 4; break;  // Italic
+                    case 4: ansiState.currentAttrs |= 8; break;  // Underline
+                    
+                    // Standard colors (30-37)
+                    case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
+                    case 31: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
+                    case 32: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
+                    case 33: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
+                    case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
+                    case 35: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
+                    case 36: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
+                    case 37: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
+
+                    // Bright colors (90-97)
+                    case 90: ansiState.currentFg = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); break;     // Bright Black
+                    case 91: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;     // Bright Red
+                    case 92: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Green
+                    case 93: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Yellow
+                    case 94: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Blue
+                    case 95: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Magenta
+                    case 96: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;     // Bright Cyan
+                    case 97: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;     // Bright White
+
+                    // Background colors (40-47)
+                    case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
+                    case 41: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
+                    case 42: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
+                    case 43: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
+                    case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
+                    case 45: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
+                    case 46: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
+                    case 47: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
+
+                    // 256 color support
+                    case 38: // Foreground
+                        if (i + 2 < params.size() && params[i + 1] == 5) {
+                            int color = params[i + 2];
+                            ansiState.currentFg = convert256ToRGB(color);
+                            i += 2; // Skip the next two parameters
+                        }
+                        break;
+                    case 48: // Background
+                        if (i + 2 < params.size() && params[i + 1] == 5) {
+                            int color = params[i + 2];
+                            ansiState.currentBg = convert256ToRGB(color);
+                            i += 2; // Skip the next two parameters
+                        }
+                        break;
                 }
             }
             break;
     }
+    
 }
 
 void Terminal::handleEscapeSequence() {
@@ -632,6 +672,20 @@ void Terminal::clearRange(int startX, int startY, int endX, int endY) {
 }
 void Terminal::processInput(const std::string& input) {
     if (ptyFd >= 0) {
+        // Debug PTY state before write
+        struct stat statbuf;
+        int fstat_result = fstat(ptyFd, &statbuf);
+
+        // Also check PTY state
+        int error = 0;
+        socklen_t len = sizeof(error);
+        int retval = getsockopt(ptyFd, SOL_SOCKET, SO_ERROR, &error, &len);
+
+        // Check if child process is still alive
+        int status;
+        pid_t result = waitpid(childPid, &status, WNOHANG);
+        
+
         int promptLen = 0;
         for (int x = 0; x < bufferWidth; x++) {
             if (buffer[cursorY][x].ch == '$' || buffer[cursorY][x].ch == '#' || buffer[cursorY][x].ch == '>') {
@@ -651,20 +705,22 @@ void Terminal::processInput(const std::string& input) {
             buffer[cursorY][lastLineLength - 1] = Cell{};
             lastLineLength--;
         }
-
         if (cursorX >= promptLen || input == "\r\n") {
-            write(ptyFd, input.c_str(), input.length());
+            ssize_t bytes = write(ptyFd, input.c_str(), input.length());
+            
+        }else{
+            ssize_t bytes = write(ptyFd, input.c_str(), input.length());
         }
-
         isTyping = true;
         typeIdleTime = 0.0f;
         
         if (autoScroll) {
             needsScroll = true;
         }
+    } else {
+        std::cerr << "PTY not open (fd < 0)" << std::endl;
     }
 }
-
 void Terminal::toggleVisibility() { 
     isVisible = !isVisible; 
     if (isVisible) {
@@ -679,8 +735,9 @@ void Terminal::updateTerminalSize() {
         ws.ws_row = bufferHeight;
         ws.ws_col = bufferWidth;
         
+        std::cerr << "Setting terminal size: " << ws.ws_row << "x" << ws.ws_col << std::endl;
         if (ioctl(ptyFd, TIOCSWINSZ, &ws) < 0) {
-            std::cerr << "Failed to set terminal size" << std::endl;
+            std::cerr << "Failed to set terminal size: " << strerror(errno) << std::endl;
         }
     }
 }
@@ -812,6 +869,9 @@ void Terminal::render() {
             if (c != 0) {
                 processInput(std::string(1, c));
             }
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            processInput("\033");  // \033 is the ASCII/ANSI escape character
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
             processInput("\t");

@@ -37,7 +37,7 @@ private:
     
     std::vector<std::vector<Cell>> buffer;
     int bufferWidth = 80;
-    int bufferHeight = 24;
+    int bufferHeight = 26;
     int cursorX = 0;
     int cursorY = 0;
     float cursorBlinkTime = 0;
@@ -94,7 +94,7 @@ private:
     // Rendering
     void renderBuffer(const ImVec2& pos, float charWidth, float lineHeight);
     void renderCursor(const ImVec2& pos, float charWidth, float lineHeight);
-
+    ImVec4 convert256ToRGB(int color);
 
     std::vector<std::vector<Cell>> historyBuffer;  // Stores scrolled-off lines
     int maxHistoryLines = 1000;                    // Maximum history size
@@ -108,17 +108,11 @@ private:
     const float TYPE_TIMEOUT = 1.0f;   // Time before considering typing finished
     bool needsScroll = false;  // Flag to indicate scroll needed
 
-    //alternate buffer rendering
-    bool useAlternateBuffer = false;
-    std::vector<std::vector<Cell>> alternateBuffer;
-    int alternateCursorX = 0;
-    int alternateCursorY = 0;
-
 
     int savedCursorX = 0;
     int savedCursorY = 0;
     int scrollRegionTop = 0;
-    int scrollRegionBottom = bufferHeight - 1;
+    int scrollRegionBottom = bufferHeight;
 
 
 
