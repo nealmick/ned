@@ -64,3 +64,11 @@ CMD 1-9
 
 CMD shift 1-9
     - set bookmark at cursor
+
+--Settings
+CMD ,
+	- Launch settings editor
+
+
+
+
