@@ -36,8 +36,8 @@ private:
     };
     
     std::vector<std::vector<Cell>> buffer;
-    int bufferWidth = 80;
-    int bufferHeight = 26;
+    int bufferWidth = 120;
+    int bufferHeight = 34;
     int cursorX = 0;
     int cursorY = 0;
     float cursorBlinkTime = 0;

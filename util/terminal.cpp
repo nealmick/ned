@@ -252,9 +252,14 @@ void Terminal::render() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
             processInput("\t");
-        }
+        } 
         if (io.KeyCtrl) {
-            if (ImGui::IsKeyPressed(ImGuiKey_C)) {
+            if (ImGui::IsKeyPressed(ImGuiKey_A)) {
+                std::cerr << "\033[38;5;21mTerminal:\033[0m sending ctrl a  " <<std::endl;
+                // Send Ctrl-A to screen (\x01)
+                processInput("\x01");
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_C)) {
                 if (selection.active) {
                     copySelection();
                     selection.active = false;
@@ -269,14 +274,23 @@ void Terminal::render() {
                 const char* clipText = ImGui::GetClipboardText();
                 if (clipText) processInput(clipText);
             }
+            // Add other Ctrl key combinations that screen uses
+            else {
+                // Forward any other Ctrl key combinations
+                for (int key = ImGuiKey_A; key <= ImGuiKey_Z; key++) {
+                    if (ImGui::IsKeyPressed((ImGuiKey)key)) {
+                        char ctrlChar = (char)((key - ImGuiKey_A) + 1);  // Convert to Ctrl code (1-26)
+                        processInput(std::string(1, ctrlChar));
+                    }
+                }
+            }
         }
-
         if (ImGui::IsKeyPressed(ImGuiKey_Enter)) processInput("\n");
         else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) processInput("\x7f");
-        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) processInput("\x1b[A");
-        else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) processInput("\x1b[B");
-        else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) processInput("\x1b[C");
-        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) processInput("\x1b[D");
+        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) processInput("\033OA");
+        else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) processInput("\033OB");
+        else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) processInput("\033OC");
+        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) processInput("\033OD");
     }
     if (needsFocus && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
         needsFocus = false;
@@ -519,7 +533,9 @@ void Terminal::processChar(char32_t c) {
 }
 
 
-void Terminal::processInput(const std::string& input) {
+void Terminal::processInput(const std::string& input) { 
+     std::cerr << "\033[38;5;21mTerminal:\033[0m input :  " << input <<std::endl;
+
     if (ptyFd >= 0) {
         // Debug PTY state before write
         struct stat statbuf;
@@ -635,9 +651,7 @@ void Terminal::handleCSI(const std::string& seq) {
         case 'D': // Cursor Back
             cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
             break;
-            
-        
-            
+    
 
         case 'J': // Erase in Display
             if (params.empty() || params[0] == 2) {
@@ -694,29 +708,58 @@ void Terminal::handleCSI(const std::string& seq) {
             break;
 
         case 'L': // Insert lines
-            std::cerr << "Terminal: inserting lines " << std::endl;
+            std::cerr << "Terminal: inserting lines at y=" << cursorY << std::endl;
             if (params.empty() || params[0] == 0) params = {1};
             {
-                int count = std::min(params[0], bufferHeight - cursorY);
-                for (int y = bufferHeight - 1; y >= cursorY + count; y--) {
-                    buffer[y] = buffer[y - count];
-                }
-                for (int y = cursorY; y < cursorY + count; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
+                // Only insert within scroll region if defined
+                int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
+                    scrollRegionBottom : (bufferHeight - 1);
+                int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
+                    scrollRegionTop : 0;
+                
+                // Only proceed if cursor is within scroll region
+                if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
+                    int count = std::min(params[0], effectiveBottom - cursorY + 1);
+                    
+                    // Move lines down within the scroll region
+                    for (int y = effectiveBottom; y >= cursorY + count; y--) {
+                        buffer[y] = buffer[y - count];
+                    }
+                    
+                    // Clear the newly inserted lines
+                    for (int y = cursorY; y < cursorY + count && y <= effectiveBottom; y++) {
+                        buffer[y] = std::vector<Cell>(bufferWidth);
+                    }
                 }
             }
             break;
 
         case 'M': // Delete lines
-            std::cerr << "Terminal: delete lines " << std::endl;
-            if (params.empty() || params[0] == 0) params = {1};
             {
-                int count = std::min(params[0], bufferHeight - cursorY);
-                for (int y = cursorY; y < bufferHeight - count; y++) {
-                    buffer[y] = buffer[y + count];
-                }
-                for (int y = bufferHeight - count; y < bufferHeight; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
+                std::cerr << "Terminal: deleteing..." << std::endl;
+                if (params.empty() || params[0] == 0) params = {1};
+                
+                // Only delete within scroll region if defined
+                int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
+                    scrollRegionBottom : (bufferHeight - 1);
+                int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
+                    scrollRegionTop : 0;
+                
+                // Only proceed if cursor is within scroll region
+                if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
+                    int count = std::min(params[0], effectiveBottom - cursorY + 1);
+                    
+                    // Move lines up within the scroll region
+                    for (int y = cursorY; y <= effectiveBottom - count; y++) {
+                        buffer[y] = std::move(buffer[y + count]);
+                    }
+                    
+                    // Clear the newly exposed lines at the bottom of the region
+                    for (int y = effectiveBottom - count + 1; y <= effectiveBottom; y++) {
+                        buffer[y] = std::vector<Cell>(bufferWidth);
+                    }
+                } else {
+                    std::cerr << "Terminal: ignored delete lines - cursor outside scroll region" << std::endl;
                 }
             }
             break;

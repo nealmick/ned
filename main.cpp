@@ -133,7 +133,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         gTerminal.toggleVisibility();
     }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
-        std::cout << "Settings window toggled with Cmd+Comma" << std::endl;
+        std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
         gSettings.toggleSettingsWindow();
     }
     if (gTerminal.isTerminalVisible()) {
