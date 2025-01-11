@@ -166,7 +166,7 @@ void CutWholeLine(std::string &text, std::vector<ImVec4> &colors,
   text.erase(line_start, line_end - line_start);
   colors.erase(colors.begin() + line_start, colors.begin() + line_end);
 
-  state.cursor_pos = line > 0 ? state.line_starts[line - 1] : 0;
+  state.cursor_pos = line > 0 ? state.line_starts[line] : 0;
   text_changed = true;
   UpdateLineStarts(text, state.line_starts);
 
@@ -1315,9 +1315,7 @@ void Editor::highlightContent(const std::string &content,
                               std::vector<ImVec4> &colors, int start_pos,
                               int end_pos) {
 
-  std::cout << "Entering highlightContent. content size: " << content.size()
-            << ", colors size: " << colors.size()
-            << ", start_pos: " << start_pos << ", end_pos: " << end_pos
+  std::cout << "\033[36mEditor:\033[0m   Highlight Content. content size: " << content.size()
             << std::endl;
 
   if (content.empty()) {
@@ -1360,20 +1358,20 @@ void Editor::highlightContent(const std::string &content,
 
   std::string extension =
       fs::path(gFileExplorer.getCurrentFile()).extension().string();
-  std::cout << "File extension: " << extension << std::endl;
+  std::cout << "\033[36mEditor:\033[0m  File extension: " << extension << std::endl;
 
   highlightFuture = std::async(std::launch::async, [this, content, &colors,
                                                     start_pos, end_pos,
                                                     extension]() {
     try {
       if (extension == ".cpp" || extension == ".h") {
-        std::cout << "Applying full C++ highlighting" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Applying full C++ highlighting" << std::endl;
         cppLexer.applyHighlighting(content, colors, 0);
-        std::cout << "C++ highlighting completed" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m C++ highlighting completed" << std::endl;
       } else if (extension == ".py") {
-        std::cout << "Applying full Python highlighting" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Applying full Python highlighting" << std::endl;
         pythonLexer.applyHighlighting(content, colors, 0);
-        std::cout << "Python highlighting completed" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Python highlighting completed" << std::endl;
       } else {
         int local_start_pos = start_pos < 0 ? 0 : start_pos;
         int local_end_pos =
@@ -1394,7 +1392,6 @@ void Editor::highlightContent(const std::string &content,
         std::string view =
             content.substr(local_start_pos, local_end_pos - local_start_pos);
 
-        std::cout << "Applying regular highlighting rules" << std::endl;
         applyRules(view, colors, local_start_pos, rules);
 
         std::regex scriptTag(R"(<script\b[^>]*>([\s\S]*?)</script>)");
@@ -1438,7 +1435,7 @@ void Editor::highlightContent(const std::string &content,
           applyTagRules(*it, cssRules);
         }
       }
-      std::cout << "debug message ---------- highlight content sequence complete" << std::endl;
+      std::cout << "\033[36mEditor:\033[0m highlight content sequence complete" << std::endl;
 
 
     } catch (const std::exception &e) {
@@ -1453,12 +1450,10 @@ void Editor::highlightContent(const std::string &content,
 
 void Editor::applyRules(const std::string &view, std::vector<ImVec4> &colors,
                         int start_pos, const std::vector<SyntaxRule> &rules) {
-  std::cout << "Entering applyRules. view size: " << view.size()
-            << ", colors size: " << colors.size()
-            << ", start_pos: " << start_pos << std::endl;
+
 
   if (view.empty()) {
-    std::cerr << "Error: Empty view in applyRules" << std::endl;
+    std::cerr << "\033[36mEditor:\033[0m  Error: Empty view in applyRules" << std::endl;
     return;
   }
 
@@ -1538,7 +1533,7 @@ void Editor::applyRules(const std::string &view, std::vector<ImVec4> &colors,
 // Syntax highlighting functions
 
 void Editor::setLanguage(const std::string &extension) {
-  std::cout << "Setting language for extension: " << extension << std::endl;
+  std::cout << "\033[36mEditor:\033[0m  Setting language for extension: " << extension << std::endl;
   setupHtmlRules();
   setupJavaScriptRules();
   setupCssRules();

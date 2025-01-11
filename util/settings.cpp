@@ -10,26 +10,23 @@
 Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f) {}
-
 void Settings::loadSettings() {
     settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
-    std::cout << "Attempting to load settings from: " << settingsPath << std::endl;
+    std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
     
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
             settingsFile >> settings;
-            std::cout << "Settings loaded successfully" << std::endl;
+            std::cout << "\033[95mSettings:\033[0m Json preferences loaded successfully" << std::endl;
         } catch (json::parse_error& e) {
-            std::cerr << "Error parsing settings file: " << e.what() << std::endl;
+            std::cerr << "\033[95mSettings:\033[0m Error parsing settings file: " << e.what() << std::endl;
             settings = json::object(); // Reset to empty object
         }
     } else {
-        std::cout << "Settings file not found, using defaults" << std::endl;
+        std::cout << "\033[95mSettings:\033[0m json file not found, using defaults" << std::endl;
         settings = json::object(); // Create an empty JSON object
     }
-
-    // Rest of your existing default settings initialization...
     if (!settings.contains("font")) {
         settings["font"] = "default";
     }
@@ -82,7 +79,7 @@ void Settings::loadSettings() {
         lastSettingsModification = fs::file_time_type::min();
     }
 
-    std::cout << "Current settings: " << settings.dump(4) << std::endl;
+    //std::cout << "Settings: Current preferences : " << settings.dump(4) << std::endl;
 }
 
 void Settings::saveSettings() {

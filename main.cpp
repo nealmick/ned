@@ -40,27 +40,26 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
-        std::cout << "Current working directory: " << cwd << std::endl;
+        std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
     } else {
         std::cerr << "getcwd() error" << std::endl;
     }
     
-    std::cout << "Attempting to load font from: " << fontPath << std::endl;
+    std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
     
     if (!std::filesystem::exists(fontPath)) {
-        std::cerr << "Font file does not exist: " << fontPath << std::endl;
+        std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
     
     ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize);
     if (font == nullptr) {
-        std::cerr << "Failed to load font: " << fontName << std::endl;
+        std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
-    std::cout << "Successfully loaded font: " << fontName << std::endl;
+    std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
-
 void InitializeGLFW() {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;

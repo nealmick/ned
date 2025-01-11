@@ -74,7 +74,6 @@ private:
     void readOutput();
     void processInput(const std::string& input);
     void processChar(char32_t c);
-    void updateTerminalSize();
 
     // Buffer operations
     void writeToBuffer(const char* data, size_t length);
@@ -87,7 +86,6 @@ private:
                          int* termX, int* termY);
     
     // ANSI handling
-    void handleEscapeSequence();
     void handleCSI(const std::string& seq);
     void setCursorPos(int x, int y);
     
@@ -101,16 +99,14 @@ private:
     float scrollPosition = 0.0f;                   // Current scroll position
     float maxScrollPosition = 0.0f;                // Maximum scroll position
     bool autoScroll = true;                        // Whether to auto-scroll on new output
+    bool needsScroll = false;  // Flag to indicate scroll needed
 
 
     bool isTyping = false;            // Tracks if user is currently typing
     float typeIdleTime = 0.0f;        // Time since last keystroke
     const float TYPE_TIMEOUT = 1.0f;   // Time before considering typing finished
-    bool needsScroll = false;  // Flag to indicate scroll needed
 
 
-    int savedCursorX = 0;
-    int savedCursorY = 0;
     int scrollRegionTop = 0;
     int scrollRegionBottom = bufferHeight;
 
