@@ -36,6 +36,8 @@ private:
     };
     
     std::vector<std::vector<Cell>> buffer;
+    std::vector<std::vector<Cell>> altBuffer;
+
     int bufferWidth = 120;
     int bufferHeight = 34;
     int cursorX = 0;
@@ -44,6 +46,8 @@ private:
     int lastLineLength = 0;  
     int promptEndX = 0;
     int promptEndY = 0;
+    
+
     // Selection state
     struct {
         bool active = false;
@@ -61,7 +65,13 @@ private:
         ImVec4 currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
         ImVec4 currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
         uint16_t currentAttrs = 0;
-        bool skipNext = false;  // signal to not render char
+        bool skipNext = false;
+        bool applicationCursorKeys = false;
+        bool lineWrap = true;
+        bool cursorBlink = true;
+        bool cursorVisible = true;
+        bool bracketedPaste = false;
+        bool insertMode = false;
     } ansiState;
 
     // Thread management

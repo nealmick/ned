@@ -164,13 +164,14 @@ void Terminal::render() {
     if (ImGui::IsWindowHovered()) {
         float wheel = ImGui::GetIO().MouseWheel;
         if (wheel != 0) {
+           
             // Only change autoScroll if we're not typing
             if (!isTyping) {
                 // Disable auto-scroll when scrolling up
                 if (wheel > 0) {
                     autoScroll = false;
                 }
-                
+                float oldScrollPos = scrollPosition;  // Store old position
                 // Update scroll position
                 scrollPosition -= wheel * 3.0f;  // 3 lines per scroll tick
                 
@@ -179,13 +180,12 @@ void Terminal::render() {
                 float lineHeight = ImGui::GetTextLineHeight();
                 int visibleLines = static_cast<int>(windowHeight / lineHeight);
                 int totalLines = historyBuffer.size() + bufferHeight;
-                maxScrollPosition = std::max(0.0f, 
-                    static_cast<float>(totalLines - visibleLines));
+                maxScrollPosition = std::max(0.0f, static_cast<float>(totalLines - visibleLines));
                 
                 // Clamp scroll position
-                scrollPosition = std::max(0.0f, 
-                    std::min(scrollPosition, maxScrollPosition));
+                scrollPosition = std::max(0.0f, std::min(scrollPosition, maxScrollPosition));
                 
+               
                 // Re-enable auto-scroll if we scroll to bottom
                 if (scrollPosition >= maxScrollPosition) {
                     autoScroll = true;
@@ -285,7 +285,7 @@ void Terminal::render() {
                 }
             }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) processInput("\n");
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) processInput("\r\n");
         else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) processInput("\x7f");
         else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) processInput("\033OA");
         else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) processInput("\033OB");
@@ -445,51 +445,41 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
 }
 void Terminal::processChar(char32_t c) {
     bool needScroll = false;
-    
     if (c == '\r') {
         cursorX = 0;
         lastLineLength = 0;
     } else if (c == '\n') {
         cursorX = 0;
         lastLineLength = 0;
-        cursorY++;
+        
+        if (cursorY >= bufferHeight - 1) {
+            scrollBuffer(1);
+            needScroll = true;
+        } else {
+            cursorY++;
+        }
 
-        // If we're within the scroll region and hit the bottom
         if (cursorY > scrollRegionBottom) {
-            
-            // Scroll within the defined scroll region
             for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
-
                 buffer[y] = std::move(buffer[y + 1]);
             }
             buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
             cursorY = scrollRegionBottom;
         }
-        // Normal scrolling behavior if outside scroll region
-        else if (cursorY >= bufferHeight) {
-            // Only scroll if we're not within the last 2 lines of the buffer
-            if (cursorY > bufferHeight - 3) {
-                std::cerr << "out of scroll region currently" << std::endl;
-                scrollBuffer(1);
-                cursorY = bufferHeight - 1;
-                needScroll = true;
-            } else {
-                cursorY = bufferHeight - 1;
-            }
-        }
         
-        // After newline, next output will be shell prompt
         promptEndX = 0;
         promptEndY = cursorY;
-    } else if (c == '\t') {
+    }else if (c == '\t') {
         int newX = (cursorX + 8) & ~7;
         if (newX >= bufferWidth) {
             cursorX = 0;
             lastLineLength = 0;
             cursorY++;
-            if (cursorY >= bufferHeight) {
+            // Only scroll if no scroll region is active
+            if (scrollRegionBottom == 0 && scrollRegionTop == 0 &&
+                cursorY >= bufferHeight - 1) {
                 scrollBuffer(1);
-                cursorY = bufferHeight - 1;
+                cursorY = bufferHeight - 2;
                 needScroll = true;
             }
         } else {
@@ -506,9 +496,11 @@ void Terminal::processChar(char32_t c) {
             cursorX = 0;
             lastLineLength = 0;
             cursorY++;
-            if (cursorY >= bufferHeight) {
+            // Only scroll if no scroll region is active
+            if (scrollRegionBottom == 0 && scrollRegionTop == 0 &&
+                cursorY >= bufferHeight - 1) {
                 scrollBuffer(1);
-                cursorY = bufferHeight - 1;
+                cursorY = bufferHeight - 2;
                 needScroll = true;
             }
         }
@@ -520,7 +512,6 @@ void Terminal::processChar(char32_t c) {
         cursorX++;
         lastLineLength = std::max(lastLineLength, cursorX);
         
-        // Update prompt end position if we're still receiving shell output
         if (!isTyping) {
             promptEndX = cursorX;
             promptEndY = cursorY;
@@ -531,7 +522,6 @@ void Terminal::processChar(char32_t c) {
         needsScroll = true;
     }
 }
-
 
 void Terminal::processInput(const std::string& input) { 
      std::cerr << "\033[38;5;21mTerminal:\033[0m input :  " << input <<std::endl;
@@ -598,6 +588,8 @@ void Terminal::handleCSI(const std::string& seq) {
     std::string numStr;
     bool isPrivateMode = false;
     
+    std::string paramStr = seq.substr(0, seq.length() - 1);  // Get everything except the command char
+    
     for (size_t i = 0; i < seq.length() - 1; i++) {
         if (i == 0 && seq[i] == '?') {
             isPrivateMode = true;
@@ -613,7 +605,7 @@ void Terminal::handleCSI(const std::string& seq) {
     if (!numStr.empty()) {
         params.push_back(std::stoi(numStr));
     }
-    
+    bool handled = true;  
     switch (cmd) {
         case 'r': // Set scrolling region
             if (params.size() >= 2) {
@@ -629,8 +621,6 @@ void Terminal::handleCSI(const std::string& seq) {
             if (params.size() >= 2) {
                 int row = params[0] - 1;
                 int col = params[1] - 1;
-                
-                //std::cerr << "Received cursor position command: Row=" << row << ", Col=" << col << std::endl;
                 
                 // Update the cursor position based on Vim's request, but clamp to the buffer dimensions
                 setCursorPos(col, row);
@@ -763,8 +753,82 @@ void Terminal::handleCSI(const std::string& seq) {
                 }
             }
             break;
-            
-        case 'm': // SGR (Select Graphic Rendition)
+        case 'd': // Move to line N
+            if (!params.empty()) {
+                cursorY = std::max(0, std::min(params[0] - 1, bufferHeight - 1));
+            }
+            break;
+
+        case 'G': // Move to column N
+            if (!params.empty()) {
+                cursorX = std::max(0, std::min(params[0] - 1, bufferWidth - 1));
+            }
+            break;
+
+        case 'h': // Set mode
+        case 'l': // Reset mode
+            if (isPrivateMode) {
+                if (!params.empty()) {
+                    bool enable = (cmd == 'h');  // 'h' enables, 'l' disables
+                    switch (params[0]) {
+                        case 1:
+                            // Application cursor keys mode
+                            ansiState.applicationCursorKeys = enable;
+                            break;
+                        case 7:
+                            // Line wrap mode
+                            ansiState.lineWrap = enable;
+                            break;
+                        case 12:
+                            // Cursor blink
+                            ansiState.cursorBlink = enable;
+                            break;
+                        case 25:
+                            // Show/hide cursor
+                            ansiState.cursorVisible = enable;
+                            break;
+                        case 1049:
+                            // Alternative screen buffer
+                            if (enable) {
+                                // Save current buffer state
+                                altBuffer = buffer;
+                                buffer = std::vector<std::vector<Cell>>(bufferHeight, 
+                                        std::vector<Cell>(bufferWidth));
+                            } else {
+                                // Restore main buffer
+                                buffer = altBuffer;
+                            }
+                            break;
+                        case 2004:
+                            // Bracketed paste mode
+                            ansiState.bracketedPaste = enable;
+                            break;
+                        default:
+                            std::cerr << "Terminal: Unknown private mode: " << params[0] 
+                                     << (enable ? "h" : "l") << std::endl;
+                            break;
+                    }
+                }
+            } else {
+                if (!params.empty()) {
+                    switch(params[0]) {
+                        case 4:  // Reset Insert Mode/Set Replace Mode
+                            // We should probably track this in ansiState
+                            ansiState.insertMode = false;
+                            break;
+                        default:
+                            std::cerr << "Terminal: Non-private mode: " << paramStr << cmd << std::endl;
+                            break;
+                    }
+                }
+            }
+            break;
+        case 'm':  // SGR
+            std::cerr << "Terminal: Color sequence: ";
+            for (int p : params) {
+                std::cerr << p << " ";
+            }
+            std::cerr << std::endl;
             if (params.empty() || params[0] == 0) {
                 ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // Reset to white
                 ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);  // Reset to transparent black
@@ -783,6 +847,19 @@ void Terminal::handleCSI(const std::string& seq) {
                     case 2: ansiState.currentAttrs |= 2; break;  // Dim
                     case 3: ansiState.currentAttrs |= 4; break;  // Italic
                     case 4: ansiState.currentAttrs |= 8; break;  // Underline
+                    case 7: // Reverse video
+                        {
+                            ImVec4 temp = ansiState.currentFg;
+                            ansiState.currentFg = ansiState.currentBg;
+                            ansiState.currentBg = temp;
+                        }
+                        break;
+                    case 39: // Default foreground
+                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                        break;
+                    case 49: // Default background
+                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+                        break;
                     
                     // Standard colors (30-37)
                     case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
@@ -832,6 +909,17 @@ void Terminal::handleCSI(const std::string& seq) {
                 }
             }
             break;
+        default:
+            handled = false;
+            break;
+
+    }
+     if (!handled) {
+        std::cerr << "Terminal: Unknown CSI sequence: ESC[" 
+                  << (isPrivateMode ? "?" : "")
+                  << paramStr << cmd 
+                  << " (hex: " << std::hex << (int)cmd << std::dec << ")"
+                  << std::endl;
     }
     
 }
@@ -941,7 +1029,7 @@ ImVec4 Terminal::convert256ToRGB(int color) {
 }
 
 void Terminal::scrollBuffer(int lines) {
-    std::cerr << "Scrolling buffer" << std::endl;
+    
     if (lines <= 0) return;
     // Add the top lines to history before scrolling
     for (int i = 0; i < lines && i < bufferHeight; i++) {

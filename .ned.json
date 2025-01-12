@@ -1,14 +1,14 @@
 {
     "backgroundColor": [
-        0.20158357918262482,
-        0.7356828451156616,
-        0.7070704102516174,
+        1.0,
+        0.9656923413276672,
+        0.6933920383453369,
         0.30000001192092896
     ],
     "font": "SourceCodePro-Regular",
     "fontSize": 18.0,
     "rainbow": true,
-    "splitPos": 0.2279929518699646,
+    "splitPos": 0.21302816271781921,
     "theme": "default",
     "themes": {
         "default": {
