@@ -66,7 +66,6 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
     }
 
     // Compile vertex shader
-     // Compile vertex shader
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
     const char* vertexShaderCodePtr = vertexShaderCode.c_str();
     glShaderSource(vertexShader, 1, &vertexShaderCodePtr, NULL);
@@ -116,6 +115,19 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
     // Clean up
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+  int uniformCount;
+    glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &uniformCount);
+    
+    char uniformName[256];
+    for (int i = 0; i < uniformCount; i++) {
+        int length, size;
+        GLenum type;
+        glGetActiveUniform(shaderProgram, (GLuint)i, sizeof(uniformName), &length, &size, &type, uniformName);
+        
+        GLint location = glGetUniformLocation(shaderProgram, uniformName);
+        std::cout << "Uniform found: " << uniformName << " (location: " << location << ")" << std::endl;
+    }
+
     return true;
 }
 void Shader::useShader() {

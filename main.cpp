@@ -251,8 +251,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::End();
-    gBookmarks.renderBookmarksWindow();
-    gSettings.renderSettingsWindow();
+
 
 
 }
@@ -346,14 +345,26 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
-        // Get current framebuffer size
+        // Window movement handling
+        int window_x, window_y;
+        glfwGetWindowPos(window, &window_x, &window_y);
+        static int last_window_x = window_x, last_window_y = window_y;
+        is_window_moving = (window_x != last_window_x) || (window_y != last_window_y);
+        last_window_x = window_x;
+        last_window_y = window_y;
+
+        // Event handling with the same logic as the original version
+        if (is_window_moving) {
+            glfwPollEvents();
+        } else {
+            glfwWaitEventsTimeout(0.1);
+        }
+
+        // Get framebuffer size
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
 
-        // Event handling
-        glfwPollEvents();
-
-        // ImGui frame preparation
+        // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -365,11 +376,10 @@ int main() {
         }
         windowFocused = currentFocus;
 
-        // Refresh and check settings
+        // Settings and file handling
         gFileExplorer.refreshFileTree();
         gSettings.checkSettingsFile();
 
-        // Settings change handling
         if (gSettings.hasSettingsChanged()) {
             ApplySettings(ImGui::GetStyle());
             if (gSettings.hasThemeChanged()) {
@@ -383,7 +393,6 @@ int main() {
             gSettings.resetSettingsChanged();
         }
 
-        // File dialog handling
         if (gFileExplorer.showFileDialog()) {
             gFileExplorer.openFolderDialog();
             if (!gFileExplorer.getSelectedFolder().empty()) {
@@ -396,118 +405,94 @@ int main() {
             }
         }
 
-        // Render main window
-        RenderMainWindow(currentFont, explorerWidth, editorWidth);
+        // First, render all ImGui content to default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-        // Prepare multi-sampled framebuffer for full rendering
+        // Render all ImGui content
+        RenderMainWindow(currentFont, explorerWidth, editorWidth);
+        gBookmarks.renderBookmarksWindow();
+        gSettings.renderSettingsWindow();
+
+        // Complete ImGui frame and render to default framebuffer
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Create framebuffer for shader effect
         GLuint fullFramebuffer, fullRenderTexture, fullRbo;
-        
-        // Generate framebuffer and texture
         glGenFramebuffers(1, &fullFramebuffer);
         glGenTextures(1, &fullRenderTexture);
         glGenRenderbuffers(1, &fullRbo);
 
-        // Bind the framebuffer
+        // Setup framebuffer and texture
         glBindFramebuffer(GL_FRAMEBUFFER, fullFramebuffer);
-
-        // Configure texture
         glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
-        glTexImage2D(
-            GL_TEXTURE_2D, 0, GL_RGBA, 
-            display_w, display_h, 0, 
-            GL_RGBA, GL_UNSIGNED_BYTE, NULL
-        );
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display_w, display_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        
-        // Attach texture to framebuffer
-        glFramebufferTexture2D(
-            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 
-            GL_TEXTURE_2D, fullRenderTexture, 0
-        );
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fullRenderTexture, 0);
 
-        // Create renderbuffer for depth and stencil
+        // Setup renderbuffer
         glBindRenderbuffer(GL_RENDERBUFFER, fullRbo);
-        glRenderbufferStorage(
-            GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 
-            display_w, display_h
-        );
-        
-        // Attach renderbuffer to framebuffer
-        glFramebufferRenderbuffer(
-            GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, 
-            GL_RENDERBUFFER, fullRbo
-        );
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, display_w, display_h);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fullRbo);
 
-        // Verify framebuffer is complete
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-        }
+        // Copy default framebuffer content to our texture
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
+        glBlitFramebuffer(0, 0, display_w, display_h, 
+                         0, 0, display_w, display_h,
+                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-        // Clear the framebuffer
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-        // Render entire ImGui frame to framebuffer
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        // Switch back to default framebuffer
+        // Switch back to default framebuffer for final render
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, display_w, display_h);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-        // Prepare and use shader program
+        // Use shader
         glUseProgram(crtShader.shaderProgram);
         
         // Set shader uniforms
         GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
         GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
         GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
-        
-        // Update uniforms
-        if (timeLocation != -1) {
-            glUniform1f(timeLocation, glfwGetTime());
-        }
-        
-        if (screenTextureLocation != -1) {
-            glUniform1i(screenTextureLocation, 0);
-        }
 
+        if (timeLocation != -1) glUniform1f(timeLocation, glfwGetTime());
+        if (screenTextureLocation != -1) glUniform1i(screenTextureLocation, 0);
         if (resolutionLocation != -1) {
-            glUniform2f(resolutionLocation, 
-                static_cast<float>(display_w), 
-                static_cast<float>(display_h)
-            );
+            glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
         }
 
-        // Bind the rendered texture
+        // Render shader effect
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
-
-        // Render full-screen quad with shader
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        // Ensure ImGui is still drawn on top
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // Handle font reloading if needed
+        if (needFontReload) {
+            ImGui_ImplOpenGL3_DestroyFontsTexture();
+            ImGui::GetIO().Fonts->Clear();
+            currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getFontSize());
+            ImGui::GetIO().Fonts->Build();
+            ImGui_ImplOpenGL3_CreateFontsTexture();
+            gSettings.resetFontChanged();
+            gSettings.resetFontSizeChanged();
+            needFontReload = false;
+        }
 
-        // Swap buffers
+        // Swap buffers and cleanup
         glfwSwapBuffers(window);
-
-        // Cleanup resources
         glDeleteFramebuffers(1, &fullFramebuffer);
         glDeleteTextures(1, &fullRenderTexture);
         glDeleteRenderbuffers(1, &fullRbo);
 
-        // Optional: Frame timing control
+        // Frame timing
         auto frame_end = std::chrono::high_resolution_clock::now();
-        auto frame_duration = std::chrono::duration_cast<std::chrono::milliseconds>(frame_end - frame_start);
-        
-        if (frame_duration.count() < target_frame_duration.count()) {
-            std::this_thread::sleep_for(
-                target_frame_duration - std::chrono::duration_cast<std::chrono::duration<double>>(frame_duration)
-            );
+        auto frame_duration = frame_end - frame_start;
+        if (!is_window_moving && frame_duration < target_frame_duration) {
+            std::this_thread::sleep_for(target_frame_duration - frame_duration);
         }
     }
     // Cleanup VAO and VBO
