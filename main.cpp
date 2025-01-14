@@ -84,6 +84,7 @@ GLFWwindow* CreateWindow() {
         exit(1);
     }
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
     return window;
 }
 
@@ -118,7 +119,7 @@ void ApplySettings(ImGuiStyle& style) {
     // Apply text color to all text-related ImGui elements
     style.Colors[ImGuiCol_Text] = textCol;                // Regular text
     style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
-    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(textCol.x * 0.3f, textCol.y * 0.3f, textCol.z * 0.7f, 0.5f);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);  // Neon pink with 30% alpha
 
     // Rest of your existing settings
     style.ScrollbarSize = 30.0f;
@@ -307,18 +308,30 @@ int main() {
         return -1;
     }
 
-    // Frame timing setup
-    const double target_fps = 60.0;
-    const std::chrono::duration<double> target_frame_duration(1.0 / target_fps);
-    
+    // Persistent framebuffer objects
+    GLuint fullFramebuffer = 0, fullRenderTexture = 0, fullRbo = 0;
+    int last_display_w = 0, last_display_h = 0;
+    bool frameBufferInitialized = false;
+
+    // Frame timing and performance tracking
+    int frameCount = 0;
+    double lastFPSTime = glfwGetTime();
+    double lastSettingsCheckTime = lastFPSTime;
+    double lastFileTreeRefreshTime = lastFPSTime;
+
+    // Performance constants
+    const double SETTINGS_CHECK_INTERVAL = 2.0;
+    const double FILE_TREE_REFRESH_INTERVAL = 2.0;
+    const double TARGET_FPS = 60.0;
+    const std::chrono::duration<double> TARGET_FRAME_DURATION(1.0 / TARGET_FPS);
+
+    // Render state tracking
     bool is_window_moving = false;
     bool needFontReload = false;
     bool windowFocused = true;
 
-    float explorerWidth = 0.0f, editorWidth = 0.0f;
-    auto last_frame_time = std::chrono::high_resolution_clock::now();
+    // Quad vertices for shader rendering
     float quadVertices[] = {
-        // positions   // texCoords
         -1.0f, -1.0f,  0.0f, 0.0f,
          1.0f, -1.0f,  1.0f, 0.0f,
          1.0f,  1.0f,  1.0f, 1.0f,
@@ -342,27 +355,75 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+    float explorerWidth = 0.0f, editorWidth = 0.0f;
+
     while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
-        // Window movement handling
-        int window_x, window_y;
-        glfwGetWindowPos(window, &window_x, &window_y);
-        static int last_window_x = window_x, last_window_y = window_y;
-        is_window_moving = (window_x != last_window_x) || (window_y != last_window_y);
-        last_window_x = window_x;
-        last_window_y = window_y;
+        // Always poll events
+        glfwPollEvents();
 
-        // Event handling with the same logic as the original version
-        if (is_window_moving) {
-            glfwPollEvents();
-        } else {
-            glfwWaitEventsTimeout(0.1);
+        // Performance tracking
+        double currentTime = glfwGetTime();
+        frameCount++;
+        
+        // FPS reporting
+        if (currentTime - lastFPSTime >= 1.0) {
+            // Color codes
+            const char* color = "\033[31m";  // Default to red
+            
+            if (frameCount >= 50) {
+                color = "\033[32m";  // Green for 50+ FPS
+            } else if (frameCount >= 30) {
+                color = "\033[33m";  // Orange (yellow) for 30-49 FPS
+            }
+            
+            std::cout << color << "FPS: " << frameCount << "\033[0m" << std::endl;
+            frameCount = 0;
+            lastFPSTime += 1.0;
+        }
+        // Occasional settings and file tree updates
+        if (currentTime - lastSettingsCheckTime >= SETTINGS_CHECK_INTERVAL) {
+            gSettings.checkSettingsFile();
+            lastSettingsCheckTime = currentTime;
+        }
+
+        if (currentTime - lastFileTreeRefreshTime >= FILE_TREE_REFRESH_INTERVAL) {
+            gFileExplorer.refreshFileTree();
+            lastFileTreeRefreshTime = currentTime;
         }
 
         // Get framebuffer size
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
+
+        // Reinitialize framebuffer if window size changes
+        if (display_w != last_display_w || display_h != last_display_h || !frameBufferInitialized) {
+            if (frameBufferInitialized) {
+                glDeleteFramebuffers(1, &fullFramebuffer);
+                glDeleteTextures(1, &fullRenderTexture);
+                glDeleteRenderbuffers(1, &fullRbo);
+            }
+
+            glGenFramebuffers(1, &fullFramebuffer);
+            glGenTextures(1, &fullRenderTexture);
+            glGenRenderbuffers(1, &fullRbo);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, fullFramebuffer);
+            glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display_w, display_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fullRenderTexture, 0);
+
+            glBindRenderbuffer(GL_RENDERBUFFER, fullRbo);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, display_w, display_h);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fullRbo);
+
+            last_display_w = display_w;
+            last_display_h = display_h;
+            frameBufferInitialized = true;
+        }
 
         // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -376,10 +437,7 @@ int main() {
         }
         windowFocused = currentFocus;
 
-        // Settings and file handling
-        gFileExplorer.refreshFileTree();
-        gSettings.checkSettingsFile();
-
+        // Handle settings changes
         if (gSettings.hasSettingsChanged()) {
             ApplySettings(ImGui::GetStyle());
             if (gSettings.hasThemeChanged()) {
@@ -393,6 +451,7 @@ int main() {
             gSettings.resetSettingsChanged();
         }
 
+        // File dialog handling (restored from previous version)
         if (gFileExplorer.showFileDialog()) {
             gFileExplorer.openFolderDialog();
             if (!gFileExplorer.getSelectedFolder().empty()) {
@@ -405,66 +464,44 @@ int main() {
             }
         }
 
-        // First, render all ImGui content to default framebuffer
+        // Render to default framebuffer
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, display_w, display_h);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Render all ImGui content
+        // Render ImGui content
         RenderMainWindow(currentFont, explorerWidth, editorWidth);
         gBookmarks.renderBookmarksWindow();
         gSettings.renderSettingsWindow();
 
-        // Complete ImGui frame and render to default framebuffer
+        // Complete ImGui frame
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        // Create framebuffer for shader effect
-        GLuint fullFramebuffer, fullRenderTexture, fullRbo;
-        glGenFramebuffers(1, &fullFramebuffer);
-        glGenTextures(1, &fullRenderTexture);
-        glGenRenderbuffers(1, &fullRbo);
-
-        // Setup framebuffer and texture
-        glBindFramebuffer(GL_FRAMEBUFFER, fullFramebuffer);
-        glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display_w, display_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fullRenderTexture, 0);
-
-        // Setup renderbuffer
-        glBindRenderbuffer(GL_RENDERBUFFER, fullRbo);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, display_w, display_h);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fullRbo);
-
-        // Copy default framebuffer content to our texture
+        // Rest of the shader rendering remains the same as in previous optimized version
+        // (Copy framebuffer, apply shader effect)
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
         glBlitFramebuffer(0, 0, display_w, display_h, 
                          0, 0, display_w, display_h,
                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-        // Switch back to default framebuffer for final render
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Use shader
         glUseProgram(crtShader.shaderProgram);
         
-        // Set shader uniforms
         GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
         GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
         GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
 
-        if (timeLocation != -1) glUniform1f(timeLocation, glfwGetTime());
+        if (timeLocation != -1) glUniform1f(timeLocation, currentTime);
         if (screenTextureLocation != -1) glUniform1i(screenTextureLocation, 0);
         if (resolutionLocation != -1) {
             glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
         }
 
-        // Render shader effect
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
         glBindVertexArray(quadVAO);
@@ -482,24 +519,26 @@ int main() {
             needFontReload = false;
         }
 
-        // Swap buffers and cleanup
+        // Swap buffers
         glfwSwapBuffers(window);
-        glDeleteFramebuffers(1, &fullFramebuffer);
-        glDeleteTextures(1, &fullRenderTexture);
-        glDeleteRenderbuffers(1, &fullRbo);
 
         // Frame timing
         auto frame_end = std::chrono::high_resolution_clock::now();
         auto frame_duration = frame_end - frame_start;
-        if (!is_window_moving && frame_duration < target_frame_duration) {
-            std::this_thread::sleep_for(target_frame_duration - frame_duration);
-        }
+        
+        // Optional: Add sleep to maintain target FPS
+        std::this_thread::sleep_for(TARGET_FRAME_DURATION - frame_duration);
     }
-    // Cleanup VAO and VBO
-    glDeleteVertexArrays(1, &quadVAO);
-    glDeleteBuffers(1, &quadVBO);
 
     // Cleanup
+    glDeleteVertexArrays(1, &quadVAO);
+    glDeleteBuffers(1, &quadVBO);
+    if (frameBufferInitialized) {
+        glDeleteFramebuffers(1, &fullFramebuffer);
+        glDeleteTextures(1, &fullRenderTexture);
+        glDeleteRenderbuffers(1, &fullRbo);
+    }
+
     gSettings.saveSettings();
     gFileExplorer.saveCurrentFile();
 
@@ -511,4 +550,3 @@ int main() {
 
     return 0;
 }
-

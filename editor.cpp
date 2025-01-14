@@ -726,56 +726,56 @@ void HandleTextInput(std::string &text, std::vector<ImVec4> &colors,
   }
 }
 // Rendering functions
-void RenderTextWithSelection(ImDrawList *draw_list, const ImVec2 &pos,
+void RenderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos,
                              const std::string &text,
                              const std::vector<ImVec4> &colors,
                              const EditorState &state, float line_height) {
-  ImVec2 text_pos = pos;
-  int selection_start = GetSelectionStart(state);
-  int selection_end = GetSelectionEnd(state);
-  const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
+    ImVec2 text_pos = pos;
+    int selection_start = GetSelectionStart(state);
+    int selection_end = GetSelectionEnd(state);
+    const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
 
-  // Calculate visible range
-  float scroll_y = ImGui::GetScrollY();
-  float window_height = ImGui::GetWindowHeight();
-  int start_line = static_cast<int>(scroll_y / line_height);
-  int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
+    // Calculate visible range
+    float scroll_y = ImGui::GetScrollY();
+    float window_height = ImGui::GetWindowHeight();
+    int start_line = static_cast<int>(scroll_y / line_height);
+    int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
 
-  int current_line = 0;
-  for (size_t i = 0; i < text.size(); i++) {
-    if (i >= colors.size()) {
-      std::cerr << "Error: Color index out of bounds in RenderTextWithSelection"
-                << std::endl;
-      break;
+    int current_line = 0;
+    for (size_t i = 0; i < text.size(); i++) {
+        if (i >= colors.size()) {
+            std::cerr << "Error: Color index out of bounds in RenderTextWithSelection"
+                      << std::endl;
+            break;
+        }
+
+        if (text[i] == '\n') {
+            current_line++;
+            if (current_line > end_line)
+                break; // Stop if we've passed the visible area
+            text_pos.x = pos.x;
+            text_pos.y += line_height;
+        } else if (current_line >= start_line && current_line <= end_line) {
+            // Only render if we're in the visible range
+            bool should_highlight =
+                (i >= selection_start && i < selection_end &&
+                 (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
+
+            if (should_highlight) {
+                ImVec2 sel_start = text_pos;
+                ImVec2 sel_end =
+                    ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i + 1]).x,
+                           text_pos.y + line_height);
+                drawList->AddRectFilled(sel_start, sel_end,
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))); // Pink with 30% alpha
+            }
+
+            char buf[2] = {text[i], '\0'};
+            ImU32 color = ImGui::ColorConvertFloat4ToU32(colors[i]);
+            drawList->AddText(text_pos, color, buf);
+            text_pos.x += ImGui::CalcTextSize(buf).x;
+        }
     }
-
-    if (text[i] == '\n') {
-      current_line++;
-      if (current_line > end_line)
-        break; // Stop if we've passed the visible area
-      text_pos.x = pos.x;
-      text_pos.y += line_height;
-    } else if (current_line >= start_line && current_line <= end_line) {
-      // Only render if we're in the visible range
-      bool should_highlight =
-          (i >= selection_start && i < selection_end &&
-           (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
-
-      if (should_highlight) {
-        ImVec2 sel_start = text_pos;
-        ImVec2 sel_end =
-            ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i + 1]).x,
-                   text_pos.y + line_height);
-        draw_list->AddRectFilled(sel_start, sel_end,
-                                 IM_COL32(100, 100, 200, 100));
-      }
-
-      char buf[2] = {text[i], '\0'};
-      ImU32 color = ImGui::ColorConvertFloat4ToU32(colors[i]);
-      draw_list->AddText(text_pos, color, buf);
-      text_pos.x += ImGui::CalcTextSize(buf).x;
-    }
-  }
 }
 void RenderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos,
                   float line_height, float blink_time) {
@@ -823,7 +823,6 @@ int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
 
   return line_end;
 }
-
 void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
                        float line_height, int num_lines, float scroll_y,
                        float window_height, const EditorState &editor_state,
@@ -832,13 +831,11 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
   ImDrawList *draw_list = ImGui::GetWindowDrawList();
   const ImU32 default_line_number_color = IM_COL32(128, 128, 128, 255);
   const ImU32 current_line_color = IM_COL32(255, 255, 255, 255);
-  const ImU32 selected_line_color = IM_COL32(200, 200, 200, 255);
-
+  const ImU32 selected_line_color = IM_COL32(0, 40, 255, 200);  // Neon pink color
   int start_line = static_cast<int>(scroll_y / line_height);
   int end_line =
       std::min(num_lines,
                static_cast<int>((scroll_y + window_height) / line_height) + 1);
-
   // Pre-calculate rainbow color
   ImU32 rainbow_color = current_line_color;
   bool rainbow_mode = gSettings.getRainbowMode();  // Get setting here
@@ -853,7 +850,6 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
     }
     rainbow_color = last_rainbow_color;
   }
-
   // Determine the selected lines, accounting for selection direction
   int selection_start =
       std::min(editor_state.selection_start, editor_state.selection_end);
@@ -867,31 +863,26 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
       std::lower_bound(editor_state.line_starts.begin(),
                        editor_state.line_starts.end(), selection_end) -
       editor_state.line_starts.begin();
-
   for (int i = start_line; i < end_line; i++) {
     float y_pos = pos.y + (i * line_height) - scroll_y;
     snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
-
     ImU32 line_number_color;
     if (i >= selection_start_line && i < selection_end_line &&
         editor_state.is_selecting) {
-      line_number_color = selected_line_color;
+      line_number_color = selected_line_color;  // Use neon pink for selected lines
     } else if (i == editor_state.current_line) {
       line_number_color = rainbow_mode ? rainbow_color : current_line_color;
     } else {
       line_number_color = default_line_number_color;
     }
-
     // Calculate the position for right-aligned text
     float text_width = ImGui::CalcTextSize(line_number_buffer).x;
     float x_pos = pos.x + line_number_width - text_width -
                   8.0f; // 4.0f is a small right margin
-
     draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color,
                        line_number_buffer);
   }
 }
-
 float CalculateTextWidth(const std::string &text,
                          const std::vector<int> &line_starts) {
   float max_width = 0.0f;

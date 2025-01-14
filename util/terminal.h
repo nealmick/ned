@@ -39,7 +39,7 @@ private:
     std::vector<std::vector<Cell>> altBuffer;
 
     int bufferWidth = 120;
-    int bufferHeight = 34;
+    int bufferHeight = 30;
     int cursorX = 0;
     int cursorY = 0;
     float cursorBlinkTime = 0;

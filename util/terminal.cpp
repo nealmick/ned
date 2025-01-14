@@ -1,4 +1,5 @@
 #include "util/terminal.h"
+#include "util/settings.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
@@ -146,11 +147,17 @@ void Terminal::render() {
     }
 
     // Create scrollable content area
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
+       ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(
+        gSettings.getSettings()["backgroundColor"][0].get<float>(),
+        gSettings.getSettings()["backgroundColor"][1].get<float>(),
+        gSettings.getSettings()["backgroundColor"][2].get<float>(),
+        0.0f  // Force alpha to 1.0 (fully opaque)
+    ));
+
     if (needsFocus) {
         ImGui::SetNextWindowFocus();
     }
-    ImGui::BeginChild("TerminalContent", ImGui::GetContentRegionAvail(), true);
+    ImGui::BeginChild("TerminalContent", ImGui::GetContentRegionAvail(), false);
     if (needsScroll) {
         float windowHeight = ImGui::GetContentRegionAvail().y;
         float lineHeight = ImGui::GetTextLineHeight();
@@ -343,11 +350,10 @@ void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight
                     pos.x + (highlightEnd + 1) * charWidth,
                     pos.y + yOffset + lineHeight
                 );
-                
                 drawList->AddRectFilled(
                     highlightPos,
                     highlightEndPos,
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))  // Green with 50% alpha
                 );
             }
 

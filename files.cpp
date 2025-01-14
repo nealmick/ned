@@ -285,6 +285,17 @@ void FileExplorer::preserveOpenStates(const FileNode &oldNode,
 }
 
 void FileExplorer::refreshFileTree() {
+    // Get the current time
+    double currentTime = glfwGetTime();
+
+    // Check if enough time has passed since the last refresh
+    if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL) {
+        return;
+    }
+
+    // Update the last refresh time
+    lastFileTreeRefreshTime = currentTime;
+
     if (!selectedFolder.empty()) {
         // Store the old root node to preserve states
         FileNode oldRoot = rootNode;
@@ -302,8 +313,6 @@ void FileExplorer::refreshFileTree() {
         preserveOpenStates(oldRoot, rootNode);
     }
 }
-
-
 
 
 

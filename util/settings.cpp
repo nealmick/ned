@@ -89,6 +89,18 @@ void Settings::saveSettings() {
     }
 }
 void Settings::checkSettingsFile() {
+    // Increment frame counter
+    settingsCheckFrameCounter++;
+
+    // Only check settings file periodically
+    if (settingsCheckFrameCounter < SETTINGS_CHECK_INTERVAL) {
+        return;
+    }
+
+    // Reset the counter
+    settingsCheckFrameCounter = 0;
+    std::cout << "checking settings file..." << std::endl;
+    
     if (!fs::exists(settingsPath)) {
         std::cout << "Settings file does not exist, skipping check" << std::endl;
         return;
@@ -102,7 +114,7 @@ void Settings::checkSettingsFile() {
         loadSettings();
         lastSettingsModification = currentModification;
         
-        // Check if relevant settings have changed
+        // Rest of the existing check logic remains the same
         if (oldSettings["backgroundColor"] != settings["backgroundColor"] ||
             oldSettings["fontSize"] != settings["fontSize"] ||
             oldSettings["splitPos"] != settings["splitPos"] ||
@@ -124,7 +136,6 @@ void Settings::checkSettingsFile() {
         }
     }
 }
-
 void Settings::renderSettingsWindow() {
     if (!showSettingsWindow) return;
 
