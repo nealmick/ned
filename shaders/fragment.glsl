@@ -5,11 +5,21 @@ uniform sampler2D screenTexture;
 uniform float time;
 uniform vec2 resolution;
 
-float random(vec2 uv) {
-    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453123);
+// Improved random function that avoids patterns
+float random(vec2 co) {
+    float a = 12.9898;
+    float b = 78.233;
+    float c = 43758.5453;
+    float dt = dot(co.xy, vec2(a,b));
+    float sn = mod(dt, 3.14);
+    return fract(sin(sn) * c);
 }
 
-// Simple gaussian blur approximation
+// Additional random function for variety
+float random2(vec2 co) {
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453123);
+}
+
 vec3 sampleBloom(vec2 uv, float offset) {
     vec3 bloom = vec3(0.0);
     float total = 0.0;
@@ -28,88 +38,92 @@ vec3 sampleBloom(vec2 uv, float offset) {
     return bloom / total;
 }
 
-// Add random jitter function
 vec2 addJitter(vec2 uv, float time) {
     float jitterSpeed = 2.0;
-    float jitterAmount = 0.0009; // Very subtle jitter
+    float jitterAmount = 0.0009;
     
-    // Only jitter occasionally
     float jitterThreshold = 0.97;
-    float rand = random(vec2(time * 0.1));
+    float rand = random(vec2(mod(time * 0.1, 100.0)));
     if(rand > jitterThreshold) {
         vec2 jitter = vec2(
-            random(uv + time * jitterSpeed) - 0.5,
-            random(uv + time * jitterSpeed + 1.0) - 0.5
+            random(uv + mod(time * jitterSpeed, 10.0)) - 0.5,
+            random(uv + mod(time * jitterSpeed + 1.0, 10.0)) - 0.5
         ) * jitterAmount;
         return uv + jitter;
     }
     return uv;
 }
 
+float generateStatic(vec2 uv, float time) {
+    // Use modulo to keep time values from growing too large
+    float t1 = mod(time * 60.0, 10.0);
+    float t2 = mod(time * 55.0, 10.0);
+    float t3 = mod(time * 0.1, 5.0);
+    
+    // Create multiple layers of noise at different frequencies
+    float noise1 = random(uv * 2.5 + vec2(t1));
+    float noise2 = random2(uv * 3.7 + vec2(t2));
+    float noise3 = random((uv + vec2(t3)) * 1.5);
+    
+    // Combine the noise layers with different weights
+    float staticNoise = (noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.2);
+    
+    // Add time-based modulation to control the intensity
+    float intensityMod = mix(0.8, 1.0, sin(time * 0.5) * 0.5 + 0.5);
+    return staticNoise * intensityMod;
+}
+
 void main() {
     vec2 uv = TexCoords;
-    
-    // Add occasional jitter
     uv = addJitter(uv, time);
     
-    // Subtle RGB shift
-    float shiftAmount = 0.001; // Very subtle shift
+    float shiftAmount = 0.001;
     float shiftSpeed = 0.5;
     float shift = sin(time * shiftSpeed) * shiftAmount;
     
-    // Sample colors with RGB shift
     vec3 color;
     color.r = texture(screenTexture, uv + vec2(shift, 0.0)).r;
     color.g = texture(screenTexture, uv).g;
     color.b = texture(screenTexture, uv - vec2(shift, 0.0)).b;
     
-    // Add bloom effect
     vec3 bloom = sampleBloom(uv, 2.0);
     float bloomStrength = 0.3;
     color += bloom * bloomStrength;
     
-    // Vignette calculation
     vec2 vigUV = uv;
     vigUV *= 1.0 - vigUV.yx;
     float vignette = vigUV.x * vigUV.y * 15.0;
     vignette = pow(vignette, 0.15);
     
-    // Modified scanline timing with pause
     float scanSpeed = 0.2;
-    float pauseDuration = 3.0; // Duration of pause between scans
-    
-    // Create a cycle that includes the scan and pause
+    float pauseDuration = 3.0;
     float cycleTime = mod(time, 1.0/scanSpeed + pauseDuration);
     float scanline = 1.0;
     
-    // Only show scanline during the scan part of the cycle
     if(cycleTime < 1.0/scanSpeed) {
         float scanPos = cycleTime * scanSpeed;
         float scanDist = (uv.y - (1.0 - fract(scanPos))) * resolution.y;
         
-        float fadeInLength = 7.0;  // Quick fade in
-        float fadeOutLength = 130.0; // Long fade out
+        float fadeInLength = 7.0;
+        float fadeOutLength = 130.0;
         
         if (scanDist >= 0.0 && scanDist < fadeOutLength) {
             float fadeOut = 1.0 - (scanDist / fadeOutLength);
             fadeOut = pow(smoothstep(0.2, 1.0, fadeOut), 1.2);
-            
-            // Add the fade-in effect
             float fadeIn = min(scanDist / fadeInLength, 1.0);
             fadeIn = smoothstep(0.0, 1.0, fadeIn);
-            
-            // Combine both fades
             float combinedFade = fadeIn * fadeOut;
-            
-            // Adjust the intensity range
             scanline = mix(1.0, 1.7, combinedFade * 0.2);
         }
     }
-    // Apply all effects
-    color *= vignette * scanline;
-    color += 0.05 * (random(uv * time) - 0.5);
     
-    // Add subtle pulsing to the bloom over time
+    color *= vignette * scanline;
+    
+    // Generate and apply the static with more controlled values
+    vec2 staticUV = gl_FragCoord.xy / resolution;
+    float staticNoise = generateStatic(staticUV, time);
+    color += (staticNoise - 0.5) * 0.09; // Slightly reduced intensity
+    
     float pulseSpeed = 0.5;
     float pulseStrength = 0.05;
     float pulse = sin(time * pulseSpeed) * pulseStrength + 1.0;

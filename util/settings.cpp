@@ -89,17 +89,6 @@ void Settings::saveSettings() {
     }
 }
 void Settings::checkSettingsFile() {
-    // Increment frame counter
-    settingsCheckFrameCounter++;
-
-    // Only check settings file periodically
-    if (settingsCheckFrameCounter < SETTINGS_CHECK_INTERVAL) {
-        return;
-    }
-
-    // Reset the counter
-    settingsCheckFrameCounter = 0;
-    std::cout << "checking settings file..." << std::endl;
     
     if (!fs::exists(settingsPath)) {
         std::cout << "Settings file does not exist, skipping check" << std::endl;

@@ -368,6 +368,7 @@ int main() {
         frameCount++;
         
         // FPS reporting
+        /*
         if (currentTime - lastFPSTime >= 1.0) {
             // Color codes
             const char* color = "\033[31m";  // Default to red
@@ -382,6 +383,7 @@ int main() {
             frameCount = 0;
             lastFPSTime += 1.0;
         }
+        */
         // Occasional settings and file tree updates
         if (currentTime - lastSettingsCheckTime >= SETTINGS_CHECK_INTERVAL) {
             gSettings.checkSettingsFile();

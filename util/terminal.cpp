@@ -392,6 +392,8 @@ void Terminal::readOutput() {
         }
     }
 }
+
+
 void Terminal::writeToBuffer(const char* data, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
@@ -458,19 +460,27 @@ void Terminal::processChar(char32_t c) {
         cursorX = 0;
         lastLineLength = 0;
         
-        if (cursorY >= bufferHeight - 1) {
-            scrollBuffer(1);
-            needScroll = true;
-        } else {
-            cursorY++;
-        }
-
-        if (cursorY > scrollRegionBottom) {
-            for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
-                buffer[y] = std::move(buffer[y + 1]);
+        // If we have an active scroll region
+        if (scrollRegionTop < scrollRegionBottom) {
+            if (cursorY == scrollRegionBottom) {
+                // Scroll within the defined region
+                for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
+                    buffer[y] = std::move(buffer[y + 1]);
+                }
+                buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
+                // Keep cursor at bottom of scroll region
+                cursorY = scrollRegionBottom;
+            } else if (cursorY < scrollRegionBottom) {
+                cursorY++;
             }
-            buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
-            cursorY = scrollRegionBottom;
+        } else {
+            // No scroll region active - do normal buffer scrolling
+            if (cursorY >= bufferHeight - 1) {
+                scrollBuffer(1);
+                needScroll = true;
+            } else {
+                cursorY++;
+            }
         }
         
         promptEndX = 0;
@@ -530,7 +540,7 @@ void Terminal::processChar(char32_t c) {
 }
 
 void Terminal::processInput(const std::string& input) { 
-     std::cerr << "\033[38;5;21mTerminal:\033[0m input :  " << input <<std::endl;
+     //std::cerr << "\033[38;5;21mTerminal:\033[0m input :  " << input <<std::endl;
 
     if (ptyFd >= 0) {
         // Debug PTY state before write
@@ -583,84 +593,150 @@ void Terminal::processInput(const std::string& input) {
 
     }
 }
-void Terminal::handleCSI(const std::string& seq) {
-    if (seq.empty()) return;
+
+
+Terminal::CSIParams Terminal::parseCSIParams(const std::string& seq) {
+    CSIParams result;
+    if (seq.empty()) return result;
     
+    result.command = seq.back();
+    result.isPrivateMode = false;
+    result.isSoftReset = false;
     
-    char cmd = seq.back();
-    std::vector<int> params;
+    // Get everything except the command char
+    result.paramStr = seq.substr(0, seq.length() - 1);
     
-    // Extract numeric parameters
+    // Check for soft reset
+    if (result.paramStr == "!") {
+        result.isSoftReset = true;
+        return result;
+    }
+
+    // Parse parameters
     std::string numStr;
-    bool isPrivateMode = false;
-    
-    std::string paramStr = seq.substr(0, seq.length() - 1);  // Get everything except the command char
-    
     for (size_t i = 0; i < seq.length() - 1; i++) {
         if (i == 0 && seq[i] == '?') {
-            isPrivateMode = true;
+            result.isPrivateMode = true;
             continue;
         }
         if (isdigit(seq[i])) {
             numStr += seq[i];
         } else if (seq[i] == ';') {
-            params.push_back(numStr.empty() ? 0 : std::stoi(numStr));
+            result.params.push_back(numStr.empty() ? 0 : std::stoi(numStr));
             numStr.clear();
         }
     }
     if (!numStr.empty()) {
-        params.push_back(std::stoi(numStr));
+        result.params.push_back(std::stoi(numStr));
     }
-    bool handled = true;  
-    switch (cmd) {
-        case 'r': // Set scrolling region
-            if (params.size() >= 2) {
-                int top = std::max(0, params[0] - 1);
-                int bottom = std::min(bufferHeight - 1, params[1] - 1);
-                scrollRegionTop = top;
-                scrollRegionBottom = bottom;
-
-            }
-            break;
-        
-        case 'H': // Cursor Position
-            if (params.size() >= 2) {
-                int row = params[0] - 1;
-                int col = params[1] - 1;
-                
-                // Update the cursor position based on Vim's request, but clamp to the buffer dimensions
+    
+    return result;
+}
+void Terminal::handleCursorMovement(const CSIParams& params) {
+    switch (params.command) {
+        case 'H': case 'f': { // CUP, HVP
+            if (params.params.size() >= 2) {
+                // In alternate screen mode, cursor positioning is absolute
+                int row = params.params[0] - 1;
+                int col = params.params[1] - 1;
                 setCursorPos(col, row);
             }
             break;
-        case 'A': // Cursor Up
-            cursorY = std::max(0, cursorY - (params.empty() ? 1 : params[0]));
+        }
+        
+        case 'B': { // CUD (Cursor Down)
+            int amount = params.params.empty() ? 1 : params.params[0];
+            
+            // If a scroll region is active and we're within it
+            if (scrollRegionTop < scrollRegionBottom && 
+                cursorY >= scrollRegionTop && cursorY <= scrollRegionBottom) {
+                int newY = cursorY + amount;
+                // If we would move beyond scroll region bottom
+                if (newY > scrollRegionBottom) {
+                    // Calculate how many lines we need to scroll
+                    int scrollAmount = newY - scrollRegionBottom;
+                    
+                    // Move lines up within scroll region
+                    for (int i = 0; i < scrollAmount; i++) {
+                        for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
+                            buffer[y] = std::move(buffer[y + 1]);
+                        }
+                        // Clear the bottom line
+                        buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
+                    }
+                    cursorY = scrollRegionBottom;
+                } else {
+                    cursorY = newY;
+                }
+            } else {
+                // Normal cursor movement outside scroll region
+                cursorY = std::min(bufferHeight - 1, cursorY + amount);
+            }
+            break;
+        }
+
+        case 'A': // CUU (Cursor Up)
+            if (scrollRegionTop < scrollRegionBottom && cursorY >= scrollRegionTop) {
+                cursorY = std::max(scrollRegionTop, cursorY - (params.params.empty() ? 1 : params.params[0]));
+            } else {
+                cursorY = std::max(0, cursorY - (params.params.empty() ? 1 : params.params[0]));
+            }
+            break;
+        
+            
+        case 'C': // CUF (Cursor Forward)
+            cursorX = std::min(bufferWidth - 1, cursorX + (params.params.empty() ? 1 : params.params[0]));
+            break;
+            
+        case 'D': // CUB (Cursor Back)
+            cursorX = std::max(0, cursorX - (params.params.empty() ? 1 : params.params[0]));
             break;
 
-        case 'B': // Cursor Down
-            cursorY = std::min(bufferHeight - 1, cursorY + (params.empty() ? 1 : params[0]));
+        case 'd': // VPA (Vertical Position Absolute)
+            if (!params.params.empty()) {
+                int targetY = params.params[0] - 1;
+                if (targetY >= bufferHeight) {
+                    int scrollAmount = targetY - bufferHeight + 1;
+                    scrollBuffer(scrollAmount);
+                    targetY = bufferHeight - 1;
+                }
+                cursorY = targetY;
+            }
             break;
 
-        case 'C': // Cursor Forward
-            cursorX = std::min(bufferWidth - 1, cursorX + (params.empty() ? 1 : params[0]));
+        case 'G': // CHA (Cursor Horizontal Absolute)
+            if (!params.params.empty()) {
+                cursorX = std::max(0, std::min(params.params[0] - 1, bufferWidth - 1));
+            }
             break;
+    }
+}
+void Terminal::handleScrollRegion(const CSIParams& params) {
+    if (params.params.size() >= 2) {
+        scrollRegionTop = std::max(0, params.params[0] - 1);
+        scrollRegionBottom = std::min(bufferHeight - 1, params.params[1] - 1);
+        
+        // Move cursor to home position when scroll region is set
+        setCursorPos(0, 0);
+    }
+}
 
-        case 'D': // Cursor Back
-            cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
-            break;
-    
 
-        case 'J': // Erase in Display
-            if (params.empty() || params[0] == 2) {
+void Terminal::handleEraseOperations(const CSIParams& params) {
+    switch (params.command) {
+        case 'J': // ED (Erase in Display)
+            if (params.params.empty() || params.params[0] == 2) {
+                // Erase entire screen
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
                 cursorX = 0;
                 cursorY = 0;
-            } else if (params[0] == 0) {
+            } else if (params.params[0] == 0) {
                 // Clear from cursor to end of screen
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
                 for (int y = cursorY + 1; y < bufferHeight; y++) {
                     clearRange(0, y, bufferWidth - 1, y);
                 }
-            } else if (params[0] == 1) {
+            } else if (params.params[0] == 1) {
                 // Clear from beginning of screen to cursor
                 for (int y = 0; y < cursorY; y++) {
                     clearRange(0, y, bufferWidth - 1, y);
@@ -669,265 +745,284 @@ void Terminal::handleCSI(const std::string& seq) {
             }
             break;
 
-        case 'K': // Erase in Line
-            if (params.empty() || params[0] == 0) {
-                //std::cerr << "Terminal: Clear line at Y=" << cursorY << " mode=0" << std::endl;
+        case 'K': // EL (Erase in Line)
+            if (params.params.empty() || params.params[0] == 0) {
+                // Clear from cursor to end of line
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
-            }break;
+            } else if (params.params[0] == 1) {
+                // Clear from start of line to cursor
+                clearRange(0, cursorY, cursorX, cursorY);
+            } else if (params.params[0] == 2) {
+                // Clear entire line
+                clearRange(0, cursorY, bufferWidth - 1, cursorY);
+            }
+            break;
+    }
+}
 
-        
+void Terminal::handleLineOperations(const CSIParams& params) {
+    // Default count is 1 if not specified
+    int count = params.params.empty() ? 1 : params.params[0];
 
-        case 'P': // Delete characters
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = params[0];
-                for (int x = cursorX; x < bufferWidth - count; x++) {
-                    buffer[cursorY][x] = buffer[cursorY][x + count];
+    // Calculate effective scroll region
+    int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
+        scrollRegionBottom : (bufferHeight - 1);
+    int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
+        scrollRegionTop : 0;
+
+    switch (params.command) {
+        case 'L': // IL (Insert Lines)
+            if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
+                count = std::min(count, effectiveBottom - cursorY + 1);
+                
+                // Move lines down within scroll region
+                for (int y = effectiveBottom; y >= cursorY + count; y--) {
+                    buffer[y] = buffer[y - count];
                 }
-                for (int x = bufferWidth - count; x < bufferWidth; x++) {
-                    buffer[cursorY][x] = Cell{};
+                
+                // Clear newly inserted lines
+                for (int y = cursorY; y < cursorY + count && y <= effectiveBottom; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
                 }
             }
             break;
 
-        case '@': // Insert characters
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = params[0];
-                for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
-                    buffer[cursorY][x] = buffer[cursorY][x - count];
-                }
-                for (int x = cursorX; x < cursorX + count && x < bufferWidth; x++) {
-                    buffer[cursorY][x] = Cell{};
-                }
-            }
-            break;
-
-        case 'L': // Insert lines
-            std::cerr << "Terminal: inserting lines at y=" << cursorY << std::endl;
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                // Only insert within scroll region if defined
-                int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
-                    scrollRegionBottom : (bufferHeight - 1);
-                int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
-                    scrollRegionTop : 0;
+        case 'M': // DL (Delete Lines)
+            if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
+                count = std::min(count, effectiveBottom - cursorY + 1);
                 
-                // Only proceed if cursor is within scroll region
-                if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
-                    int count = std::min(params[0], effectiveBottom - cursorY + 1);
-                    
-                    // Move lines down within the scroll region
-                    for (int y = effectiveBottom; y >= cursorY + count; y--) {
-                        buffer[y] = buffer[y - count];
-                    }
-                    
-                    // Clear the newly inserted lines
-                    for (int y = cursorY; y < cursorY + count && y <= effectiveBottom; y++) {
-                        buffer[y] = std::vector<Cell>(bufferWidth);
-                    }
+                // Move lines up within scroll region
+                for (int y = cursorY; y <= effectiveBottom - count; y++) {
+                    buffer[y] = std::move(buffer[y + count]);
+                }
+                
+                // Clear newly exposed lines
+                for (int y = effectiveBottom - count + 1; y <= effectiveBottom; y++) {
+                    buffer[y] = std::vector<Cell>(bufferWidth);
                 }
             }
             break;
 
-        case 'M': // Delete lines
-            {
-                std::cerr << "Terminal: deleteing..." << std::endl;
-                if (params.empty() || params[0] == 0) params = {1};
-                
-                // Only delete within scroll region if defined
-                int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
-                    scrollRegionBottom : (bufferHeight - 1);
-                int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
-                    scrollRegionTop : 0;
-                
-                // Only proceed if cursor is within scroll region
-                if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
-                    int count = std::min(params[0], effectiveBottom - cursorY + 1);
-                    
-                    // Move lines up within the scroll region
-                    for (int y = cursorY; y <= effectiveBottom - count; y++) {
-                        buffer[y] = std::move(buffer[y + count]);
+        case '@': // ICH (Insert Characters)
+            for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
+                buffer[cursorY][x] = buffer[cursorY][x - count];
+            }
+            for (int x = cursorX; x < cursorX + count && x < bufferWidth; x++) {
+                buffer[cursorY][x] = Cell{};
+            }
+            break;
+
+        case 'P': // DCH (Delete Characters)
+            for (int x = cursorX; x < bufferWidth - count; x++) {
+                buffer[cursorY][x] = buffer[cursorY][x + count];
+            }
+            for (int x = bufferWidth - count; x < bufferWidth; x++) {
+                buffer[cursorY][x] = Cell{};
+            }
+            break;
+    }
+}
+
+void Terminal::handleModeSettings(const CSIParams& params) {
+    if (params.params.empty()) return;
+
+    bool enable = (params.command == 'h');  // 'h' enables, 'l' disables
+    
+    if (params.isPrivateMode) {
+        switch (params.params[0]) {
+            case 1: // DECCKM - Application cursor keys
+                ansiState.applicationCursorKeys = enable;
+                break;
+            case 7: // DECAWM - Auto-wrap mode
+                ansiState.lineWrap = enable;
+                break;
+            case 12: // ATT610 - Start blinking cursor
+                ansiState.cursorBlink = enable;
+                break;
+            case 25: // DECTCEM - Text cursor enable mode
+                ansiState.cursorVisible = enable;
+                break;
+            case 1000: // Mouse click tracking
+                ansiState.mouseTracking = enable;
+                break;
+            case 1002: // Mouse button tracking
+                ansiState.mouseButtonTracking = enable;
+                break;
+            case 1003: // Mouse any event tracking
+                ansiState.mouseAnyEvent = enable;
+                break;
+            case 1047: // Use alternate screen buffer
+            case 1049: // Use alternate screen buffer + save cursor
+                if (enable) {
+                    if (params.params[0] == 1049) {
+                        ansiState.savedCursorX = cursorX;
+                        ansiState.savedCursorY = cursorY;
                     }
-                    
-                    // Clear the newly exposed lines at the bottom of the region
-                    for (int y = effectiveBottom - count + 1; y <= effectiveBottom; y++) {
-                        buffer[y] = std::vector<Cell>(bufferWidth);
-                    }
+                    altBuffer = buffer;
+                    buffer = std::vector<std::vector<Cell>>(bufferHeight, 
+                            std::vector<Cell>(bufferWidth));
                 } else {
-                    std::cerr << "Terminal: ignored delete lines - cursor outside scroll region" << std::endl;
-                }
-            }
-            break;
-        case 'd': // Move to line N
-            if (!params.empty()) {
-                cursorY = std::max(0, std::min(params[0] - 1, bufferHeight - 1));
-            }
-            break;
-
-        case 'G': // Move to column N
-            if (!params.empty()) {
-                cursorX = std::max(0, std::min(params[0] - 1, bufferWidth - 1));
-            }
-            break;
-
-        case 'h': // Set mode
-        case 'l': // Reset mode
-            if (isPrivateMode) {
-                if (!params.empty()) {
-                    bool enable = (cmd == 'h');  // 'h' enables, 'l' disables
-                    switch (params[0]) {
-                        case 1:
-                            // Application cursor keys mode
-                            ansiState.applicationCursorKeys = enable;
-                            break;
-                        case 7:
-                            // Line wrap mode
-                            ansiState.lineWrap = enable;
-                            break;
-                        case 12:
-                            // Cursor blink
-                            ansiState.cursorBlink = enable;
-                            break;
-                        case 25:
-                            // Show/hide cursor
-                            ansiState.cursorVisible = enable;
-                            break;
-                        case 1049:
-                            // Alternative screen buffer
-                            if (enable) {
-                                // Save current buffer state
-                                altBuffer = buffer;
-                                buffer = std::vector<std::vector<Cell>>(bufferHeight, 
-                                        std::vector<Cell>(bufferWidth));
-                            } else {
-                                // Restore main buffer
-                                buffer = altBuffer;
-                            }
-                            break;
-                        case 2004:
-                            // Bracketed paste mode
-                            ansiState.bracketedPaste = enable;
-                            break;
-                        default:
-                            std::cerr << "Terminal: Unknown private mode: " << params[0] 
-                                     << (enable ? "h" : "l") << std::endl;
-                            break;
+                    buffer = altBuffer;
+                    if (params.params[0] == 1049) {
+                        cursorX = ansiState.savedCursorX;
+                        cursorY = ansiState.savedCursorY;
                     }
                 }
-            } else {
-                if (!params.empty()) {
-                    switch(params[0]) {
-                        case 4:  // Reset Insert Mode/Set Replace Mode
-                            // We should probably track this in ansiState
-                            ansiState.insertMode = false;
-                            break;
-                        default:
-                            std::cerr << "Terminal: Non-private mode: " << paramStr << cmd << std::endl;
-                            break;
-                    }
-                }
-            }
-            break;
-        case 'm':  // SGR
-            std::cerr << "Terminal: Color sequence: ";
-            for (int p : params) {
-                std::cerr << p << " ";
-            }
-            std::cerr << std::endl;
-            if (params.empty() || params[0] == 0) {
-                ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // Reset to white
-                ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);  // Reset to transparent black
+                break;
+            case 2004: // Bracketed paste mode
+                ansiState.bracketedPaste = enable;
+                break;
+            default:
+                std::cerr << "Terminal: Unknown private mode: " << params.params[0] 
+                         << (enable ? "h" : "l") << std::endl;
+                break;
+        }
+    } else {
+        switch(params.params[0]) {
+            case 4: // IRM - Insert mode
+                ansiState.insertMode = enable;
+                break;
+            case 20: // LNM - Automatic newline mode
+                ansiState.automaticNewline = enable;
+                break;
+            default:
+                std::cerr << "Terminal: Non-private mode: " << params.params[0]
+                         << (enable ? "h" : "l") << std::endl;
+                break;
+        }
+    }
+}
+void Terminal::handleGraphicsRendition(const std::vector<int>& params) {
+    // Reset all attributes if no parameters or explicit reset
+    if (params.empty() || params[0] == 0) {
+        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // Reset to white
+        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);  // Reset to transparent black
+        ansiState.currentAttrs = 0;
+        return;
+    }
+
+    for (size_t i = 0; i < params.size(); i++) {
+        int param = params[i];
+        switch (param) {
+            case 0:  // Reset all
+                ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
                 ansiState.currentAttrs = 0;
                 break;
-            }
-            for (size_t i = 0; i < params.size(); i++) {
-                int param = params[i];
-                switch (param) {
-                    case 0:  // Reset all
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-                        ansiState.currentAttrs = 0;
-                        break;
-                    case 1: ansiState.currentAttrs |= 1; break;  // Bold
-                    case 2: ansiState.currentAttrs |= 2; break;  // Dim
-                    case 3: ansiState.currentAttrs |= 4; break;  // Italic
-                    case 4: ansiState.currentAttrs |= 8; break;  // Underline
-                    case 7: // Reverse video
-                        {
-                            ImVec4 temp = ansiState.currentFg;
-                            ansiState.currentFg = ansiState.currentBg;
-                            ansiState.currentBg = temp;
-                        }
-                        break;
-                    case 39: // Default foreground
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        break;
-                    case 49: // Default background
-                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-                        break;
-                    
-                    // Standard colors (30-37)
-                    case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
-                    case 31: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
-                    case 32: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
-                    case 33: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
-                    case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
-                    case 35: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
-                    case 36: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
-                    case 37: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
 
-                    // Bright colors (90-97)
-                    case 90: ansiState.currentFg = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); break;     // Bright Black
-                    case 91: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;     // Bright Red
-                    case 92: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Green
-                    case 93: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Yellow
-                    case 94: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Blue
-                    case 95: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Magenta
-                    case 96: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;     // Bright Cyan
-                    case 97: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;     // Bright White
+            // Attributes
+            case 1: ansiState.currentAttrs |= 1; break;  // Bold
+            case 2: ansiState.currentAttrs |= 2; break;  // Dim
+            case 3: ansiState.currentAttrs |= 4; break;  // Italic
+            case 4: ansiState.currentAttrs |= 8; break;  // Underline
+            case 22: ansiState.currentAttrs &= ~3; break; // Reset bold and dim
+            case 23: ansiState.currentAttrs &= ~4; break; // Reset italic
+            case 24: ansiState.currentAttrs &= ~8; break; // Reset underline
 
-                    // Background colors (40-47)
-                    case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
-                    case 41: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
-                    case 42: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
-                    case 43: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
-                    case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
-                    case 45: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
-                    case 46: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
-                    case 47: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
+            // Standard foreground colors (30-37)
+            case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;  // Black
+            case 31: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;  // Red
+            case 32: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;  // Green
+            case 33: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;  // Yellow
+            case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;  // Blue
+            case 35: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;  // Magenta
+            case 36: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;  // Cyan
+            case 37: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;  // White
+            case 39: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;  // Default foreground
 
-                    // 256 color support
-                    case 38: // Foreground
-                        if (i + 2 < params.size() && params[i + 1] == 5) {
-                            int color = params[i + 2];
-                            ansiState.currentFg = convert256ToRGB(color);
-                            i += 2; // Skip the next two parameters
-                        }
-                        break;
-                    case 48: // Background
-                        if (i + 2 < params.size() && params[i + 1] == 5) {
-                            int color = params[i + 2];
-                            ansiState.currentBg = convert256ToRGB(color);
-                            i += 2; // Skip the next two parameters
-                        }
-                        break;
+            // Standard background colors (40-47)
+            case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;  // Black
+            case 41: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;  // Red
+            case 42: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;  // Green
+            case 43: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;  // Yellow
+            case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;  // Blue
+            case 45: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;  // Magenta
+            case 46: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;  // Cyan
+            case 47: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;  // White
+            case 49: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f); break;  // Default background
+
+            // Bright foreground colors (90-97)
+            case 90: ansiState.currentFg = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); break;  // Bright Black
+            case 91: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;  // Bright Red
+            case 92: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;  // Bright Green
+            case 93: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;  // Bright Yellow
+            case 94: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;  // Bright Blue
+            case 95: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;  // Bright Magenta
+            case 96: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;  // Bright Cyan
+            case 97: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;  // Bright White
+
+            // 256 color support
+            case 38: // Foreground 256 color
+                if (i + 2 < params.size() && params[i + 1] == 5) {
+                    ansiState.currentFg = convert256ToRGB(params[i + 2]);
+                    i += 2; // Skip the next two parameters
                 }
-            }
+                break;
+
+            case 48: // Background 256 color
+                if (i + 2 < params.size() && params[i + 1] == 5) {
+                    ansiState.currentBg = convert256ToRGB(params[i + 2]);
+                    i += 2; // Skip the next two parameters
+                }
+                break;
+        }
+    }
+}
+
+void Terminal::handleCSI(const std::string& seq) {
+    if (seq.empty()) return;
+    
+    CSIParams params = parseCSIParams(seq);
+    
+    // Debug log - print all sequences
+    std::cerr << "\033[38;5;208mTerminal CSI:\033[0m ESC[" 
+              << (params.isPrivateMode ? "?" : "") << params.paramStr 
+              << params.command << std::endl;
+
+    bool handled = true;
+    
+    switch (params.command) {
+        // Cursor movement
+        case 'H': case 'f': // CUP, HVP
+        case 'A': case 'B': case 'C': case 'D': // CUU, CUD, CUF, CUB
+        case 'd': case 'G': // VPA, CHA
+            handleCursorMovement(params);
             break;
+
+        // Erase operations
+        case 'J': case 'K': // ED, EL
+            handleEraseOperations(params);
+            break;
+
+        // Line operations
+        case 'L': case 'M': // IL, DL
+        case '@': case 'P': // ICH, DCH
+            handleLineOperations(params);
+            break;
+            
+        case 'r': // DECSTBM - Set Top and Bottom Margins (scroll region)
+            handleScrollRegion(params);
+            break;
+
+        // Mode settings
+        case 'h': case 'l':
+            handleModeSettings(params);
+            break;
+
+        // Graphics rendition
+        case 'm':
+            handleGraphicsRendition(params.params);
+            break;
+
         default:
             handled = false;
+            std::cerr << "Terminal: Unhandled CSI: ESC[" 
+                      << (params.isPrivateMode ? "?" : "") 
+                      << params.paramStr << params.command 
+                      << " (hex: " << std::hex << (int)params.command << std::dec << ")"
+                      << std::endl;
             break;
-
     }
-     if (!handled) {
-        std::cerr << "Terminal: Unknown CSI sequence: ESC[" 
-                  << (isPrivateMode ? "?" : "")
-                  << paramStr << cmd 
-                  << " (hex: " << std::hex << (int)cmd << std::dec << ")"
-                  << std::endl;
-    }
-    
 }
 
 
