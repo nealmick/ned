@@ -65,7 +65,7 @@ target_link_libraries(util PUBLIC
 # Main executable
 add_executable(ned
    main.cpp
-   util/shader.cpp
+   shaders/shader.cpp
    util/settings.cpp
    util/terminal.cpp   
    files.cpp

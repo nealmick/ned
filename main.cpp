@@ -1,9 +1,6 @@
 #define GL_SILENCE_DEPRECATION
 #define GLEW_NO_GLU
-
-// Include GLEW first
 #include <GL/glew.h>
-
 #if defined(__APPLE__)
 #define GL_GLEXT_PROTOTYPES 1
 #include <OpenGL/gl.h>
@@ -26,7 +23,7 @@
 #include <chrono>
 #include "util/bookmarks.h"
 #include "util/terminal.h"
-#include "util/shader.h"
+#include "shaders/shader.h"
 
 Bookmarks gBookmarks;
 

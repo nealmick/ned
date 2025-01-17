@@ -77,7 +77,6 @@ private:
         bool mouseTracking = false;
         bool mouseButtonTracking = false;
         bool mouseAnyEvent = false;
-        
         // Saved cursor position
         int savedCursorX = 0;
         int savedCursorY = 0;
@@ -135,6 +134,7 @@ private:
     void handleModeSettings(const CSIParams& params);
     void handleGraphicsRendition(const std::vector<int>& params);
     void handleScrollRegion(const CSIParams& params);
+
 };
 
 extern Terminal gTerminal;

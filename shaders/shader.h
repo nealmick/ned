@@ -16,10 +16,8 @@ public:
     void setInt(const std::string& name, int value);
     void setMatrix4fv(const std::string& name, const float* matrix);  // Add this line
     
-    // Add more utility functions as needed
     unsigned int shaderProgram;
     
 private:
-    // Add any necessary private member variables
 };
 #endif

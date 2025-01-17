@@ -119,7 +119,6 @@ void main() {
     
     color *= vignette * scanline;
     
-    // Generate and apply the static with more controlled values
     vec2 staticUV = gl_FragCoord.xy / resolution;
     float staticNoise = generateStatic(staticUV, time);
     color += (staticNoise - 0.5) * 0.09; // Slightly reduced intensity

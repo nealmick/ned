@@ -1,0 +1,7 @@
+Script started on Wed Jan 15 16:00:41 2025
+
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+[?1034h[01;32mneal@computer[00m:[01;34m~/editor[00m$ 
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ 
