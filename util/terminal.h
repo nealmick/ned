@@ -27,8 +27,8 @@ private:
     std::vector<std::vector<Cell>> buffer;
     std::vector<std::vector<Cell>> altBuffer;
     std::vector<std::vector<Cell>> historyBuffer;
-    const int bufferWidth = 120;
-    const int bufferHeight = 30;
+    int bufferWidth = 120;
+    int bufferHeight = 36;
     const int maxHistoryLines = 1000;
 
     // Cursor state
@@ -92,7 +92,9 @@ private:
     static constexpr float TYPE_TIMEOUT = 1.0f;
 
 
-    
+
+
+
     // Thread management
     std::mutex bufferMutex;
     std::thread readThread;

@@ -25,4 +25,18 @@ To https://github.com/nealmick/ned.git
 bash: python: command not found
 [01;32mneal@computer[00m:[01;34m~/editor[00m$ python --versiongit push origin testingcommit -m "organize and fix issues with screen"[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Cadd .[Kcommit -m "organize and fix issues with screen"[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[28Ppush origin testing[7Ppython --version[Kpython --version3 --version
 Python 3.13.1
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git add .
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git commm[Kit -m "terminal fixes for screen"
+[testing 1703872] terminal fixes for screen
+ 3 files changed, 64 insertions(+), 35 deletions(-)
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git push origin testing [K
+Enumerating objects: 11, done.
+Counting objects:   9% (1/11)Counting objects:  18% (2/11)Counting objects:  27% (3/11)Counting objects:  36% (4/11)Counting objects:  45% (5/11)Counting objects:  54% (6/11)Counting objects:  63% (7/11)Counting objects:  72% (8/11)Counting objects:  81% (9/11)Counting objects:  90% (10/11)Counting objects: 100% (11/11)Counting objects: 100% (11/11), done.
+Delta compression using up to 8 threads
+Compressing objects:  16% (1/6)Compressing objects:  33% (2/6)Compressing objects:  50% (3/6)Compressing objects:  66% (4/6)Compressing objects:  83% (5/6)Compressing objects: 100% (6/6)Compressing objects: 100% (6/6), done.
+Writing objects:  16% (1/6)Writing objects:  33% (2/6)Writing objects:  50% (3/6)Writing objects:  66% (4/6)Writing objects:  83% (5/6)Writing objects: 100% (6/6)Writing objects: 100% (6/6), 2.02 KiB | 2.02 MiB/s, done.
+Total 6 (delta 4), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas:   0% (0/4)[Kremote: Resolving deltas:  25% (1/4)[Kremote: Resolving deltas:  50% (2/4)[Kremote: Resolving deltas:  75% (3/4)[Kremote: Resolving deltas: 100% (4/4)[Kremote: Resolving deltas: 100% (4/4), completed with 4 local objects.[K
+To https://github.com/nealmick/ned.git
+   d441c33..1703872  testing -> testing
 [01;32mneal@computer[00m:[01;34m~/editor[00m$ 

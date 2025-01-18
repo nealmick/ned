@@ -392,8 +392,6 @@ void Terminal::readOutput() {
         }
     }
 }
-
-
 void Terminal::writeToBuffer(const char* data, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         if (ansiState.inEscape) {
@@ -453,7 +451,6 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
 }
 void Terminal::processChar(char32_t c) {
     bool needScroll = false;
-
     if (c == '\r') {
         cursorX = 0;
         lastLineLength = 0;
@@ -461,28 +458,19 @@ void Terminal::processChar(char32_t c) {
         cursorX = 0;
         lastLineLength = 0;
         
-        // If we have an active scroll region
-        if (scrollRegionTop < scrollRegionBottom) {
-            if (cursorY == scrollRegionBottom) {
-                // Scroll within the defined region
-                for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
-                    buffer[y] = std::move(buffer[y + 1]);
-                }
-                buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
-                
-                std::cerr << "\033[38;5;208mScroll:\033[0m Newline scroll in region "
-                          << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
-            } else if (cursorY < scrollRegionBottom) {
-                cursorY++;
-            }
+        if (cursorY >= bufferHeight - 1) {
+            scrollBuffer(1);
+            needScroll = true;
         } else {
-            // No scroll region active - do normal buffer scrolling
-            if (cursorY >= bufferHeight - 1) {
-                scrollBuffer(1);
-                needScroll = true;
-            } else {
-                cursorY++;
+            cursorY++;
+        }
+
+        if (cursorY > scrollRegionBottom) {
+            for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
+                buffer[y] = std::move(buffer[y + 1]);
             }
+            buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
+            cursorY = scrollRegionBottom;
         }
         
         promptEndX = 0;
@@ -634,14 +622,13 @@ Terminal::CSIParams Terminal::parseCSIParams(const std::string& seq) {
     
     return result;
 }
-
 void Terminal::handleCursorMovement(const CSIParams& params) {
-
     switch (params.command) {
         case 'H': case 'f': { // CUP, HVP
             std::cerr << "\033[38;5;21mTerminal:\033[0m case f" <<std::endl;
-
+            
             if (params.params.size() >= 2) {
+                std::cerr << "\033[38;5;21mTerminal:\033[0m case f" <<std::endl;
                 int row = params.params[0] - 1;
                 int col = params.params[1] - 1;
                 // Normal cursor positioning within scroll region
@@ -650,8 +637,32 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
                 }
                 setCursorPos(col, row);
             } else { // Parameterless ESC[H
-                // Similar check for parameterless H when at position 1
-                if (scrollRegionTop < scrollRegionBottom && cursorY == 1) {
+                std::cerr << "Parameterless H - cursorY=" << cursorY 
+                          << " scrollRegion=" << scrollRegionTop << "-" << scrollRegionBottom 
+                          << std::endl;
+                
+                // Debug full first line content
+                std::string firstLineContent;
+                for (int x = 0; x < bufferWidth; x++) {
+                    if (buffer[0][x].ch != 0) {
+                        firstLineContent += static_cast<char>(buffer[0][x].ch);
+                    }
+                }
+                std::cerr << "Full first line content: [" << firstLineContent << "]" << std::endl;
+                
+                // More precise check for Vim line 1
+                bool isVimLineOne = false;
+                
+                // Specifically check for '1' at index 2
+                if (buffer[0][2].ch == '1' && 
+                    buffer[0][0].ch == ' ' && 
+                    buffer[0][1].ch == ' ') {
+                    isVimLineOne = true;
+                    std::cerr << "Detected Vim line 1 at exact position" << std::endl;
+                }
+
+                if (scrollRegionTop < scrollRegionBottom && cursorY == 1 && !isVimLineOne) {
+                    std::cerr << "  Scrolling because not at vim line 1" << std::endl;
                     for (int y = scrollRegionBottom; y > scrollRegionTop; y--) {
                         buffer[y] = std::move(buffer[y - 1]); 
                     }
@@ -662,10 +673,8 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
             }
             break;
         }
+        
         case 'B': { // CUD (Cursor Down)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case B " <<std::endl;
-
-
             int amount = params.params.empty() ? 1 : params.params[0];
             
             // If a scroll region is active and we're within it
@@ -697,9 +706,6 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
         }
 
         case 'A': // CUU (Cursor Up)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case A " <<std::endl;
-
-
             if (scrollRegionTop < scrollRegionBottom && cursorY >= scrollRegionTop) {
                 cursorY = std::max(scrollRegionTop, cursorY - (params.params.empty() ? 1 : params.params[0]));
             } else {
@@ -709,20 +715,14 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
         
             
         case 'C': // CUF (Cursor Forward)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case C "  <<std::endl;
-
             cursorX = std::min(bufferWidth - 1, cursorX + (params.params.empty() ? 1 : params.params[0]));
             break;
             
         case 'D': // CUB (Cursor Back)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case D " <<std::endl;
-
             cursorX = std::max(0, cursorX - (params.params.empty() ? 1 : params.params[0]));
             break;
 
         case 'd': // VPA (Vertical Position Absolute)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case d " <<std::endl;
-
             if (!params.params.empty()) {
                 int targetY = params.params[0] - 1;
                 if (targetY >= bufferHeight) {
@@ -735,35 +735,26 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
             break;
 
         case 'G': // CHA (Cursor Horizontal Absolute)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case G "  <<std::endl;
-
             if (!params.params.empty()) {
                 cursorX = std::max(0, std::min(params.params[0] - 1, bufferWidth - 1));
             }
             break;
     }
 }
-
 void Terminal::handleScrollRegion(const CSIParams& params) {
-    if (params.params.size() >= 2) {    
-        // Screen uses 1-based indexing, so subtract 1
-        // Adjust to match terminal's 0-based indexing
+    if (params.params.size() >= 2) {
         scrollRegionTop = std::max(0, params.params[0] - 1);
         scrollRegionBottom = std::min(bufferHeight - 1, params.params[1] - 1);
         
-        std::cerr << "\033[38;5;208mTerminal:\033[0m Screen Scroll Region: " 
-                  << "Top: " << scrollRegionTop 
-                  << " Bottom: " << scrollRegionBottom << std::endl;
+        // Move cursor to home position when scroll region is set
+        setCursorPos(0, 0);
     }
 }
-
-
 
 
 void Terminal::handleEraseOperations(const CSIParams& params) {
     switch (params.command) {
         case 'J': // ED (Erase in Display)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case J "  <<std::endl;
             if (params.params.empty() || params.params[0] == 2) {
                 // Erase entire screen
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
@@ -785,7 +776,6 @@ void Terminal::handleEraseOperations(const CSIParams& params) {
             break;
 
         case 'K': // EL (Erase in Line)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case K " <<std::endl;
             if (params.params.empty() || params.params[0] == 0) {
                 // Clear from cursor to end of line
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
@@ -801,21 +791,21 @@ void Terminal::handleEraseOperations(const CSIParams& params) {
 }
 
 void Terminal::handleLineOperations(const CSIParams& params) {
-    // Ensure scroll region is correctly defined
-    int effectiveTop = std::max(0, scrollRegionTop);
-    int effectiveBottom = std::min(bufferHeight - 1, scrollRegionBottom);
-
-    // Get count, defaulting to 1 if not specified
+    // Default count is 1 if not specified
     int count = params.params.empty() ? 1 : params.params[0];
 
+    // Calculate effective scroll region
+    int effectiveBottom = (scrollRegionBottom > scrollRegionTop) ? 
+        scrollRegionBottom : (bufferHeight - 1);
+    int effectiveTop = (scrollRegionBottom > scrollRegionTop) ?
+        scrollRegionTop : 0;
 
     switch (params.command) {
-         case 'L': { // IL (Insert Lines)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case L " <<std::endl;
+        case 'L': // IL (Insert Lines)
             if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
                 count = std::min(count, effectiveBottom - cursorY + 1);
                 
-                // Move existing lines down within scroll region
+                // Move lines down within scroll region
                 for (int y = effectiveBottom; y >= cursorY + count; y--) {
                     buffer[y] = buffer[y - count];
                 }
@@ -824,46 +814,26 @@ void Terminal::handleLineOperations(const CSIParams& params) {
                 for (int y = cursorY; y < cursorY + count && y <= effectiveBottom; y++) {
                     buffer[y] = std::vector<Cell>(bufferWidth);
                 }
-                
-                std::cerr << "\033[38;5;208mTerminal:\033[0m Inserted " 
-                          << count << " lines at " << cursorY << std::endl;
             }
             break;
-        }
-        case 'M': { // DL (Delete Lines)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case M "  <<std::endl;
+
+        case 'M': // DL (Delete Lines)
             if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
                 count = std::min(count, effectiveBottom - cursorY + 1);
                 
-                std::cerr << "Scroll Up Details:" << std::endl;
-                std::cerr << "Will scroll " << count << " lines from cursor " << cursorY << std::endl;
-
-                // Move lines up within the scroll region, starting from cursor position
+                // Move lines up within scroll region
                 for (int y = cursorY; y <= effectiveBottom - count; y++) {
                     buffer[y] = std::move(buffer[y + count]);
                 }
                 
-                // Clear the bottom lines within the scroll region
+                // Clear newly exposed lines
                 for (int y = effectiveBottom - count + 1; y <= effectiveBottom; y++) {
                     buffer[y] = std::vector<Cell>(bufferWidth);
                 }
-                
-                std::cerr << "\nBuffer State After Scroll:\n";
-                for (int y = effectiveTop; y <= effectiveBottom; y++) {
-                    std::string lineStr;
-                    for (int x = 0; x < bufferWidth; x++) {
-                        lineStr += (buffer[y][x].ch != 0) ? static_cast<char>(buffer[y][x].ch) : '.';
-                    }
-                    std::cerr << "Line " << y << ": " << lineStr << std::endl;
-                }
             }
             break;
-        }
-
 
         case '@': // ICH (Insert Characters)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case @ " <<std::endl;
-
             for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
                 buffer[cursorY][x] = buffer[cursorY][x - count];
             }
@@ -873,8 +843,6 @@ void Terminal::handleLineOperations(const CSIParams& params) {
             break;
 
         case 'P': // DCH (Delete Characters)
-            std::cerr << "\033[38;5;21mTerminal:\033[0m case P "  <<std::endl;
-
             for (int x = cursorX; x < bufferWidth - count; x++) {
                 buffer[cursorY][x] = buffer[cursorY][x + count];
             }
@@ -884,8 +852,6 @@ void Terminal::handleLineOperations(const CSIParams& params) {
             break;
     }
 }
-
-        
 
 void Terminal::handleModeSettings(const CSIParams& params) {
     if (params.params.empty()) return;
@@ -1037,20 +1003,11 @@ void Terminal::handleCSI(const std::string& seq) {
     if (seq.empty()) return;
     
     CSIParams params = parseCSIParams(seq);
-
-    /*
-    // Enhanced debug log - print detailed sequence information
+    
+    // Debug log - print all sequences
     std::cerr << "\033[38;5;208mTerminal CSI:\033[0m ESC[" 
-              << (params.isPrivateMode ? "?" : "") 
-              << params.paramStr 
-              << params.command 
-              << " (Params: ";
-    for (int p : params.params) {
-        std::cerr << p << " ";
-    }
-    std::cerr << ")" << std::endl;
-    */
-
+              << (params.isPrivateMode ? "?" : "") << params.paramStr 
+              << params.command << std::endl;
 
     bool handled = true;
     
@@ -1100,7 +1057,6 @@ void Terminal::handleCSI(const std::string& seq) {
 
 
 void Terminal::setCursorPos(int x, int y) {
-    std::cerr << "\033[38;5;21mTerminal:\033[0m Set Cursor Position " <<std::endl;
     //std::cerr << "Terminal: Set Cursor Pos x"<< x<<" y"<<y << std::endl;
     cursorX = std::max(0, std::min(x, bufferWidth - 1));
     cursorY = std::max(0, std::min(y, bufferHeight - 1));
