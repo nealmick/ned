@@ -29,6 +29,7 @@ private:
     std::vector<std::vector<Cell>> historyBuffer;
     int bufferWidth = 120;
     int bufferHeight = 36;
+    
     const int maxHistoryLines = 1000;
 
     // Cursor state

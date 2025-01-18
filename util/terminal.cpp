@@ -660,7 +660,7 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
                     isVimLineOne = true;
                     std::cerr << "Detected Vim line 1 at exact position" << std::endl;
                 }
-
+                
                 if (scrollRegionTop < scrollRegionBottom && cursorY == 1 && !isVimLineOne) {
                     std::cerr << "  Scrolling because not at vim line 1" << std::endl;
                     for (int y = scrollRegionBottom; y > scrollRegionTop; y--) {
@@ -743,11 +743,39 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
 }
 void Terminal::handleScrollRegion(const CSIParams& params) {
     if (params.params.size() >= 2) {
-        scrollRegionTop = std::max(0, params.params[0] - 1);
-        scrollRegionBottom = std::min(bufferHeight - 1, params.params[1] - 1);
+        // Store old scroll region values
+        int oldTop = scrollRegionTop;
+        int oldBottom = scrollRegionBottom;
+        
+        // Get new scroll region values
+        int newTop = std::max(0, params.params[0] - 1);
+        int newBottom = std::min(bufferHeight - 1, params.params[1] - 1);
+        
+        std::cerr << "Scroll Region Change: " << oldTop << "-" << oldBottom 
+                  << " -> " << newTop << "-" << newBottom << std::endl;
+
+        // If we're going from a smaller to larger region
+        if (oldTop > newTop || oldBottom < newBottom) {
+            // If this is likely a scroll operation (e.g., nano's pattern)
+            if (oldTop == 1 && newTop == 0 && cursorY <= oldTop) {
+                std::cerr << "Scroll operation detected" << std::endl;
+                
+                // Move everything down one line within the old region
+                for (int y = oldBottom; y > oldTop; y--) {
+                    buffer[y] = std::move(buffer[y - 1]);
+                }
+                
+                // Clear the top line of the old region
+                buffer[oldTop] = std::vector<Cell>(bufferWidth);
+            }
+        }
+        
+        // Update scroll region values
+        scrollRegionTop = newTop;
+        scrollRegionBottom = newBottom;
         
         // Move cursor to home position when scroll region is set
-        setCursorPos(0, 0);
+        // setCursorPos(0, 0);  // Comment this out as it might interfere with nano's cursor positioning
     }
 }
 
@@ -801,7 +829,11 @@ void Terminal::handleLineOperations(const CSIParams& params) {
         scrollRegionTop : 0;
 
     switch (params.command) {
-        case 'L': // IL (Insert Lines)
+      case 'L': // Insert Lines (IL)
+            std::cerr << "Insert Lines: count=" << count 
+                      << " cursorY=" << cursorY 
+                      << " effectiveTop=" << effectiveTop 
+                      << " effectiveBottom=" << effectiveBottom << std::endl;
             if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
                 count = std::min(count, effectiveBottom - cursorY + 1);
                 
