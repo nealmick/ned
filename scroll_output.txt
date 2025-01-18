@@ -4,4 +4,25 @@ The default interactive shell is now zsh.
 To update your account to use zsh, please run `chsh -s /bin/zsh`.
 For more details, please visit https://support.apple.com/kb/HT208050.
 [?1034h[01;32mneal@computer[00m:[01;34m~/editor[00m$ 
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git add .
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git commiut [K[K[Kt -m "organize and fix issues with scree:[Kbn[K[Kb[Kn"
+[testing d441c33] organize and fix issues with screen
+ 9 files changed, 104 insertions(+), 35 deletions(-)
+ create mode 100644 scroll_output.txt
+ rename {util => shaders}/shader.cpp (99%)
+ rename {util => shaders}/shader.h (86%)
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ git push origin testing
+Enumerating objects: 22, done.
+Counting objects:   4% (1/22)Counting objects:   9% (2/22)Counting objects:  13% (3/22)Counting objects:  18% (4/22)Counting objects:  22% (5/22)Counting objects:  27% (6/22)Counting objects:  31% (7/22)Counting objects:  36% (8/22)Counting objects:  40% (9/22)Counting objects:  45% (10/22)Counting objects:  50% (11/22)Counting objects:  54% (12/22)Counting objects:  59% (13/22)Counting objects:  63% (14/22)Counting objects:  68% (15/22)Counting objects:  72% (16/22)Counting objects:  77% (17/22)Counting objects:  81% (18/22)Counting objects:  86% (19/22)Counting objects:  90% (20/22)Counting objects:  95% (21/22)Counting objects: 100% (22/22)Counting objects: 100% (22/22), done.
+Delta compression using up to 8 threads
+Compressing objects:   7% (1/13)Compressing objects:  15% (2/13)Compressing objects:  23% (3/13)Compressing objects:  30% (4/13)Compressing objects:  38% (5/13)Compressing objects:  46% (6/13)Compressing objects:  53% (7/13)Compressing objects:  61% (8/13)Compressing objects:  69% (9/13)Compressing objects:  76% (10/13)Compressing objects:  84% (11/13)Compressing objects:  92% (12/13)Compressing objects: 100% (13/13)Compressing objects: 100% (13/13), done.
+Writing objects:   7% (1/13)Writing objects:  15% (2/13)Writing objects:  23% (3/13)Writing objects:  30% (4/13)Writing objects:  38% (5/13)Writing objects:  46% (6/13)Writing objects:  53% (7/13)Writing objects:  61% (8/13)Writing objects:  69% (9/13)Writing objects:  76% (10/13)Writing objects:  84% (11/13)Writing objects:  92% (12/13)Writing objects: 100% (13/13)Writing objects: 100% (13/13), 4.17 KiB | 2.08 MiB/s, done.
+Total 13 (delta 8), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas:   0% (0/8)[Kremote: Resolving deltas:  12% (1/8)[Kremote: Resolving deltas:  25% (2/8)[Kremote: Resolving deltas:  37% (3/8)[Kremote: Resolving deltas:  50% (4/8)[Kremote: Resolving deltas:  62% (5/8)[Kremote: Resolving deltas:  75% (6/8)[Kremote: Resolving deltas:  87% (7/8)[Kremote: Resolving deltas: 100% (8/8)[Kremote: Resolving deltas: 100% (8/8), completed with 8 local objects.[K
+To https://github.com/nealmick/ned.git
+   a82c788..d441c33  testing -> testing
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ python --version
+bash: python: command not found
+[01;32mneal@computer[00m:[01;34m~/editor[00m$ python --versiongit push origin testingcommit -m "organize and fix issues with screen"[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Cadd .[Kcommit -m "organize and fix issues with screen"[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[28Ppush origin testing[7Ppython --version[Kpython --version3 --version
+Python 3.13.1
 [01;32mneal@computer[00m:[01;34m~/editor[00m$ 

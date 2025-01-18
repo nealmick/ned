@@ -453,6 +453,7 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
 }
 void Terminal::processChar(char32_t c) {
     bool needScroll = false;
+
     if (c == '\r') {
         cursorX = 0;
         lastLineLength = 0;
@@ -635,37 +636,36 @@ Terminal::CSIParams Terminal::parseCSIParams(const std::string& seq) {
 }
 
 void Terminal::handleCursorMovement(const CSIParams& params) {
-    // Log the cursor movement operation
-    std::cerr << "\033[38;5;208mCursor Movement:\033[0m Command=" << params.command 
-              << " Params=" << (params.params.empty() ? "none" : std::to_string(params.params[0]))
-              << " Current=" << cursorX << "," << cursorY 
-              << " ScrollRegion=" << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
 
     switch (params.command) {
         case 'H': case 'f': { // CUP, HVP
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case f" <<std::endl;
+
             if (params.params.size() >= 2) {
                 int row = params.params[0] - 1;
                 int col = params.params[1] - 1;
-                
-                // If scroll region is active, constrain cursor within it
+                // Normal cursor positioning within scroll region
                 if (scrollRegionTop < scrollRegionBottom) {
-                    row = std::max(scrollRegionTop, 
-                          std::min(scrollRegionBottom, row));
+                    row = std::max(scrollRegionTop, std::min(scrollRegionBottom, row));
                 }
-                
                 setCursorPos(col, row);
-            } else {
-                // Move to home position within scroll region if active
-                if (scrollRegionTop < scrollRegionBottom) {
-                    setCursorPos(0, scrollRegionTop);
-                } else {
-                    setCursorPos(0, 0);
+            } else { // Parameterless ESC[H
+                // Similar check for parameterless H when at position 1
+                if (scrollRegionTop < scrollRegionBottom && cursorY == 1) {
+                    for (int y = scrollRegionBottom; y > scrollRegionTop; y--) {
+                        buffer[y] = std::move(buffer[y - 1]); 
+                    }
+                    buffer[scrollRegionTop] = std::vector<Cell>(bufferWidth);
+                    cursorY = 1;
                 }
+                setCursorPos(0, 0);
             }
             break;
         }
-        
         case 'B': { // CUD (Cursor Down)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case B " <<std::endl;
+
+
             int amount = params.params.empty() ? 1 : params.params[0];
             
             // If a scroll region is active and we're within it
@@ -697,6 +697,9 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
         }
 
         case 'A': // CUU (Cursor Up)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case A " <<std::endl;
+
+
             if (scrollRegionTop < scrollRegionBottom && cursorY >= scrollRegionTop) {
                 cursorY = std::max(scrollRegionTop, cursorY - (params.params.empty() ? 1 : params.params[0]));
             } else {
@@ -706,14 +709,20 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
         
             
         case 'C': // CUF (Cursor Forward)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case C "  <<std::endl;
+
             cursorX = std::min(bufferWidth - 1, cursorX + (params.params.empty() ? 1 : params.params[0]));
             break;
             
         case 'D': // CUB (Cursor Back)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case D " <<std::endl;
+
             cursorX = std::max(0, cursorX - (params.params.empty() ? 1 : params.params[0]));
             break;
 
         case 'd': // VPA (Vertical Position Absolute)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case d " <<std::endl;
+
             if (!params.params.empty()) {
                 int targetY = params.params[0] - 1;
                 if (targetY >= bufferHeight) {
@@ -726,6 +735,8 @@ void Terminal::handleCursorMovement(const CSIParams& params) {
             break;
 
         case 'G': // CHA (Cursor Horizontal Absolute)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case G "  <<std::endl;
+
             if (!params.params.empty()) {
                 cursorX = std::max(0, std::min(params.params[0] - 1, bufferWidth - 1));
             }
@@ -752,6 +763,7 @@ void Terminal::handleScrollRegion(const CSIParams& params) {
 void Terminal::handleEraseOperations(const CSIParams& params) {
     switch (params.command) {
         case 'J': // ED (Erase in Display)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case J "  <<std::endl;
             if (params.params.empty() || params.params[0] == 2) {
                 // Erase entire screen
                 clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
@@ -773,6 +785,7 @@ void Terminal::handleEraseOperations(const CSIParams& params) {
             break;
 
         case 'K': // EL (Erase in Line)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case K " <<std::endl;
             if (params.params.empty() || params.params[0] == 0) {
                 // Clear from cursor to end of line
                 clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
@@ -795,24 +808,10 @@ void Terminal::handleLineOperations(const CSIParams& params) {
     // Get count, defaulting to 1 if not specified
     int count = params.params.empty() ? 1 : params.params[0];
 
-    std::cerr << "\033[38;5;208m[CRITICAL] Line Operation Details:\033[0m" << std::endl;
-    std::cerr << "Command: " << params.command << std::endl;
-    std::cerr << "Count: " << count << std::endl;
-    std::cerr << "Current Cursor Position: Y=" << cursorY << ", X=" << cursorX << std::endl;
-    std::cerr << "Scroll Region: Top=" << effectiveTop << ", Bottom=" << effectiveBottom << std::endl;
-    
-    // Detailed state dump
-    std::cerr << "\nCurrent Buffer State:\n";
-    for (int y = effectiveTop; y <= effectiveBottom; y++) {
-        std::string lineStr;
-        for (int x = 0; x < bufferWidth; x++) {
-            lineStr += (buffer[y][x].ch != 0) ? static_cast<char>(buffer[y][x].ch) : '.';
-        }
-        std::cerr << "Line " << y << ": " << lineStr << std::endl;
-    }
 
     switch (params.command) {
          case 'L': { // IL (Insert Lines)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case L " <<std::endl;
             if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
                 count = std::min(count, effectiveBottom - cursorY + 1);
                 
@@ -832,8 +831,7 @@ void Terminal::handleLineOperations(const CSIParams& params) {
             break;
         }
         case 'M': { // DL (Delete Lines)
-            std::cerr << "\033[38;5;208m[CRITICAL] Performing Delete Lines (Scroll Up)\033[0m" << std::endl;
-            
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case M "  <<std::endl;
             if (cursorY >= effectiveTop && cursorY <= effectiveBottom) {
                 count = std::min(count, effectiveBottom - cursorY + 1);
                 
@@ -864,6 +862,8 @@ void Terminal::handleLineOperations(const CSIParams& params) {
 
 
         case '@': // ICH (Insert Characters)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case @ " <<std::endl;
+
             for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
                 buffer[cursorY][x] = buffer[cursorY][x - count];
             }
@@ -873,6 +873,8 @@ void Terminal::handleLineOperations(const CSIParams& params) {
             break;
 
         case 'P': // DCH (Delete Characters)
+            std::cerr << "\033[38;5;21mTerminal:\033[0m case P "  <<std::endl;
+
             for (int x = cursorX; x < bufferWidth - count; x++) {
                 buffer[cursorY][x] = buffer[cursorY][x + count];
             }
@@ -1035,7 +1037,8 @@ void Terminal::handleCSI(const std::string& seq) {
     if (seq.empty()) return;
     
     CSIParams params = parseCSIParams(seq);
-    
+
+    /*
     // Enhanced debug log - print detailed sequence information
     std::cerr << "\033[38;5;208mTerminal CSI:\033[0m ESC[" 
               << (params.isPrivateMode ? "?" : "") 
@@ -1046,6 +1049,8 @@ void Terminal::handleCSI(const std::string& seq) {
         std::cerr << p << " ";
     }
     std::cerr << ")" << std::endl;
+    */
+
 
     bool handled = true;
     
@@ -1095,6 +1100,7 @@ void Terminal::handleCSI(const std::string& seq) {
 
 
 void Terminal::setCursorPos(int x, int y) {
+    std::cerr << "\033[38;5;21mTerminal:\033[0m Set Cursor Position " <<std::endl;
     //std::cerr << "Terminal: Set Cursor Pos x"<< x<<" y"<<y << std::endl;
     cursorX = std::max(0, std::min(x, bufferWidth - 1));
     cursorY = std::max(0, std::min(y, bufferHeight - 1));

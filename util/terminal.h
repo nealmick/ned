@@ -91,6 +91,8 @@ private:
     float typeIdleTime = 0.0f;
     static constexpr float TYPE_TIMEOUT = 1.0f;
 
+
+    
     // Thread management
     std::mutex bufferMutex;
     std::thread readThread;
