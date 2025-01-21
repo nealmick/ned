@@ -1,5 +1,6 @@
-
 #define GL_SILENCE_DEPRECATION
+#define GLEW_NO_GLU
+#include <GL/glew.h>
 #if defined(__APPLE__)
 #define GL_GLEXT_PROTOTYPES 1
 #include <OpenGL/gl.h>
@@ -14,7 +15,6 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include "util/settings.h"
 #include "files.h"
 #include "editor.h"
 #include <filesystem>
@@ -22,11 +22,10 @@
 #include <chrono>
 #include "util/bookmarks.h"
 #include "util/terminal.h"
-
+#include "util/settings.h"
+#include "shaders/shader.h"
 
 Bookmarks gBookmarks;
-
-
 
 float Clamp(float value, float min, float max) {
     if (value < min) return min;
@@ -40,24 +39,24 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
-        std::cout << "Current working directory: " << cwd << std::endl;
+        std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
     } else {
         std::cerr << "getcwd() error" << std::endl;
     }
     
-    std::cout << "Attempting to load font from: " << fontPath << std::endl;
+    std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
     
     if (!std::filesystem::exists(fontPath)) {
-        std::cerr << "Font file does not exist: " << fontPath << std::endl;
+        std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
     
     ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize);
     if (font == nullptr) {
-        std::cerr << "Failed to load font: " << fontName << std::endl;
+        std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
-    std::cout << "Successfully loaded font: " << fontName << std::endl;
+    std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
 
@@ -66,9 +65,12 @@ void InitializeGLFW() {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         exit(1);
     }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    //glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);//launched window without title bar
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    #ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    #endif
 }
 
 GLFWwindow* CreateWindow() {
@@ -79,6 +81,7 @@ GLFWwindow* CreateWindow() {
         exit(1);
     }
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
     return window;
 }
 
@@ -88,7 +91,7 @@ void InitializeImGui(GLFWwindow* window) {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 120");
+    ImGui_ImplOpenGL3_Init("#version 330");
 }
 
 void ApplySettings(ImGuiStyle& style) {
@@ -113,7 +116,7 @@ void ApplySettings(ImGuiStyle& style) {
     // Apply text color to all text-related ImGui elements
     style.Colors[ImGuiCol_Text] = textCol;                // Regular text
     style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
-    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(textCol.x * 0.3f, textCol.y * 0.3f, textCol.z * 0.7f, 0.5f);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);  // Neon pink with 30% alpha
 
     // Rest of your existing settings
     style.ScrollbarSize = 30.0f;
@@ -134,7 +137,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         gTerminal.toggleVisibility();
     }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
-        std::cout << "Settings window toggled with Cmd+Comma" << std::endl;
+        std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
         gSettings.toggleSettingsWindow();
     }
     if (gTerminal.isTerminalVisible()) {
@@ -162,7 +165,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
-        gTerminal.setWorkingDirectory(gFileExplorer.getSelectedFolder());
+        //gTerminal.setWorkingDirectory(gFileExplorer.getSelectedFolder());
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
         
     }
@@ -246,8 +249,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::End();
-    gBookmarks.renderBookmarksWindow();
-    gSettings.renderSettingsWindow();
+
 
 
 }
@@ -260,61 +262,181 @@ void updateFileExplorer() {
         last_refresh_time = current_time;
     }
 }
-
 int main() {
+    // Initialize GLFW
     InitializeGLFW();
+    
+    // Create window
     GLFWwindow* window = CreateWindow();
+    
+    // Initialize GLEW
+    glewExperimental = GL_TRUE;
+    GLenum err = glewInit();
+    if (GLEW_OK != err) {
+        std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glGetError(); // Clear any error that GLEW init might have caused
+
+    // Initialize ImGui
     InitializeImGui(window);
-    bool showSettingsWindow = false;
+    
+    // Load settings
     gSettings.loadSettings();   
     gEditor.setTheme(gSettings.getCurrentTheme());
 
-    bool windowFocused = true;
+    // Apply initial settings
     ApplySettings(ImGui::GetStyle());
     gFileExplorer.loadIcons();
     
+    // Load font
     ImFont* currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
     if (currentFont == nullptr) {
         std::cerr << "Failed to load font, using default font" << std::endl;
         currentFont = ImGui::GetIO().Fonts->AddFontDefault();
     }
 
-    const double target_fps = 60.0;
-    const std::chrono::duration<double> target_frame_duration(1.0 / target_fps);
+    // Shader and Framebuffer setup
+    Shader crtShader;
+    if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl")) {
+        std::cerr << "Shader load failed" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    // Persistent framebuffer objects
+    GLuint fullFramebuffer = 0, fullRenderTexture = 0, fullRbo = 0;
+    int last_display_w = 0, last_display_h = 0;
+    bool frameBufferInitialized = false;
+
+    // Frame timing and performance tracking
+    int frameCount = 0;
+    double lastFPSTime = glfwGetTime();
+    double lastSettingsCheckTime = lastFPSTime;
+    double lastFileTreeRefreshTime = lastFPSTime;
+
+    // Performance constants
+    const double SETTINGS_CHECK_INTERVAL = 2.0;
+    const double FILE_TREE_REFRESH_INTERVAL = 2.0;
+    const double TARGET_FPS = 60.0;
+    const std::chrono::duration<double> TARGET_FRAME_DURATION(1.0 / TARGET_FPS);
+
+    // Render state tracking
     bool is_window_moving = false;
-    auto last_frame_time = std::chrono::high_resolution_clock::now();
+    bool needFontReload = false;
+    bool windowFocused = true;
+
+    // Quad vertices for shader rendering
+    float quadVertices[] = {
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f,
+        -1.0f,  1.0f,  0.0f, 1.0f
+    };
+
+    // Setup quad VAO and VBO
+    GLuint quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     float explorerWidth = 0.0f, editorWidth = 0.0f;
-    bool needFontReload = false;
 
     while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
-        int window_x, window_y;
-        glfwGetWindowPos(window, &window_x, &window_y);
-        static int last_window_x = window_x, last_window_y = window_y;
-        is_window_moving = (window_x != last_window_x) || (window_y != last_window_y);
-        last_window_x = window_x;
-        last_window_y = window_y;
+        // Always poll events
+        glfwPollEvents();
 
-        if (is_window_moving) {
-            glfwPollEvents();
-        } else {
-            glfwWaitEventsTimeout(0.1);
+        // Performance tracking
+        double currentTime = glfwGetTime();
+        frameCount++;
+        
+        // FPS reporting
+        /*
+        if (currentTime - lastFPSTime >= 1.0) {
+            // Color codes
+            const char* color = "\033[31m";  // Default to red
+            
+            if (frameCount >= 50) {
+                color = "\033[32m";  // Green for 50+ FPS
+            } else if (frameCount >= 30) {
+                color = "\033[33m";  // Orange (yellow) for 30-49 FPS
+            }
+            
+            std::cout << color << "FPS: " << frameCount << "\033[0m" << std::endl;
+            frameCount = 0;
+            lastFPSTime += 1.0;
+        }
+        */
+        // Occasional settings and file tree updates
+        if (currentTime - lastSettingsCheckTime >= SETTINGS_CHECK_INTERVAL) {
+            gSettings.checkSettingsFile();
+            lastSettingsCheckTime = currentTime;
         }
 
+        if (currentTime - lastFileTreeRefreshTime >= FILE_TREE_REFRESH_INTERVAL) {
+            gFileExplorer.refreshFileTree();
+            lastFileTreeRefreshTime = currentTime;
+        }
+
+        // Get framebuffer size
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+
+        // Reinitialize framebuffer if window size changes
+        if (display_w != last_display_w || display_h != last_display_h || !frameBufferInitialized) {
+            if (frameBufferInitialized) {
+                glDeleteFramebuffers(1, &fullFramebuffer);
+                glDeleteTextures(1, &fullRenderTexture);
+                glDeleteRenderbuffers(1, &fullRbo);
+            }
+
+            glGenFramebuffers(1, &fullFramebuffer);
+            glGenTextures(1, &fullRenderTexture);
+            glGenRenderbuffers(1, &fullRbo);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, fullFramebuffer);
+            glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display_w, display_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fullRenderTexture, 0);
+
+            glBindRenderbuffer(GL_RENDERBUFFER, fullRbo);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, display_w, display_h);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fullRbo);
+
+            last_display_w = display_w;
+            last_display_h = display_h;
+            frameBufferInitialized = true;
+        }
+
+        // Start ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // Window focus handling
         bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
         if (windowFocused && !currentFocus) {
             gFileExplorer.saveCurrentFile();
         }
         windowFocused = currentFocus;
-        gFileExplorer.refreshFileTree();
-        gSettings.checkSettingsFile();
 
+        // Handle settings changes
         if (gSettings.hasSettingsChanged()) {
             ApplySettings(ImGui::GetStyle());
             if (gSettings.hasThemeChanged()) {
@@ -328,6 +450,7 @@ int main() {
             gSettings.resetSettingsChanged();
         }
 
+        // File dialog handling (restored from previous version)
         if (gFileExplorer.showFileDialog()) {
             gFileExplorer.openFolderDialog();
             if (!gFileExplorer.getSelectedFolder().empty()) {
@@ -340,15 +463,50 @@ int main() {
             }
         }
 
-        RenderMainWindow(currentFont, explorerWidth, editorWidth);
-
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
+        // Render to default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, display_w, display_h);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        // Render ImGui content
+        RenderMainWindow(currentFont, explorerWidth, editorWidth);
+        gBookmarks.renderBookmarksWindow();
+        gSettings.renderSettingsWindow();
+
+        // Complete ImGui frame
+        ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+        // Rest of the shader rendering remains the same as in previous optimized version
+        // (Copy framebuffer, apply shader effect)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
+        glBlitFramebuffer(0, 0, display_w, display_h, 
+                         0, 0, display_w, display_h,
+                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(crtShader.shaderProgram);
+        
+        GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
+        GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
+        GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
+
+        if (timeLocation != -1) glUniform1f(timeLocation, currentTime);
+        if (screenTextureLocation != -1) glUniform1i(screenTextureLocation, 0);
+        if (resolutionLocation != -1) {
+            glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
+        }
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
+        glBindVertexArray(quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Handle font reloading if needed
         if (needFontReload) {
             ImGui_ImplOpenGL3_DestroyFontsTexture();
             ImGui::GetIO().Fonts->Clear();
@@ -360,15 +518,24 @@ int main() {
             needFontReload = false;
         }
 
+        // Swap buffers
         glfwSwapBuffers(window);
 
+        // Frame timing
         auto frame_end = std::chrono::high_resolution_clock::now();
         auto frame_duration = frame_end - frame_start;
-        if (!is_window_moving && frame_duration < target_frame_duration) {
-            std::this_thread::sleep_for(target_frame_duration - frame_duration);
-        }
+        
+        // Optional: Add sleep to maintain target FPS
+        std::this_thread::sleep_for(TARGET_FRAME_DURATION - frame_duration);
+    }
 
-        last_frame_time = frame_start;
+    // Cleanup
+    glDeleteVertexArrays(1, &quadVAO);
+    glDeleteBuffers(1, &quadVBO);
+    if (frameBufferInitialized) {
+        glDeleteFramebuffers(1, &fullFramebuffer);
+        glDeleteTextures(1, &fullRenderTexture);
+        glDeleteRenderbuffers(1, &fullRbo);
     }
 
     gSettings.saveSettings();
@@ -382,6 +549,3 @@ int main() {
 
     return 0;
 }
-
-
-

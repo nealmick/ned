@@ -57,6 +57,9 @@ private:
     bool fontChanged = false;
     bool fontSizeChanged = false;
     bool blockInput = false;
+
+    int settingsCheckFrameCounter = 0;
+    const int SETTINGS_CHECK_INTERVAL = 60; // Check every 180 frames (roughly 3 seconds at 60 FPS)
 };
 
 extern Settings gSettings;
