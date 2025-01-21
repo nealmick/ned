@@ -15,7 +15,6 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include "util/settings.h"
 #include "files.h"
 #include "editor.h"
 #include <filesystem>
@@ -23,6 +22,7 @@
 #include <chrono>
 #include "util/bookmarks.h"
 #include "util/terminal.h"
+#include "util/settings.h"
 #include "shaders/shader.h"
 
 Bookmarks gBookmarks;
@@ -165,7 +165,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
-        gTerminal.setWorkingDirectory(gFileExplorer.getSelectedFolder());
+        //gTerminal.setWorkingDirectory(gFileExplorer.getSelectedFolder());
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
         
     }
