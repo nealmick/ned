@@ -200,7 +200,7 @@ void FileExplorer::loadIcons() {
   for (const auto &iconFile : iconFiles) {
     std::string fullPath = "icons/" + iconFile;
     if (!std::filesystem::exists(fullPath)) {
-      std::cout << "Icon file does not exist: " << fullPath << std::endl;
+      //std::cout << "Files: Icon file does not exist: " << fullPath << std::endl;
       continue;
     }
 
@@ -285,6 +285,17 @@ void FileExplorer::preserveOpenStates(const FileNode &oldNode,
 }
 
 void FileExplorer::refreshFileTree() {
+    // Get the current time
+    double currentTime = glfwGetTime();
+
+    // Check if enough time has passed since the last refresh
+    if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL) {
+        return;
+    }
+
+    // Update the last refresh time
+    lastFileTreeRefreshTime = currentTime;
+
     if (!selectedFolder.empty()) {
         // Store the old root node to preserve states
         FileNode oldRoot = rootNode;
@@ -302,8 +313,6 @@ void FileExplorer::refreshFileTree() {
         preserveOpenStates(oldRoot, rootNode);
     }
 }
-
-
 
 
 
@@ -363,10 +372,10 @@ void FileExplorer::displayFileTree(FileNode &node) {
     float fileIconSize = currentFontSize * 1.2f;    // Same as folder for consistency
     
     static bool printedSizes = false;  // To prevent spamming console
-    if (!printedSizes) {
-        std::cout << "Font Size: " << currentFontSize << std::endl;
-        std::cout << "Folder Icon Size: " << folderIconSize << std::endl;
-        std::cout << "File Icon Size: " << fileIconSize << std::endl;
+    if (printedSizes) {
+        std::cout << "Files: Font Size: " << currentFontSize << std::endl;
+        std::cout << "Files: Folder Icon Size: " << folderIconSize << std::endl;
+        std::cout << "FIles: File Icon Size: " << fileIconSize << std::endl;
         printedSizes = true;
     }
 
@@ -489,19 +498,17 @@ void FileExplorer::displayFileTree(FileNode &node) {
 void FileExplorer::openFolderDialog() {
   nfdchar_t *outPath = NULL;
   nfdresult_t result = NFD_PickFolder(NULL, &outPath);
-
   if (result == NFD_OKAY) {
     selectedFolder = outPath;
-    std::cout << "Selected folder: " << outPath << std::endl;
+    std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
     free(outPath);
     _showFileDialog = false;
   } else if (result == NFD_CANCEL) {
-    std::cout << "User canceled folder selection." << std::endl;
+    std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
   } else {
-    std::cout << "Error: " << NFD_GetError() << std::endl;
+    std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
   }
 }
-
 void FileExplorer::refreshSyntaxHighlighting() {
   if (!currentFile.empty()) {
     std::string extension = fs::path(currentFile).extension().string();
@@ -532,7 +539,7 @@ void FileExplorer::loadFileContent(const std::string& path, std::function<void()
     fileColors.clear();
     fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     if (fileContent.size() != fileColors.size()) {
-      std::cerr << "Error: Mismatch between fileContent and fileColors size "
+      std::cerr << "\033[35mFiles:\033[0m  Error: Mismatch between fileContent and fileColors size "
                    "after loading"
                 << std::endl;
       return;
@@ -540,9 +547,9 @@ void FileExplorer::loadFileContent(const std::string& path, std::function<void()
     auto it = fileUndoManagers.find(path);
     if (it == fileUndoManagers.end()) {
       it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-      std::cout << "Created new UndoRedoManager for " << path << std::endl;
+      std::cout << "\033[35mFiles:\033[0m  Created new UndoRedoManager for " << path << std::endl;
     } else {
-      std::cout << "Using existing UndoRedoManager for " << path << std::endl;
+      std::cout << "\033[35mFiles:\033[0m  Using existing UndoRedoManager for " << path << std::endl;
     }
     currentUndoManager = &(it->second);
     currentUndoManager->addState(fileContent, 0, fileContent.size());
@@ -561,9 +568,7 @@ void FileExplorer::loadFileContent(const std::string& path, std::function<void()
     if (afterLoadCallback) {
         afterLoadCallback();
     }
-    std::cout << "Loaded file: " << path << std::endl;
-    std::cout << "File size: " << fileContent.size() << std::endl;
-    std::cout << "Colors size: " << fileColors.size() << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Loaded file: " << path << std::endl;
   } else {
     fileContent = "Error: Unable to open file.";
     currentFile = "";
@@ -587,13 +592,13 @@ void FileExplorer::findNext() {
 
   size_t foundPos = fileContent.find(findText, startPos);
 
-  std::cout << "Searching for '" << findText << "' starting from position "
+  std::cout << "\033[35mFiles:\033[0m  Searching for '" << findText << "' starting from position "
             << startPos << std::endl;
 
   if (foundPos == std::string::npos) {
     // Wrap around to the beginning
     foundPos = fileContent.find(findText);
-    std::cout << "Wrapped search to beginning" << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Wrapped search to beginning" << std::endl;
   }
 
   if (foundPos != std::string::npos) {
@@ -601,10 +606,10 @@ void FileExplorer::findNext() {
     editor_state.cursor_pos = foundPos;
     editor_state.selection_start = foundPos;
     editor_state.selection_end = foundPos + findText.length();
-    std::cout << "Found at position: " << foundPos
+    std::cout << "\033[35mFiles:\033[0m Found at position: " << foundPos
               << ", cursor now at: " << editor_state.cursor_pos << std::endl;
   } else {
-    std::cout << "Not found" << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Not found" << std::endl;
   }
 }
 //
@@ -622,13 +627,13 @@ void FileExplorer::findPrevious() {
 
   size_t foundPos = fileContent.rfind(findText, startPos);
 
-  std::cout << "Searching backwards for '" << findText
+  std::cout << "\033[35mFiles:\033[0m  Searching backwards for '" << findText
             << "' starting from position " << startPos << std::endl;
 
   if (foundPos == std::string::npos) {
     // Wrap around to the end
     foundPos = fileContent.rfind(findText);
-    std::cout << "Wrapped search to end" << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Wrapped search to end" << std::endl;
   }
 
   if (foundPos != std::string::npos) {
@@ -636,10 +641,10 @@ void FileExplorer::findPrevious() {
     editor_state.cursor_pos = foundPos;
     editor_state.selection_start = foundPos;
     editor_state.selection_end = foundPos + findText.length();
-    std::cout << "Found at position: " << foundPos
+    std::cout << "\033[35mFiles:\033[0m  Found at position: " << foundPos
               << ", cursor now at: " << editor_state.cursor_pos << std::endl;
   } else {
-    std::cout << "Not found" << std::endl;
+    std::cout << "\033[35mFiles:\033[0m Not found" << std::endl;
   }
 }
 
@@ -696,10 +701,10 @@ void FileExplorer::renderFileContent() {
     bool shift_pressed = ImGui::GetIO().KeyShift;
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
       if (shift_pressed || cmd_pressed) {
-        std::cout << "Searching previous" << std::endl;
+        std::cout << "\033[35mFiles:\033[0m Searching previous" << std::endl;
         findPrevious();
       } else {
-        std::cout << "Searching next" << std::endl;
+        std::cout << "\033[35mFiles:\033[0m  Searching next" << std::endl;
         findNext();
       }
     }
@@ -715,7 +720,7 @@ void FileExplorer::renderFileContent() {
       CustomTextEditor("##editor", fileContent, fileColors, editor_state);
   if (text_changed && !editor_state.activateFindBox) {
     setUnsavedChanges(true);
-    std::cout << "Text changed, added undo state" << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Text changed, added undo/redo state" << std::endl;
   }
 
   ImGui::PopStyleVar();
@@ -817,9 +822,9 @@ void FileExplorer::saveCurrentFile() {
       file << fileContent;
       file.close();
       _unsavedChanges = false;
-      std::cout << "File saved: " << currentFile << std::endl;
+      std::cout << "\033[35mFiles:\033[0m  File saved: " << currentFile << std::endl;
     } else {
-      std::cerr << "Unable to save file: " << currentFile << std::endl;
+      std::cerr << "\033[35mFiles:\033[0m  Unable to save file: " << currentFile << std::endl;
     }
   }
 }

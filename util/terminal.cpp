@@ -1,18 +1,46 @@
 #include "util/terminal.h"
+#include "util/settings.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <signal.h>
 #include <iostream>
-#include <cmath>
+
+
+
 Terminal gTerminal;
 
-
 Terminal::Terminal() {
-    buffer.resize(bufferHeight, std::vector<Cell>(bufferWidth));
+    // Initialize with default terminal size
+    state.row = 36;
+    state.col = 120;
+    state.bot = state.row - 1;
+    
+
+    sel.mode = SEL_IDLE;
+    sel.type = SEL_REGULAR;
+    sel.snap = 0;
+    sel.ob.x = -1;
+    sel.ob.y = -1;
+    sel.oe.x = -1;
+    sel.oe.y = -1;
+    sel.nb.x = -1;
+    sel.nb.y = -1;
+    sel.ne.x = -1;
+    sel.ne.y = -1;
+    sel.alt = 0;
+    // Initialize screen buffer
+    state.lines.resize(state.row, std::vector<Glyph>(state.col));
+    state.altLines.resize(state.row, std::vector<Glyph>(state.col));
+    state.dirty.resize(state.row, true);
+    
+    // Initialize tab stops (every 8 columns)
+    state.tabs.resize(state.col, false);
+    for (int i = 8; i < state.col; i += 8) {
+        state.tabs[i] = true;
+    }
 }
 
 Terminal::~Terminal() {
@@ -29,110 +57,1595 @@ Terminal::~Terminal() {
 }
 
 void Terminal::startShell() {
-    if (shellStarted) return;
-    shellStarted = true;
+    // Open PTY master
+    ptyFd = posix_openpt(O_RDWR);
+    grantpt(ptyFd);
+    unlockpt(ptyFd);
     
-    ptyFd = posix_openpt(O_RDWR | O_NOCTTY);
-    if (ptyFd < 0) {
-        std::cerr << "Failed to open PTY" << std::endl;
-        return;
-    }
-
-    if (grantpt(ptyFd) < 0 || unlockpt(ptyFd) < 0) {
-        close(ptyFd);
-        std::cerr << "Failed to grant/unlock PTY" << std::endl;
-        return;
-    }
-
     char* slaveName = ptsname(ptyFd);
-    if (slaveName == NULL) {
-        close(ptyFd);
-        std::cerr << "Failed to get PTY slave name" << std::endl;
-        return;
-    }
-
     childPid = fork();
-    if (childPid < 0) {
-        close(ptyFd);
-        std::cerr << "Fork failed" << std::endl;
-        return;
-    }
 
     if (childPid == 0) {  // Child process
-        if (setsid() < 0) {
-            std::cerr << "setsid failed" << std::endl;
-            exit(1);
-        }
-
+        setsid(); // Create new session and process group
         close(ptyFd);  // Close master side
+
+        // Open slave PTY
         int slaveFd = open(slaveName, O_RDWR);
-        if (slaveFd < 0) {
-            std::cerr << "Failed to open slave PTY" << std::endl;
-            exit(1);
-        }
-
-        if (ioctl(slaveFd, TIOCSCTTY, 0) < 0) {
-            std::cerr << "Failed to set controlling terminal" << std::endl;
-            exit(1);
-        }
-
+        ioctl(slaveFd, TIOCSCTTY, 0);
         dup2(slaveFd, STDIN_FILENO);
         dup2(slaveFd, STDOUT_FILENO);
         dup2(slaveFd, STDERR_FILENO);
+
         if (slaveFd > STDERR_FILENO) {
             close(slaveFd);
         }
 
-        // Configure terminal
+        // Configure terminal modes
         struct termios tios;
-        if (tcgetattr(STDIN_FILENO, &tios) < 0) {
-            std::cerr << "Failed to get terminal attributes" << std::endl;
-            exit(1);
-        }
-        // Configure terminal for full operation
+        tcgetattr(STDIN_FILENO, &tios);
+        
         tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
         tios.c_oflag = OPOST | ONLCR;
         tios.c_cflag = CREAD | CS8 | HUPCL;
-        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | ECHOPRT;
-
-        // Set control characters
-        tios.c_cc[VMIN] = 1;
-        tios.c_cc[VTIME] = 0;
-        tios.c_cc[VINTR] = 0x03;    // Ctrl-C
-        tios.c_cc[VQUIT] = 0x1c;    // Ctrl-backslash
-        tios.c_cc[VERASE] = 0x7f;   // Delete
-        tios.c_cc[VKILL] = 0x15;    // Ctrl-U
-        tios.c_cc[VEOF] = 0x04;     // Ctrl-D
-        tios.c_cc[VSTART] = 0x11;   // Ctrl-Q
-        tios.c_cc[VSTOP] = 0x13;    // Ctrl-S
-        tios.c_cc[VSUSP] = 0x1a;    // Ctrl-Z
-        tios.c_cc[VEOL] = 0;
-        tios.c_cc[VREPRINT] = 0x12; // Ctrl-R
-        tios.c_cc[VDISCARD] = 0x0f; // Ctrl-O
-        tios.c_cc[VWERASE] = 0x17;  // Ctrl-W
-        tios.c_cc[VLNEXT] = 0x16;   // Ctrl-V
-        tios.c_cc[VEOL2] = 0;
-
+        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 
         if (tcsetattr(STDIN_FILENO, TCSANOW, &tios) < 0) {
-            std::cerr << "Failed to set terminal attributes" << std::endl;
             exit(1);
         }
-        setenv("TERM", "xterm-256color", 1);
 
+        // Set window size
+        struct winsize ws = {};
+        ws.ws_row = state.row;
+        ws.ws_col = state.col;
+        ioctl(STDIN_FILENO, TIOCSWINSZ, &ws);
+
+        setenv("TERM", "xterm-256color", 1);
+        
         const char* shell = getenv("SHELL");
         if (!shell) shell = "/bin/bash";
         
         char* const args[] = {(char*)shell, NULL};
         execvp(shell, args);
-        std::cerr << "Failed to execute shell" << std::endl;
         exit(1);
     }
 
-    // Parent process
+    // Parent process - start read thread
     readThread = std::thread(&Terminal::readOutput, this);
 }
+void Terminal::render() {
+    if (!isVisible) return;
+    
+    if (ptyFd < 0) {
+        startShell();
+    }
 
+    // Basic ImGui window setup
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+    ImGui::Begin("Terminal", nullptr, 
+        ImGuiWindowFlags_NoDecoration | 
+        ImGuiWindowFlags_NoMove | 
+        ImGuiWindowFlags_NoResize);
+
+    renderBuffer();
+
+    // Handle mouse input
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered()) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        ImVec2 winPos = ImGui::GetWindowPos();
+        float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+        float lineHeight = ImGui::GetTextLineHeight();
+
+        // Convert mouse position to terminal cell coordinates
+        int cellX = static_cast<int>((mousePos.x - winPos.x) / charWidth);
+        int cellY = static_cast<int>((mousePos.y - winPos.y) / lineHeight);
+
+        // Handle selection
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            // Start new selection
+            selectionStart(cellX, cellY);
+        }
+        else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            // Extend selection
+            selectionExtend(cellX, cellY);
+        }
+        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            if (sel.mode != SEL_IDLE) {
+                // Copy selection to clipboard on mouse release
+                copySelection();
+                sel.mode = SEL_IDLE;
+            }
+        }
+
+        // Handle right-click paste
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            pasteFromClipboard();
+        }
+
+        // Handle clipboard shortcuts
+        if (io.KeyCtrl) {
+            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+                copySelection();
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+                pasteFromClipboard();
+            }
+        }
+    }
+    // Improved input handling
+    if (ImGui::IsWindowFocused()) {
+        ImGuiIO& io = ImGui::GetIO();
+        
+        // Handle special keys
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+            processInput("\r");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
+            processInput("\x7f");  // Delete character
+        }
+        // Arrow keys
+        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+            processInput("\033[A");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+            processInput("\033[B");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
+            processInput("\033[C");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
+            if (io.KeyCtrl) {
+                // Ctrl+Left: Move word left
+                processInput("\033[1;5D");
+            } else if (io.KeyShift) {
+                // Shift+Left: Selection
+                processInput("\033[1;2D");
+            } else {
+                // Normal left arrow
+                processInput("\033[D");
+            }
+        }
+        // More special keys
+        else if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
+            processInput("\033[H");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_End)) {
+            processInput("\033[F");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
+            processInput("\033[3~");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
+            processInput("\033[5~");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
+            processInput("\033[6~");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
+            processInput("\t");
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            processInput("\033");
+        }
+
+        // Handle Ctrl key combinations
+        if (io.KeyCtrl || io.KeySuper) {
+            // Map common control combinations explicitly
+            if (ImGui::IsKeyPressed(ImGuiKey_A)) processInput("\x01");
+            if (ImGui::IsKeyPressed(ImGuiKey_B)) processInput("\x02");
+            if (ImGui::IsKeyPressed(ImGuiKey_C)) processInput("\x03");
+            if (ImGui::IsKeyPressed(ImGuiKey_D)) processInput("\x04");
+            if (ImGui::IsKeyPressed(ImGuiKey_E)) processInput("\x05");
+            if (ImGui::IsKeyPressed(ImGuiKey_F)) processInput("\x06");
+            if (ImGui::IsKeyPressed(ImGuiKey_G)) processInput("\x07");
+            if (ImGui::IsKeyPressed(ImGuiKey_H)) processInput("\x08");
+            if (ImGui::IsKeyPressed(ImGuiKey_I)) processInput("\x09");
+            if (ImGui::IsKeyPressed(ImGuiKey_J)) processInput("\x0A");
+            if (ImGui::IsKeyPressed(ImGuiKey_K)) processInput("\x0B");
+            if (ImGui::IsKeyPressed(ImGuiKey_L)) processInput("\x0C");
+            if (ImGui::IsKeyPressed(ImGuiKey_M)) processInput("\x0D");
+            if (ImGui::IsKeyPressed(ImGuiKey_N)) processInput("\x0E");
+            if (ImGui::IsKeyPressed(ImGuiKey_O)) processInput("\x0F");
+            if (ImGui::IsKeyPressed(ImGuiKey_P)) processInput("\x10");
+            if (ImGui::IsKeyPressed(ImGuiKey_Q)) processInput("\x11");
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) processInput("\x12");
+            if (ImGui::IsKeyPressed(ImGuiKey_S)) processInput("\x13");
+            if (ImGui::IsKeyPressed(ImGuiKey_T)) processInput("\x14");
+            if (ImGui::IsKeyPressed(ImGuiKey_U)) processInput("\x15");
+            if (ImGui::IsKeyPressed(ImGuiKey_V)) processInput("\x16");
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) processInput("\x17");
+            if (ImGui::IsKeyPressed(ImGuiKey_X)) processInput("\x18");
+            if (ImGui::IsKeyPressed(ImGuiKey_Y)) processInput("\x19");
+            if (ImGui::IsKeyPressed(ImGuiKey_Z)) processInput("\x1A");
+        }
+        
+        // Regular text input - only if no control key is pressed
+        if (!io.KeyCtrl && !io.KeySuper && !io.KeyAlt) {
+            for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
+                char c = (char)io.InputQueueCharacters[i];
+                if (c != 0) {
+                    processInput(std::string(1, c));
+                }
+            }
+        }
+    }
+
+    ImGui::End();
+}
+void Terminal::renderBuffer() {
+    std::lock_guard<std::mutex> lock(bufferMutex);
+    
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+    float lineHeight = ImGui::GetTextLineHeight();
+
+    // Draw selection highlight
+    if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+        for (int y = 0; y < state.row; y++) {
+            for (int x = 0; x < state.col; x++) {
+                if (selectedText(x, y)) {
+                    ImVec2 highlightPos(
+                        pos.x + x * charWidth,
+                        pos.y + y * lineHeight
+                    );
+                    drawList->AddRectFilled(
+                        highlightPos,
+                        ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                    );
+                }
+            }
+        }
+    }
+
+    // Draw characters - following st.c's approach
+    for (int y = 0; y < state.row; y++) {
+        for (int x = 0; x < state.col; x++) {
+            const Glyph& glyph = state.lines[y][x];
+            
+            // Skip dummy wide-character cells
+            if (glyph.mode & ATTR_WDUMMY)
+                continue;
+
+            char text[UTF_SIZ] = {0}; 
+            char* p = text;
+            utf8Encode(glyph.u, p);
+                
+            ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
+                
+            // Base colors
+            ImVec4 fg = glyph.fg;
+            ImVec4 bg = glyph.bg;
+
+            // Handle true color mode
+            if (glyph.colorMode == COLOR_TRUE) {
+                uint32_t tc = glyph.trueColorFg;
+                fg = ImVec4(
+                    ((tc >> 16) & 0xFF) / 255.0f,
+                    ((tc >> 8) & 0xFF) / 255.0f,
+                    (tc & 0xFF) / 255.0f,
+                    1.0f
+                );
+            }
+
+            // Handle reverse video
+            if (glyph.mode & ATTR_REVERSE) {
+                std::swap(fg, bg);
+            }
+
+            // Handle bold - following st.c's approach for basic colors
+            if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
+                // Make color brighter for basic colors
+                fg.x = std::min(1.0f, fg.x * 1.5f);
+                fg.y = std::min(1.0f, fg.y * 1.5f);
+                fg.z = std::min(1.0f, fg.z * 1.5f);
+            }
+
+            // Draw background if it's not default
+            if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
+                drawList->AddRectFilled(
+                    charPos,
+                    ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
+                    ImGui::ColorConvertFloat4ToU32(bg)
+                );
+            }
+
+            // Draw character
+            if (glyph.u != ' ' && glyph.u != 0) {
+                drawList->AddText(
+                    charPos, 
+                    ImGui::ColorConvertFloat4ToU32(fg),
+                    text
+                );
+            }
+
+            // Draw underline
+            if (glyph.mode & ATTR_UNDERLINE) {
+                drawList->AddLine(
+                    ImVec2(charPos.x, charPos.y + lineHeight - 1),
+                    ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
+                    ImGui::ColorConvertFloat4ToU32(fg)
+                );
+            }
+
+            // Handle wide characters
+            if (glyph.mode & ATTR_WIDE) {
+                x++;  // Skip next cell
+            }
+        }
+    }
+    if (ImGui::IsWindowFocused()) {
+        ImVec2 cursorPos(
+            pos.x + state.c.x * charWidth, 
+            pos.y + state.c.y * lineHeight
+        );
+
+        // Get the cell under cursor
+        const Glyph& cursorCell = state.lines[state.c.y][state.c.x];
+        
+        // Calculate smooth fade (2 second period)
+        float time = ImGui::GetTime();
+        float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;  // Oscillate between 0.2 and 0.8
+        
+        if (state.mode & MODE_INSERT) {
+            // Vertical bar cursor for insert mode
+            drawList->AddRectFilled(
+                cursorPos,
+                ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
+            );
+        } else {
+            // Draw the character first with normal colors
+            if (cursorCell.u != 0) {
+                char text[UTF_SIZ] = {0};
+                utf8Encode(cursorCell.u, text);
+                
+                // Get inverse colors
+                ImVec4 bg = cursorCell.fg;
+                ImVec4 fg = cursorCell.bg;
+
+                // Draw the cursor background with fade
+                drawList->AddRectFilled(
+                    cursorPos,
+                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha))
+                );
+
+                // Draw the character in inverse color
+                drawList->AddText(
+                    cursorPos,
+                    ImGui::ColorConvertFloat4ToU32(fg),
+                    text
+                );
+            } else {
+                // Empty cell cursor with fade
+                drawList->AddRectFilled(
+                    cursorPos,
+                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
+                );
+            }
+        }
+    }
+}
+void Terminal::toggleVisibility() {
+    isVisible = !isVisible;
+}
+
+
+void Terminal::writeToBuffer(const char* data, size_t length) {
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = data[i];
+
+        // Handle escape sequences
+        if (state.esc & ESC_START) {
+            if (state.esc & ESC_CSI) {
+                // CSI sequence - ESC [
+                if (csiescseq.len < sizeof(csiescseq.buf) - 1) {
+                    csiescseq.buf[csiescseq.len++] = c;
+                    if (BETWEEN(c, 0x40, 0x7E)) {
+                        csiescseq.buf[csiescseq.len] = '\0';
+                        csiescseq.mode[0] = c;
+                        parseCSIParam(csiescseq);
+                        handleCSI(csiescseq);
+                        state.esc = 0;
+                        csiescseq.len = 0;
+                        csiescseq.args.clear();
+                    }
+                }
+                continue;
+            }
+            
+            if (state.esc & ESC_STR) {
+                // String sequence handling
+                if (c == '\a' || c == 0x1b) {
+                    strparse();
+                    handleStringSequence();
+                    state.esc = 0;
+                } else if (strescseq.len < 256) {  // Reasonable limit
+                    strescseq.buf += c;
+                    strescseq.len++;
+                }
+                continue;
+            }
+            
+            if (state.esc & ESC_ALTCHARSET) {
+                handleCharset(c);
+                state.esc = 0;
+                continue;
+            }
+            
+            if (state.esc & ESC_TEST) {
+                handleTestSequence(c);
+                state.esc = 0;
+                continue;
+            }
+
+            // Handle regular escape sequences
+            if (eschandle(c)) {
+                state.esc = 0;
+            }
+            continue;
+        }
+
+        // Start of escape sequence
+        if (c == '\033') {  // ESC
+            state.esc = ESC_START;
+            csiescseq.len = 0;
+            csiescseq.args.clear();
+            strescseq.len = 0;
+            strescseq.buf.clear();
+            continue;
+        }
+
+        // Handle control characters
+        if (c < 32) {
+            handleControlCode(c);
+            continue;
+        }
+
+        // Regular character processing
+        writeChar(c);
+    }
+}
+
+void Terminal::writeChar(unsigned char c) {
+    Rune u = c;
+    
+    // Handle UTF-8 if enabled
+    if (state.mode & MODE_UTF8) {
+        // UTF-8 decoding would go here
+        // For now, just pass through
+    }
+    
+    // Line wrapping logic
+    if (state.c.x >= state.col) {
+        if (state.mode & MODE_WRAP) {
+            state.c.x = 0;
+            if (state.c.y == state.bot) {
+                scrollUp(state.top, 1);
+            } else {
+                state.c.y++;
+            }
+        } else {
+            state.c.x = state.col - 1;
+        }
+    }
+
+    // Write the character
+    Glyph g;
+    g.u = u;
+    g.mode = state.c.attrs;
+    g.fg = state.c.fg;
+    g.bg = state.c.bg;
+    g.colorMode = state.c.colorMode;
+
+    writeGlyph(g, state.c.x, state.c.y);
+    state.c.x++;
+
+    state.lastc = u;
+}
+
+
+int Terminal::eschandle(uchar ascii) {
+    switch (ascii) {
+        case '[':
+            state.esc |= ESC_CSI;
+            return 0;
+        case '#':
+            state.esc |= ESC_TEST;
+            return 0;
+        case '%':
+            state.esc |= ESC_UTF8;
+            return 0;
+        case 'P':   // DCS
+        case '_':   // APC
+        case '^':   // PM
+        case ']':   // OSC
+        case 'k':   // old title set compatibility
+            tstrsequence(ascii);
+            return 0;
+        case 'n':   // LS2
+        case 'o':   // LS3
+            state.charset = 2 + (ascii - 'n');
+            break;
+        case '(':   // G0
+        case ')':   // G1
+        case '*':   // G2
+        case '+':   // G3
+            state.icharset = ascii - '(';
+            state.esc |= ESC_ALTCHARSET;
+            return 0;
+        case 'D':   // IND
+            if (state.c.y == state.bot) {
+                scrollUp(state.top, 1);
+            } else {
+                state.c.y++;
+            }
+            break;
+        case 'E':   // NEL
+            tnewline(1);
+            break;
+        case 'H':   // HTS
+            state.tabs[state.c.x] = 1;
+            break;
+        case 'M':   // RI
+            if (state.c.y == state.top) {
+                scrollDown(state.top, 1);
+            } else {
+                state.c.y--;
+            }
+            break;
+        case 'Z':   // DECID
+            processInput("\033[?1;2c");
+            break;
+        case 'c':   // RIS
+            reset();
+            break;
+        case '=': // DECKPAM -- Application keypad mode
+            setMode(true, MODE_APPCURSOR);
+            break;
+            
+        case '>': // DECKPNM -- Normal keypad mode
+            setMode(false, MODE_APPCURSOR);
+            break;
+        default:
+            fprintf(stderr, "Unhandled escape sequence: ESC 0x%02X '%c'\n", 
+                    (uchar) ascii, isprint(ascii) ? ascii : '.');
+            return 1;
+    }
+    return 1;
+}
+void Terminal::tnewline(int first_col) {
+    int y = state.c.y;
+
+    if (y == state.bot) {
+        scrollUp(state.top, 1);
+    } else {
+        y++;
+    }
+    moveTo(first_col ? 0 : state.c.x, y);
+}
+void Terminal::tstrsequence(unsigned char c) {
+    // Handle different string sequences more comprehensively
+    switch (c) {
+        case 0x90:   // DCS - Device Control String
+        case 0x9d:   // OSC - Operating System Command
+        case 0x9e:   // PM - Privacy Message
+        case 0x9f:   // APC - Application Program Command
+            // TODO: Implement full handling of these sequences
+            // This may involve buffering and processing multi-character sequences
+            state.esc |= ESC_STR;
+            break;
+    }
+}
+
+void Terminal::tmoveto(int x, int y) {
+    moveTo(x, y);  // Use the existing moveTo method
+}
+void Terminal::parseCSIParam(CSIEscape& csi) {
+    char* p = csi.buf;
+    csi.args.clear();
+    
+    // Check for private mode
+    if (*p == '?') {
+        csi.priv = 1;
+        p++;
+    } else {
+        csi.priv = 0;
+    }
+
+    // Parse arguments
+    while (p < csi.buf + csi.len) {
+        // Parse numeric parameter
+        int param = 0;
+        while (p < csi.buf + csi.len && BETWEEN(*p, '0', '9')) {
+            param = param * 10 + (*p - '0');
+            p++;
+        }
+        csi.args.push_back(param);
+
+        // Move to next parameter or end
+        if (*p == ';') {
+            p++;
+        } else {
+            break;
+        }
+    }
+}
+void Terminal::handleCSI(const CSIEscape& csi) {
+    switch (csi.mode[0]) {
+        case '@': // ICH -- Insert <n> blank char
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                
+                for (int i = state.col - 1; i >= state.c.x + n; i--)
+                    state.lines[state.c.y][i] = state.lines[state.c.y][i-n];
+                
+                clearRegion(state.c.x, state.c.y, state.c.x + n - 1, state.c.y);
+            }
+            break;
+
+        case 'A': // CUU -- Cursor <n> Up
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(state.c.x, state.c.y - n);
+            }
+            break;
+
+        case 'B': // CUD -- Cursor <n> Down
+        case 'e': // VPR -- Cursor <n> Down
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(state.c.x, state.c.y + n);
+            }
+            break;
+
+        case 'c': // DA -- Device Attributes
+            if (csi.args.empty() || csi.args[0] == 0) {
+                processInput("\033[?6c"); // VT102
+            }
+            break;
+
+        case 'C': // CUF -- Cursor <n> Forward
+        case 'a': // HPR -- Cursor <n> Forward
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(state.c.x + n, state.c.y);
+            }
+            break;
+
+        case 'D': // CUB -- Cursor <n> Backward
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(state.c.x - n, state.c.y);
+            }
+            break;
+
+        case 'E': // CNL -- Cursor <n> Down and first col
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(0, state.c.y + n);
+            }
+            break;
+
+        case 'F': // CPL -- Cursor <n> Up and first col
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(0, state.c.y - n);
+            }
+            break;
+
+        case 'g': // TBC -- Tabulation Clear
+            switch (csi.args.empty() ? 0 : csi.args[0]) {
+                case 0: // Clear current tab stop
+                    state.tabs[state.c.x] = false;
+                    break;
+                case 3: // Clear all tab stops
+                    std::fill(state.tabs.begin(), state.tabs.end(), false);
+                    break;
+            }
+            break;
+
+        case 'G': // CHA -- Cursor Character Absolute
+        case '`': // HPA -- Horizontal Position Absolute
+            if (!csi.args.empty()) {
+                moveTo(csi.args[0] - 1, state.c.y);
+            }
+            break;
+
+        case 'H': // CUP -- Move to <row> <col>
+        case 'f': // HVP
+            {
+                int row = csi.args.size() > 0 ? csi.args[0] : 1;
+                int col = csi.args.size() > 1 ? csi.args[1] : 1;
+                tmoveato(col - 1, row - 1);
+            }
+            break;
+
+        case 'I': // CHT -- Cursor Forward Tabulation <n>
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                tputtab(n);
+            }
+            break;
+
+        case 'J': // ED -- Erase in Display
+            switch (csi.args.empty() ? 0 : csi.args[0]) {
+                case 0: // Below
+                    clearRegion(state.c.x, state.c.y, state.col-1, state.c.y);
+                    if (state.c.y < state.row-1)
+                        clearRegion(0, state.c.y+1, state.col-1, state.row-1);
+                    break;
+                case 1: // Above
+                    clearRegion(0, 0, state.col-1, state.c.y-1);
+                    clearRegion(0, state.c.y, state.c.x, state.c.y);
+                    break;
+                case 2: // All
+                    clearRegion(0, 0, state.col-1, state.row-1);
+                    break;
+            }
+            break;
+
+        case 'K': // EL -- Erase in Line
+            switch (csi.args.empty() ? 0 : csi.args[0]) {
+                case 0: // Right
+                    clearRegion(state.c.x, state.c.y, state.col-1, state.c.y);
+                    break;
+                case 1: // Left
+                    clearRegion(0, state.c.y, state.c.x, state.c.y);
+                    break;
+                case 2: // All
+                    clearRegion(0, state.c.y, state.col-1, state.c.y);
+                    break;
+            }
+            break;
+
+        case 'L': // IL -- Insert <n> blank lines
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                if (BETWEEN(state.c.y, state.top, state.bot))
+                    scrollDown(state.c.y, n);
+            }
+            break;
+
+        case 'M': // DL -- Delete <n> lines
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                if (BETWEEN(state.c.y, state.top, state.bot))
+                    scrollUp(state.c.y, n);
+            }
+            break;
+
+        case 'P': // DCH -- Delete <n> char
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                
+                for (int i = state.c.x; i + n < state.col && i < state.col; i++)
+                    state.lines[state.c.y][i] = state.lines[state.c.y][i+n];
+                
+                clearRegion(state.col - n, state.c.y, state.col - 1, state.c.y);
+            }
+            break;
+
+        case 'S': // SU -- Scroll <n> lines up
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                scrollUp(state.top, n);
+            }
+            break;
+
+        case 'T': // SD -- Scroll <n> lines down
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                scrollDown(state.top, n);
+            }
+            break;
+
+        case 'X': // ECH -- Erase <n> char
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                clearRegion(state.c.x, state.c.y, state.c.x + n - 1, state.c.y);
+            }
+            break;
+
+        case 'Z': // CBT -- Cursor Backward Tabulation <n>
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                tputtab(-n);
+            }
+            break;
+
+        case 'd': // VPA -- Move to <row>
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                tmoveato(state.c.x, n - 1);
+            }
+            break;
+
+        case 'h': // SM -- Set Mode
+            tsetmode(csi.priv, 1, csi.args);
+            break;
+
+        case 'l': // RM -- Reset Mode
+            tsetmode(csi.priv, 0, csi.args);
+            break;
+
+        case 'm': // SGR -- Select Graphic Rendition
+            handleSGR(csi.args);
+            break;
+
+        case 'n': // DSR -- Device Status Report
+            switch (csi.args.empty() ? 0 : csi.args[0]) {
+                case 5: // Operating status
+                    processInput("\033[0n");
+                    break;
+                case 6: // Cursor position
+                    {
+                        char buf[40];
+                        snprintf(buf, sizeof(buf), "\033[%i;%iR", 
+                                state.c.y + 1, state.c.x + 1);
+                        processInput(buf);
+                    }
+                    break;
+            }
+            break;
+
+        case 'r': // DECSTBM -- Set Scrolling Region
+            if (csi.args.size() >= 2) {
+                int top = csi.args[0] - 1;
+                int bot = csi.args[1] - 1;
+                
+                if (BETWEEN(top, 0, state.row-1) && BETWEEN(bot, 0, state.row-1) && top < bot) {
+                    state.top = top;
+                    state.bot = bot;
+                    if (state.c.state & CURSOR_ORIGIN)
+                        moveTo(0, state.top);
+                }
+            }
+            break;
+
+        case 's': // DECSC -- Save cursor position
+            cursorSave();
+            break;
+
+        case 'u': // DECRC -- Restore cursor position
+            cursorLoad();
+            break;
+    }
+}
+void Terminal::setMode(bool set, int mode) {
+    if (set)
+        state.mode |= mode;
+    else
+        state.mode &= ~mode;
+
+    switch (mode) {
+        case 6:  // DECOM -- Origin Mode
+            MODBIT(state.c.state, set, CURSOR_ORIGIN);
+            if (set)
+                moveTo(0, state.top);
+            break;
+
+        case MODE_WRAP:
+            // Line wrapping mode
+            break;
+        case MODE_INSERT:
+            // Toggle insert mode
+            break;
+        case MODE_ALTSCREEN:
+            // Handle alt screen switching with buffer preservation
+            if (set) {
+                state.altLines.swap(state.lines);
+                state.mode |= MODE_ALTSCREEN;
+            } else {
+                state.altLines.swap(state.lines);
+                state.mode &= ~MODE_ALTSCREEN;
+            }
+            // Mark all lines as dirty
+            std::fill(state.dirty.begin(), state.dirty.end(), true);
+            break;
+        case MODE_CRLF:
+            // Change line feed behavior
+            break;
+        case MODE_ECHO:
+            // Local echo mode
+            break;
+    }
+}
+void Terminal::handleSGR(const std::vector<int>& args) {
+    size_t i;
+    int32_t idx;
+
+    if (args.empty()) {
+        // Reset all attributes if no parameters
+        state.c.attrs = 0;
+        state.c.fg = defaultColorMap[7];   // Default foreground
+        state.c.bg = defaultColorMap[0];   // Default background
+        state.c.colorMode = COLOR_BASIC;
+        return;
+    }
+
+    for (i = 0; i < args.size(); i++) {
+        int attr = args[i];
+        switch (attr) {
+            case 0: // Reset
+                state.c.attrs = 0;
+                state.c.fg = defaultColorMap[7];  // Default foreground
+                state.c.bg = defaultColorMap[0];  // Default background
+                state.c.colorMode = COLOR_BASIC;
+                break;
+            case 1: state.c.attrs |= ATTR_BOLD; break;
+            case 2: state.c.attrs |= ATTR_FAINT; break;
+            case 3: state.c.attrs |= ATTR_ITALIC; break;
+            case 4: state.c.attrs |= ATTR_UNDERLINE; break;
+            case 5: state.c.attrs |= ATTR_BLINK; break;
+            case 7: state.c.attrs |= ATTR_REVERSE; break;
+            case 8: state.c.attrs |= ATTR_INVISIBLE; break;
+            case 9: state.c.attrs |= ATTR_STRUCK; break;
+            
+            case 22: state.c.attrs &= ~(ATTR_BOLD | ATTR_FAINT); break;
+            case 23: state.c.attrs &= ~ATTR_ITALIC; break;
+            case 24: state.c.attrs &= ~ATTR_UNDERLINE; break;
+            case 25: state.c.attrs &= ~ATTR_BLINK; break;
+            case 27: state.c.attrs &= ~ATTR_REVERSE; break;
+            case 28: state.c.attrs &= ~ATTR_INVISIBLE; break;
+            case 29: state.c.attrs &= ~ATTR_STRUCK; break;
+
+            // Foreground color
+            case 30 ... 37:
+                state.c.fg = defaultColorMap[attr - 30];
+                break;
+            case 38:
+                if (i + 2 < args.size()) {
+                    if (args[i + 1] == 5) { // 256 colors
+                        i += 2;
+                        state.c.colorMode = COLOR_256;
+                        if (args[i] < 16) {
+                            state.c.fg = defaultColorMap[args[i]];
+                        } else {
+                            // Convert 256 color to RGB
+                            uint8_t r = 0, g = 0, b = 0;
+                            if (args[i] < 232) { // 216 colors: 16-231
+                                uint8_t index = args[i] - 16;
+                                r = (index / 36) * 51;
+                                g = ((index / 6) % 6) * 51;
+                                b = (index % 6) * 51;
+                            } else { // Grayscale: 232-255
+                                r = g = b = (args[i] - 232) * 11;
+                            }
+                            state.c.fg = ImVec4(r/255.0f, g/255.0f, b/255.0f, 1.0f);
+                        }
+                    } else if (args[i + 1] == 2 && i + 4 < args.size()) { // RGB
+                        i += 4;
+                        state.c.colorMode = COLOR_TRUE;
+                        uint8_t r = args[i-2];
+                        uint8_t g = args[i-1];
+                        uint8_t b = args[i];
+                        state.c.fg = ImVec4(r/255.0f, g/255.0f, b/255.0f, 1.0f);
+                        state.c.trueColorFg = (r << 16) | (g << 8) | b;
+                    }
+                }
+                break;
+            case 39: // Default foreground
+                state.c.fg = defaultColorMap[7];
+                state.c.colorMode = COLOR_BASIC;
+                break;
+
+            // Background color
+            case 40 ... 47:
+                state.c.bg = defaultColorMap[attr - 40];
+                break;
+            case 48:
+                if (i + 2 < args.size()) {
+                    if (args[i + 1] == 5) { // 256 colors
+                        i += 2;
+                        if (args[i] < 16) {
+                            state.c.bg = defaultColorMap[args[i]];
+                        } else {
+                            // Convert 256 color to RGB
+                            uint8_t r = 0, g = 0, b = 0;
+                            if (args[i] < 232) { // 216 colors: 16-231
+                                uint8_t index = args[i] - 16;
+                                r = (index / 36) * 51;
+                                g = ((index / 6) % 6) * 51;
+                                b = (index % 6) * 51;
+                            } else { // Grayscale: 232-255
+                                r = g = b = (args[i] - 232) * 11;
+                            }
+                            state.c.bg = ImVec4(r/255.0f, g/255.0f, b/255.0f, 1.0f);
+                        }
+                    } else if (args[i + 1] == 2 && i + 4 < args.size()) { // RGB
+                        i += 4;
+                        uint8_t r = args[i-2];
+                        uint8_t g = args[i-1];
+                        uint8_t b = args[i];
+                        state.c.bg = ImVec4(r/255.0f, g/255.0f, b/255.0f, 1.0f);
+                        state.c.trueColorBg = (r << 16) | (g << 8) | b;
+                    }
+                }
+                break;
+            case 49: // Default background
+                state.c.bg = defaultColorMap[0];
+                break;
+
+            // Bright foreground colors
+            case 90 ... 97:
+                state.c.fg = defaultColorMap[(attr - 90) + 8];
+                break;
+
+            // Bright background colors
+            case 100 ... 107:
+                state.c.bg = defaultColorMap[(attr - 100) + 8];
+                break;
+        }
+    }
+}
+
+
+void Terminal::writeGlyph(const Glyph& g, int x, int y) {
+    if (x >= state.col || y >= state.row || x < 0 || y < 0) return;
+
+    Glyph& cell = state.lines[y][x];
+    cell = g;
+    cell.mode = g.mode | state.c.attrs;
+    cell.colorMode = state.c.colorMode;
+    
+ 
+
+    if (cell.mode & ATTR_REVERSE) {
+        cell.fg = state.c.bg;
+        cell.bg = state.c.fg;
+        cell.trueColorFg = state.c.trueColorBg;
+        cell.trueColorBg = state.c.trueColorFg;
+    } else {
+        cell.fg = state.c.fg;
+        cell.bg = state.c.bg;
+        cell.trueColorFg = state.c.trueColorFg;
+        cell.trueColorBg = state.c.trueColorBg;
+    }
+
+    // Handle bold attribute affecting colors
+    if (cell.mode & ATTR_BOLD && cell.colorMode == COLOR_BASIC) {
+        // Make the color brighter for bold text
+        if (cell.trueColorFg < 0x8) {  // If using standard colors
+            cell.fg = defaultColorMap[cell.trueColorFg + 8];  // Use bright version
+        }
+    }
+
+    if (cell.mode & ATTR_WIDE && x + 1 < state.col) {
+        Glyph& nextCell = state.lines[y][x + 1];
+        nextCell.u = ' ';
+        nextCell.mode = ATTR_WDUMMY;
+        nextCell.fg = cell.fg;
+        nextCell.bg = cell.bg;
+        nextCell.colorMode = cell.colorMode;
+        nextCell.trueColorFg = cell.trueColorFg;
+        nextCell.trueColorBg = cell.trueColorBg;
+    }
+
+    state.dirty[y] = true;
+}
+void Terminal::handleEscape(char c) {
+    switch(c) {
+        case '7': // Save cursor position
+            cursorSave();
+            break;
+        case '8': // Restore cursor position
+            cursorLoad();
+            break;
+        case 'D': // IND - Index (move down and scroll if at bottom)
+            if (state.c.y == state.bot) {
+                scrollUp(state.top, 1);
+            } else {
+                state.c.y++;
+            }
+            break;
+        case 'E': // NEL - Next Line
+            state.c.x = 0;
+            if (state.c.y == state.bot) {
+                scrollUp(state.top, 1);
+            } else {
+                state.c.y++;
+            }
+            break;
+        case 'H': // HTS - Horizontal Tab Set
+            state.tabs[state.c.x] = true;
+            break;
+        case 'M': // RI - Reverse Index (move up and scroll if at top)
+            if (state.c.y == state.top) {
+                scrollDown(state.top, 1);
+            } else {
+                state.c.y--;
+            }
+            break;
+       
+        case '(': // G0 Character Set
+        case ')': // G1 Character Set
+        case '*': // G2 Character Set
+        case '+': // G3 Character Set
+            handleCharset(c);
+            break;
+
+        case 'n': // LS2 -- Locking shift 2
+        case 'o': // LS3 -- Locking shift 3
+            state.charset = 2 + (c - 'n');
+            break;
+
+        case 'A': // UK
+            state.trantbl[state.charset] = CS_UK;
+            break;
+        case 'B': // US
+            state.trantbl[state.charset] = CS_USA;
+            break;
+        case '0': // Special Graphics (Line Drawing)
+            state.trantbl[state.charset] = CS_GRAPHIC0;
+            break;
+        case 'Z': // Device Control String (DCS)
+            // Respond with terminal identification
+            processInput("\033[?1;2c");
+            break;
+
+        case '~': // Keypad state
+            // You can implement keypad mode handling here
+            break;
+
+        case 'c': // Full Reset
+            reset();
+            break;
+    }
+}
+size_t Terminal::utf8Encode(Rune u, char* c) {
+    size_t len = 0;
+    
+    if (u < 0x80) {
+        c[0] = u;
+        len = 1;
+    }
+    else if (u < 0x800) {
+        c[0] = 0xC0 | (u >> 6);
+        c[1] = 0x80 | (u & 0x3F);
+        len = 2;
+    }
+    else if (u < 0x10000) {
+        c[0] = 0xE0 | (u >> 12);
+        c[1] = 0x80 | ((u >> 6) & 0x3F);
+        c[2] = 0x80 | (u & 0x3F);
+        len = 3;
+    }
+    else {
+        c[0] = 0xF0 | (u >> 18);
+        c[1] = 0x80 | ((u >> 12) & 0x3F);
+        c[2] = 0x80 | ((u >> 6) & 0x3F);
+        c[3] = 0x80 | (u & 0x3F);
+        len = 4;
+    }
+    
+    return len;
+}
+
+
+
+void Terminal::reset() {
+    // Reset terminal to initial state
+    state.mode = MODE_WRAP | MODE_UTF8;
+    state.c = {}; // Reset cursor
+    state.charset = 0;
+    
+    // Reset character set translation table
+    for (int i = 0; i < 4; i++) {
+        state.trantbl[i] = CS_USA;
+    }
+
+    // Clear screen and reset color/attributes
+    clearRegion(0, 0, state.col - 1, state.row - 1);
+    state.c.fg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    state.c.bg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+
+void Terminal::clearRegion(int x1, int y1, int x2, int y2) {
+    int temp;
+    if (x1 > x2) {
+        temp = x1;
+        x1 = x2;
+        x2 = temp;
+    }
+    if (y1 > y2) {
+        temp = y1;
+        y1 = y2;
+        y2 = temp;
+    }
+
+    // Constrain to terminal size
+    x1 = std::max(0, std::min(x1, state.col - 1));
+    x2 = std::max(0, std::min(x2, state.col - 1));
+    y1 = std::max(0, std::min(y1, state.row - 1));
+    y2 = std::max(0, std::min(y2, state.row - 1));
+
+    // Clear the cells
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            Glyph& g = state.lines[y][x];
+            g.u = ' ';
+            g.mode = state.c.attrs;
+            g.fg = state.c.fg;
+            g.bg = state.c.bg;
+        }
+        state.dirty[y] = true;
+    }
+}
+
+void Terminal::moveTo(int x, int y) {
+    int miny, maxy;
+
+    // Get scroll region bounds
+    if (state.c.state & CURSOR_ORIGIN) {
+        miny = state.top;
+        maxy = state.bot;
+    } else {
+        miny = 0;
+        maxy = state.row - 1;
+    }
+
+    int oldx = state.c.x;
+    int oldy = state.c.y;
+
+    // Constrain cursor position
+    state.c.x = LIMIT(x, 0, state.col - 1);
+    state.c.y = LIMIT(y, miny, maxy);
+
+    // Reset wrap flag if moved
+    if (oldx != state.c.x || oldy != state.c.y)
+        state.c.state &= ~CURSOR_WRAPNEXT;
+}
+void Terminal::scrollUp(int orig, int n) {
+    if (orig < 0 || orig >= state.row) return;  // Safety check
+    if (n <= 0) return;
+    
+    // Ensure n doesn't overflow
+    n = std::min(n, state.bot - orig + 1);
+    n = std::max(n, 0);  // Make sure n is not negative
+
+    // Protect against out-of-bounds access
+    if (orig + n > state.row) return;
+
+    // Mark lines as dirty
+    for (int i = orig; i <= state.bot && i < state.row; i++) {
+        state.dirty[i] = true;
+    }
+
+    // Move lines up with bounds checking
+    for (int i = orig; i <= state.bot - n && i + n < state.row; i++) {
+        state.lines[i] = std::move(state.lines[i + n]);
+    }
+
+    // Clear revealed lines
+    for (int i = state.bot - n + 1; i <= state.bot && i < state.row; i++) {
+        state.lines[i].resize(state.col);
+        for (int j = 0; j < state.col; j++) {
+            Glyph& g = state.lines[i][j];
+            g.u = ' ';
+            g.mode = state.c.attrs;
+            g.fg = state.c.fg;
+            g.bg = state.c.bg;
+        }
+    }
+}
+
+void Terminal::scrollDown(int orig, int n) {
+    if (orig < 0 || orig >= state.row) return;  // Safety check
+    if (n <= 0) return;
+
+    n = std::min(n, state.bot - orig + 1);
+    n = std::max(n, 0);
+
+    if (orig + n > state.row) return;
+
+    // Mark lines as dirty
+    for (int i = orig; i <= state.bot && i < state.row; i++) {
+        state.dirty[i] = true;
+    }
+
+    // Move lines down with bounds checking
+    for (int i = state.bot; i >= orig + n && i < state.row; i--) {
+        state.lines[i] = std::move(state.lines[i - n]);
+    }
+
+    // Clear new lines
+    for (int i = orig; i < orig + n && i < state.row; i++) {
+        state.lines[i].resize(state.col);
+        for (int j = 0; j < state.col; j++) {
+            Glyph& g = state.lines[i][j];
+            g.u = ' ';
+            g.mode = state.c.attrs;
+            g.fg = state.c.fg;
+            g.bg = state.c.bg;
+        }
+    }
+}
+void Terminal::mapGraphicCharset(Rune& u) {
+    static const struct {
+        Rune from;
+        const char* to;
+    } graphicMap[] = {
+        {0x6a, "┘"},  // j - lower right corner
+        {0x6b, "┐"},  // k - upper right corner
+        {0x6c, "┌"},  // l - upper left corner
+        {0x6d, "└"},  // m - lower left corner
+        {0x6e, "┼"},  // n - crossing lines
+        {0x71, "─"},  // q - horizontal line
+        {0x74, "├"},  // t - left tee
+        {0x75, "┤"},  // u - right tee
+        {0x76, "┴"},  // v - bottom tee
+        {0x77, "┬"},  // w - top tee
+        {0x78, "│"},  // x - vertical line
+    };
+
+    if (state.trantbl[state.charset] == CS_GRAPHIC0) {
+        for (const auto& map : graphicMap) {
+            if (u == map.from) {
+                utf8Decode(map.to, &u, UTF_SIZ);
+                break;
+            }
+        }
+    }
+}
+
+
+size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
+    size_t i, j, len, type;
+    Rune udecoded;
+
+    *u = 0xFFFD; // Default to invalid character
+    if (!clen)
+        return 0;
+
+    udecoded = utf8decodebyte(c[0], &len);
+    if (!BETWEEN(len, 1, 4))
+        return 1;
+
+    for (i = 1, j = 1; i < clen && j < len; ++i, ++j) {
+        udecoded = (udecoded << 6) | utf8decodebyte(c[i], &type);
+        if (type != 0)
+            return j;
+    }
+
+    if (j < len)
+        return 0;
+
+    *u = udecoded;
+    utf8validate(u, len);
+
+    return len;
+}
+
+void Terminal::handleGraphicCharset(Rune& u) {
+    static const std::unordered_map<Rune, const char*> extendedGraphicMappings = {
+        {0x6a, "▘"}, // lower-right corner
+        {0x6b, "▝"}, // lower-left corner
+        // Add more comprehensive mappings
+    };
+
+    if (state.trantbl[state.charset] == CS_GRAPHIC0) {
+        auto it = extendedGraphicMappings.find(u);
+        if (it != extendedGraphicMappings.end()) {
+            utf8Decode(it->second, &u, UTF_SIZ);
+        }
+    }
+}
+
+void Terminal::handleCharset(char c) {
+    // VT100 character set mapping
+    static const Charset charsetMap[] = {
+        CS_USA,    // '('
+        CS_UK,     // ')'
+        CS_MULTI, // '*'
+        CS_GER    // '+'
+    };
+
+    int index = c - '(';
+    if (index >= 0 && index < 4) {
+        state.trantbl[state.charset] = charsetMap[index];
+    }
+}
+
+
+
+Terminal::Rune Terminal::utf8decodebyte(char c, size_t* i) {
+    for (*i = 0; *i < 4; ++(*i))
+        if ((unsigned char)c >= utfmask[*i] && (unsigned char)c < utfmask[*i + 1])
+            return (unsigned char)c & ~utfmask[*i];
+
+    return 0;
+}
+
+size_t Terminal::utf8validate(Rune* u, size_t i) {
+    if (!BETWEEN(*u, utfmin[i], utfmax[i]) || BETWEEN(*u, 0xD800, 0xDFFF))
+        *u = 0xFFFD;
+    for (i = 1; *u > utfmax[i]; ++i)
+        ;
+    return i;
+}
+
+
+void Terminal::handleDeviceStatusReport(const CSIEscape& csi) {
+    switch (csi.args[0]) {
+        case 5: // Operation Status Report
+            processInput("\033[0n"); // OK
+            break;
+        case 6: // Cursor Position Report
+            {
+                char report[32];
+                snprintf(report, sizeof(report), "\033[%d;%dR", 
+                         state.c.y + 1, state.c.x + 1);
+                processInput(report);
+            }
+            break;
+        // Add more report types
+    }
+}
+
+void Terminal::ringBell() {
+    // Implement visual bell
+    if (state.mode & MODE_VISUALBELL) {
+        // Briefly invert screen colors
+        for (auto& line : state.lines) {
+            for (auto& glyph : line) {
+                std::swap(glyph.fg, glyph.bg);
+            }
+        }
+        // Schedule screen restoration
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            for (auto& line : state.lines) {
+                for (auto& glyph : line) {
+                    std::swap(glyph.fg, glyph.bg);
+                }
+            }
+        }).detach();
+    } else {
+        // System bell or audio bell
+        // Implement platform-specific bell
+    }
+}
+
+void Terminal::resize(int cols, int rows) {
+    // Preserve existing content during resize
+    std::vector<std::vector<Glyph>> oldLines = std::move(state.lines);
+    
+    // Resize terminal
+    state.row = rows;
+    state.col = cols;
+    state.bot = rows - 1;
+    
+    // Reinitialize buffers
+    state.lines.resize(rows, std::vector<Glyph>(cols));
+    state.altLines.resize(rows, std::vector<Glyph>(cols));
+    state.dirty.resize(rows, true);
+    state.tabs.resize(cols, false);
+    
+    // Copy preserved content
+    int minRows = std::min(rows, static_cast<int>(oldLines.size()));
+    int minCols = std::min(cols, static_cast<int>(oldLines[0].size()));
+    
+    for (int y = 0; y < minRows; y++) {
+        for (int x = 0; x < minCols; x++) {
+            state.lines[y][x] = oldLines[y][x];
+        }
+    }
+    
+    // Update PTY window size
+    struct winsize ws = {};
+    ws.ws_row = rows;
+    ws.ws_col = cols;
+    ioctl(ptyFd, TIOCSWINSZ, &ws);
+}
+
+
+
+void Terminal::enableBracketedPaste() {
+    // Send bracketed paste mode start sequence
+    processInput("\033[?2004h");
+    state.mode |= MODE_BRACKETPASTE;
+}
+
+
+void Terminal::disableBracketedPaste() {
+    // Send bracketed paste mode end sequence
+    processInput("\033[?2004l");
+    state.mode &= ~MODE_BRACKETPASTE;
+}
+
+void Terminal::handlePastedContent(const std::string& content) {
+    if (state.mode & MODE_BRACKETPASTE) {
+        processInput("\033[200~"); // Start of paste
+        processInput(content);
+        processInput("\033[201~"); // End of paste
+    } else {
+        processInput(content);
+    }
+}
+void Terminal::cursorSave() {
+    savedCursor = state.c;
+}
+
+void Terminal::cursorLoad() {
+    state.c = savedCursor;
+    moveTo(state.c.x, state.c.y);
+}
+
+
+void Terminal::handleControlCode(unsigned char c) {
+    switch(c) {
+        case '\t':   // HT - Horizontal Tab
+            tputtab(1);
+            break;
+        case '\b':   // BS - Backspace
+            if (state.c.x > 0) {
+                state.c.x--;
+                state.c.state &= ~CURSOR_WRAPNEXT;
+            }
+            break;
+        case '\r':   // CR - Carriage Return
+            state.c.x = 0;
+            state.c.state &= ~CURSOR_WRAPNEXT;
+            break;
+        case '\f':   // FF - Form Feed
+        case '\v':   // VT - Vertical Tab
+        case '\n':   // LF - Line Feed
+            if (state.c.y == state.bot)
+                scrollUp(state.top, 1);
+            else
+                state.c.y++;
+            if (state.mode & MODE_CRLF)
+                state.c.x = 0;
+            state.c.state &= ~CURSOR_WRAPNEXT;
+            break;
+        case '\a':   // BEL - Bell
+            ringBell();
+            break;
+        case 033:    // ESC - Escape
+            state.esc = ESC_START;
+            break;
+    }
+}
+void Terminal::processInput(const std::string& input) {
+    if (ptyFd >= 0) {
+        // Handle different types of input
+        if (input == "\r\n" || input == "\n") {
+            // Newline/Enter key
+            const char nl[] = "\r\n";
+            write(ptyFd, nl, sizeof(nl));
+        }
+        else if (input == "\b") {
+            // Backspace
+            const char bs[] = "\b \b";
+            write(ptyFd, bs, sizeof(bs));
+        }
+        else {
+            // Regular character input
+            write(ptyFd, input.c_str(), input.length());
+        }
+    }
+}
 void Terminal::readOutput() {
     char buffer[4096];
     while (!shouldTerminate) {
@@ -145,930 +1658,469 @@ void Terminal::readOutput() {
         }
     }
 }
-void Terminal::writeToBuffer(const char* data, size_t length) {
-    for (size_t i = 0; i < length; ++i) {
-        if (ansiState.inEscape) {
-            if (ansiState.inCSI) {
-                if (isalpha(data[i])) {
-                    ansiState.currentSequence += data[i];
-                    handleCSI(ansiState.currentSequence);
-                    ansiState.inEscape = false;
-                    ansiState.inCSI = false;
-                    ansiState.currentSequence.clear();
-                } else {
-                    ansiState.currentSequence += data[i];
-                }
-            } else if (data[i] == '[') {
-                ansiState.inCSI = true;
-                ansiState.currentSequence.clear();
-            } else if (data[i] == '(' || data[i] == ')') {
-                // Skip the next character (usually 'B' for ASCII charset)
-                ansiState.skipNext = true;
-                ansiState.inEscape = false;
-            } else {
-                ansiState.inEscape = false;
-            }
-            continue;
+void Terminal::tputtab(int n) {
+    uint x = state.c.x;
+
+    if (n > 0) {
+        while (x < state.col && n--) {
+            // Find next tab stop
+            do {
+                x++;
+            } while (x < state.col && !state.tabs[x]);
         }
-
-        if (ansiState.skipNext) {
-            ansiState.skipNext = false;
-            continue;
-        }
-
-        if (data[i] == '\033') {
-            ansiState.inEscape = true;
-            continue;
-        }
-
-        // Rest of the function stays the same
-        if (data[i] == '\x08') {
-            if (cursorX > 0) cursorX--;
-            continue;
-        }
-
-        if (data[i] >= 32) {
-            buffer[cursorY][cursorX].ch = data[i];
-            buffer[cursorY][cursorX].fg = ansiState.currentFg;
-            buffer[cursorY][cursorX].bg = ansiState.currentBg;
-            buffer[cursorY][cursorX].attrs = ansiState.currentAttrs;
-            cursorX++;
-            if (cursorX > lastLineLength) lastLineLength = cursorX;
-        } else {
-
-            processChar(data[i]);
+    } else if (n < 0) {
+        while (x > 0 && n++) {
+            // Find previous tab stop
+            do {
+                x--;
+            } while (x > 0 && !state.tabs[x]);
         }
     }
-    
-    if (autoScroll) needsScroll = true;
-}
-void Terminal::processChar(char32_t c) {
-    bool needScroll = false;
-    
-    if (c == '\r') {
-        cursorX = 0;
-        lastLineLength = 0;
-    } else if (c == '\n') {
-        cursorX = 0;
-        lastLineLength = 0;
-        cursorY++;
 
-        // If we're within the scroll region and hit the bottom
-        if (cursorY > scrollRegionBottom) {
-            
-            // Scroll within the defined scroll region
-            for (int y = scrollRegionTop; y < scrollRegionBottom; y++) {
-
-                buffer[y] = std::move(buffer[y + 1]);
-            }
-            buffer[scrollRegionBottom] = std::vector<Cell>(bufferWidth);
-            cursorY = scrollRegionBottom;
-        }
-        // Normal scrolling behavior if outside scroll region
-        else if (cursorY >= bufferHeight) {
-            // Only scroll if we're not within the last 2 lines of the buffer
-            if (cursorY > bufferHeight - 3) {
-                std::cerr << "out of scroll region currently" << std::endl;
-                scrollBuffer(1);
-                cursorY = bufferHeight - 1;
-                needScroll = true;
-            } else {
-                cursorY = bufferHeight - 1;
-            }
-        }
-        
-        // After newline, next output will be shell prompt
-        promptEndX = 0;
-        promptEndY = cursorY;
-    } else if (c == '\t') {
-        int newX = (cursorX + 8) & ~7;
-        if (newX >= bufferWidth) {
-            cursorX = 0;
-            lastLineLength = 0;
-            cursorY++;
-            if (cursorY >= bufferHeight) {
-                scrollBuffer(1);
-                cursorY = bufferHeight - 1;
-                needScroll = true;
-            }
-        } else {
-            cursorX = newX;
-            lastLineLength = std::max(lastLineLength, cursorX);
-        }
-        // Update prompt end position if we're still receiving shell output
-        if (!isTyping) {
-            promptEndX = cursorX;
-            promptEndY = cursorY;
-        }
-    } else if (c >= 32) {
-        if (cursorX >= bufferWidth) {
-            cursorX = 0;
-            lastLineLength = 0;
-            cursorY++;
-            if (cursorY >= bufferHeight) {
-                scrollBuffer(1);
-                cursorY = bufferHeight - 1;
-                needScroll = true;
-            }
-        }
-
-        buffer[cursorY][cursorX].ch = c;
-        buffer[cursorY][cursorX].fg = ansiState.currentFg;
-        buffer[cursorY][cursorX].bg = ansiState.currentBg;
-        buffer[cursorY][cursorX].attrs = ansiState.currentAttrs;
-        cursorX++;
-        lastLineLength = std::max(lastLineLength, cursorX);
-        
-        // Update prompt end position if we're still receiving shell output
-        if (!isTyping) {
-            promptEndX = cursorX;
-            promptEndY = cursorY;
-        }
-    }
-    
-    if (needScroll && autoScroll) {
-        needsScroll = true;
-    }
+    state.c.x = LIMIT(x, 0, state.col - 1);
 }
 
-ImVec4 Terminal::convert256ToRGB(int color) {
-    // Handle standard colors (0-15)
-    if (color < 16) {
-        bool bright = color > 7;
-        float intensity = bright ? 1.0f : 0.8f;
-        color = color % 8;
-        
-        switch (color) {
-            case 0: return ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  // Black
-            case 1: return ImVec4(intensity, 0.0f, 0.0f, 1.0f);  // Red
-            case 2: return ImVec4(0.0f, intensity, 0.0f, 1.0f);  // Green
-            case 3: return ImVec4(intensity, intensity, 0.0f, 1.0f);  // Yellow
-            case 4: return ImVec4(0.0f, 0.0f, intensity, 1.0f);  // Blue
-            case 5: return ImVec4(intensity, 0.0f, intensity, 1.0f);  // Magenta
-            case 6: return ImVec4(0.0f, intensity, intensity, 1.0f);  // Cyan
-            case 7: return ImVec4(intensity, intensity, intensity, 1.0f);  // White
-        }
-    }
-    
-    // Handle 216 colors (16-231)
-    if (color < 232) {
-        int adjusted = color - 16;
-        float r = (adjusted / 36) * (1.0f / 5.0f);
-        float g = ((adjusted / 6) % 6) * (1.0f / 5.0f);
-        float b = (adjusted % 6) * (1.0f / 5.0f);
-        return ImVec4(r, g, b, 1.0f);
-    }
-    
-    // Handle grayscale (232-255)
-    float gray = (color - 232) * (1.0f / 23.0f);
-    return ImVec4(gray, gray, gray, 1.0f);
-}
-void Terminal::scrollBuffer(int lines) {
 
-    if (lines <= 0) return;
-    // Add the top lines to history before scrolling
-    for (int i = 0; i < lines && i < bufferHeight; i++) {
-        historyBuffer.push_back(buffer[i]);
-        if (historyBuffer.size() > maxHistoryLines) {
-            historyBuffer.erase(historyBuffer.begin());
-        }
-    }
-
-    // Move lines up in the visible buffer
-    for (int y = 0; y < bufferHeight - lines; y++) {
-        buffer[y] = std::move(buffer[y + lines]);
-    }
-
-    // Clear new lines at bottom
-    for (int y = bufferHeight - lines; y < bufferHeight; y++) {
-        buffer[y] = std::vector<Cell>(bufferWidth);
-    }
-
-    // Update scroll position if auto-scroll is enabled
-    if (autoScroll) {
-        scrollPosition = maxScrollPosition;
-    }
-}
-void Terminal::handleCSI(const std::string& seq) {
+void Terminal::processStringSequence(const std::string& seq) {
+    // Handle different types of string sequences
     if (seq.empty()) return;
-    
-    std::cerr << "Received CSI sequence: '" << seq << "'" << std::endl;
-    
-    char cmd = seq.back();
-    std::vector<int> params;
-    
-    // Extract numeric parameters
-    std::string numStr;
-    bool isPrivateMode = false;
-    
-    for (size_t i = 0; i < seq.length() - 1; i++) {
-        if (i == 0 && seq[i] == '?') {
-            isPrivateMode = true;
-            continue;
-        }
-        if (isdigit(seq[i])) {
-            numStr += seq[i];
-        } else if (seq[i] == ';') {
-            params.push_back(numStr.empty() ? 0 : std::stoi(numStr));
-            numStr.clear();
+
+    switch (seq[0]) {
+        case ']':  // OSC - Operating System Command
+            handleOSCSequence(seq);
+            break;
+        case 'P':  // DCS - Device Control String
+            handleDCSSequence(seq);
+            break;
+        // Add handling for other sequence types
+    }
+}
+
+void Terminal::handleOSCSequence(const std::string& seq) {
+    // Example: Handle title setting
+    if (seq.substr(0, 2) == "]0;" || seq.substr(0, 2) == "]2;") {
+        // Extract title
+        size_t titleEnd = seq.find('\007');
+        if (titleEnd != std::string::npos) {
+            std::string title = seq.substr(2, titleEnd - 2);
+            // TODO: Set window title
+            std::cout << "Window Title: " << title << std::endl;
         }
     }
-    if (!numStr.empty()) {
-        params.push_back(std::stoi(numStr));
-    }
-    if (isPrivateMode) {
-        switch (cmd) {
-            case 'l': // Disable mode
-                if (!params.empty()) {
-                    std::cerr << "Private mode handler: " << params[0] << ", cmd: " << cmd << std::endl;
-                    // Add your custom handling here
-                }
-                return;
-        }
+}
+
+void Terminal::handleDCSSequence(const std::string& seq) {
+    // Placeholder for Device Control String handling
+    // This can include things like terminal reports, device-specific commands
+}
+
+
+void Terminal::selectionInit() {
+    sel.mode = SEL_IDLE;
+    sel.snap = 0;
+    sel.ob.x = -1;
+}
+
+void Terminal::selectionStart(int col, int row) {
+    selectionClear();
+    sel.mode = SEL_EMPTY;
+    sel.type = SEL_REGULAR;
+    sel.alt = state.mode & MODE_ALTSCREEN;
+    sel.snap = 0;
+    sel.oe.x = sel.ob.x = col;
+    sel.oe.y = sel.ob.y = row;
+    selectionNormalize();
+
+    if (sel.snap != 0)
+        sel.mode = SEL_READY;
+}
+
+void Terminal::selectionExtend(int col, int row) {
+    if (sel.mode == SEL_IDLE)
         return;
+    if (sel.mode == SEL_EMPTY) {
+        sel.mode = SEL_SELECTING;
     }
-    switch (cmd) {
-        case 'r': // Set scrolling region
-            if (params.size() >= 2) {
-                std::cerr << "Scroll region before: " << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
- 
-                int top = std::max(0, params[0] - 1);
-                int bottom = std::min(bufferHeight - 1, params[1] - 1);
-                
-                std::cerr << "Received scroll region command: Top=" << top << ", Bottom=" << bottom << std::endl;
-                
-                // Update the scroll region based on Vim's request, but clamp to the buffer height
-                scrollRegionTop = top;
-                scrollRegionBottom = bottom;
-                std::cerr << "Scroll region after: " << scrollRegionTop << "-" << scrollRegionBottom << std::endl;
 
-            }
-            break;
-        
-        case 'H': // Cursor Position
-            if (params.size() >= 2) {
-                int row = params[0] - 1;
-                int col = params[1] - 1;
-                
-                std::cerr << "Received cursor position command: Row=" << row << ", Col=" << col << std::endl;
-                
-                // Update the cursor position based on Vim's request, but clamp to the buffer dimensions
-                setCursorPos(col, row);
-            }
-            break;
-        case 'f': 
-            if (params.size() >= 2) {
-                setCursorPos(params[1] - 1, params[0] - 1);
-            } else {
-                setCursorPos(0, 0);
-            }
-            break;
-            
-        case 'A': // Cursor Up
-            cursorY = std::max(0, cursorY - (params.empty() ? 1 : params[0]));
-            break;
-            
-        case 'B': // Cursor Down
-            cursorY = std::min(bufferHeight - 1, cursorY + (params.empty() ? 1 : params[0]));
-            break;
-        case 'c': // Reset terminal
-            if (seq[0] == '>') {  // Device Attributes request
-                std::cerr << "Device attributes request - preserving state" << std::endl;
-            } else {
-                std::cerr << "Full terminal reset requested" << std::endl;
-                ansiState = {};
-                clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
-                cursorX = cursorY = 0;
-                scrollRegionTop = 0;
-                scrollRegionBottom = bufferHeight - 1;
-            }
-            break;
-        case 'C': // Cursor Forward
-            cursorX = std::min(bufferWidth - 1, cursorX + (params.empty() ? 1 : params[0]));
-            break;
-            
-        case 'D': // Cursor Back
-            cursorX = std::max(0, cursorX - (params.empty() ? 1 : params[0]));
-            break;
-            
-        case 'G': // Cursor horizontal absolute
-            if (!params.empty()) {
-                cursorX = std::min(bufferWidth - 1, std::max(0, params[0] - 1));
-            } else {
-                cursorX = 0;
-            }
-            break;
-            
-
-        case 'J': // Erase in Display
-            
-            if (params.empty() || params[0] == 2) {
-                clearRange(0, 0, bufferWidth - 1, bufferHeight - 1);
-                cursorX = 0;
-                cursorY = 0;
-            } else if (params[0] == 0) {
-                // Clear from cursor to end of screen
-                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
-                for (int y = cursorY + 1; y < bufferHeight; y++) {
-                    clearRange(0, y, bufferWidth - 1, y);
-                }
-            } else if (params[0] == 1) {
-                // Clear from beginning of screen to cursor
-                for (int y = 0; y < cursorY; y++) {
-                    clearRange(0, y, bufferWidth - 1, y);
-                }
-                clearRange(0, cursorY, cursorX, cursorY);
-            }
-            break;
-
-        case 'K': // Erase in Line
-            if (params.empty() || params[0] == 0) {
-                std::cerr << "Clear line at Y=" << cursorY << " mode=0" << std::endl;
-                clearRange(cursorX, cursorY, bufferWidth - 1, cursorY);
-            } else if (params[0] == 1) {
-                std::cerr << "Clear line at Y=" << cursorY << " mode=1" << std::endl;
-                clearRange(0, cursorY, cursorX, cursorY);
-            } else if (params[0] == 2) {
-                std::cerr << "Clear line at Y=" << cursorY << " mode=2" << std::endl;
-                clearRange(0, cursorY, bufferWidth - 1, cursorY);
-            }
-            break;
-
-        case 'S': // Scroll up
-            if (params.empty()) params = {1};
-            {
-                int count = params[0];
-                for (int y = 0; y < bufferHeight - count; y++) {
-                    buffer[y] = std::move(buffer[y + count]);
-                }
-                for (int y = bufferHeight - count; y < bufferHeight; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
-                }
-            }
-            break;
-
-        case 'T': // Scroll down
-            if (params.empty()) params = {1};
-            {
-                int count = params[0];
-                for (int y = bufferHeight - 1; y >= count; y--) {
-                    buffer[y] = std::move(buffer[y - count]);
-                }
-                for (int y = 0; y < count; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
-                }
-            }
-            break;
-
-        case 'P': // Delete characters
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = params[0];
-                for (int x = cursorX; x < bufferWidth - count; x++) {
-                    buffer[cursorY][x] = buffer[cursorY][x + count];
-                }
-                for (int x = bufferWidth - count; x < bufferWidth; x++) {
-                    buffer[cursorY][x] = Cell{};
-                }
-            }
-            break;
-
-        case '@': // Insert characters
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = params[0];
-                for (int x = bufferWidth - 1; x >= cursorX + count; x--) {
-                    buffer[cursorY][x] = buffer[cursorY][x - count];
-                }
-                for (int x = cursorX; x < cursorX + count && x < bufferWidth; x++) {
-                    buffer[cursorY][x] = Cell{};
-                }
-            }
-            break;
-
-        case 'L': // Insert lines
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = std::min(params[0], bufferHeight - cursorY);
-                for (int y = bufferHeight - 1; y >= cursorY + count; y--) {
-                    buffer[y] = buffer[y - count];
-                }
-                for (int y = cursorY; y < cursorY + count; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
-                }
-            }
-            break;
-
-        case 'M': // Delete lines
-            if (params.empty() || params[0] == 0) params = {1};
-            {
-                int count = std::min(params[0], bufferHeight - cursorY);
-                for (int y = cursorY; y < bufferHeight - count; y++) {
-                    buffer[y] = buffer[y + count];
-                }
-                for (int y = bufferHeight - count; y < bufferHeight; y++) {
-                    buffer[y] = std::vector<Cell>(bufferWidth);
-                }
-            }
-            break;
-
-            
-        case 'u': // Restore cursor position
-            cursorX = savedCursorX;
-            cursorY = savedCursorY;
-            break;
-
-
-            
-        case 'm': // SGR (Select Graphic Rendition)
-            if (params.empty() || params[0] == 0) {
-                ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // Reset to white
-                ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);  // Reset to transparent black
-                ansiState.currentAttrs = 0;
-                break;
-            }
-            for (size_t i = 0; i < params.size(); i++) {
-                int param = params[i];
-                switch (param) {
-                    case 0:  // Reset all
-                        ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-                        ansiState.currentAttrs = 0;
-                        break;
-                    case 1: ansiState.currentAttrs |= 1; break;  // Bold
-                    case 2: ansiState.currentAttrs |= 2; break;  // Dim
-                    case 3: ansiState.currentAttrs |= 4; break;  // Italic
-                    case 4: ansiState.currentAttrs |= 8; break;  // Underline
-                    
-                    // Standard colors (30-37)
-                    case 30: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
-                    case 31: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
-                    case 32: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
-                    case 33: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
-                    case 34: ansiState.currentFg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
-                    case 35: ansiState.currentFg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
-                    case 36: ansiState.currentFg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
-                    case 37: ansiState.currentFg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
-
-                    // Bright colors (90-97)
-                    case 90: ansiState.currentFg = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); break;     // Bright Black
-                    case 91: ansiState.currentFg = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;     // Bright Red
-                    case 92: ansiState.currentFg = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Green
-                    case 93: ansiState.currentFg = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;     // Bright Yellow
-                    case 94: ansiState.currentFg = ImVec4(0.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Blue
-                    case 95: ansiState.currentFg = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); break;     // Bright Magenta
-                    case 96: ansiState.currentFg = ImVec4(0.0f, 1.0f, 1.0f, 1.0f); break;     // Bright Cyan
-                    case 97: ansiState.currentFg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;     // Bright White
-
-                    // Background colors (40-47)
-                    case 40: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); break;     // Black
-                    case 41: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.0f, 1.0f); break;     // Red
-                    case 42: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.0f, 1.0f); break;     // Green
-                    case 43: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.0f, 1.0f); break;     // Yellow
-                    case 44: ansiState.currentBg = ImVec4(0.0f, 0.0f, 0.8f, 1.0f); break;     // Blue
-                    case 45: ansiState.currentBg = ImVec4(0.8f, 0.0f, 0.8f, 1.0f); break;     // Magenta
-                    case 46: ansiState.currentBg = ImVec4(0.0f, 0.8f, 0.8f, 1.0f); break;     // Cyan
-                    case 47: ansiState.currentBg = ImVec4(0.8f, 0.8f, 0.8f, 1.0f); break;     // White
-
-                    // 256 color support
-                    case 38: // Foreground
-                        if (i + 2 < params.size() && params[i + 1] == 5) {
-                            int color = params[i + 2];
-                            ansiState.currentFg = convert256ToRGB(color);
-                            i += 2; // Skip the next two parameters
-                        }
-                        break;
-                    case 48: // Background
-                        if (i + 2 < params.size() && params[i + 1] == 5) {
-                            int color = params[i + 2];
-                            ansiState.currentBg = convert256ToRGB(color);
-                            i += 2; // Skip the next two parameters
-                        }
-                        break;
-                }
-            }
-            break;
-    }
-    
+    sel.oe.x = col;
+    sel.oe.y = row;
+    selectionNormalize();
 }
 
-void Terminal::handleEscapeSequence() {
-    ansiState.inEscape = false;
-    ansiState.currentSequence.clear();
-}
-
-void Terminal::setCursorPos(int x, int y) {
-    cursorX = std::max(0, std::min(x, bufferWidth - 1));
-    cursorY = std::max(0, std::min(y, bufferHeight - 1));
-}
-
-void Terminal::clearRange(int startX, int startY, int endX, int endY) {
-    for (int y = startY; y <= endY; y++) {
-        for (int x = (y == startY ? startX : 0); 
-             x <= (y == endY ? endX : bufferWidth - 1); x++) {
-            buffer[y][x] = Cell{};
-        }
-    }
-}
-void Terminal::processInput(const std::string& input) {
-    if (ptyFd >= 0) {
-        // Debug PTY state before write
-        struct stat statbuf;
-        int fstat_result = fstat(ptyFd, &statbuf);
-
-        // Also check PTY state
-        int error = 0;
-        socklen_t len = sizeof(error);
-        int retval = getsockopt(ptyFd, SOL_SOCKET, SO_ERROR, &error, &len);
-
-        // Check if child process is still alive
-        int status;
-        pid_t result = waitpid(childPid, &status, WNOHANG);
-        
-
-        int promptLen = 0;
-        for (int x = 0; x < bufferWidth; x++) {
-            if (buffer[cursorY][x].ch == '$' || buffer[cursorY][x].ch == '#' || buffer[cursorY][x].ch == '>') {
-                promptLen = x + 2;
-                break;
-            }
-        }
-        if (input == "\t") { // tab completions
-            write(ptyFd, "\t", 1);  
-            return;
-        }
-        if (input == "\x7f" && cursorX > promptLen) { // Backspace
-            // Shift buffer left
-            for (int x = cursorX - 1; x < lastLineLength - 1; x++) {
-                buffer[cursorY][x] = buffer[cursorY][x + 1];
-            }
-            buffer[cursorY][lastLineLength - 1] = Cell{};
-            lastLineLength--;
-        }
-        if (cursorX >= promptLen || input == "\r\n") {
-            ssize_t bytes = write(ptyFd, input.c_str(), input.length());
-            
-        }else{
-            ssize_t bytes = write(ptyFd, input.c_str(), input.length());
-        }
-        isTyping = true;
-        typeIdleTime = 0.0f;
-        
-        if (autoScroll) {
-            needsScroll = true;
-        }
+void Terminal::selectionNormalize() {
+    if (sel.type == SEL_REGULAR && sel.ob.y != sel.oe.y) {
+        sel.nb.x = sel.ob.y < sel.oe.y ? sel.ob.x : sel.oe.x;
+        sel.ne.x = sel.ob.y < sel.oe.y ? sel.oe.x : sel.ob.x;
     } else {
-        std::cerr << "PTY not open (fd < 0)" << std::endl;
+        sel.nb.x = std::min(sel.ob.x, sel.oe.x);
+        sel.ne.x = std::max(sel.ob.x, sel.oe.x);
     }
-}
-void Terminal::toggleVisibility() { 
-    isVisible = !isVisible; 
-    if (isVisible) {
-        needsFocus = true;
-    }
+    sel.nb.y = std::min(sel.ob.y, sel.oe.y);
+    sel.ne.y = std::max(sel.ob.y, sel.oe.y);
 }
 
-
-void Terminal::updateTerminalSize() {
-    if (ptyFd >= 0) {
-        struct winsize ws = {};
-        ws.ws_row = bufferHeight;
-        ws.ws_col = bufferWidth;
-        
-        std::cerr << "Setting terminal size: " << ws.ws_row << "x" << ws.ws_col << std::endl;
-        if (ioctl(ptyFd, TIOCSWINSZ, &ws) < 0) {
-            std::cerr << "Failed to set terminal size: " << strerror(errno) << std::endl;
-        }
-    }
-}
-void Terminal::render() {
-    if (!isVisible) return;
-    
-    if (!shellStarted) {
-        startShell();
-    }
-    float deltaTime = ImGui::GetIO().DeltaTime;
-    if (isTyping) {
-        typeIdleTime += deltaTime;
-        if (typeIdleTime >= TYPE_TIMEOUT) {
-            isTyping = false;
-            typeIdleTime = 0.0f;
-        }
-    }
-
-
-    // Create main window
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-    if (!ImGui::Begin("Terminal", nullptr, 
-        ImGuiWindowFlags_NoDecoration | 
-        ImGuiWindowFlags_NoMove | 
-        ImGuiWindowFlags_NoResize)) {
-        ImGui::End();
+void Terminal::selectionClear() {
+    if (sel.ob.x == -1)
         return;
-    }
+    sel.mode = SEL_IDLE;
+    sel.ob.x = -1;
+}
 
-    // Create scrollable content area
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
-    if (needsFocus) {
-        ImGui::SetNextWindowFocus();
-    }
-    ImGui::BeginChild("TerminalContent", ImGui::GetContentRegionAvail(), true);
-    if (needsScroll) {
-        float windowHeight = ImGui::GetContentRegionAvail().y;
-        float lineHeight = ImGui::GetTextLineHeight();
-        int visibleLines = static_cast<int>(windowHeight / lineHeight);
-        int totalLines = historyBuffer.size() + bufferHeight;
-        maxScrollPosition = std::max(0.0f, static_cast<float>(totalLines - visibleLines));
-        scrollPosition = maxScrollPosition;
-        needsScroll = false;
-    }
-    // Handle scrolling
-    if (ImGui::IsWindowHovered()) {
-        float wheel = ImGui::GetIO().MouseWheel;
-        if (wheel != 0) {
-            // Only change autoScroll if we're not typing
-            if (!isTyping) {
-                // Disable auto-scroll when scrolling up
-                if (wheel > 0) {
-                    autoScroll = false;
-                }
-                
-                // Update scroll position
-                scrollPosition -= wheel * 3.0f;  // 3 lines per scroll tick
-                
-                // Calculate max scroll position
-                float windowHeight = ImGui::GetContentRegionAvail().y;
-                float lineHeight = ImGui::GetTextLineHeight();
-                int visibleLines = static_cast<int>(windowHeight / lineHeight);
-                int totalLines = historyBuffer.size() + bufferHeight;
-                maxScrollPosition = std::max(0.0f, 
-                    static_cast<float>(totalLines - visibleLines));
-                
-                // Clamp scroll position
-                scrollPosition = std::max(0.0f, 
-                    std::min(scrollPosition, maxScrollPosition));
-                
-                // Re-enable auto-scroll if we scroll to bottom
-                if (scrollPosition >= maxScrollPosition) {
-                    autoScroll = true;
-                }
-            }
-        }
-    }
-
-    float maxScrollY = std::max(0.0f, bufferHeight * ImGui::GetTextLineHeight() - ImGui::GetWindowHeight());
-    ImGui::SetScrollY(std::max(0.0f, std::min(ImGui::GetScrollY(), maxScrollY)));
-
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
-    float lineHeight = ImGui::GetTextLineHeight();
-
-    // Handle mouse selection
-    if (ImGui::IsWindowHovered()) {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            ImVec2 mousePos = ImGui::GetMousePos();
-            int termX, termY;
-            screenToTerminal(mousePos, pos, charWidth, lineHeight, &termX, &termY);
-            selection.startX = selection.endX = termX;
-            selection.startY = selection.endY = termY;
-            selection.active = false; // Don't activate until we drag
-        }
-        else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            ImVec2 mousePos = ImGui::GetMousePos();
-            int termX, termY;
-            screenToTerminal(mousePos, pos, charWidth, lineHeight, &termX, &termY);
-            selection.endX = termX;
-            selection.endY = termY;
+std::string Terminal::getSelection() {
+    std::string str;
+    if (sel.ob.x == -1)
+        return str;
+        
+    for (int y = sel.nb.y; y <= sel.ne.y; y++) {
+        int xstart = (y == sel.nb.y) ? sel.nb.x : 0;
+        int xend = (y == sel.ne.y) ? sel.ne.x : state.col - 1;
+        
+        for (int x = xstart; x <= xend; x++) {
+            if (state.lines[y][x].mode & ATTR_WDUMMY)
+                continue;
             
-            // Only activate selection if we've moved more than one character
-            int dx = abs(selection.endX - selection.startX);
-            int dy = abs(selection.endY - selection.startY);
-            if (dx > 1 || dy > 0) {
-                selection.active = true;
-            }
-        }
-        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-            // Clear selection if it wasn't activated
-            if (!selection.active) {
-                selection.startX = selection.endX = 0;
-                selection.startY = selection.endY = 0;
-            }
-        }
-    }
-
-    renderBuffer(pos, charWidth, lineHeight);
-    renderCursor(pos, charWidth, lineHeight);
-
-    // Handle keyboard input
-    if (ImGui::IsWindowFocused()) {
-        ImGuiIO& io = ImGui::GetIO();
-        
-        for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
-            char c = (char)io.InputQueueCharacters[i];
-            if (c != 0) {
-                processInput(std::string(1, c));
-            }
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-            processInput("\033");  // \033 is the ASCII/ANSI escape character
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-            processInput("\t");
-        }
-        if (io.KeyCtrl) {
-            if (ImGui::IsKeyPressed(ImGuiKey_C)) {
-                if (selection.active) {
-                    copySelection();
-                    selection.active = false;
-                } else {
-                    processInput("\x03");  // Ctrl-C SIGINT
-                }
-            }
-            else if (ImGui::IsKeyPressed(ImGuiKey_X)) {
-                processInput("\x18");  // Ctrl-X for nano
-            }
-            else if (ImGui::IsKeyPressed(ImGuiKey_V)) {
-                const char* clipText = ImGui::GetClipboardText();
-                if (clipText) processInput(clipText);
-            }
-        }
-
-        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) processInput("\r\n");
-        else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) processInput("\x7f");
-        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) processInput("\x1b[A");
-        else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) processInput("\x1b[B");
-        else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) processInput("\x1b[C");
-        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) processInput("\x1b[D");
-    }
-    if (needsFocus && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
-        needsFocus = false;
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
-    ImGui::End();
-
-}
-void Terminal::renderBuffer(const ImVec2& pos, float charWidth, float lineHeight) {
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    std::lock_guard<std::mutex> lock(bufferMutex);
-    
-    int visibleLines = static_cast<int>(ImGui::GetContentRegionAvail().y / lineHeight);
-    int totalLines = historyBuffer.size() + bufferHeight;
-    int startLine = static_cast<int>(scrollPosition);
-    
-    // Calculate selection bounds for highlighting
-    int selStartX = std::min(selection.startX, selection.endX);
-    int selEndX = std::max(selection.startX, selection.endX);
-    int selStartY = std::min(selection.startY, selection.endY);
-    int selEndY = std::max(selection.startY, selection.endY);
-    
-    for (int displayLine = 0; displayLine < visibleLines; displayLine++) {
-        int sourceLine = startLine + displayLine;
-        
-        const std::vector<Cell>* lineToRender = nullptr;
-        if (sourceLine < historyBuffer.size()) {
-            lineToRender = &historyBuffer[sourceLine];
-        } else if (sourceLine < totalLines) {
-            int bufferLine = sourceLine - historyBuffer.size();
-            if (bufferLine < bufferHeight) {
-                lineToRender = &buffer[bufferLine];
-            }
+            char buf[UTF_SIZ];
+            size_t len = utf8Encode(state.lines[y][x].u, buf);
+            str.append(buf, len);
         }
         
-        if (lineToRender) {
-            float yOffset = displayLine * lineHeight;
-            
-            // Render selection highlight if this line is within selection
-            if (selection.active && sourceLine >= selStartY && sourceLine <= selEndY) {
-                int highlightStart = (sourceLine == selStartY) ? selStartX : 0;
-                int highlightEnd = (sourceLine == selEndY) ? selEndX : bufferWidth - 1;
-                
-                ImVec2 highlightPos(
-                    pos.x + highlightStart * charWidth,
-                    pos.y + yOffset
-                );
-                ImVec2 highlightEndPos(
-                    pos.x + (highlightEnd + 1) * charWidth,
-                    pos.y + yOffset + lineHeight
-                );
-                
-                drawList->AddRectFilled(
-                    highlightPos,
-                    highlightEndPos,
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
-                );
-            }
-
-            // Render characters
-            for (int x = 0; x < bufferWidth; x++) {
-                const Cell& cell = (*lineToRender)[x];
-                ImVec2 cellPos(pos.x + x * charWidth, pos.y + yOffset);
-                
-                if (cell.bg.w > 0.0f) {
-                    drawList->AddRectFilled(
-                        cellPos,
-                        ImVec2(cellPos.x + charWidth, cellPos.y + lineHeight),
-                        ImGui::ColorConvertFloat4ToU32(cell.bg)
-                    );
-                }
-                
-                if (cell.ch != ' ') {
-                    char text[2] = {(char)cell.ch, 0};
-                    drawList->AddText(cellPos, 
-                        ImGui::ColorConvertFloat4ToU32(cell.fg), text);
-                }
-            }
-        }
+        if (y < sel.ne.y)
+            str += '\n';
     }
-}
-
-void Terminal::renderCursor(const ImVec2& pos, float charWidth, float lineHeight) {
-    // Don't render cursor if it's outside visible area
-    int cursorBufferLine = cursorY;
-    int visibleLines = static_cast<int>(ImGui::GetContentRegionAvail().y / lineHeight);
-    int totalLines = historyBuffer.size() + bufferHeight;
-    int startLine = static_cast<int>(scrollPosition);
-    
-    // Convert cursor position to screen space
-    int cursorScreenLine = cursorBufferLine + historyBuffer.size() - startLine;
-    
-    // Only render if cursor is in visible area
-    if (cursorScreenLine >= 0 && cursorScreenLine < visibleLines) {
-        cursorBlinkTime += ImGui::GetIO().DeltaTime;
-        float alpha = (sinf(cursorBlinkTime * 4.0f) + 1.0f) * 0.5f;
-        
-        ImDrawList* drawList = ImGui::GetWindowDrawList();
-        ImVec2 cursorPos(
-            pos.x + cursorX * charWidth,
-            pos.y + cursorScreenLine * lineHeight
-        );
-        
-        drawList->AddRectFilled(
-            cursorPos,
-            ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-            ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, alpha * 0.5f))
-        );
-    }
-}
-void Terminal::screenToTerminal(const ImVec2& screenPos, const ImVec2& terminalPos,
-                         float charWidth, float lineHeight,
-                         int* termX, int* termY) {
-    *termX = static_cast<int>((screenPos.x - terminalPos.x) / charWidth);
-    int displayY = static_cast<int>((screenPos.y - terminalPos.y) / lineHeight);
-    
-    // Convert display Y to buffer position including scroll and history
-    *termY = static_cast<int>(scrollPosition) + displayY;
-    
-    // Clamp to valid range
-    *termX = std::max(0, std::min(*termX, bufferWidth - 1));
-    *termY = std::max(0, std::min(*termY, static_cast<int>(historyBuffer.size()) + bufferHeight - 1));
+    return str;
 }
 
 
 void Terminal::copySelection() {
-    if (!selection.active) return;
-    
-    std::string selectedText;
-    int startX = std::min(selection.startX, selection.endX);
-    int endX = std::max(selection.startX, selection.endX);
-    int startY = std::min(selection.startY, selection.endY);
-    int endY = std::max(selection.startY, selection.endY);
+    std::string selected = getSelection();
+    if (!selected.empty()) {
+        // Use ImGui's clipboard functions
+        ImGui::SetClipboardText(selected.c_str());
+    }
+}
 
-    for (int y = startY; y <= endY; y++) {
-        if (y > startY) selectedText += '\n';
-        
-        const std::vector<Cell>* line;
-        if (y < historyBuffer.size()) {
-            line = &historyBuffer[y];
-        } else {
-            int bufferY = y - historyBuffer.size();
-            if (bufferY >= bufferHeight) continue;
-            line = &buffer[bufferY];
+void Terminal::pasteFromClipboard() {
+    const char* text = ImGui::GetClipboardText();
+    if (!text) return;
+
+    // Start bracketed paste mode if enabled
+    if (state.mode & MODE_BRACKETPASTE) {
+        processInput("\033[200~");
+    }
+
+    // Convert and write clipboard text
+    std::string converted;
+    for (const char* p = text; *p; p++) {
+        // Handle different line endings
+        if (*p == '\n' && !(*(p-1) == '\r')) {
+            processInput("\r");  // Send just CR for bare LF
         }
-        
-        for (int x = (y == startY ? startX : 0);
-             x <= (y == endY ? endX : bufferWidth - 1); x++) {
-            selectedText += static_cast<char>((*line)[x].ch);
+        else if (*p == '\r') {
+            processInput("\r");  // Send CR
+            if (*(p+1) == '\n') p++; // Skip LF in CRLF
+        }
+        else {
+            // Regular character - send directly
+            processInput(std::string(1, *p));
         }
     }
-    
-    // Trim trailing whitespace from each line
-    size_t pos = selectedText.find_last_not_of(" \t\n");
-    if (pos != std::string::npos) {
-        selectedText = selectedText.substr(0, pos + 1);
+
+    // End bracketed paste mode if enabled
+    if (state.mode & MODE_BRACKETPASTE) {
+        processInput("\033[201~");
     }
-    
-    ImGui::SetClipboardText(selectedText.c_str());
+}
+
+bool Terminal::selectedText(int x, int y) {
+    if (sel.mode == SEL_IDLE || sel.ob.x == -1 ||
+        sel.alt != (state.mode & MODE_ALTSCREEN))
+        return false;
+
+    if (sel.type == SEL_RECTANGULAR)
+        return BETWEEN(y, sel.nb.y, sel.ne.y) &&
+               BETWEEN(x, sel.nb.x, sel.ne.x);
+
+    return BETWEEN(y, sel.nb.y, sel.ne.y) &&
+           (y != sel.nb.y || x >= sel.nb.x) &&
+           (y != sel.ne.y || x <= sel.ne.x);
 }
 
 
-void Terminal::setWorkingDirectory(const std::string& path) {
-    if(set_dir == false){
-        if (!path.empty()) {
-            processInput("cd " + path + "\n");
+void Terminal::handleMouseEvent(int button, int x, int y) {
+    ImGuiIO& io = ImGui::GetIO();
+    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+    float lineHeight = ImGui::GetTextLineHeight();
+    
+    // Convert mouse coordinates to cell coordinates
+    int cellX = static_cast<int>(x / charWidth);
+    int cellY = static_cast<int>(y / lineHeight);
+    
+    // Clamp to terminal bounds
+    cellX = std::min(std::max(cellX, 0), state.col - 1);
+    cellY = std::min(std::max(cellY, 0), state.row - 1);
+
+    if (button & ImGuiMouseButton_Left) {
+        if (io.MouseDown[0]) { // Left button pressed
+            if (!io.KeyShift && sel.mode != SEL_SELECTING) {
+                // Start new selection
+                selectionStart(cellX, cellY);
+            }
+            selectionExtend(cellX, cellY);
+        } else { // Left button released
+            if (sel.mode == SEL_SELECTING) {
+                sel.mode = SEL_IDLE;
+                copySelection();  // Auto-copy selection
+            }
         }
-        set_dir = true;
+    } else if (button & ImGuiMouseButton_Right) {
+        if (io.MouseDown[1]) { // Right button pressed
+            // Paste from clipboard
+            pasteFromClipboard();
+        }
     }
 
+    // Handle mouse reporting if enabled
+    if (state.mode & MODE_MOUSEBTN) {
+        processMouseReport(button, cellX, cellY);
+    }
+}
+
+void Terminal::processMouseReport(int button, int x, int y) {
+    char buf[40];
+    int len;
+
+    // Encode mouse buttons according to xterm protocol
+    int btn = 0;
+    if (button & ImGuiMouseButton_Left) btn = 0;
+    if (button & ImGuiMouseButton_Middle) btn = 1;
+    if (button & ImGuiMouseButton_Right) btn = 2;
+    
+    if (state.mode & MODE_MOUSESGR) {
+        // SGR extended mouse reporting
+        len = snprintf(buf, sizeof(buf), "\033[<%d;%d;%d%c",
+                      btn, x + 1, y + 1,
+                      ImGui::IsMouseDown(btn) ? 'M' : 'm');
+    } else {
+        // Regular X10/X11 mouse reporting
+        btn = ImGui::IsMouseDown(btn) ? btn : 3; // 3 = release
+        len = snprintf(buf, sizeof(buf), "\033[M%c%c%c",
+                      32 + btn, 32 + x + 1, 32 + y + 1);
+    }
+
+    if (len > 0) {
+        processInput(std::string(buf, len));
+    }
+}
+
+
+void Terminal::strparse() {
+    // Parse string sequences into arguments
+    strescseq.args.clear();
+    std::string current;
+    
+    for (size_t i = 0; i < strescseq.len; i++) {
+        char c = strescseq.buf[i];
+        if (c == ';') {
+            strescseq.args.push_back(current);
+            current.clear();
+        } else {
+            current += c;
+        }
+    }
+    if (!current.empty()) {
+        strescseq.args.push_back(current);
+    }
+}
+
+void Terminal::handleStringSequence() {
+    if (strescseq.len == 0) return;
+
+    switch (strescseq.type) {
+        case ']': // OSC - Operating System Command
+            if (strescseq.args.size() >= 2) {
+                int cmd = std::atoi(strescseq.args[0].c_str());
+                switch (cmd) {
+                    case 0:  // Set window title and icon name
+                    case 1:  // Set icon name
+                    case 2:  // Set window title
+                        // You would implement window title setting here
+                        // For now, we'll just print it
+                        std::cout << "Title: " << strescseq.args[1] << std::endl;
+                        break;
+                        
+                    case 4: // Set/get color
+                        handleOSCColor(strescseq.args);
+                        break;
+                        
+                    case 52: // Manipulate selection data
+                        handleOSCSelection(strescseq.args);
+                        break;
+                }
+            }
+            break;
+            
+        case 'P': // DCS - Device Control String
+            handleDCS();
+            break;
+            
+        case '_': // APC - Application Program Command
+            // Not commonly used, implement if needed
+            break;
+            
+        case '^': // PM - Privacy Message
+            // Not commonly used, implement if needed
+            break;
+            
+        case 'k': // Old title set compatibility
+            // Set window title using old xterm sequence
+            std::cout << "Old Title: " << strescseq.buf << std::endl;
+            break;
+    }
+}
+
+void Terminal::handleOSCColor(const std::vector<std::string>& args) {
+    if (args.size() < 2) return;
+    
+    int index = std::atoi(args[1].c_str());
+    if (args.size() > 2) {
+        // Set color
+        if (args[2][0] == '?') {
+            // Color query - respond with current color
+            char response[64];
+            snprintf(response, sizeof(response), 
+                    "\033]4;%d;rgb:%.2X/%.2X/%.2X\007",
+                    index, 
+                    (int)(state.c.fg.x * 255),
+                    (int)(state.c.fg.y * 255),
+                    (int)(state.c.fg.z * 255));
+            processInput(response);
+        } else {
+            // Set color - parse color value (typically in rgb:RR/GG/BB format)
+            // Implementation would go here
+        }
+    }
+}
+
+void Terminal::handleOSCSelection(const std::vector<std::string>& args) {
+    if (args.size() < 3) return;
+    
+    // args[1] would contain the selection type (clipboard, primary, etc)
+    // args[2] would contain the base64-encoded data
+    
+    // Example implementation:
+    if (args[1] == "c") {  // clipboard
+        std::string decoded; // You would implement base64 decoding
+        ImGui::SetClipboardText(decoded.c_str());
+    }
+}
+
+
+
+// Test sequence handler - DECALN alignment pattern
+void Terminal::handleTestSequence(char c) {
+    switch (c) {
+        case '8': // DECALN - Screen Alignment Pattern
+            // Fill screen with 'E'
+            for (int y = 0; y < state.row; y++) {
+                for (int x = 0; x < state.col; x++) {
+                    Glyph g;
+                    g.u = 'E';
+                    g.mode = state.c.attrs;
+                    g.fg = state.c.fg;
+                    g.bg = state.c.bg;
+                    writeGlyph(g, x, y);
+                }
+            }
+            break;
+    }
+}
+// Device Control String handler
+void Terminal::handleDCS() {
+    // Basic DCS sequence handling
+    // This function is called when DCS sequences are received
+    // For now, we'll only implement some basic DCS handling
+    
+    // Extract DCS sequence from strescseq
+    if (strescseq.buf.empty()) return;
+
+    // Example DCS sequence handling:
+    // $q - DECRQSS (Request Status String)
+    if (strescseq.buf.length() >= 2 && strescseq.buf.substr(0, 2) == "$q") {
+        std::string param = strescseq.buf.substr(2);
+        // Handle DECRQSS request
+        if (param == "\"q") {  // DECSCA
+            processInput("\033P1$r0\"q\033\\");  // Reply with default protection
+        } else if (param == "r") {  // DECSTBM
+            char response[40];
+            snprintf(response, sizeof(response), "\033P1$r%d;%dr\033\\", 
+                    state.top + 1, state.bot + 1);
+            processInput(response);
+        }
+    }
+}
+
+
+void Terminal::tmoveato(int x, int y) {
+    // Origin mode moves relative to scroll region
+    if (state.c.state & CURSOR_ORIGIN)
+        moveTo(x, y + state.top);
+    else
+        moveTo(x, y);
+}
+
+void Terminal::tsetmode(int priv, int set, const std::vector<int>& args) {
+    // Mode setting per st.c
+    int alt;
+    
+    for (int arg : args) {
+        if (priv) {
+            switch(arg) {
+                case 1: // DECCKM -- Application cursor keys
+                    setMode(set, MODE_APPCURSOR);
+                    break;
+                case 5: // DECSCNM -- Reverse video
+                    // TODO: Implement screen reversal
+                    break;
+                case 6: // DECOM -- Origin
+                    MODBIT(state.c.state, set, CURSOR_ORIGIN);
+                    tmoveato(0, 0);
+                    break;
+                case 7: // DECAWM -- Auto wrap
+                    MODBIT(state.mode, set, MODE_WRAP);
+                    break;
+                case 0:  // Error (IGNORED)
+                case 2:  // DECANM -- ANSI/VT52 (IGNORED)
+                case 3:  // DECCOLM -- Column  (IGNORED)
+                case 4:  // DECSCLM -- Scroll (IGNORED)
+                case 8:  // DECARM -- Auto repeat (IGNORED)
+                    break;
+                case 25: // DECTCEM -- Text Cursor Enable Mode
+                    // Optional: handle cursor visibility
+                    break;
+                case 47: // swap screen
+                case 1047:
+                case 1049:
+                    alt = (state.mode & MODE_ALTSCREEN) != 0;
+                    if (set ^ alt) {  // set is always 1 or 0
+                        state.altLines.swap(state.lines);
+                        state.mode ^= MODE_ALTSCREEN;
+                        if (arg == 1049)
+                            (set) ? cursorSave() : cursorLoad();
+                    }
+                    break;
+                case 1048:
+                    (set) ? cursorSave() : cursorLoad();
+                    break;
+            }
+        } else {
+            switch(arg) {
+                case 4:  // IRM -- Insertion-replacement
+                    MODBIT(state.mode, set, MODE_INSERT);
+                    break;
+                case 20: // LNM -- Linefeed/new line
+                    MODBIT(state.mode, set, MODE_CRLF);
+                    break;
+            }
+        }
+    }
 }

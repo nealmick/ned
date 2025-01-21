@@ -10,26 +10,23 @@
 Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f) {}
-
 void Settings::loadSettings() {
     settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
-    std::cout << "Attempting to load settings from: " << settingsPath << std::endl;
+    std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
     
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
             settingsFile >> settings;
-            std::cout << "Settings loaded successfully" << std::endl;
+            std::cout << "\033[95mSettings:\033[0m Json preferences loaded successfully" << std::endl;
         } catch (json::parse_error& e) {
-            std::cerr << "Error parsing settings file: " << e.what() << std::endl;
+            std::cerr << "\033[95mSettings:\033[0m Error parsing settings file: " << e.what() << std::endl;
             settings = json::object(); // Reset to empty object
         }
     } else {
-        std::cout << "Settings file not found, using defaults" << std::endl;
+        std::cout << "\033[95mSettings:\033[0m json file not found, using defaults" << std::endl;
         settings = json::object(); // Create an empty JSON object
     }
-
-    // Rest of your existing default settings initialization...
     if (!settings.contains("font")) {
         settings["font"] = "default";
     }
@@ -82,7 +79,7 @@ void Settings::loadSettings() {
         lastSettingsModification = fs::file_time_type::min();
     }
 
-    std::cout << "Current settings: " << settings.dump(4) << std::endl;
+    //std::cout << "Settings: Current preferences : " << settings.dump(4) << std::endl;
 }
 
 void Settings::saveSettings() {
@@ -92,6 +89,7 @@ void Settings::saveSettings() {
     }
 }
 void Settings::checkSettingsFile() {
+    
     if (!fs::exists(settingsPath)) {
         std::cout << "Settings file does not exist, skipping check" << std::endl;
         return;
@@ -105,7 +103,7 @@ void Settings::checkSettingsFile() {
         loadSettings();
         lastSettingsModification = currentModification;
         
-        // Check if relevant settings have changed
+        // Rest of the existing check logic remains the same
         if (oldSettings["backgroundColor"] != settings["backgroundColor"] ||
             oldSettings["fontSize"] != settings["fontSize"] ||
             oldSettings["splitPos"] != settings["splitPos"] ||
@@ -131,9 +129,9 @@ void Settings::renderSettingsWindow() {
     if (!showSettingsWindow) return;
 
     // Center the window - make height auto-adjustable
-    ImGui::SetNextWindowSize(ImVec2(800, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always);  // Fixed height
     ImGui::SetNextWindowPos(
-        ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f),
+        ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f),
         ImGuiCond_Always,
         ImVec2(0.5f, 0.5f)
     );
@@ -142,9 +140,7 @@ void Settings::renderSettingsWindow() {
         ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse |
-        ImGuiWindowFlags_AlwaysAutoResize;
+        ImGuiWindowFlags_AlwaysAutoResize;  // Removed NoScrollbar and NoScrollWithMouse
 
     // Push custom styles for the window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
@@ -156,24 +152,31 @@ void Settings::renderSettingsWindow() {
     ImGui::Begin("Settings", nullptr, windowFlags);
     
     // Check for clicks outside window
-    if (ImGui::IsMouseClicked(0) && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows)) {
-        showSettingsWindow = false;
+    if (ImGui::IsMouseClicked(0)) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        
+        bool isOutside = mousePos.x < windowPos.x || 
+                        mousePos.x > (windowPos.x + windowSize.x) ||
+                        mousePos.y < windowPos.y || 
+                        mousePos.y > (windowPos.y + windowSize.y);
+                        
+        if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
+            showSettingsWindow = false;
+            saveSettings();
+        }
     }
 
     // Start header group with proper spacing
     ImGui::BeginGroup();
 
-    // Get text height for consistent sizing
     float textHeight = ImGui::GetTextLineHeight();
-
-    // Display "Settings" text
     ImGui::TextUnformatted("Settings");
 
-    // Calculate position for close button to align with text
-    float closeIconSize = textHeight - 5;  // Match text height exactly
-    ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20); // More padding from right edge
+    float closeIconSize = textHeight - 5;
+    ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20);
 
-    // Create invisible button with icon
     ImVec2 cursor_pos = ImGui::GetCursorPos();
     if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize))) {
         showSettingsWindow = false;
@@ -183,7 +186,6 @@ void Settings::renderSettingsWindow() {
     bool isHovered = ImGui::IsItemHovered();
     ImGui::SetCursorPos(cursor_pos);
 
-    // Draw the close icon
     ImTextureID closeIcon = gFileExplorer.getIcon("close");
     ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), 
                  ImVec2(0,0), ImVec2(1,1),
@@ -191,8 +193,7 @@ void Settings::renderSettingsWindow() {
 
     ImGui::EndGroup();
     ImGui::Separator();
-
-    ImGui::BeginChild("ScrollingRegion", ImVec2(0, 400));    ImGui::Spacing();
+    ImGui::Spacing();
     
     // Font Size Settings
     float fontSize = settings["fontSize"].get<float>();
@@ -204,9 +205,6 @@ void Settings::renderSettingsWindow() {
         saveSettings();
     }
     ImGui::Spacing();
-        
-
-
 
     // Background Color
     auto& bgColorArray = settings["backgroundColor"];
@@ -248,7 +246,6 @@ void Settings::renderSettingsWindow() {
 
     ImGui::Spacing();
     ImGui::TextUnformatted("Syntax Colors");
-
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -257,12 +254,11 @@ void Settings::renderSettingsWindow() {
     editThemeColor("Strings", "string");
     editThemeColor("Numbers", "number");
     editThemeColor("Comments", "comment");
+    
     ImGui::Spacing();
     ImGui::TextUnformatted("Toggle");
-
     ImGui::Separator();
     ImGui::Spacing();
-    
 
     // Rainbow Mode Toggle
     bool rainbowMode = settings["rainbow"].get<bool>();
@@ -274,7 +270,6 @@ void Settings::renderSettingsWindow() {
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
     ImGui::Spacing();
-    ImGui::EndChild();
 
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");

@@ -104,7 +104,7 @@ public:
                 }
                 
                 if (pos == lastPos) {
-                    std::cerr << "C++ Tokenizer stuck at position " << pos << ", character: '" << code[pos] << "'" << std::endl;
+                    //std::cerr << "C++ Tokenizer stuck at position " << pos << ", character: '" << code[pos] << "'" << std::endl;
                     pos++;
                 }
                 

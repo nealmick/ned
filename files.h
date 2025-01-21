@@ -79,7 +79,10 @@ private:
     std::string fileContent;
     std::vector<ImVec4> fileColors;
     std::map<std::string, ImTextureID> fileTypeIcons;
+
     
+    double lastFileTreeRefreshTime = 0.0;
+    const double FILE_TREE_REFRESH_INTERVAL = 1.0; // Refresh every 1 second
 };
 
 extern Editor gEditor;
