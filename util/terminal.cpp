@@ -168,6 +168,9 @@ void Terminal::render() {
             if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
                 copySelection();
             }
+            if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+                copySelection();
+            }
             if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
                 pasteFromClipboard();
             }
@@ -184,15 +187,23 @@ void Terminal::render() {
         else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
             processInput("\x7f");  // Delete character
         }
-        // Arrow keys
-        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-            processInput("\033[A");
+       else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+            if (state.mode & MODE_APPCURSOR)
+                processInput("\033OA");
+            else
+                processInput("\033[A");
         }
         else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-            processInput("\033[B");
+            if (state.mode & MODE_APPCURSOR)
+                processInput("\033OB");
+            else
+                processInput("\033[B");
         }
         else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
-            processInput("\033[C");
+            if (state.mode & MODE_APPCURSOR)
+                processInput("\033OC");
+            else
+                processInput("\033[C");
         }
         else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
             if (io.KeyCtrl) {
@@ -201,6 +212,8 @@ void Terminal::render() {
             } else if (io.KeyShift) {
                 // Shift+Left: Selection
                 processInput("\033[1;2D");
+            } else if (state.mode & MODE_APPCURSOR) {
+                processInput("\033OD");
             } else {
                 // Normal left arrow
                 processInput("\033[D");
@@ -1105,11 +1118,17 @@ void Terminal::writeGlyph(const Glyph& g, int x, int y) {
 
     Glyph& cell = state.lines[y][x];
     cell = g;
-    cell.mode = g.mode | state.c.attrs;
-    cell.colorMode = state.c.colorMode;
     
- 
-
+    // Ensure we properly handle attribute clearing
+    if (!(g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE))) {
+        cell.mode &= ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
+    }
+    
+    cell.mode = (cell.mode & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)) 
+              | (g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE));
+              
+    cell.colorMode = g.colorMode;
+    
     if (cell.mode & ATTR_REVERSE) {
         cell.fg = state.c.bg;
         cell.bg = state.c.fg;
@@ -1143,6 +1162,9 @@ void Terminal::writeGlyph(const Glyph& g, int x, int y) {
 
     state.dirty[y] = true;
 }
+
+
+
 void Terminal::handleEscape(char c) {
     switch(c) {
         case '7': // Save cursor position
@@ -1259,8 +1281,6 @@ void Terminal::reset() {
     state.c.fg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
     state.c.bg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 }
-
-
 void Terminal::clearRegion(int x1, int y1, int x2, int y2) {
     int temp;
     if (x1 > x2) {
@@ -1280,14 +1300,17 @@ void Terminal::clearRegion(int x1, int y1, int x2, int y2) {
     y1 = std::max(0, std::min(y1, state.row - 1));
     y2 = std::max(0, std::min(y2, state.row - 1));
 
-    // Clear the cells
+    // Clear the cells and properly reset attributes
     for (int y = y1; y <= y2; y++) {
         for (int x = x1; x <= x2; x++) {
             Glyph& g = state.lines[y][x];
             g.u = ' ';
-            g.mode = state.c.attrs;
+            g.mode = state.c.attrs & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
             g.fg = state.c.fg;
             g.bg = state.c.bg;
+            g.colorMode = state.c.colorMode;
+            g.trueColorFg = state.c.trueColorFg;
+            g.trueColorBg = state.c.trueColorBg;
         }
         state.dirty[y] = true;
     }
@@ -1627,25 +1650,43 @@ void Terminal::handleControlCode(unsigned char c) {
             break;
     }
 }
+
 void Terminal::processInput(const std::string& input) {
-    if (ptyFd >= 0) {
-        // Handle different types of input
-        if (input == "\r\n" || input == "\n") {
-            // Newline/Enter key
-            const char nl[] = "\r\n";
-            write(ptyFd, nl, sizeof(nl));
+    if (ptyFd < 0) return;
+
+    if (state.mode & MODE_APPCURSOR) {
+        if (input == "\033[A") {
+            write(ptyFd, "\033OA", 3); // Up
+            return;
         }
-        else if (input == "\b") {
-            // Backspace
-            const char bs[] = "\b \b";
-            write(ptyFd, bs, sizeof(bs));
+        if (input == "\033[B") {
+            write(ptyFd, "\033OB", 3); // Down
+            return;
         }
-        else {
-            // Regular character input
-            write(ptyFd, input.c_str(), input.length());
+        if (input == "\033[C") {
+            write(ptyFd, "\033OC", 3); // Right
+            return;
+        }
+        if (input == "\033[D") {
+            write(ptyFd, "\033OD", 3); // Left
+            return;
         }
     }
+
+    if (input == "\r\n" || input == "\n") {
+        write(ptyFd, "\r", 1);
+        return;
+    }
+    
+    if (input == "\b") {
+        write(ptyFd, "\b \b", 3);
+        return;
+    }
+
+    write(ptyFd, input.c_str(), input.length());
 }
+
+
 void Terminal::readOutput() {
     char buffer[4096];
     while (!shouldTerminate) {
