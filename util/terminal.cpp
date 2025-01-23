@@ -188,16 +188,22 @@ void Terminal::render() {
             processInput("\x7f");  // Delete character
         }
        else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-            if (state.mode & MODE_APPCURSOR)
+            if (state.mode & MODE_APPCURSOR){
                 processInput("\033OA");
-            else
+            }else{
+                std::cout << "sending [A" << std::endl;
                 processInput("\033[A");
+            }
+                
         }
         else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-            if (state.mode & MODE_APPCURSOR)
+            if (state.mode & MODE_APPCURSOR){
                 processInput("\033OB");
-            else
+            }else{
+                std::cout << "sending [B" << std::endl;
                 processInput("\033[B");
+            }
+                
         }
         else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
             if (state.mode & MODE_APPCURSOR)
@@ -446,16 +452,42 @@ void Terminal::renderBuffer() {
 void Terminal::toggleVisibility() {
     isVisible = !isVisible;
 }
-
-
 void Terminal::writeToBuffer(const char* data, size_t length) {
     for (size_t i = 0; i < length; ++i) {
         unsigned char c = data[i];
 
-        // Handle escape sequences
+        // Existing STR sequence handling
+        if (state.esc & ESC_STR) {
+            if (c == '\a' || c == 030 || c == 032 || c == 033 || 
+                ISCONTROLC1(c)) {
+                state.esc &= ~(ESC_START | ESC_STR);
+                state.esc |= ESC_STR_END;
+                strparse();
+                handleStringSequence();
+                state.esc = 0;
+                continue;
+            }
+            
+            if (strescseq.len < 256) {
+                strescseq.buf += c;
+                strescseq.len++;
+            }
+            continue;
+        }
+
+        // Escape sequence start
+        if (c == '\033') {
+            state.esc = ESC_START;
+            csiescseq.len = 0;
+            strescseq.buf.clear();
+            strescseq.len = 0;
+            continue;
+        }
+
+        // Ongoing escape sequence processing
         if (state.esc & ESC_START) {
             if (state.esc & ESC_CSI) {
-                // CSI sequence - ESC [
+                // CSI sequence parsing
                 if (csiescseq.len < sizeof(csiescseq.buf) - 1) {
                     csiescseq.buf[csiescseq.len++] = c;
                     if (BETWEEN(c, 0x40, 0x7E)) {
@@ -465,56 +497,20 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
                         handleCSI(csiescseq);
                         state.esc = 0;
                         csiescseq.len = 0;
-                        csiescseq.args.clear();
                     }
                 }
                 continue;
             }
-            
-            if (state.esc & ESC_STR) {
-                // String sequence handling
-                if (c == '\a' || c == 0x1b) {
-                    strparse();
-                    handleStringSequence();
-                    state.esc = 0;
-                } else if (strescseq.len < 256) {  // Reasonable limit
-                    strescseq.buf += c;
-                    strescseq.len++;
-                }
-                continue;
-            }
-            
-            if (state.esc & ESC_ALTCHARSET) {
-                handleCharset(c);
-                state.esc = 0;
-                continue;
-            }
-            
-            if (state.esc & ESC_TEST) {
-                handleTestSequence(c);
-                state.esc = 0;
-                continue;
-            }
 
-            // Handle regular escape sequences
+            // Other escape sequence types
             if (eschandle(c)) {
                 state.esc = 0;
             }
             continue;
         }
 
-        // Start of escape sequence
-        if (c == '\033') {  // ESC
-            state.esc = ESC_START;
-            csiescseq.len = 0;
-            csiescseq.args.clear();
-            strescseq.len = 0;
-            strescseq.buf.clear();
-            continue;
-        }
-
-        // Handle control characters
-        if (c < 32) {
+        // Control character handling
+        if (ISCONTROL(c)) {
             handleControlCode(c);
             continue;
         }
@@ -523,7 +519,6 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
         writeChar(c);
     }
 }
-
 void Terminal::writeChar(unsigned char c) {
     Rune u = c;
     
@@ -560,77 +555,95 @@ void Terminal::writeChar(unsigned char c) {
 
     state.lastc = u;
 }
-
-
-int Terminal::eschandle(uchar ascii) {
+int Terminal::eschandle(unsigned char ascii) {
     switch (ascii) {
         case '[':
             state.esc |= ESC_CSI;
             return 0;
-        case '#':
-            state.esc |= ESC_TEST;
-            return 0;
-        case '%':
-            state.esc |= ESC_UTF8;
-            return 0;
-        case 'P':   // DCS
-        case '_':   // APC
-        case '^':   // PM
-        case ']':   // OSC
-        case 'k':   // old title set compatibility
+            
+        // Handle O sequence directly for cursor moves
+        case 'O':
+            return 0;  // Keep processing to handle next char directly
+            
+        case 'A': // Cursor Up
+            if (state.esc == ESC_START) { // Direct O-sequence
+                tmoveto(state.c.x, state.c.y - 1);
+                return 1;
+            }
+            break;
+            
+        case 'B': // Cursor Down 
+            if (state.esc == ESC_START) {
+                tmoveto(state.c.x, state.c.y + 1); 
+                return 1;
+            }
+            break;
+        case ']':
+        case 'P':  
+        case '_':
+        case '^':
+        case 'k':
             tstrsequence(ascii);
             return 0;
-        case 'n':   // LS2
-        case 'o':   // LS3
-            state.charset = 2 + (ascii - 'n');
+        case 'n':
+            state.charset = 2;
             break;
-        case '(':   // G0
-        case ')':   // G1
-        case '*':   // G2
-        case '+':   // G3
+        case 'o':
+            state.charset = 3;
+            break;
+        case '(':
+        case ')':
+        case '*':
+        case '+':
             state.icharset = ascii - '(';
             state.esc |= ESC_ALTCHARSET;
             return 0;
-        case 'D':   // IND
-            if (state.c.y == state.bot) {
+        case 'D':  // IND
+            if (state.c.y == state.bot) 
                 scrollUp(state.top, 1);
-            } else {
+            else
                 state.c.y++;
-            }
             break;
-        case 'E':   // NEL
+        case 'E': // NEL
             tnewline(1);
             break;
-        case 'H':   // HTS
-            state.tabs[state.c.x] = 1;
+        case 'H':  // HTS
+            state.tabs[state.c.x] = true;
             break;
-        case 'M':   // RI
-            if (state.c.y == state.top) {
+        case 'M':  // RI 
+            if (state.c.y == state.top)
                 scrollDown(state.top, 1);
-            } else {
+            else 
                 state.c.y--;
-            }
             break;
-        case 'Z':   // DECID
-            processInput("\033[?1;2c");
+        case 'Z':  // DECID
+            processInput("\033[?6c");
             break;
-        case 'c':   // RIS
+        case 'c':  // RIS
             reset();
             break;
-        case '=': // DECKPAM -- Application keypad mode
-            setMode(true, MODE_APPCURSOR);
+        case '=':  // DECKPAM
+            setMode(true, MODE_APPCURSOR); 
             break;
-            
-        case '>': // DECKPNM -- Normal keypad mode
+        case '>':  // DECKPNM
             setMode(false, MODE_APPCURSOR);
             break;
+        case '7':  // DECSC
+            cursorSave();
+            break; 
+        case '8':  // DECRC
+            cursorLoad();
+            break;
+        case '\\':
+            break;
         default:
-            fprintf(stderr, "Unhandled escape sequence: ESC 0x%02X '%c'\n", 
-                    (uchar) ascii, isprint(ascii) ? ascii : '.');
-            return 1;
+            fprintf(stderr, "esc unhandled: ESC %c\n", ascii);
+            break;
     }
     return 1;
 }
+
+
 void Terminal::tnewline(int first_col) {
     int y = state.c.y;
 
@@ -689,6 +702,14 @@ void Terminal::parseCSIParam(CSIEscape& csi) {
     }
 }
 void Terminal::handleCSI(const CSIEscape& csi) {
+    /*
+    std::cout << "CSI sequence: " << csi.mode[0] << " args: ";
+    for (auto arg : csi.args) {
+        std::cout << arg << " ";
+    }
+    std::cout << std::endl;
+    */
+
     switch (csi.mode[0]) {
         case '@': // ICH -- Insert <n> blank char
             {
@@ -705,12 +726,19 @@ void Terminal::handleCSI(const CSIEscape& csi) {
         case 'A': // CUU -- Cursor <n> Up
             {
                 int n = csi.args.empty() ? 1 : csi.args[0];
+
                 if (n < 1) n = 1;
                 moveTo(state.c.x, state.c.y - n);
             }
             break;
 
         case 'B': // CUD -- Cursor <n> Down
+            {
+                int n = csi.args.empty() ? 1 : csi.args[0];
+                if (n < 1) n = 1;
+                moveTo(state.c.x, state.c.y + n);
+            }
+            break;
         case 'e': // VPR -- Cursor <n> Down
             {
                 int n = csi.args.empty() ? 1 : csi.args[0];
@@ -944,12 +972,16 @@ void Terminal::handleCSI(const CSIEscape& csi) {
             break;
     }
 }
+
+
 void Terminal::setMode(bool set, int mode) {
+    if (mode == MODE_APPCURSOR) {
+        std::cout << "APPCURSOR mode " << (set ? "enabled" : "disabled") << std::endl;
+    }
     if (set)
         state.mode |= mode;
     else
         state.mode &= ~mode;
-
     switch (mode) {
         case 6:  // DECOM -- Origin Mode
             MODBIT(state.c.state, set, CURSOR_ORIGIN);
@@ -1409,17 +1441,14 @@ void Terminal::mapGraphicCharset(Rune& u) {
         Rune from;
         const char* to;
     } graphicMap[] = {
-        {0x6a, "┘"},  // j - lower right corner
-        {0x6b, "┐"},  // k - upper right corner
-        {0x6c, "┌"},  // l - upper left corner
-        {0x6d, "└"},  // m - lower left corner
-        {0x6e, "┼"},  // n - crossing lines
-        {0x71, "─"},  // q - horizontal line
-        {0x74, "├"},  // t - left tee
-        {0x75, "┤"},  // u - right tee
-        {0x76, "┴"},  // v - bottom tee
-        {0x77, "┬"},  // w - top tee
-        {0x78, "│"},  // x - vertical line
+        // VT100 Line Drawing Set
+        {0x6a, "┘"}, {0x6b, "┐"}, {0x6c, "┌"}, {0x6d, "└"},
+        {0x6e, "┼"}, {0x71, "─"}, {0x74, "├"}, {0x75, "┤"},
+        {0x76, "┴"}, {0x77, "┬"}, {0x78, "│"}, 
+        
+        // Additional special characters
+        {0x7e, "▒"}, {0x60, "◆"}, {0x7a, "≤"}, {0x7b, "≥"},
+        {0x7c, "π"}, {0x7d, "≠"}
     };
 
     if (state.trantbl[state.charset] == CS_GRAPHIC0) {
@@ -1437,28 +1466,54 @@ size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
     size_t i, j, len, type;
     Rune udecoded;
 
-    *u = 0xFFFD; // Default to invalid character
-    if (!clen)
-        return 0;
+    *u = UTF_INVALID;
+    if (!clen) return 0;
 
     udecoded = utf8decodebyte(c[0], &len);
-    if (!BETWEEN(len, 1, 4))
-        return 1;
+    if (!BETWEEN(len, 1, UTF_SIZ)) return 1;
 
     for (i = 1, j = 1; i < clen && j < len; ++i, ++j) {
         udecoded = (udecoded << 6) | utf8decodebyte(c[i], &type);
-        if (type != 0)
-            return j;
+        if (type != 0) return j;
     }
 
-    if (j < len)
-        return 0;
+    if (j < len) return 0;
 
     *u = udecoded;
     utf8validate(u, len);
 
+    // More comprehensive character translation
+    mapGraphicCharset(*u);
+    handleSpecialCharacters(*u);
+
     return len;
 }
+
+
+void Terminal::handleSpecialCharacters(Rune& u) {
+    // Map Unicode block characters and symbols
+    static const std::unordered_map<Rune, Rune> specialChars = {
+        {0x2500, '-'},   // Box drawing light horizontal
+        {0x2502, '|'},   // Box drawing light vertical
+        {0x250C, '+'},   // Box drawing light down and right
+        {0x2510, '+'},   // Box drawing light down and left
+        {0x2514, '+'},   // Box drawing light up and right
+        {0x2518, '+'},   // Box drawing light up and left
+        {0x253C, '+'},   // Box drawing light vertical and horizontal
+        
+        // Shade characters
+        {0x2591, '#'},   // Light shade
+        {0x2592, '#'},   // Medium shade
+        {0x2593, '#'},   // Dark shade
+    };
+
+    auto it = specialChars.find(u);
+    if (it != specialChars.end()) {
+        u = it->second;
+    }
+}
+
+
 
 void Terminal::handleGraphicCharset(Rune& u) {
     static const std::unordered_map<Rune, const char*> extendedGraphicMappings = {
@@ -1476,19 +1531,28 @@ void Terminal::handleGraphicCharset(Rune& u) {
 }
 
 void Terminal::handleCharset(char c) {
-    // VT100 character set mapping
-    static const Charset charsetMap[] = {
-        CS_USA,    // '('
-        CS_UK,     // ')'
-        CS_MULTI, // '*'
-        CS_GER    // '+'
+    static const struct {
+        char code;
+        Charset charset;
+        const char* description;
+    } charsetMap[] = {
+        {'(', CS_USA, "US ASCII"},
+        {')', CS_UK, "UK"},
+        {'*', CS_MULTI, "Multilingual"},
+        {'+', CS_GER, "German"},
+        {'0', CS_GRAPHIC0, "Special Graphics"},
+        {'A', CS_GER, "German"},
+        {'B', CS_USA, "US ASCII"}
     };
 
-    int index = c - '(';
-    if (index >= 0 && index < 4) {
-        state.trantbl[state.charset] = charsetMap[index];
+    for (const auto& entry : charsetMap) {
+        if (entry.code == c) {
+            state.trantbl[state.charset] = entry.charset;
+            break;
+        }
     }
 }
+
 
 
 
@@ -1500,14 +1564,21 @@ Terminal::Rune Terminal::utf8decodebyte(char c, size_t* i) {
     return 0;
 }
 
+
 size_t Terminal::utf8validate(Rune* u, size_t i) {
-    if (!BETWEEN(*u, utfmin[i], utfmax[i]) || BETWEEN(*u, 0xD800, 0xDFFF))
-        *u = 0xFFFD;
+    // Reject surrogate halves and out-of-range code points
+    if (!BETWEEN(*u, utfmin[i], utfmax[i]) || 
+        BETWEEN(*u, 0xD800, 0xDFFF) || 
+        *u > 0x10FFFF) {
+        *u = UTF_INVALID;
+    }
+
+    // Determine the correct UTF-8 sequence length
     for (i = 1; *u > utfmax[i]; ++i)
         ;
+
     return i;
 }
-
 
 void Terminal::handleDeviceStatusReport(const CSIEscape& csi) {
     switch (csi.args[0]) {
@@ -2139,16 +2210,13 @@ void Terminal::tsetmode(int priv, int set, const std::vector<int>& args) {
                     // Optional: handle cursor visibility
                     break;
                 case 47: // swap screen
-                case 1047:
+                case 1047: // alternate screen
                 case 1049:
                     alt = (state.mode & MODE_ALTSCREEN) != 0;
-                    if (set ^ alt) {  // set is always 1 or 0
+                    if (set ^ alt) {
                         state.altLines.swap(state.lines);
                         state.mode ^= MODE_ALTSCREEN;
-                        if (arg == 1049)
-                            (set) ? cursorSave() : cursorLoad();
                     }
-                    break;
                 case 1048:
                     (set) ? cursorSave() : cursorLoad();
                     break;
