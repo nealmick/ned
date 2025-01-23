@@ -16,6 +16,9 @@
 #define LIMIT(x, a, b)   (x) = (x) < (a) ? (a) : (x) > (b) ? (b) : (x)
 #define MODBIT(x, set, bit) ((set) ? ((x) |= (bit)) : ((x) &= ~(bit)))
 
+#define ISCONTROLC0(c)     (BETWEEN(c, 0, 0x1f) || (c) == 0x7f)
+#define ISCONTROLC1(c)     (BETWEEN(c, 0x80, 0x9f))
+#define ISCONTROL(c)       (ISCONTROLC0(c) || ISCONTROLC1(c))
 
 typedef unsigned char uchar;
 
@@ -66,11 +69,11 @@ public:
         MODE_VISUALBELL   = 1 << 15
     };
 
-
     struct STREscape {
         char type;                    // ESC type
         std::string buf;             // Raw string buffer
-        size_t len;                  // Raw string length
+        size_t len{0};               // Raw string length
+        size_t siz{256};             // Buffer size
         std::vector<std::string> args;  // Arguments
     };
 
@@ -104,7 +107,8 @@ public:
         ESC_ALTCHARSET = 8,
         ESC_STR_END    = 16,
         ESC_UTF8       = 64,
-        ESC_TEST       = 32  // Add this line
+        ESC_TEST       = 32,
+        ESC_APPCURSOR  = 128
     };
 
     enum ColorMode {
@@ -246,6 +250,8 @@ private:
     static constexpr const unsigned char utfmask[5] = {0xC0, 0x80, 0xE0, 0xF0, 0xF8};
     static constexpr const Rune utfmin[5] = {0, 0, 0x80, 0x800, 0x10000};
     static constexpr const Rune utfmax[5] = {0x10FFFF, 0x7F, 0x7FF, 0xFFFF, 0x10FFFF};
+    static const Rune UTF_INVALID = 0xFFFD;  // Unicode replacement character
+
 
     TCursor savedCursor;  // For cursor save/restore
 
@@ -322,6 +328,8 @@ private:
     void handleStringSequence();
     void handleOSCColor(const std::vector<std::string>& args);
     void handleOSCSelection(const std::vector<std::string>& args);
+    
+    void handleSpecialCharacters(Rune& u);
 
     void tmoveato(int x, int y);  // Absolute move with origin mode
     void tsetmode(int priv, int set, const std::vector<int>& args);
@@ -349,6 +357,7 @@ private:
         ImVec4(1.0f, 1.0f, 1.0f, 1.0f)      // Bright White
     };
 
+    
 
 
 };
