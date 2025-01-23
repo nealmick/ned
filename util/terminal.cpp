@@ -1437,29 +1437,41 @@ void Terminal::scrollDown(int orig, int n) {
     }
 }
 void Terminal::mapGraphicCharset(Rune& u) {
-    static const struct {
-        Rune from;
-        const char* to;
-    } graphicMap[] = {
-        // VT100 Line Drawing Set
-        {0x6a, "┘"}, {0x6b, "┐"}, {0x6c, "┌"}, {0x6d, "└"},
-        {0x6e, "┼"}, {0x71, "─"}, {0x74, "├"}, {0x75, "┤"},
-        {0x76, "┴"}, {0x77, "┬"}, {0x78, "│"}, 
+    static const std::unordered_map<Rune, Rune> specialChars = {
+        // Box drawing characters (single line)
+        {0x2500, '-'}, {0x2501, '-'},    // Horizontal lines
+        {0x2502, '|'}, {0x2503, '|'},    // Vertical lines
+
+        // Box drawing corners and intersections
+        {0x250C, '+'}, {0x250D, '+'}, {0x250E, '+'}, {0x250F, '+'}, // Top-left
+        {0x2510, '+'}, {0x2511, '+'}, {0x2512, '+'}, {0x2513, '+'}, // Top-right
+        {0x2514, '+'}, {0x2515, '+'}, {0x2516, '+'}, {0x2517, '+'}, // Bottom-left
+        {0x2518, '+'}, {0x2519, '+'}, {0x251A, '+'}, {0x251B, '+'}, // Bottom-right
+        {0x253C, '+'}, // Crossing lines
+
+        // Shade and block characters
+        {0x2591, '#'}, {0x2592, '#'}, {0x2593, '#'}, 
+        {0x2588, '#'}, 
+
+        // Special symbols
+        {0x00B0, ' '},    // Degree symbol
+        {0x2191, '^'},    // Upward arrow
+        {0x2193, 'v'},    // Downward arrow
         
-        // Additional special characters
-        {0x7e, "▒"}, {0x60, "◆"}, {0x7a, "≤"}, {0x7b, "≥"},
-        {0x7c, "π"}, {0x7d, "≠"}
+        // Additional Unicode characters seen in BTOp
+        {0x00A3, ' '},    // £ symbol
+        {0x00A2, ' '},    // ¢ symbol
+        {0x2022, ' '},    // • bullet
+        {0x00AE, ' '},    // ® registered trademark
+        {0x00B0, ' '},    // ° degree
     };
 
-    if (state.trantbl[state.charset] == CS_GRAPHIC0) {
-        for (const auto& map : graphicMap) {
-            if (u == map.from) {
-                utf8Decode(map.to, &u, UTF_SIZ);
-                break;
-            }
-        }
+    auto it = specialChars.find(u);
+    if (it != specialChars.end()) {
+        u = it->second;
     }
 }
+
 
 
 size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
@@ -1482,9 +1494,8 @@ size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
     *u = udecoded;
     utf8validate(u, len);
 
-    // More comprehensive character translation
+    // Character set translation
     mapGraphicCharset(*u);
-    handleSpecialCharacters(*u);
 
     return len;
 }
