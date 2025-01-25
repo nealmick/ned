@@ -263,7 +263,6 @@ private:
 
     void setMode(bool set, int mode);
     void handleCharset(char c);
-    void mapGraphicCharset(Rune& u);
     void handleGraphicCharset(Rune& u);
 
 
@@ -329,7 +328,6 @@ private:
     void handleOSCColor(const std::vector<std::string>& args);
     void handleOSCSelection(const std::vector<std::string>& args);
     
-    void handleSpecialCharacters(Rune& u);
 
     void tmoveato(int x, int y);  // Absolute move with origin mode
     void tsetmode(int priv, int set, const std::vector<int>& args);
