@@ -32,26 +32,29 @@ float Clamp(float value, float min, float max) {
     if (value > max) return max;
     return value;
 }
-
 ImFont* LoadFont(const std::string& fontName, float fontSize) {
     ImGuiIO& io = ImGui::GetIO();
     std::string fontPath = "fonts/" + fontName + ".ttf";
-    
+
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
     } else {
         std::cerr << "getcwd() error" << std::endl;
     }
-    
+
     std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
-    
+
     if (!std::filesystem::exists(fontPath)) {
         std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
-    
-    ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize);
+
+    // Create a font config and set the GlyphRanges to Japanese
+    ImFontConfig config;
+    config.GlyphRanges = io.Fonts->GetGlyphRangesJapanese(); 
+
+    ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config);
     if (font == nullptr) {
         std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
@@ -59,7 +62,6 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
-
 void InitializeGLFW() {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;

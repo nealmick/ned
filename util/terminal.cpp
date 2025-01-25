@@ -449,17 +449,23 @@ void Terminal::renderBuffer() {
         }
     }
 }
+
+
 void Terminal::toggleVisibility() {
     isVisible = !isVisible;
 }
+
+
 void Terminal::writeToBuffer(const char* data, size_t length) {
+    static char utf8buf[UTF_SIZ];
+    static size_t utf8len = 0;
+    
     for (size_t i = 0; i < length; ++i) {
         unsigned char c = data[i];
 
         // Existing STR sequence handling
         if (state.esc & ESC_STR) {
-            if (c == '\a' || c == 030 || c == 032 || c == 033 || 
-                ISCONTROLC1(c)) {
+            if (c == '\a' || c == 030 || c == 032 || c == 033 || ISCONTROLC1(c)) {
                 state.esc &= ~(ESC_START | ESC_STR);
                 state.esc |= ESC_STR_END;
                 strparse();
@@ -481,13 +487,13 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             csiescseq.len = 0;
             strescseq.buf.clear();
             strescseq.len = 0;
+            utf8len = 0;  // Reset UTF-8 buffer
             continue;
         }
 
         // Ongoing escape sequence processing
         if (state.esc & ESC_START) {
             if (state.esc & ESC_CSI) {
-                // CSI sequence parsing
                 if (csiescseq.len < sizeof(csiescseq.buf) - 1) {
                     csiescseq.buf[csiescseq.len++] = c;
                     if (BETWEEN(c, 0x40, 0x7E)) {
@@ -502,7 +508,6 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
                 continue;
             }
 
-            // Other escape sequence types
             if (eschandle(c)) {
                 state.esc = 0;
             }
@@ -511,24 +516,57 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
 
         // Control character handling
         if (ISCONTROL(c)) {
+            utf8len = 0;  // Reset UTF-8 buffer
             handleControlCode(c);
             continue;
         }
 
-        // Regular character processing
-        writeChar(c);
+        // UTF-8 handling. /// needs special character implementation
+        if (state.mode & MODE_UTF8) {
+            if (utf8len == 0) {
+                if ((c & 0x80) == 0) {
+                    writeChar(c);
+                } else if ((c & 0xE0) == 0xC0) {
+                    utf8buf[utf8len++] = c;
+                } else if ((c & 0xF0) == 0xE0) {
+                    utf8buf[utf8len++] = c;
+                } else if ((c & 0xF8) == 0xF0) {
+                    utf8buf[utf8len++] = c;
+                }
+                continue;
+            }
+
+            if ((c & 0xC0) == 0x80) {
+                utf8buf[utf8len] = c;
+                utf8len++;
+                
+                size_t expected_len = 0;
+                if ((utf8buf[0] & 0xE0) == 0xC0) expected_len = 2;
+                else if ((utf8buf[0] & 0xF0) == 0xE0) expected_len = 3;
+                else if ((utf8buf[0] & 0xF8) == 0xF0) expected_len = 4;
+
+                if (utf8len == expected_len) {
+                    Rune u;
+                    size_t decoded = utf8Decode(utf8buf, &u, utf8len);
+                    if (decoded > 0) {
+                        writeChar(u);
+                    }
+                    utf8len = 0;
+                }
+            }
+        }
     }
 }
+
 void Terminal::writeChar(unsigned char c) {
-    Rune u = c;
-    
-    // Handle UTF-8 if enabled
+    Rune u;
     if (state.mode & MODE_UTF8) {
-        // UTF-8 decoding would go here
-        // For now, just pass through
+        // UTF-8 mode enabled
+        u = c;
+    } else {
+        u = c;
     }
-    
-    // Line wrapping logic
+    // Handle line wrapping logic
     if (state.c.x >= state.col) {
         if (state.mode & MODE_WRAP) {
             state.c.x = 0;
@@ -542,7 +580,6 @@ void Terminal::writeChar(unsigned char c) {
         }
     }
 
-    // Write the character
     Glyph g;
     g.u = u;
     g.mode = state.c.attrs;
@@ -552,9 +589,9 @@ void Terminal::writeChar(unsigned char c) {
 
     writeGlyph(g, state.c.x, state.c.y);
     state.c.x++;
-
     state.lastc = u;
 }
+
 int Terminal::eschandle(unsigned char ascii) {
     switch (ascii) {
         case '[':
@@ -1180,18 +1217,15 @@ void Terminal::writeGlyph(const Glyph& g, int x, int y) {
             cell.fg = defaultColorMap[cell.trueColorFg + 8];  // Use bright version
         }
     }
-
     if (cell.mode & ATTR_WIDE && x + 1 < state.col) {
         Glyph& nextCell = state.lines[y][x + 1];
-        nextCell.u = ' ';
+        nextCell.u = ' ';  
         nextCell.mode = ATTR_WDUMMY;
+        // Copy color/attrs from base cell
         nextCell.fg = cell.fg;
-        nextCell.bg = cell.bg;
-        nextCell.colorMode = cell.colorMode;
-        nextCell.trueColorFg = cell.trueColorFg;
-        nextCell.trueColorBg = cell.trueColorBg;
+        nextCell.bg = cell.bg; 
     }
-
+    
     state.dirty[y] = true;
 }
 
@@ -1266,6 +1300,8 @@ void Terminal::handleEscape(char c) {
             break;
     }
 }
+
+
 size_t Terminal::utf8Encode(Rune u, char* c) {
     size_t len = 0;
     
@@ -1313,6 +1349,8 @@ void Terminal::reset() {
     state.c.fg = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
     state.c.bg = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 }
+
+
 void Terminal::clearRegion(int x1, int y1, int x2, int y2) {
     int temp;
     if (x1 > x2) {
@@ -1371,6 +1409,7 @@ void Terminal::moveTo(int x, int y) {
     if (oldx != state.c.x || oldy != state.c.y)
         state.c.state &= ~CURSOR_WRAPNEXT;
 }
+
 void Terminal::scrollUp(int orig, int n) {
     if (orig < 0 || orig >= state.row) return;  // Safety check
     if (n <= 0) return;
@@ -1436,110 +1475,36 @@ void Terminal::scrollDown(int orig, int n) {
         }
     }
 }
-void Terminal::mapGraphicCharset(Rune& u) {
-    static const std::unordered_map<Rune, Rune> specialChars = {
-        // Box drawing characters (single line)
-        {0x2500, '-'}, {0x2501, '-'},    // Horizontal lines
-        {0x2502, '|'}, {0x2503, '|'},    // Vertical lines
-
-        // Box drawing corners and intersections
-        {0x250C, '+'}, {0x250D, '+'}, {0x250E, '+'}, {0x250F, '+'}, // Top-left
-        {0x2510, '+'}, {0x2511, '+'}, {0x2512, '+'}, {0x2513, '+'}, // Top-right
-        {0x2514, '+'}, {0x2515, '+'}, {0x2516, '+'}, {0x2517, '+'}, // Bottom-left
-        {0x2518, '+'}, {0x2519, '+'}, {0x251A, '+'}, {0x251B, '+'}, // Bottom-right
-        {0x253C, '+'}, // Crossing lines
-
-        // Shade and block characters
-        {0x2591, '#'}, {0x2592, '#'}, {0x2593, '#'}, 
-        {0x2588, '#'}, 
-
-        // Special symbols
-        {0x00B0, ' '},    // Degree symbol
-        {0x2191, '^'},    // Upward arrow
-        {0x2193, 'v'},    // Downward arrow
-        
-        // Additional Unicode characters seen in BTOp
-        {0x00A3, ' '},    // £ symbol
-        {0x00A2, ' '},    // ¢ symbol
-        {0x2022, ' '},    // • bullet
-        {0x00AE, ' '},    // ® registered trademark
-        {0x00B0, ' '},    // ° degree
-    };
-
-    auto it = specialChars.find(u);
-    if (it != specialChars.end()) {
-        u = it->second;
-    }
-}
 
 
 
+// In utf8Decode:
+// - Properly handle decoding of multi-byte UTF-8 sequences
+// - Validate the decoded Unicode code point
 size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
     size_t i, j, len, type;
     Rune udecoded;
-
     *u = UTF_INVALID;
-    if (!clen) return 0;
+    
 
+    if (!clen) return 0;
     udecoded = utf8decodebyte(c[0], &len);
     if (!BETWEEN(len, 1, UTF_SIZ)) return 1;
-
+    
     for (i = 1, j = 1; i < clen && j < len; ++i, ++j) {
         udecoded = (udecoded << 6) | utf8decodebyte(c[i], &type);
         if (type != 0) return j;
     }
-
+    
     if (j < len) return 0;
-
+    
     *u = udecoded;
     utf8validate(u, len);
 
-    // Character set translation
-    mapGraphicCharset(*u);
-
+    //std::cout << "Decoded to rune: " << std::hex << *u << std::endl;
     return len;
 }
 
-
-void Terminal::handleSpecialCharacters(Rune& u) {
-    // Map Unicode block characters and symbols
-    static const std::unordered_map<Rune, Rune> specialChars = {
-        {0x2500, '-'},   // Box drawing light horizontal
-        {0x2502, '|'},   // Box drawing light vertical
-        {0x250C, '+'},   // Box drawing light down and right
-        {0x2510, '+'},   // Box drawing light down and left
-        {0x2514, '+'},   // Box drawing light up and right
-        {0x2518, '+'},   // Box drawing light up and left
-        {0x253C, '+'},   // Box drawing light vertical and horizontal
-        
-        // Shade characters
-        {0x2591, '#'},   // Light shade
-        {0x2592, '#'},   // Medium shade
-        {0x2593, '#'},   // Dark shade
-    };
-
-    auto it = specialChars.find(u);
-    if (it != specialChars.end()) {
-        u = it->second;
-    }
-}
-
-
-
-void Terminal::handleGraphicCharset(Rune& u) {
-    static const std::unordered_map<Rune, const char*> extendedGraphicMappings = {
-        {0x6a, "▘"}, // lower-right corner
-        {0x6b, "▝"}, // lower-left corner
-        // Add more comprehensive mappings
-    };
-
-    if (state.trantbl[state.charset] == CS_GRAPHIC0) {
-        auto it = extendedGraphicMappings.find(u);
-        if (it != extendedGraphicMappings.end()) {
-            utf8Decode(it->second, &u, UTF_SIZ);
-        }
-    }
-}
 
 void Terminal::handleCharset(char c) {
     static const struct {
@@ -1563,9 +1528,6 @@ void Terminal::handleCharset(char c) {
         }
     }
 }
-
-
-
 
 Terminal::Rune Terminal::utf8decodebyte(char c, size_t* i) {
     for (*i = 0; *i < 4; ++(*i))
@@ -2011,7 +1973,6 @@ void Terminal::handleMouseEvent(int button, int x, int y) {
 void Terminal::processMouseReport(int button, int x, int y) {
     char buf[40];
     int len;
-
     // Encode mouse buttons according to xterm protocol
     int btn = 0;
     if (button & ImGuiMouseButton_Left) btn = 0;
