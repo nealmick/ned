@@ -263,7 +263,6 @@ private:
 
     void setMode(bool set, int mode);
     void handleCharset(char c);
-    void handleGraphicCharset(Rune& u);
 
 
     int eschandle(unsigned char ascii);
@@ -318,7 +317,7 @@ private:
 
     STREscape strescseq;
     
-    void writeChar(unsigned char c);
+    void writeChar(Rune u);
     
     void handleTestSequence(char c);
     void handleDCS();
@@ -354,9 +353,49 @@ private:
         ImVec4(0.0f, 1.0f, 1.0f, 1.0f),     // Bright Cyan
         ImVec4(1.0f, 1.0f, 1.0f, 1.0f)      // Bright White
     };
+    const std::unordered_map<Rune, char> boxDrawingChars = {
+        // Light horizontal and vertical lines
+        {0x2500, '-'},   // Light horizontal  
+        {0x2502, '|'},   // Light vertical
 
-    
+        // Light box corners
+        {0x250C, '+'},   // Light down and right (top-left corner)
+        {0x2510, '+'},   // Light down and left  (top-right corner)
+        {0x2514, '+'},   // Light up and right   (bottom-left corner)
+        {0x2518, '+'},   // Light up and left    (bottom-right corner)
 
+        // T-junctions and crossings
+        {0x251C, '+'},   // Light vertical and right
+        {0x2524, '+'},   // Light vertical and left
+        {0x252C, '+'},   // Light horizontal and down
+        {0x2534, '+'},   // Light horizontal and up 
+        {0x253C, '+'},   // Light cross
+
+        // Additional box drawing characters
+        {0x2550, '='},   // Double horizontal
+        {0x2551, '|'},   // Double vertical
+        {0x2554, '+'},   // Double down and right (top-left corner)
+        {0x2557, '+'},   // Double down and left (top-right corner)
+        {0x255A, '+'},   // Double up and right (bottom-left corner)
+        {0x255D, '+'},   // Double up and left (bottom-right corner)
+
+        // Dot-like characters and additional symbols
+        {0x2591, '.'},   // Light shade
+        {0x2592, ':'},   // Medium shade
+        {0x2593, '#'},   // Dark shade
+        {0x256D, '/'},   // Light arc down and right
+        {0x256E, '\\'},  // Light arc down and left
+        {0x2570, '\\'},  // Light arc up and right
+        {0x256F, '/'},   // Light arc up and left
+        {0x2581, '_'},   // Lower one eighth block
+        {0x2582, '_'},   // Lower one quarter block
+        {0x2583, '_'},   // Lower three eighths block
+        {0x2584, '_'},   // Lower half block
+        {0x2585, '_'},   // Lower five eighths block
+        {0x2586, '_'},   // Lower three quarters block
+        {0x2587, '_'},   // Lower seven eighths block
+        {0x2588, '#'},   // Full block
+    };
 
 };
 

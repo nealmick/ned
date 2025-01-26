@@ -449,8 +449,6 @@ void Terminal::renderBuffer() {
         }
     }
 }
-
-
 void Terminal::toggleVisibility() {
     isVisible = !isVisible;
 }
@@ -521,65 +519,98 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
             continue;
         }
 
-        // UTF-8 handling. /// needs special character implementation
+
+        
         if (state.mode & MODE_UTF8) {
             if (utf8len == 0) {
                 if ((c & 0x80) == 0) {
                     writeChar(c);
-                } else if ((c & 0xE0) == 0xC0) {
+                } 
+                else if ((c & 0xE0) == 0xC0 ||   // 2-byte start
+                         (c & 0xF0) == 0xE0 ||   // 3-byte start
+                         (c & 0xF8) == 0xF0) {   // 4-byte start
                     utf8buf[utf8len++] = c;
-                } else if ((c & 0xF0) == 0xE0) {
-                    utf8buf[utf8len++] = c;
-                } else if ((c & 0xF8) == 0xF0) {
-                    utf8buf[utf8len++] = c;
-                }
-                continue;
-            }
-
-            if ((c & 0xC0) == 0x80) {
-                utf8buf[utf8len] = c;
-                utf8len++;
-                
-                size_t expected_len = 0;
-                if ((utf8buf[0] & 0xE0) == 0xC0) expected_len = 2;
-                else if ((utf8buf[0] & 0xF0) == 0xE0) expected_len = 3;
-                else if ((utf8buf[0] & 0xF8) == 0xF0) expected_len = 4;
-
-                if (utf8len == expected_len) {
-                    Rune u;
-                    size_t decoded = utf8Decode(utf8buf, &u, utf8len);
-                    if (decoded > 0) {
-                        writeChar(u);
+                    
+                    // If it's a 3-byte sequence (box drawing characters), 
+                    // we want to immediately look for the next two bytes
+                    if ((c & 0xF0) == 0xE0) {
+                        // Look ahead for the next two bytes
+                        if (i + 2 < length) {
+                            utf8buf[utf8len++] = data[i + 1];
+                            utf8buf[utf8len++] = data[i + 2];
+                            
+                            Rune u;
+                            size_t decoded = utf8Decode(utf8buf, &u, utf8len);
+                            if (decoded > 0) {
+                                writeChar(u);
+                            }
+                            
+                            // Skip the next two bytes since we've processed them
+                            i += 2;
+                            utf8len = 0;
+                        }
                     }
+                } 
+                else {
+                    // Unexpected start byte
+                    utf8buf[utf8len++] = c;
+                    utf8buf[utf8len] = '\0';
+                    writeChar(0xFFFD);
+                }
+            }
+            else {
+                // This block is now less likely to be used due to the changes above
+                if ((c & 0xC0) == 0x80) {
+                    utf8buf[utf8len++] = c;
+                    
+                    size_t expected_len = 
+                        ((utf8buf[0] & 0xE0) == 0xC0) ? 2 :
+                        ((utf8buf[0] & 0xF0) == 0xE0) ? 3 :
+                        ((utf8buf[0] & 0xF8) == 0xF0) ? 4 : 0;
+
+                    if (utf8len == expected_len) {
+                        Rune u;
+                        size_t decoded = utf8Decode(utf8buf, &u, utf8len);
+                        if (decoded > 0) {
+                            writeChar(u);
+                        }
+                        utf8len = 0;
+                    }
+                } 
+                else {
+                    std::cerr << "Invalid continuation byte: 0x" 
+                              << std::hex << (int)c << std::dec << std::endl;
                     utf8len = 0;
                 }
             }
+        } 
+        else {
+            writeChar(c);
         }
     }
 }
 
-void Terminal::writeChar(unsigned char c) {
-    Rune u;
-    if (state.mode & MODE_UTF8) {
-        // UTF-8 mode enabled
-        u = c;
-    } else {
-        u = c;
-    }
-    // Handle line wrapping logic
-    if (state.c.x >= state.col) {
-        if (state.mode & MODE_WRAP) {
-            state.c.x = 0;
-            if (state.c.y == state.bot) {
-                scrollUp(state.top, 1);
-            } else {
-                state.c.y++;
-            }
-        } else {
-            state.c.x = state.col - 1;
-        }
+void Terminal::writeChar(Rune u) {
+    // Enhanced box drawing character logging
+    if (u >= 0x2500 && u <= 0x257F) {
+        std::cerr << "Processing Box Drawing Character: U+" 
+                  << std::hex << u << std::dec 
+                  << " Mapped to: " 
+                  << (boxDrawingChars.count(u) ? 
+                      std::string(1, boxDrawingChars.at(u)) : "N/A") 
+                  << std::endl;
     }
 
+    // Box drawing character mapping logic
+    auto it = boxDrawingChars.find(u);
+    if (it != boxDrawingChars.end()) {
+        std::cerr << "Mapped character found for U+" 
+                  << std::hex << u << std::dec 
+                  << " to '" << it->second << "'" << std::endl;
+        u = it->second;
+    }
+
+    // Rest of the existing writeChar implementation
     Glyph g;
     g.u = u;
     g.mode = state.c.attrs;
@@ -1477,31 +1508,74 @@ void Terminal::scrollDown(int orig, int n) {
 }
 
 
-
-// In utf8Decode:
-// - Properly handle decoding of multi-byte UTF-8 sequences
-// - Validate the decoded Unicode code point
 size_t Terminal::utf8Decode(const char* c, Rune* u, size_t clen) {
-    size_t i, j, len, type;
-    Rune udecoded;
     *u = UTF_INVALID;
-    
+    size_t len = 0;
+    Rune udecoded = 0;
 
-    if (!clen) return 0;
-    udecoded = utf8decodebyte(c[0], &len);
-    if (!BETWEEN(len, 1, UTF_SIZ)) return 1;
-    
-    for (i = 1, j = 1; i < clen && j < len; ++i, ++j) {
-        udecoded = (udecoded << 6) | utf8decodebyte(c[i], &type);
-        if (type != 0) return j;
+    // Determine sequence length and initial byte decoding
+    if ((c[0] & 0x80) == 0) {
+        // ASCII character
+        *u = c[0];
+        return 1;
+    } 
+    else if ((c[0] & 0xE0) == 0xC0) {
+        // 2-byte sequence
+        len = 2;
+        udecoded = c[0] & 0x1F;
+    } 
+    else if ((c[0] & 0xF0) == 0xE0) {
+        // 3-byte sequence (used by box drawing characters)
+        len = 3;
+        udecoded = c[0] & 0x0F;
+    } 
+    else if ((c[0] & 0xF8) == 0xF0) {
+        // 4-byte sequence
+        len = 4;
+        udecoded = c[0] & 0x07;
+    } 
+    else {
+        std::cerr << "Invalid UTF-8 start byte: 0x" 
+                  << std::hex << static_cast<int>(c[0]) 
+                  << std::dec << std::endl;
+        return 0;
     }
-    
-    if (j < len) return 0;
-    
-    *u = udecoded;
-    utf8validate(u, len);
 
-    //std::cout << "Decoded to rune: " << std::hex << *u << std::endl;
+    // Validate sequence length
+    if (clen < len) {
+        std::cerr << "Incomplete UTF-8 sequence. Expected " << len 
+                  << " bytes, got " << clen << std::endl;
+        return 0;
+    }
+
+    // Process continuation bytes
+    for (size_t i = 1; i < len; i++) {
+        // Validate continuation byte
+        if ((c[i] & 0xC0) != 0x80) {
+            std::cerr << "Invalid continuation byte at position " << i 
+                      << ": 0x" << std::hex << static_cast<int>(c[i]) 
+                      << std::dec << std::endl;
+            return 0;
+        }
+        
+        // Shift and add continuation byte
+        udecoded = (udecoded << 6) | (c[i] & 0x3F);
+        
+    }
+
+    // Additional validation for decoded Unicode point
+    if (!BETWEEN(udecoded, utfmin[len], utfmax[len]) || 
+        BETWEEN(udecoded, 0xD800, 0xDFFF) || 
+        udecoded > 0x10FFFF) {
+        std::cerr << "Invalid Unicode code point: U+" 
+                  << std::hex << udecoded << std::dec << std::endl;
+        *u = UTF_INVALID;
+        return 0;
+    }
+
+
+
+    *u = udecoded;
     return len;
 }
 
