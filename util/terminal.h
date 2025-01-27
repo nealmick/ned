@@ -399,6 +399,27 @@ private:
         {0x2591, L'░'},  // Light shade
         {0x2592, L'▒'},  // Medium shade
         {0x2593, L'▓'},  // Dark shade
+
+        {0x2500, L'─'}, // Existing mappings...
+
+        // Add Braille patterns (0x28c0 is appearing a lot in the output)
+        {0x28c0, L'⣀'},  // BRAILLE PATTERN DOTS-78
+        {0x28c1, L'⣁'},  // BRAILLE PATTERN DOTS-1-78
+        {0x28c2, L'⣂'},  // BRAILLE PATTERN DOTS-2-78
+        {0x28c3, L'⣃'},  // BRAILLE PATTERN DOTS-12-78
+
+        // Block elements
+        {0x2588, L'█'},  // FULL BLOCK (this one appears in your output)
+        {0x2589, L'▉'},  // LEFT SEVEN EIGHTHS BLOCK
+        {0x258A, L'▊'},  // LEFT THREE QUARTERS BLOCK
+        {0x258B, L'▋'},  // LEFT FIVE EIGHTHS BLOCK
+        {0x258C, L'▌'},  // LEFT HALF BLOCK
+        {0x258D, L'▍'},  // LEFT THREE EIGHTHS BLOCK
+        {0x258E, L'▎'},  // LEFT ONE QUARTER BLOCK
+        {0x258F, L'▏'},  // LEFT ONE EIGHTH BLOCK
+        {0x2840, 0x2840},  // ⡀
+        {0x2880, 0x2880},  // ⢀
+        {0x28c0, 0x28c0},  // ⣀
     };
 };
 

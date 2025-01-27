@@ -32,19 +32,19 @@ float Clamp(float value, float min, float max) {
     if (value > max) return max;
     return value;
 }
+
 ImFont* LoadFont(const std::string& fontName, float fontSize) {
     ImGuiIO& io = ImGui::GetIO();
     std::string fontPath = "fonts/" + fontName + ".ttf";
-
+    
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
     } else {
         std::cerr << "getcwd() error" << std::endl;
     }
-
+    
     std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
-
     if (!std::filesystem::exists(fontPath)) {
         std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
@@ -57,20 +57,35 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
         0x25A0, 0x25FF,  // Geometric Shapes
         0x2600, 0x26FF,  // Miscellaneous Symbols
         0x2700, 0x27BF,  // Dingbats
-        0x2800, 0x28FF,  // Braille Patterns (important for graphs!)
         0x2900, 0x297F,  // Supplemental Arrows-B
         0x2B00, 0x2BFF,  // Miscellaneous Symbols and Arrows
-        0x3000, 0x303F,  // CJK Symbols and Punctuation (sometimes used)
-        0xE000, 0xE0FF,  // Private Use Area (might be needed for some symbols)
+        0x3000, 0x303F,  // CJK Symbols and Punctuation
+        0xE000, 0xE0FF,  // Private Use Area
         0,
     };
 
-    // Create a font config that includes our custom ranges
-    ImFontConfig config;
-    config.MergeMode = false;
-    config.GlyphRanges = ranges;  // Use our custom ranges instead of Japanese ranges
-    
-    ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config);
+    // Create config for the main font (from settings)
+    ImFontConfig config_main;
+    config_main.MergeMode = false;
+    config_main.GlyphRanges = ranges;
+
+    // Load the main font first (from settings)
+    ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config_main, ranges);
+
+    // Then merge DejaVu Sans just for the Braille range
+    ImFontConfig config_braille;
+    config_braille.MergeMode = true;  // Important! This will merge with previous font
+    static const ImWchar braille_ranges[] = { 0x2800, 0x28FF, 0 };
+    io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
+        
+    if (font) {
+        // Test if font has Braille support
+        if (font->FindGlyphNoFallback(0x28c0)) {
+            std::cout << "Font supports Braille characters" << std::endl;
+        } else {
+            std::cout << "Font does NOT support Braille characters" << std::endl;
+        }
+    }
     if (font == nullptr) {
         std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
@@ -78,7 +93,6 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
-
 
 void InitializeGLFW() {
     if (!glfwInit()) {

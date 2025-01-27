@@ -589,14 +589,14 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
         }
     }
 }
+
 void Terminal::writeChar(Rune u) {
-    // Box drawing character mapping logic with improved logging
+    
+
+    // Your existing box drawing character mapping logic
     auto it = boxDrawingChars.find(u);
     if (it != boxDrawingChars.end()) {
-        // Log mapped characters (optional, but helpful for debugging)
-        std::cerr << "Mapped character found for U+" 
-                  << std::hex << u << std::dec 
-                  << " to '" << it->second << "'" << std::endl;
+        
         u = it->second;
     } else {
         // Log unmapped characters
@@ -607,7 +607,7 @@ void Terminal::writeChar(Rune u) {
         }
     }
 
-    // Rest of the existing writeChar implementation
+    // Rest of your existing writeChar implementation
     Glyph g;
     g.u = u;
     g.mode = state.c.attrs;
