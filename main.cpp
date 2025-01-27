@@ -50,10 +50,26 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
         return io.Fonts->AddFontDefault();
     }
 
-    // Create a font config and set the GlyphRanges to Japanese
-    ImFontConfig config;
-    config.GlyphRanges = io.Fonts->GetGlyphRangesJapanese(); 
+    static const ImWchar ranges[] = {
+        0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+        0x2500, 0x257F,  // Box Drawing Characters
+        0x2580, 0x259F,  // Block Elements
+        0x25A0, 0x25FF,  // Geometric Shapes
+        0x2600, 0x26FF,  // Miscellaneous Symbols
+        0x2700, 0x27BF,  // Dingbats
+        0x2800, 0x28FF,  // Braille Patterns (important for graphs!)
+        0x2900, 0x297F,  // Supplemental Arrows-B
+        0x2B00, 0x2BFF,  // Miscellaneous Symbols and Arrows
+        0x3000, 0x303F,  // CJK Symbols and Punctuation (sometimes used)
+        0xE000, 0xE0FF,  // Private Use Area (might be needed for some symbols)
+        0,
+    };
 
+    // Create a font config that includes our custom ranges
+    ImFontConfig config;
+    config.MergeMode = false;
+    config.GlyphRanges = ranges;  // Use our custom ranges instead of Japanese ranges
+    
     ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config);
     if (font == nullptr) {
         std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
@@ -62,6 +78,8 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
+
+
 void InitializeGLFW() {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
