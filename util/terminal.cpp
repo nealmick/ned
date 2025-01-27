@@ -589,25 +589,22 @@ void Terminal::writeToBuffer(const char* data, size_t length) {
         }
     }
 }
-
 void Terminal::writeChar(Rune u) {
-    // Enhanced box drawing character logging
-    if (u >= 0x2500 && u <= 0x257F) {
-        std::cerr << "Processing Box Drawing Character: U+" 
-                  << std::hex << u << std::dec 
-                  << " Mapped to: " 
-                  << (boxDrawingChars.count(u) ? 
-                      std::string(1, boxDrawingChars.at(u)) : "N/A") 
-                  << std::endl;
-    }
-
-    // Box drawing character mapping logic
+    // Box drawing character mapping logic with improved logging
     auto it = boxDrawingChars.find(u);
     if (it != boxDrawingChars.end()) {
+        // Log mapped characters (optional, but helpful for debugging)
         std::cerr << "Mapped character found for U+" 
                   << std::hex << u << std::dec 
                   << " to '" << it->second << "'" << std::endl;
         u = it->second;
+    } else {
+        // Log unmapped characters
+        if (u >= 0x2500 && u <= 0x257F) {
+            std::cerr << "Unmapped box drawing character: U+" 
+                      << std::hex << u << std::dec 
+                      << " (hex: 0x" << std::hex << u << std::dec << ")" << std::endl;
+        }
     }
 
     // Rest of the existing writeChar implementation
