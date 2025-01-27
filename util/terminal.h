@@ -353,50 +353,53 @@ private:
         ImVec4(0.0f, 1.0f, 1.0f, 1.0f),     // Bright Cyan
         ImVec4(1.0f, 1.0f, 1.0f, 1.0f)      // Bright White
     };
-    const std::unordered_map<Rune, char> boxDrawingChars = {
-        // Light horizontal and vertical lines
-        {0x2500, '-'},   // Light horizontal  
-        {0x2502, '|'},   // Light vertical
-
-        // Light box corners
-        {0x250C, '+'},   // Light down and right (top-left corner)
-        {0x2510, '+'},   // Light down and left  (top-right corner)
-        {0x2514, '+'},   // Light up and right   (bottom-left corner)
-        {0x2518, '+'},   // Light up and left    (bottom-right corner)
-
-        // T-junctions and crossings
-        {0x251C, '+'},   // Light vertical and right
-        {0x2524, '+'},   // Light vertical and left
-        {0x252C, '+'},   // Light horizontal and down
-        {0x2534, '+'},   // Light horizontal and up 
-        {0x253C, '+'},   // Light cross
-
-        // Additional box drawing characters
-        {0x2550, '='},   // Double horizontal
-        {0x2551, '|'},   // Double vertical
-        {0x2554, '+'},   // Double down and right (top-left corner)
-        {0x2557, '+'},   // Double down and left (top-right corner)
-        {0x255A, '+'},   // Double up and right (bottom-left corner)
-        {0x255D, '+'},   // Double up and left (bottom-right corner)
-
-        // Dot-like characters and additional symbols
-        {0x2591, '.'},   // Light shade
-        {0x2592, ':'},   // Medium shade
-        {0x2593, '#'},   // Dark shade
-        {0x256D, '/'},   // Light arc down and right
-        {0x256E, '\\'},  // Light arc down and left
-        {0x2570, '\\'},  // Light arc up and right
-        {0x256F, '/'},   // Light arc up and left
-        {0x2581, '_'},   // Lower one eighth block
-        {0x2582, '_'},   // Lower one quarter block
-        {0x2583, '_'},   // Lower three eighths block
-        {0x2584, '_'},   // Lower half block
-        {0x2585, '_'},   // Lower five eighths block
-        {0x2586, '_'},   // Lower three quarters block
-        {0x2587, '_'},   // Lower seven eighths block
-        {0x2588, '#'},   // Full block
+    const std::unordered_map<Rune, Rune> boxDrawingChars = {
+        // Basic box drawing - map proper Unicode box chars to themselves
+        {0x2500, L'─'},  // HORIZONTAL LINE
+        {0x2502, L'│'},  // VERTICAL LINE
+        {0x250C, L'┌'},  // DOWN AND RIGHT
+        {0x2510, L'┐'},  // DOWN AND LEFT
+        {0x2514, L'└'},  // UP AND RIGHT
+        {0x2518, L'┘'},  // UP AND LEFT
+        {0x251C, L'├'},  // VERTICAL AND RIGHT
+        {0x2524, L'┤'},  // VERTICAL AND LEFT
+        {0x252C, L'┬'},  // DOWN AND HORIZONTAL
+        {0x2534, L'┴'},  // UP AND HORIZONTAL
+        {0x253C, L'┼'},  // VERTICAL AND HORIZONTAL
+        
+        // Double-line variants
+        {0x2550, L'═'},  // DOUBLE HORIZONTAL
+        {0x2551, L'║'},  // DOUBLE VERTICAL
+        {0x2554, L'╔'},  // DOUBLE DOWN AND RIGHT
+        {0x2557, L'╗'},  // DOUBLE DOWN AND LEFT
+        {0x255A, L'╚'},  // DOUBLE UP AND RIGHT
+        {0x255D, L'╝'},  // DOUBLE UP AND LEFT
+        
+        // Rounded corners (often used in btop)
+        {0x256D, L'╭'},  // ROUNDED DOWN AND RIGHT
+        {0x256E, L'╮'},  // ROUNDED DOWN AND LEFT
+        {0x256F, L'╯'},  // ROUNDED UP AND LEFT
+        {0x2570, L'╰'},  // ROUNDED UP AND RIGHT
+        
+        // Block elements
+        {0x2588, L'█'},  // FULL BLOCK
+        {0x2591, L'░'},  // LIGHT SHADE
+        {0x2592, L'▒'},  // MEDIUM SHADE
+        {0x2593, L'▓'},  // DARK SHADE
+        {0x2584, L'▄'},  // LOWER HALF BLOCK
+        {0x2580, L'▀'},  // UPPER HALF BLOCK
+        {0x2581, L'▁'},  // Lower one eighth block
+        {0x2582, L'▂'},  // Lower one quarter block
+        {0x2583, L'▃'},  // Lower three eighths block
+        {0x2584, L'▄'},  // Lower half block
+        {0x2585, L'▅'},  // Lower five eighths block
+        {0x2586, L'▆'},  // Lower three quarters block 
+        {0x2587, L'▇'},  // Lower seven eighths block
+        {0x2588, L'█'},  // Full block
+        {0x2591, L'░'},  // Light shade
+        {0x2592, L'▒'},  // Medium shade
+        {0x2593, L'▓'},  // Dark shade
     };
-
 };
 
 extern Terminal gTerminal;
