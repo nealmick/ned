@@ -643,6 +643,9 @@ int Terminal::eschandle(unsigned char ascii) {
                 return 1;
             }
             break;
+        case 'z':  // DECID -- Identify Terminal
+            processInput("\033[?64;1;2;6;9;15;18;21;22c");
+            break;
         case ']':
         case 'P':  
         case '_':

@@ -417,6 +417,13 @@ private:
         {0x258D, L'▍'},  // LEFT THREE EIGHTHS BLOCK
         {0x258E, L'▎'},  // LEFT ONE QUARTER BLOCK
         {0x258F, L'▏'},  // LEFT ONE EIGHTH BLOCK
+        {0x2589, L'▉'},
+        {0x258A, L'▊'},
+        {0x258B, L'▋'},
+        {0x258C, L'▌'},
+        {0x258D, L'▍'},
+        {0x258E, L'▎'},
+        {0x258F, L'▏'},
         {0x2840, 0x2840},  // ⡀
         {0x2880, 0x2880},  // ⢀
         {0x28c0, 0x28c0},  // ⣀
