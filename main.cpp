@@ -293,7 +293,10 @@ int main() {
     InitializeGLFW();
     
     // Create window
-    GLFWwindow* window = CreateWindow();
+   GLFWwindow* window = CreateWindow();
+    glfwSetWindowRefreshCallback(window, [](GLFWwindow* window) {
+        glfwPostEmptyEvent();
+    });
     
     // Initialize GLEW
     glewExperimental = GL_TRUE;
@@ -384,8 +387,14 @@ int main() {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
         // Always poll events
-        glfwPollEvents();
-
+        if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+            // Use polling when focused for responsive input
+            glfwPollEvents();
+        } else {
+            // Use event waiting with timeout when not focused
+            glfwWaitEventsTimeout(0.016);  // 16ms ~60Hz timeout
+        }
+             
         // Performance tracking
         double currentTime = glfwGetTime();
         frameCount++;
