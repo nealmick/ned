@@ -284,9 +284,6 @@ private:
     std::string getSelection();
     void copySelection();
 
-    void handleMouseEvent(int button, int x, int y);
-    void processMouseReport(int button, int x, int y);
-
 
     std::vector<std::vector<Glyph>> scrollbackBuffer;
     size_t maxScrollbackLines = 10000;
