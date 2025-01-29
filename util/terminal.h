@@ -284,11 +284,13 @@ private:
     std::string getSelection();
     void copySelection();
 
-
     std::vector<std::vector<Glyph>> scrollbackBuffer;
     size_t maxScrollbackLines = 10000;
+    int scrollOffset = 0;
 
     void addToScrollback(const std::vector<Glyph>& line);
+    
+
     void scrollbackScroll(int lines);
 
 
@@ -425,7 +427,6 @@ private:
         {0x2880, 0x2880},  // ⢀
         {0x28c0, 0x28c0},  // ⣀
     };
-
 
     
 };

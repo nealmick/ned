@@ -141,6 +141,16 @@ void Terminal::render() {
 
     renderBuffer();
 
+
+    // Handle mouse wheel for scrollback
+    if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() && !(state.mode & MODE_ALTSCREEN)) {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.MouseWheel != 0.0f) {
+            int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
+            scrollOffset -= static_cast<int>(io.MouseWheel * 3);
+            scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+        }
+    }
     // Handle mouse input
     ImGuiIO& io = ImGui::GetIO();
     if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered()) {
@@ -313,156 +323,310 @@ void Terminal::renderBuffer() {
     ImVec2 pos = ImGui::GetCursorScreenPos();
     float charWidth = ImGui::GetFont()->GetCharAdvance('M');
     float lineHeight = ImGui::GetTextLineHeight();
+    bool altScreen = state.mode & MODE_ALTSCREEN;
 
-    // Draw selection highlight
-    if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+    if (altScreen) {
+        // Alternate screen rendering (vim/htop)
+        // Draw selection highlight
+        if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+            for (int y = 0; y < state.row; y++) {
+                for (int x = 0; x < state.col; x++) {
+                    if (selectedText(x, y)) {
+                        ImVec2 highlightPos(
+                            pos.x + x * charWidth,
+                            pos.y + y * lineHeight
+                        );
+                        drawList->AddRectFilled(
+                            highlightPos,
+                            ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
+                            ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                        );
+                    }
+                }
+            }
+        }
+
+        // Draw alt screen characters
         for (int y = 0; y < state.row; y++) {
             for (int x = 0; x < state.col; x++) {
-                if (selectedText(x, y)) {
-                    ImVec2 highlightPos(
-                        pos.x + x * charWidth,
-                        pos.y + y * lineHeight
+                const Glyph& glyph = state.lines[y][x];
+                if (glyph.mode & ATTR_WDUMMY) continue;
+
+                char text[UTF_SIZ] = {0};
+                char* p = text;
+                utf8Encode(glyph.u, p);
+
+                ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
+                ImVec4 fg = glyph.fg;
+                ImVec4 bg = glyph.bg;
+
+                // Handle true color
+                if (glyph.colorMode == COLOR_TRUE) {
+                    uint32_t tc = glyph.trueColorFg;
+                    fg = ImVec4(
+                        ((tc >> 16) & 0xFF) / 255.0f,
+                        ((tc >> 8) & 0xFF) / 255.0f,
+                        (tc & 0xFF) / 255.0f,
+                        1.0f
                     );
+                }
+
+                // Handle reverse video
+                if (glyph.mode & ATTR_REVERSE) std::swap(fg, bg);
+
+                // Handle bold
+                if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
+                    fg.x = std::min(1.0f, fg.x * 1.5f);
+                    fg.y = std::min(1.0f, fg.y * 1.5f);
+                    fg.z = std::min(1.0f, fg.z * 1.5f);
+                }
+
+                // Draw background
+                if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
                     drawList->AddRectFilled(
-                        highlightPos,
-                        ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                        charPos,
+                        ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(bg)
+                    );
+                }
+
+                // Draw character
+                if (glyph.u != ' ' && glyph.u != 0) {
+                    drawList->AddText(
+                        charPos, 
+                        ImGui::ColorConvertFloat4ToU32(fg),
+                        text
+                    );
+                }
+
+                // Draw underline
+                if (glyph.mode & ATTR_UNDERLINE) {
+                    drawList->AddLine(
+                        ImVec2(charPos.x, charPos.y + lineHeight - 1),
+                        ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
+                        ImGui::ColorConvertFloat4ToU32(fg)
+                    );
+                }
+
+                if (glyph.mode & ATTR_WIDE) x++;
+            }
+        }
+
+        // Draw alt screen cursor
+        if (ImGui::IsWindowFocused()) {
+            ImVec2 cursorPos(
+                pos.x + state.c.x * charWidth,
+                pos.y + state.c.y * lineHeight
+            );
+            
+            const Glyph& cursorCell = state.lines[state.c.y][state.c.x];
+            float time = ImGui::GetTime();
+            float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;
+
+            if (state.mode & MODE_INSERT) {
+                // Vertical bar cursor
+                drawList->AddRectFilled(
+                    cursorPos,
+                    ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
+                );
+            } else {
+                if (cursorCell.u != 0) {
+                    char text[UTF_SIZ] = {0};
+                    utf8Encode(cursorCell.u, text);
+
+                    // Inverse colors
+                    ImVec4 bg = cursorCell.fg;
+                    ImVec4 fg = cursorCell.bg;
+
+                    drawList->AddRectFilled(
+                        cursorPos,
+                        ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha))
+                    );
+
+                    drawList->AddText(
+                        cursorPos,
+                        ImGui::ColorConvertFloat4ToU32(fg),
+                        text
+                    );
+                } else {
+                    // Empty cell cursor
+                    drawList->AddRectFilled(
+                        cursorPos,
+                        ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
+                    );
+                }
+            }
+        }
+    } else {
+        // Main screen with scrollback
+        ImVec2 contentSize = ImGui::GetContentRegionAvail();
+        int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+        int totalLines = scrollbackBuffer.size() + state.row;
+        
+        // Clamp scroll offset
+        int maxScroll = std::max(0, totalLines - visibleRows);
+        scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+        int startLine = std::max(0, totalLines - visibleRows - scrollOffset);
+
+        // Draw selection highlight
+        if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+            for (int visY = 0; visY < visibleRows; visY++) {
+                int currentLine = startLine + visY;
+                if (currentLine >= scrollbackBuffer.size()) {
+                    int screenY = currentLine - scrollbackBuffer.size();
+                    if (screenY >= 0 && screenY < state.row) {
+                        for (int x = 0; x < state.col; x++) {
+                            if (selectedText(x, screenY)) {
+                                ImVec2 highlightPos(
+                                    pos.x + x * charWidth,
+                                    pos.y + visY * lineHeight
+                                );
+                                drawList->AddRectFilled(
+                                    highlightPos,
+                                    ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
+                                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw scrollback + main screen
+        for (int visY = 0; visY < visibleRows; visY++) {
+            int currentLine = startLine + visY;
+            const std::vector<Glyph>* line = nullptr;
+            
+            if (currentLine < scrollbackBuffer.size()) {
+                line = &scrollbackBuffer[currentLine];
+            } else {
+                int screenY = currentLine - scrollbackBuffer.size();
+                if (screenY >= 0 && screenY < state.row) {
+                    line = &state.lines[screenY];
+                }
+            }
+
+            if (!line) continue;
+
+            for (int x = 0; x < state.col; x++) {
+                if (x >= line->size()) break;
+                const Glyph& glyph = (*line)[x];
+                if (glyph.mode & ATTR_WDUMMY) continue;
+
+                char text[UTF_SIZ] = {0};
+                char* p = text;
+                utf8Encode(glyph.u, p);
+
+                ImVec2 charPos(pos.x + x * charWidth, pos.y + visY * lineHeight);
+                ImVec4 fg = glyph.fg;
+                ImVec4 bg = glyph.bg;
+
+                // Handle true color
+                if (glyph.colorMode == COLOR_TRUE) {
+                    uint32_t tc = glyph.trueColorFg;
+                    fg = ImVec4(
+                        ((tc >> 16) & 0xFF) / 255.0f,
+                        ((tc >> 8) & 0xFF) / 255.0f,
+                        (tc & 0xFF) / 255.0f,
+                        1.0f
+                    );
+                }
+
+                // Handle reverse video
+                if (glyph.mode & ATTR_REVERSE) std::swap(fg, bg);
+
+                // Handle bold
+                if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
+                    fg.x = std::min(1.0f, fg.x * 1.5f);
+                    fg.y = std::min(1.0f, fg.y * 1.5f);
+                    fg.z = std::min(1.0f, fg.z * 1.5f);
+                }
+
+                // Draw background
+                if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
+                    drawList->AddRectFilled(
+                        charPos,
+                        ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(bg)
+                    );
+                }
+
+                // Draw character
+                if (glyph.u != ' ' && glyph.u != 0) {
+                    drawList->AddText(
+                        charPos, 
+                        ImGui::ColorConvertFloat4ToU32(fg),
+                        text
+                    );
+                }
+
+                // Draw underline
+                if (glyph.mode & ATTR_UNDERLINE) {
+                    drawList->AddLine(
+                        ImVec2(charPos.x, charPos.y + lineHeight - 1),
+                        ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
+                        ImGui::ColorConvertFloat4ToU32(fg)
+                    );
+                }
+
+                if (glyph.mode & ATTR_WIDE) x++;
+            }
+        }
+
+        // Draw main screen cursor (only when not scrolled)
+        if (ImGui::IsWindowFocused() && scrollOffset == 0) {
+            ImVec2 cursorPos(
+                pos.x + state.c.x * charWidth,
+                pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) * lineHeight
+            );
+
+            const Glyph& cursorCell = state.lines[state.c.y][state.c.x];
+            float time = ImGui::GetTime();
+            float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;
+
+            if (state.mode & MODE_INSERT) {
+                drawList->AddRectFilled(
+                    cursorPos,
+                    ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
+                );
+            } else {
+                if (cursorCell.u != 0) {
+                    char text[UTF_SIZ] = {0};
+                    utf8Encode(cursorCell.u, text);
+
+                    ImVec4 bg = cursorCell.fg;
+                    ImVec4 fg = cursorCell.bg;
+
+                    drawList->AddRectFilled(
+                        cursorPos,
+                        ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha))
+                    );
+
+                    drawList->AddText(
+                        cursorPos,
+                        ImGui::ColorConvertFloat4ToU32(fg),
+                        text
+                    );
+                } else {
+                    drawList->AddRectFilled(
+                        cursorPos,
+                        ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
                     );
                 }
             }
         }
     }
-
-    // Draw characters - following st.c's approach
-    for (int y = 0; y < state.row; y++) {
-        for (int x = 0; x < state.col; x++) {
-            const Glyph& glyph = state.lines[y][x];
-            
-            // Skip dummy wide-character cells
-            if (glyph.mode & ATTR_WDUMMY)
-                continue;
-
-            char text[UTF_SIZ] = {0}; 
-            char* p = text;
-            utf8Encode(glyph.u, p);
-                
-            ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
-                
-            // Base colors
-            ImVec4 fg = glyph.fg;
-            ImVec4 bg = glyph.bg;
-
-            // Handle true color mode
-            if (glyph.colorMode == COLOR_TRUE) {
-                uint32_t tc = glyph.trueColorFg;
-                fg = ImVec4(
-                    ((tc >> 16) & 0xFF) / 255.0f,
-                    ((tc >> 8) & 0xFF) / 255.0f,
-                    (tc & 0xFF) / 255.0f,
-                    1.0f
-                );
-            }
-
-            // Handle reverse video
-            if (glyph.mode & ATTR_REVERSE) {
-                std::swap(fg, bg);
-            }
-
-            // Handle bold - following st.c's approach for basic colors
-            if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
-                // Make color brighter for basic colors
-                fg.x = std::min(1.0f, fg.x * 1.5f);
-                fg.y = std::min(1.0f, fg.y * 1.5f);
-                fg.z = std::min(1.0f, fg.z * 1.5f);
-            }
-
-            // Draw background if it's not default
-            if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
-                drawList->AddRectFilled(
-                    charPos,
-                    ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
-                    ImGui::ColorConvertFloat4ToU32(bg)
-                );
-            }
-
-            // Draw character
-            if (glyph.u != ' ' && glyph.u != 0) {
-                drawList->AddText(
-                    charPos, 
-                    ImGui::ColorConvertFloat4ToU32(fg),
-                    text
-                );
-            }
-
-            // Draw underline
-            if (glyph.mode & ATTR_UNDERLINE) {
-                drawList->AddLine(
-                    ImVec2(charPos.x, charPos.y + lineHeight - 1),
-                    ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
-                    ImGui::ColorConvertFloat4ToU32(fg)
-                );
-            }
-
-            // Handle wide characters
-            if (glyph.mode & ATTR_WIDE) {
-                x++;  // Skip next cell
-            }
-        }
-    }
-    if (ImGui::IsWindowFocused()) {
-        ImVec2 cursorPos(
-            pos.x + state.c.x * charWidth, 
-            pos.y + state.c.y * lineHeight
-        );
-
-        // Get the cell under cursor
-        const Glyph& cursorCell = state.lines[state.c.y][state.c.x];
-        
-        // Calculate smooth fade (2 second period)
-        float time = ImGui::GetTime();
-        float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;  // Oscillate between 0.2 and 0.8
-        
-        if (state.mode & MODE_INSERT) {
-            // Vertical bar cursor for insert mode
-            drawList->AddRectFilled(
-                cursorPos,
-                ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
-                ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
-            );
-        } else {
-            // Draw the character first with normal colors
-            if (cursorCell.u != 0) {
-                char text[UTF_SIZ] = {0};
-                utf8Encode(cursorCell.u, text);
-                
-                // Get inverse colors
-                ImVec4 bg = cursorCell.fg;
-                ImVec4 fg = cursorCell.bg;
-
-                // Draw the cursor background with fade
-                drawList->AddRectFilled(
-                    cursorPos,
-                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha))
-                );
-
-                // Draw the character in inverse color
-                drawList->AddText(
-                    cursorPos,
-                    ImGui::ColorConvertFloat4ToU32(fg),
-                    text
-                );
-            } else {
-                // Empty cell cursor with fade
-                drawList->AddRectFilled(
-                    cursorPos,
-                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha))
-                );
-            }
-        }
-    }
 }
+
+
+    
 void Terminal::toggleVisibility() {
     isVisible = !isVisible;
 }
@@ -1078,15 +1242,15 @@ void Terminal::setMode(bool set, int mode) {
             // Toggle insert mode
             break;
         case MODE_ALTSCREEN:
-            // Handle alt screen switching with buffer preservation
             if (set) {
                 state.altLines.swap(state.lines);
                 state.mode |= MODE_ALTSCREEN;
+                scrollOffset = 0; // Reset scroll on entering alt screen
             } else {
                 state.altLines.swap(state.lines);
                 state.mode &= ~MODE_ALTSCREEN;
+                scrollOffset = 0; // Reset scroll on exiting alt screen
             }
-            // Mark all lines as dirty
             std::fill(state.dirty.begin(), state.dirty.end(), true);
             break;
         case MODE_CRLF:
@@ -1455,25 +1619,26 @@ void Terminal::moveTo(int x, int y) {
         state.c.state &= ~CURSOR_WRAPNEXT;
 }
 
+
 void Terminal::scrollUp(int orig, int n) {
-    if (orig < 0 || orig >= state.row) return;  // Safety check
+    if (orig < 0 || orig >= state.row) return;
     if (n <= 0) return;
-    
-    // Ensure n doesn't overflow
+
     n = std::min(n, state.bot - orig + 1);
-    n = std::max(n, 0);  // Make sure n is not negative
+    n = std::max(n, 0);
 
-    // Protect against out-of-bounds access
-    if (orig + n > state.row) return;
-
-    // Mark lines as dirty
-    for (int i = orig; i <= state.bot && i < state.row; i++) {
-        state.dirty[i] = true;
+    // Add scrolled lines to scrollback when not in alt screen
+    if (!(state.mode & MODE_ALTSCREEN)) {
+        for (int i = orig; i < orig + n; ++i) {
+            if (i < state.lines.size()) {
+                addToScrollback(state.lines[i]);
+            }
+        }
     }
 
-    // Move lines up with bounds checking
-    for (int i = orig; i <= state.bot - n && i + n < state.row; i++) {
-        state.lines[i] = std::move(state.lines[i + n]);
+    // Existing scroll handling...
+    for (int y = orig; y <= state.bot - n; ++y) {
+        state.lines[y] = std::move(state.lines[y + n]);
     }
 
     // Clear revealed lines
@@ -2255,3 +2420,13 @@ void Terminal::tsetmode(int priv, int set, const std::vector<int>& args) {
         }
     }
 }
+
+
+void Terminal::addToScrollback(const std::vector<Glyph>& line) {
+    scrollbackBuffer.push_back(line);
+    if (scrollbackBuffer.size() > maxScrollbackLines) {
+        scrollbackBuffer.erase(scrollbackBuffer.begin());
+    }
+}
+
+
