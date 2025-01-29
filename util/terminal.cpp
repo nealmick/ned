@@ -11,11 +11,10 @@
 
 
 Terminal gTerminal;
-
 Terminal::Terminal() {
-    // Initialize with default terminal size
-    state.row = 36;
-    state.col = 120;
+    // Initialize with safe default size
+    state.row = 24;
+    state.col = 80;
     state.bot = state.row - 1;
     
 
@@ -126,6 +125,19 @@ void Terminal::render() {
         ImGuiWindowFlags_NoDecoration | 
         ImGuiWindowFlags_NoMove | 
         ImGuiWindowFlags_NoResize);
+    // Get actual content size excluding window borders/padding
+    ImVec2 contentSize = ImGui::GetContentRegionAvail();
+    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+    float lineHeight = ImGui::GetTextLineHeight();
+
+    // Calculate new terminal dimensions
+    int new_cols = std::max(1, static_cast<int>(contentSize.x / charWidth));
+    int new_rows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+
+    // Resize if dimensions changed
+    if (new_cols != state.col || new_rows != state.row) {
+        resize(new_cols, new_rows);
+    }
 
     renderBuffer();
 
@@ -1669,37 +1681,80 @@ void Terminal::ringBell() {
         // Implement platform-specific bell
     }
 }
-
 void Terminal::resize(int cols, int rows) {
-    // Preserve existing content during resize
-    std::vector<std::vector<Glyph>> oldLines = std::move(state.lines);
+    std::lock_guard<std::mutex> lock(bufferMutex);
     
-    // Resize terminal
-    state.row = rows;
-    state.col = cols;
-    state.bot = rows - 1;
+    // Ensure minimum dimensions
+    cols = std::max(1, cols);
+    rows = std::max(1, rows);
     
-    // Reinitialize buffers
-    state.lines.resize(rows, std::vector<Glyph>(cols));
-    state.altLines.resize(rows, std::vector<Glyph>(cols));
-    state.dirty.resize(rows, true);
-    state.tabs.resize(cols, false);
-    
-    // Copy preserved content
-    int minRows = std::min(rows, static_cast<int>(oldLines.size()));
-    int minCols = std::min(cols, static_cast<int>(oldLines[0].size()));
-    
-    for (int y = 0; y < minRows; y++) {
-        for (int x = 0; x < minCols; x++) {
-            state.lines[y][x] = oldLines[y][x];
-        }
+    // Don't resize if dimensions haven't changed
+    if (cols == state.col && rows == state.row) {
+        return;
     }
     
-    // Update PTY window size
-    struct winsize ws = {};
-    ws.ws_row = rows;
-    ws.ws_col = cols;
-    ioctl(ptyFd, TIOCSWINSZ, &ws);
+    try {
+        // Create new buffers
+        std::vector<std::vector<Glyph>> newLines(rows);
+        std::vector<std::vector<Glyph>> newAltLines(rows);
+        std::vector<bool> newDirty(rows, true);
+        std::vector<bool> newTabs(cols, false);
+        
+        // Initialize the new lines
+        for (int i = 0; i < rows; i++) {
+            newLines[i].resize(cols);
+            newAltLines[i].resize(cols);
+            // Initialize with default glyphs if needed
+            for (int j = 0; j < cols; j++) {
+                newLines[i][j].u = ' ';
+                newLines[i][j].mode = state.c.attrs;
+                newLines[i][j].fg = state.c.fg;
+                newLines[i][j].bg = state.c.bg;
+            }
+        }
+        
+        // Copy existing content
+        int minRows = std::min(rows, state.row);
+        int minCols = std::min(cols, state.col);
+        
+        for (int y = 0; y < minRows; y++) {
+            for (int x = 0; x < minCols; x++) {
+                if (y < state.lines.size() && x < state.lines[y].size()) {
+                    newLines[y][x] = state.lines[y][x];
+                }
+            }
+        }
+        
+        // Set new tab stops
+        for (int i = 8; i < cols; i += 8) {
+            newTabs[i] = true;
+        }
+        
+        // Update terminal state
+        state.row = rows;
+        state.col = cols;
+        state.bot = rows - 1;
+        
+        // Swap in new buffers
+        state.lines = std::move(newLines);
+        state.altLines = std::move(newAltLines);
+        state.dirty = std::move(newDirty);
+        state.tabs = std::move(newTabs);
+        
+        // Ensure cursor stays within bounds
+        state.c.x = std::min(state.c.x, cols - 1);
+        state.c.y = std::min(state.c.y, rows - 1);
+        
+        // Update PTY size if valid
+        if (ptyFd >= 0) {
+            struct winsize ws = {};
+            ws.ws_row = rows;
+            ws.ws_col = cols;
+            ioctl(ptyFd, TIOCSWINSZ, &ws);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error during resize: " << e.what() << std::endl;
+    }
 }
 
 
