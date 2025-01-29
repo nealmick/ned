@@ -165,15 +165,17 @@ void Terminal::render() {
 
         // Handle clipboard shortcuts
         if (io.KeyCtrl) {
-            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+            if (ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
                 copySelection();
             }
             if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
                 copySelection();
             }
             if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+                std::cout << "Cmd+V pressed" << std::endl;
                 pasteFromClipboard();
             }
+
         }
     }
     // Improved input handling
@@ -272,7 +274,7 @@ void Terminal::render() {
             if (ImGui::IsKeyPressed(ImGuiKey_S)) processInput("\x13");
             if (ImGui::IsKeyPressed(ImGuiKey_T)) processInput("\x14");
             if (ImGui::IsKeyPressed(ImGuiKey_U)) processInput("\x15");
-            if (ImGui::IsKeyPressed(ImGuiKey_V)) processInput("\x16");
+            //if (ImGui::IsKeyPressed(ImGuiKey_V)) processInput("\x16");//removed for cmd v
             if (ImGui::IsKeyPressed(ImGuiKey_W)) processInput("\x17");
             if (ImGui::IsKeyPressed(ImGuiKey_X)) processInput("\x18");
             if (ImGui::IsKeyPressed(ImGuiKey_Y)) processInput("\x19");
@@ -280,7 +282,7 @@ void Terminal::render() {
         }
         
         // Regular text input - only if no control key is pressed
-        if (!io.KeyCtrl && !io.KeySuper && !io.KeyAlt) {
+        if (!io.KeySuper && !io.KeyCtrl && !io.KeyAlt) {
             for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
                 char c = (char)io.InputQueueCharacters[i];
                 if (c != 0) {
@@ -644,7 +646,7 @@ int Terminal::eschandle(unsigned char ascii) {
             }
             break;
         case 'z':  // DECID -- Identify Terminal
-            processInput("\033[?64;1;2;6;9;15;18;21;22c");
+            processInput("\033[?6c");  // Respond as VT102
             break;
         case ']':
         case 'P':  
@@ -1771,7 +1773,16 @@ void Terminal::handleControlCode(unsigned char c) {
 
 void Terminal::processInput(const std::string& input) {
     if (ptyFd < 0) return;
-
+     if (state.mode & MODE_BRACKETPASTE) {
+        if (input.substr(0, 4) == "\033[200~") {
+            write(ptyFd, input.c_str(), input.length());
+            return;
+        }
+        if (input.substr(0, 4) == "\033[201~") {
+            write(ptyFd, input.c_str(), input.length());
+            return;
+        }
+    }
     if (state.mode & MODE_APPCURSOR) {
         if (input == "\033[A") {
             write(ptyFd, "\033OA", 3); // Up
@@ -1957,38 +1968,13 @@ void Terminal::copySelection() {
         ImGui::SetClipboardText(selected.c_str());
     }
 }
-
 void Terminal::pasteFromClipboard() {
     const char* text = ImGui::GetClipboardText();
-    if (!text) return;
-
-    // Start bracketed paste mode if enabled
-    if (state.mode & MODE_BRACKETPASTE) {
-        processInput("\033[200~");
-    }
-
-    // Convert and write clipboard text
-    std::string converted;
-    for (const char* p = text; *p; p++) {
-        // Handle different line endings
-        if (*p == '\n' && !(*(p-1) == '\r')) {
-            processInput("\r");  // Send just CR for bare LF
-        }
-        else if (*p == '\r') {
-            processInput("\r");  // Send CR
-            if (*(p+1) == '\n') p++; // Skip LF in CRLF
-        }
-        else {
-            // Regular character - send directly
-            processInput(std::string(1, *p));
-        }
-    }
-
-    // End bracketed paste mode if enabled
-    if (state.mode & MODE_BRACKETPASTE) {
-        processInput("\033[201~");
-    }
+   
+    // Minimal paste processing
+    write(ptyFd, text, strlen(text));
 }
+
 
 bool Terminal::selectedText(int x, int y) {
     if (sel.mode == SEL_IDLE || sel.ob.x == -1 ||
@@ -2004,71 +1990,6 @@ bool Terminal::selectedText(int x, int y) {
            (y != sel.ne.y || x <= sel.ne.x);
 }
 
-
-void Terminal::handleMouseEvent(int button, int x, int y) {
-    ImGuiIO& io = ImGui::GetIO();
-    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
-    float lineHeight = ImGui::GetTextLineHeight();
-    
-    // Convert mouse coordinates to cell coordinates
-    int cellX = static_cast<int>(x / charWidth);
-    int cellY = static_cast<int>(y / lineHeight);
-    
-    // Clamp to terminal bounds
-    cellX = std::min(std::max(cellX, 0), state.col - 1);
-    cellY = std::min(std::max(cellY, 0), state.row - 1);
-
-    if (button & ImGuiMouseButton_Left) {
-        if (io.MouseDown[0]) { // Left button pressed
-            if (!io.KeyShift && sel.mode != SEL_SELECTING) {
-                // Start new selection
-                selectionStart(cellX, cellY);
-            }
-            selectionExtend(cellX, cellY);
-        } else { // Left button released
-            if (sel.mode == SEL_SELECTING) {
-                sel.mode = SEL_IDLE;
-                copySelection();  // Auto-copy selection
-            }
-        }
-    } else if (button & ImGuiMouseButton_Right) {
-        if (io.MouseDown[1]) { // Right button pressed
-            // Paste from clipboard
-            pasteFromClipboard();
-        }
-    }
-
-    // Handle mouse reporting if enabled
-    if (state.mode & MODE_MOUSEBTN) {
-        processMouseReport(button, cellX, cellY);
-    }
-}
-
-void Terminal::processMouseReport(int button, int x, int y) {
-    char buf[40];
-    int len;
-    // Encode mouse buttons according to xterm protocol
-    int btn = 0;
-    if (button & ImGuiMouseButton_Left) btn = 0;
-    if (button & ImGuiMouseButton_Middle) btn = 1;
-    if (button & ImGuiMouseButton_Right) btn = 2;
-    
-    if (state.mode & MODE_MOUSESGR) {
-        // SGR extended mouse reporting
-        len = snprintf(buf, sizeof(buf), "\033[<%d;%d;%d%c",
-                      btn, x + 1, y + 1,
-                      ImGui::IsMouseDown(btn) ? 'M' : 'm');
-    } else {
-        // Regular X10/X11 mouse reporting
-        btn = ImGui::IsMouseDown(btn) ? btn : 3; // 3 = release
-        len = snprintf(buf, sizeof(buf), "\033[M%c%c%c",
-                      32 + btn, 32 + x + 1, 32 + y + 1);
-    }
-
-    if (len > 0) {
-        processInput(std::string(buf, len));
-    }
-}
 
 
 void Terminal::strparse() {
