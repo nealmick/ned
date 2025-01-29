@@ -77,15 +77,7 @@ ImFont* LoadFont(const std::string& fontName, float fontSize) {
     config_braille.MergeMode = true;  // Important! This will merge with previous font
     static const ImWchar braille_ranges[] = { 0x2800, 0x28FF, 0 };
     io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
-        
-    if (font) {
-        // Test if font has Braille support
-        if (font->FindGlyphNoFallback(0x28c0)) {
-            std::cout << "Font supports Braille characters" << std::endl;
-        } else {
-            std::cout << "Font does NOT support Braille characters" << std::endl;
-        }
-    }
+    
     if (font == nullptr) {
         std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
