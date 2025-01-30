@@ -28,10 +28,12 @@ public:
     bool hasFontChanged() const { return fontChanged; }
     void resetFontChanged() { fontChanged = false; }
     
-    float getFontSize() const { return settings["fontSize"].get<float>(); }
+    float getFontSize() const {  return currentFontSize; }
+
     void setFontSize(float size) {
-        if (settings["fontSize"].get<float>() != size) {
+        if (size != currentFontSize) {
             settings["fontSize"] = size;
+            currentFontSize = size;
             fontSizeChanged = true;
             settingsChanged = true;
         }
@@ -57,7 +59,7 @@ private:
     bool fontChanged = false;
     bool fontSizeChanged = false;
     bool blockInput = false;
-
+    float currentFontSize = 16.0f;
     int settingsCheckFrameCounter = 0;
     const int SETTINGS_CHECK_INTERVAL = 60; // Check every 180 frames (roughly 3 seconds at 60 FPS)
 };

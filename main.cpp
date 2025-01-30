@@ -200,7 +200,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     ImGui::PopStyleVar(2);
 
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.9f, 0.9f, 0.9f, 0.2f));
-    ImGui::SameLine(0, padding);
+    ImGui::SameLine(0, 0);
     ImGui::Button("##vsplitter", ImVec2(splitterWidth, -1));
     ImGui::PopStyleColor();
 
@@ -213,7 +213,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         gSettings.setSplitPos(newSplitPos);
     }
 
-    ImGui::SameLine(0, padding);
+    ImGui::SameLine(0, 0);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
@@ -288,6 +288,8 @@ void updateFileExplorer() {
         last_refresh_time = current_time;
     }
 }
+
+
 int main() {
     // Initialize GLFW
     InitializeGLFW();
@@ -394,7 +396,7 @@ int main() {
             // Use event waiting with timeout when not focused
             glfwWaitEventsTimeout(0.016);  // 16ms ~60Hz timeout
         }
-             
+
         // Performance tracking
         double currentTime = glfwGetTime();
         frameCount++;
