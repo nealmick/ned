@@ -39,7 +39,7 @@ You can install Ned using Ubuntu
 ```bash
 git clone --recursive https://github.com/yourusername/ned.git
 cd ned
-sudo apt install -y build-essential libgl1-mesa-dev xorg-dev libglfw3 libglfw3-dev
+sudo apt install -y build-essential libgl1-mesa-dev xorg-dev libglfw3 libglfw3-dev libglew-dev 
 mkdir build
 cd build
 cmake ..
