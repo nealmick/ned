@@ -1,4 +1,3 @@
-
 #define GL_SILENCE_DEPRECATION
 #include "files.h"
 #include "imgui.h"
@@ -612,7 +611,13 @@ void FileExplorer::findNext() {
     std::cout << "\033[35mFiles:\033[0m  Not found" << std::endl;
   }
 }
-//
+
+
+
+
+
+
+
 void FileExplorer::findPrevious() {
   if (findText.empty())
     return;

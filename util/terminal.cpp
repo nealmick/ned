@@ -339,8 +339,9 @@ void Terminal::renderBuffer() {
                         drawList->AddRectFilled(
                             highlightPos,
                             ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
-                            ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                            ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))  // Pink color to match editor
                         );
+                      
                     }
                 }
             }
@@ -487,7 +488,7 @@ void Terminal::renderBuffer() {
                                 drawList->AddRectFilled(
                                     highlightPos,
                                     ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
-                                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.7f, 0.3f))
+                                    ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))  // Pink color to match editor
                                 );
                             }
                         }
@@ -626,7 +627,7 @@ void Terminal::renderBuffer() {
 }
 
 
-    
+
 void Terminal::toggleVisibility() {
     isVisible = !isVisible;
 }
@@ -1898,7 +1899,10 @@ void Terminal::resize(int cols, int rows) {
         // Update terminal state
         state.row = rows;
         state.col = cols;
-        state.bot = rows - 1;
+        state.top = std::clamp(state.top, 0, rows - 1);
+        state.bot = std::clamp(state.bot, state.top, rows - 1);
+        if (state.bot < state.top)
+            state.bot = state.top;
         
         // Swap in new buffers
         state.lines = std::move(newLines);
