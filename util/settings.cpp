@@ -35,7 +35,7 @@ void Settings::loadSettings() {
         settings["backgroundColor"] = {0.45f, 0.55f, 0.60f, 1.00f};
     }
     if (!settings.contains("fontSize")) {
-        settings["fontSize"] = 16.0f;
+        currentFontSize = settings["fontSize"].get<float>();
     }
     if (!settings.contains("splitPos")) {
         settings["splitPos"] = 0.3f;
@@ -195,13 +195,14 @@ void Settings::renderSettingsWindow() {
     ImGui::Separator();
     ImGui::Spacing();
     
-    // Font Size Settings
-    float fontSize = settings["fontSize"].get<float>();
-    if (ImGui::SliderFloat("Font Size", &fontSize, 8.0f, 72.0f, "%.0f")) {
-        settings["fontSize"] = fontSize;
-        setFontSize(fontSize);
-        fontSizeChanged = true;
-        settingsChanged = true;
+    static float tempFontSize = currentFontSize;  // Use currentFontSize instead of reading from settings
+
+    if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f")) {
+        settings["fontSize"] = tempFontSize;  // Update settings but don't change display yet
+    }
+
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        setFontSize(tempFontSize);  // This will update currentFontSize and trigger changes
         saveSettings();
     }
     ImGui::Spacing();
