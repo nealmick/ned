@@ -1,5 +1,7 @@
 
 
+
+
 #pragma once
 #include <string>
 #include <vector>
@@ -13,23 +15,31 @@ class Settings;
 extern Settings gSettings;
 
 namespace PythonLexer {
+    enum class TokenType {
+        Whitespace,
+        Identifier,
+        Keyword,
+        String,
+        Number,
+        Comment,
+        Operator,
+        Parenthesis,
+        Bracket,
+        Brace,
+        Colon,
+        Comma,
+        Dot,
+        Unknown,
+        
+        // Add new token types
+        Function,        // For function names
+        ClassName,       // For class names
+        Decorator,       // For @decorators
+        SelfParam,       // For 'self' parameter
+        BuiltinType,     // For built-in types like 'int', 'str', etc.
+        ScopeOperator    // For . in method calls
+    };
 
-enum class TokenType {
-    Whitespace,
-    Identifier,
-    Keyword,
-    String,
-    Number,
-    Comment,
-    Operator,
-    Parenthesis,
-    Bracket,
-    Brace,
-    Colon,
-    Comma,
-    Dot,
-    Unknown
-};
 
 struct Token {
     TokenType type;
@@ -46,19 +56,26 @@ public:
         ImVec4 number;
         ImVec4 comment;
         ImVec4 text;
+        ImVec4 function;  // Add this
     };
 
     Lexer() {
         keywords = {"and", "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except",
-                    "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "None",
-                    "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield"};
+                "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "None",
+                "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield"};
+    
+        // Add built-in types
+        builtinTypes = {"int", "str", "float", "bool", "list", "dict", "set", "tuple", "bytes",
+                        "object", "BaseException", "Exception"};
         
         operators = {
-            {"+", TokenType::Operator}, {"-", TokenType::Operator}, {"*", TokenType::Operator}, {"/", TokenType::Operator},
-            {"//", TokenType::Operator}, {"%", TokenType::Operator}, {"**", TokenType::Operator}, {"=", TokenType::Operator},
-            {"==", TokenType::Operator}, {"!=", TokenType::Operator}, {">", TokenType::Operator}, {"<", TokenType::Operator},
-            {">=", TokenType::Operator}, {"<=", TokenType::Operator}, {"and", TokenType::Operator}, {"or", TokenType::Operator},
-            {"not", TokenType::Operator}, {"in", TokenType::Operator}, {"is", TokenType::Operator}
+            {"+", TokenType::Operator}, {"-", TokenType::Operator}, {"*", TokenType::Operator}, 
+            {"/", TokenType::Operator}, {"//", TokenType::Operator}, {"%", TokenType::Operator}, 
+            {"**", TokenType::Operator}, {"=", TokenType::Operator}, {"==", TokenType::Operator}, 
+            {"!=", TokenType::Operator}, {">", TokenType::Operator}, {"<", TokenType::Operator},
+            {">=", TokenType::Operator}, {"<=", TokenType::Operator}, {"and", TokenType::Operator}, 
+            {"or", TokenType::Operator}, {"not", TokenType::Operator}, {"in", TokenType::Operator}, 
+            {"is", TokenType::Operator}
         };
         colorsNeedUpdate = true;
     }
@@ -135,14 +152,15 @@ public:
     void forceColorUpdate() {
         colorsNeedUpdate = true;
     }
+
 private:    
     std::unordered_set<std::string> keywords;
+    std::unordered_set<std::string> builtinTypes;  // Add this
     std::unordered_map<std::string, TokenType> operators;
     mutable ThemeColors cachedColors;
     mutable bool colorsNeedUpdate = true;
 
     void updateThemeColors() const {
-        // Check both our flag AND settings theme changed
         if (!colorsNeedUpdate) return;
         
         auto& theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
@@ -157,6 +175,7 @@ private:
         cachedColors.number = loadColor("number");
         cachedColors.comment = loadColor("comment");
         cachedColors.text = loadColor("text");
+        cachedColors.function = loadColor("function");  // Add this
         
         colorsNeedUpdate = false;
     }
@@ -170,7 +189,38 @@ private:
         size_t start = pos;
         while (pos < code.length() && isAlphaNumeric(code[pos])) pos++;
         std::string word = code.substr(start, pos - start);
-        return {keywords.find(word) != keywords.end() ? TokenType::Keyword : TokenType::Identifier, start, pos - start};
+
+        // Look ahead for function detection
+        size_t next = pos;
+        while (next < code.length() && isWhitespace(code[next])) next++;
+        bool isFunction = next < code.length() && code[next] == '(';
+
+        // Check for decorators
+        if (start > 0 && code[start - 1] == '@') {
+            return {TokenType::Decorator, start, pos - start};
+        }
+
+        // Check priority in this order
+        if (keywords.find(word) != keywords.end()) {
+            if (word == "class") {
+                return {TokenType::ClassName, start, pos - start};
+            }
+            return {TokenType::Keyword, start, pos - start};
+        }
+
+        if (builtinTypes.find(word) != builtinTypes.end()) {
+            return {TokenType::BuiltinType, start, pos - start};
+        }
+
+        if (word == "self") {
+            return {TokenType::SelfParam, start, pos - start};
+        }
+
+        if (isFunction) {
+            return {TokenType::Function, start, pos - start};
+        }
+
+        return {TokenType::Identifier, start, pos - start};
     }
 
     Token lexNumber(const std::string& code, size_t& pos) {
@@ -222,12 +272,39 @@ private:
         updateThemeColors();
         
         switch (type) {
-            case TokenType::Keyword:  return cachedColors.keyword;
-            case TokenType::String:   return cachedColors.string;
-            case TokenType::Number:   return cachedColors.number;
-            case TokenType::Comment:  return cachedColors.comment;
-            case TokenType::Identifier:
-            default:                  return cachedColors.text;
+            case TokenType::Keyword:
+            case TokenType::BuiltinType:
+                return cachedColors.keyword;
+
+            case TokenType::String:   
+                return cachedColors.string;
+
+            case TokenType::Number:   
+                return cachedColors.number;
+
+            case TokenType::Comment:  
+                return cachedColors.comment;
+
+            case TokenType::Function:
+                return cachedColors.function;
+
+            case TokenType::ClassName:
+                return cachedColors.keyword;
+
+            case TokenType::Decorator:
+                return cachedColors.function;  // Use function color for decorators
+
+            case TokenType::ScopeOperator:
+                return cachedColors.function;  // Use function color for .
+
+            case TokenType::Operator:
+                return ImVec4(cachedColors.text.x * 0.8f,
+                             cachedColors.text.y * 0.8f, 
+                             cachedColors.text.z * 0.8f,
+                             cachedColors.text.w);
+
+            default:                  
+                return cachedColors.text;
         }
     }
 };

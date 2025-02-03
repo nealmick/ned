@@ -9,6 +9,7 @@
 #include <mutex>
 #include "lexers/python.h"
 #include "lexers/cpp.h"
+#include "lexers/html.h"
 #include <cmath>
 
 struct SyntaxRule {
@@ -77,6 +78,7 @@ public:
     void forceColorUpdate() {
         pythonLexer.forceColorUpdate();
         cppLexer.forceColorUpdate();
+        htmlLexer.forceColorUpdate();
     }
     
 private:
@@ -92,6 +94,7 @@ private:
     std::vector<SyntaxRule> csharpRules;
     PythonLexer::Lexer pythonLexer;
     CppLexer::Lexer cppLexer;
+    HtmlLexer::Lexer htmlLexer;
     void setupCppRules();
     void setupJavaScriptRules();
     void setupMarkdownRules();
