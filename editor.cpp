@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <iostream>
 
+
+
 int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
                            const ImVec2 &text_start_pos,
                            const std::vector<int> &line_starts,
@@ -126,8 +128,8 @@ ScrollChange EnsureCursorVisible(const ImVec2 &text_pos,
 
   // Ensure we don't scroll past the start of the text
   state.scroll_x = std::max(0.0f, state.scroll_x);
-  return changed;
-}
+  return changed; 
+} 
 
 void SelectAllText(EditorState &state, const std::string &text) {
   const size_t MAX_SELECTION_SIZE = 100000; // Adjust this value as needed
@@ -666,7 +668,6 @@ void Editor::removeIndentation(std::string &text, EditorState &state) {
   colors.insert(colors.begin() + firstLineStart,
                 lastLineEnd - firstLineStart - totalSpacesRemoved,
                 ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
-
   // Update line starts
   UpdateLineStarts(text, state.line_starts);
 
@@ -1363,6 +1364,10 @@ void Editor::highlightContent(const std::string &content,
         std::cout << "\033[36mEditor:\033[0m Applying full Python highlighting" << std::endl;
         pythonLexer.applyHighlighting(content, colors, 0);
         std::cout << "\033[36mEditor:\033[0m Python highlighting completed" << std::endl;
+      } else if (extension == ".html") {
+        std::cout << "\033[36mEditor:\033[0m Applying full html highlighting" << std::endl;
+        htmlLexer.applyHighlighting(content, colors, 0);
+        std::cout << "\033[36mEditor:\033[0m html highlighting completed" << std::endl;
       } else {
         int local_start_pos = start_pos < 0 ? 0 : start_pos;
         int local_end_pos =
@@ -1647,7 +1652,6 @@ void Editor::setupJavaScriptRules() {
       {std::regex(R"(//.*|/\*[\s\S]*?\*/)"), themeColors["comment"]},
   };
 }
-
 void Editor::setupCssRules() {
   cssRules = {
       {std::regex(R"([\.\#]?\w+\s*\{)"), themeColors["selector"]},

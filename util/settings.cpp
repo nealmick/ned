@@ -49,6 +49,7 @@ void Settings::loadSettings() {
     if (!settings.contains("themes")) {
     settings["themes"] = {
         {"default", {
+            {"function", {1.0f, 1.0f, 1.0f, 1.0f}},
             {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
             {"background", {0.2f, 0.2f, 0.2f, 1.0f}},
             {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
@@ -255,6 +256,7 @@ void Settings::renderSettingsWindow() {
     editThemeColor("Strings", "string");
     editThemeColor("Numbers", "number");
     editThemeColor("Comments", "comment");
+    editThemeColor("Functions", "function");
     
     ImGui::Spacing();
     ImGui::TextUnformatted("Toggle");

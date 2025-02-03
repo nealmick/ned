@@ -2239,6 +2239,7 @@ bool Terminal::selectedText(int x, int y) {
 
 
 
+
 void Terminal::strparse() {
     // Parse string sequences into arguments
     strescseq.args.clear();
@@ -2393,6 +2394,9 @@ void Terminal::tmoveato(int x, int y) {
     else
         moveTo(x, y);
 }
+
+
+
 
 void Terminal::tsetmode(int priv, int set, const std::vector<int>& args) {
     // Mode setting per st.c

@@ -1,3 +1,5 @@
+
+
 // shader.cpp
 #include "shaders/shader.h"
 #include <iostream>
@@ -139,6 +141,7 @@ void Shader::useShader() {
         std::cerr << "Failed to find 'screenTexture' uniform" << std::endl;
     }
 }
+
 void Shader::setFloat(const std::string& name, float value) {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
     if (location == -1) {

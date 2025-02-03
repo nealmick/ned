@@ -283,6 +283,9 @@ void FileExplorer::preserveOpenStates(const FileNode &oldNode,
   }
 }
 
+
+
+
 void FileExplorer::refreshFileTree() {
     // Get the current time
     double currentTime = glfwGetTime();
@@ -366,7 +369,8 @@ void FileExplorer::buildFileTree(const fs::path &path, FileNode &node) {
 void FileExplorer::displayFileTree(FileNode &node) {
     float currentFontSize = gSettings.getFontSize();
     
-    // Set icon sizes based on font size
+    // Set icon sizes based on font size0204	204
+
     float folderIconSize = currentFontSize * .8f;  // 20% larger than font
     float fileIconSize = currentFontSize * 1.2f;    // Same as folder for consistency
     
@@ -436,7 +440,7 @@ void FileExplorer::displayFileTree(FileNode &node) {
             node.isOpen = !node.isOpen;
             if (node.isOpen) {
                 buildFileTree(node.fullPath, node);
-            }
+		    }
         }
         
         // Recursively display children if open
@@ -768,6 +772,8 @@ void FileExplorer::handleUndo() {
     _unsavedChanges = true;
   }
 }
+
+
 void FileExplorer::handleRedo() {
   if (currentUndoManager) {
     auto state = currentUndoManager->redo(fileContent);
@@ -820,16 +826,19 @@ void FileExplorer::handleRedo() {
   }
 }
 
+
+
 void FileExplorer::saveCurrentFile() {
   if (!currentFile.empty() && _unsavedChanges) {
     std::ofstream file(currentFile);
-    if (file.is_open()) {
-      file << fileContent;
-      file.close();
-      _unsavedChanges = false;
-      std::cout << "\033[35mFiles:\033[0m  File saved: " << currentFile << std::endl;
-    } else {
+		if (file.is_open()) {
+		  file << fileContent;
+		  file.close();
+		  _unsavedChanges = false;
+		  std::cout << "\033[35mFiles:\033[0m  File saved: " << currentFile << std::endl;
+		} else {
       std::cerr << "\033[35mFiles:\033[0m  Unable to save file: " << currentFile << std::endl;
     }
   }
 }
+
