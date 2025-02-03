@@ -1,3 +1,4 @@
+
 #pragma once
 #include <string>
 #include <filesystem>
@@ -5,6 +6,7 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+
 
 class Settings {
 public:

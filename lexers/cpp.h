@@ -29,7 +29,31 @@ enum class TokenType {
     Semicolon,
     Comma,
     Dot,
-    Unknown
+    Unknown,
+    Function,         // Function names
+    ClassName,        // Class names
+    MemberVar,        // Class member variables
+    MemberFunc,       // Class member functions
+    MacroDefinition,  // #define macros
+    TypeName,         // Built-in and user-defined types
+    NamespaceKw,      // namespace keyword specifically
+    TemplateParam,    // Template parameters
+    ScopeOperator,
+
+
+};
+
+
+struct Context {
+    bool inClassDef = false;
+    bool inFuncDef = false;
+    bool inTemplate = false;
+    std::vector<std::string> knownClasses;
+    std::vector<std::string> knownFunctions;
+    std::unordered_set<std::string> knownTypes = {
+        "int", "char", "bool", "float", "double", "void", "size_t", "std::string",
+        "vector", "map", "set", "string", "array", "unique_ptr", "shared_ptr"
+    };
 };
 
 struct Token {
@@ -47,6 +71,13 @@ public:
         ImVec4 number;
         ImVec4 comment;
         ImVec4 text;
+
+        ImVec4 function;
+        ImVec4 className;
+        ImVec4 memberVar;
+        ImVec4 memberFunc;
+        ImVec4 type;
+        ImVec4 macro;
     };
 
     Lexer() {
@@ -161,7 +192,7 @@ private:
     mutable ThemeColors cachedColors;
     mutable bool colorsNeedUpdate = true;
     void updateThemeColors() const {
-        if (!colorsNeedUpdate) return;  // Already have this
+        if (!colorsNeedUpdate) return;
         
         auto& theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
         
@@ -175,6 +206,7 @@ private:
         cachedColors.number = loadColor("number");
         cachedColors.comment = loadColor("comment");
         cachedColors.text = loadColor("text");
+        cachedColors.function = loadColor("function");  // Cache the function color
         
         colorsNeedUpdate = false;
     }
@@ -185,11 +217,43 @@ private:
     bool isDigit(char c) const { return c >= '0' && c <= '9'; }
     bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; }
 
+
+    size_t skipWhitespace(const std::string& code, size_t pos) const {
+        while (pos < code.length() && isWhitespace(code[pos])) {
+            pos++;
+        }
+        return pos;
+    }
     Token lexIdentifierOrKeyword(const std::string& code, size_t& pos) {
         size_t start = pos;
         while (pos < code.length() && isAlphaNumeric(code[pos])) pos++;
         std::string word = code.substr(start, pos - start);
-        return {keywords.find(word) != keywords.end() ? TokenType::Keyword : TokenType::Identifier, start, pos - start};
+
+        // Look ahead for function detection
+        size_t next = skipWhitespace(code, pos);
+        bool isFunction = next < code.length() && code[next] == '(';
+
+        // Basic types that should be highlighted
+        static std::unordered_set<std::string> basicTypes = {
+            "void", "bool", "char", "int", "float", "double", "long", 
+            "int8_t", "int16_t", "int32_t", "int64_t",
+            "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+            "size_t", "wchar_t"
+        };
+
+        if (keywords.find(word) != keywords.end()) {
+            return {TokenType::Keyword, start, pos - start};
+        }
+        
+        if (basicTypes.find(word) != basicTypes.end()) {
+            return {TokenType::Keyword, start, pos - start};
+        }
+
+        if (isFunction && word.find("::") == std::string::npos) {  // Only highlight non-scoped functions
+            return {TokenType::Function, start, pos - start};
+        }
+
+        return {TokenType::Identifier, start, pos - start};
     }
 
     Token lexNumber(const std::string& code, size_t& pos) {
@@ -241,6 +305,12 @@ private:
         size_t start = pos;
         char c = code[pos];
 
+        // Special handling for :: operator
+        if (pos + 1 < code.length() && code[pos] == ':' && code[pos + 1] == ':') {
+            pos += 2;
+            return {TokenType::ScopeOperator, start, 2};  // New token type for ::
+        }
+
         // Handle single-character tokens
         if (c == '(' || c == ')') return {TokenType::Parenthesis, start, 1};
         if (c == '[' || c == ']') return {TokenType::Bracket, start, 1};
@@ -274,12 +344,32 @@ private:
         updateThemeColors();
         
         switch (type) {
-            case TokenType::Keyword:  return cachedColors.keyword;
-            case TokenType::String:   return cachedColors.string;
-            case TokenType::Number:   return cachedColors.number;
-            case TokenType::Comment:  return cachedColors.comment;
-            case TokenType::Identifier:
-            default:                  return cachedColors.text;
+            case TokenType::Keyword:
+                return cachedColors.keyword;
+
+            case TokenType::String:   
+                return cachedColors.string;
+
+            case TokenType::Number:   
+                return cachedColors.number;
+
+            case TokenType::Comment:  
+                return cachedColors.comment;
+
+            case TokenType::Function:
+                return cachedColors.function;
+
+            case TokenType::ScopeOperator:  // Highlight :: in function color
+                return cachedColors.function;
+
+            case TokenType::Operator:
+                return ImVec4(cachedColors.text.x * 0.8f,
+                             cachedColors.text.y * 0.8f, 
+                             cachedColors.text.z * 0.8f,
+                             cachedColors.text.w);
+
+            default:                  
+                return cachedColors.text;
         }
     }
 };
