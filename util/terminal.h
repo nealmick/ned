@@ -1,3 +1,12 @@
+/*  
+    util/terminal.h
+    This utility adds a terminal emulator, activate it using the keybind cmd t
+    The emulator is based suckless st.c and support most xterm ansi sequences
+*/
+
+
+
+
 #pragma once
 #include <stdint.h>
 #include <sys/types.h>

@@ -1,4 +1,5 @@
 // close_popper.h 
+
 #pragma once
 
 namespace ClosePopper {
@@ -8,6 +9,6 @@ namespace ClosePopper {
         LineJump
     };
     
-    void closeAllExcept(Type keepOpen); // Just declaration
+    void closeAllExcept(Type keepOpen);
     void closeAll();
 }

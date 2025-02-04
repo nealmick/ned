@@ -1,3 +1,10 @@
+/*  
+    util/undo_redo_manager.h
+    This utility tracks changes made to files and can both undo changes and redo changes.
+*/
+
+
+
 #pragma once
 #include <vector>
 #include <string>

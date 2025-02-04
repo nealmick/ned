@@ -3,8 +3,9 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
-#include "imgui.h"
 #include <iostream>
+
+#include "imgui.h"
 #include "../util/settings.h"
 
 class Settings;
@@ -573,7 +574,7 @@ private:
     };
 
 
-    
+
     Token lexCss(const std::string& code, size_t& pos) {
         size_t start = pos;
         char c = code[pos];
