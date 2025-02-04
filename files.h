@@ -1,12 +1,22 @@
+/*  
+    files.h
+    Main file logic, handles rendering file tree, saving after changes, and more...
+*/
+
+
+
 #pragma once
+#include <map>
 #include <string>
 #include <vector>
 #include <filesystem>
-#include <map>
+#include <GLFW/glfw3.h>
+
 #include "editor.h"
 #include "imgui.h"
-#include <GLFW/glfw3.h>
 #include "util/undo_redo_manager.h"
+
+
 namespace fs = std::filesystem;
 
 struct FileNode {

@@ -1,4 +1,17 @@
+/*  
+    main.cpp
+    NED is a lightweight, feature-rich text editor built with C++ and ImGui. 
+    It offers syntax highlighting, project file tree, and a customizable interface.
+    Github:
+    https://github.com/nealmick/ned
+    Author:
+    nealmick.com
+*/
+
+
+
 #define GL_SILENCE_DEPRECATION
+
 #define GLEW_NO_GLU
 #include <GL/glew.h>
 #if defined(__APPLE__)
@@ -7,25 +20,28 @@
 #else
 #include <GL/gl.h>
 #endif
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+
 #include <GLFW/glfw3.h>
 #include <string>
 #include <iostream>
 #include <chrono>
 #include <thread>
-#include "files.h"
-#include "editor.h"
 #include <filesystem>
 #include <unistd.h>
 #include <chrono>
+
+
+#include "files.h"
+#include "editor.h"
 #include "util/bookmarks.h"
 #include "util/terminal.h"
 #include "util/settings.h"
 #include "util/close_popper.h"
-
 #include "shaders/shader.h"
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 
 Bookmarks gBookmarks;
