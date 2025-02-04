@@ -2,15 +2,20 @@
 #include <string>
 #include "../editor.h"
 #include "../files.h"
+
 #include "../imgui/imgui.h"
+
+
+#include "close_popper.h"
+
 
 class LineJump {
 private:
-    bool showLineJumpWindow = false;
     char lineNumberBuffer[32] = "";
     bool justJumped = false;  // Track if we just performed a jump
     
 public:
+    bool showLineJumpWindow = false;
     inline void handleLineJumpInput(EditorState& state) {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -20,10 +25,12 @@ public:
             justJumped = false;
         }
         
-        // Check for Cmd+; or Cmd+:
         if (main_key && (ImGui::IsKeyPressed(ImGuiKey_Semicolon) || 
             (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon)))) {
             showLineJumpWindow = !showLineJumpWindow;
+            if(showLineJumpWindow) {  // Only close others if we're opening
+                ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);   // RIGHT
+            }
             if (showLineJumpWindow) {
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 ImGui::SetKeyboardFocusHere();

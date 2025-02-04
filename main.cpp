@@ -23,7 +23,10 @@
 #include "util/bookmarks.h"
 #include "util/terminal.h"
 #include "util/settings.h"
+#include "util/close_popper.h"
+
 #include "shaders/shader.h"
+
 
 Bookmarks gBookmarks;
 
@@ -161,6 +164,9 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         // Add terminal toggle with Cmd/Ctrl+T
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
+        if (gTerminal.isTerminalVisible()) {
+            ClosePopper::closeAll();  // Closes all popups, no exceptions
+        }
     }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
         std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
