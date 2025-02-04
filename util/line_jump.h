@@ -1,11 +1,16 @@
+/*  
+    util/line_jump.h
+    This utility handles line changes, such as jumping to line 300...
+    Use keybind cmd : to activate the number input box, type a number then press enter.
+    The cursor jumps to the line number and scrolls the view to move show the cursor.
+*/
+
+
 #pragma once
 #include <string>
 #include "../editor.h"
 #include "../files.h"
-
 #include "../imgui/imgui.h"
-
-
 #include "close_popper.h"
 
 

@@ -4,12 +4,13 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
-#include "imgui.h"
 #include <iostream>
-#include "../util/settings.h"  // Add this include
 
-class Settings;  // Forward declaration
-extern Settings gSettings;  // Declare the external global variable
+#include "imgui.h"
+#include "../util/settings.h"  
+
+class Settings; 
+extern Settings gSettings;
 
 namespace CppLexer {
 

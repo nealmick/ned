@@ -1,3 +1,8 @@
+/*  
+    util/settings.h
+    This utility handles various settings such as font size and background color. 
+*/
+
 
 #pragma once
 #include <string>
@@ -68,7 +73,7 @@ private:
     bool blockInput = false;
     float currentFontSize = 16.0f;
     int settingsCheckFrameCounter = 0;
-    const int SETTINGS_CHECK_INTERVAL = 60; // Check every 180 frames (roughly 3 seconds at 60 FPS)
+    const int SETTINGS_CHECK_INTERVAL = 60; // Check every 60 frames (roughly 1 seconds at 60 FPS)
 };
 
 extern Settings gSettings;

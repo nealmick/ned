@@ -1,9 +1,17 @@
-// close_popper.cpp
+/*  
+    util/close_popper.cpp
+    This utility closses all popup windows and is used to prevent conflicts
+    with opening multiple popups windows. if settings window is opened then it triggers
+    both linejump and bookmarks popup to close.  
+*/
+
+
 #include "close_popper.h"
 #include "editor.h"
 #include "settings.h"
 #include "bookmarks.h"
 #include "line_jump.h"
+
 
 void ClosePopper::closeAllExcept(Type keepOpen) {
     switch(keepOpen) {
@@ -23,6 +31,7 @@ void ClosePopper::closeAllExcept(Type keepOpen) {
             break;
     }
 }
+
 void ClosePopper::closeAll() {
     gSettings.showSettingsWindow = false;
     gBookmarks.showBookmarksWindow = false;

@@ -1,18 +1,27 @@
+/*  
+    files.cpp
+    Main file logic, handles rendering file tree, saving after changes, and more...
+*/
+
 #define GL_SILENCE_DEPRECATION
-#include "files.h"
-#include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "util/settings.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <nfd.h>
 #include <sstream>
+
+#include "files.h"
+#include "imgui.h"
+#include "imgui_impl_opengl3.h"
+#include "util/settings.h"
+#include "util/line_jump.h"
+
 #define NANOSVG_IMPLEMENTATION
 #include "lib/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
-#include "util/line_jump.h"
+
 
 
 FileExplorer gFileExplorer;

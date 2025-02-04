@@ -1,3 +1,12 @@
+/*  
+    util/settings.cpp
+    This utility handles various settings such as font size and background color. 
+    The settings state is saved to the build folder as .ned.json
+    This utility also draws a pop up window for adjusting settings, open with cmd ,(comma)
+    The settings json file can edited manually, once saved the changes take effect.
+*/
+
+
 #include "settings.h"
 #include <iostream>
 #include <fstream>

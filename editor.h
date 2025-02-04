@@ -1,16 +1,25 @@
+/*  
+    editor.h
+    Main editor logic for displaying file content, handling keybinds and more...
+*/
+
 #pragma once
+#include "imgui.h"
+#include "lexers/python.h"
+#include "lexers/cpp.h"
+#include "lexers/html.h"
+
+
 #include <string>
 #include <vector>
 #include <regex>
 #include <unordered_map>
-#include "imgui.h"
 #include <future>
 #include <atomic>
 #include <mutex>
-#include "lexers/python.h"
-#include "lexers/cpp.h"
-#include "lexers/html.h"
 #include <cmath>
+
+
 
 struct SyntaxRule {
     std::regex pattern;

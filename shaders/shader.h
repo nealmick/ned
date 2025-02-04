@@ -1,3 +1,10 @@
+/*  
+    shader.h
+    Apply shaders to IMGUI output for visual effects
+*/
+
+
+
 #ifndef SHADER_H
 #define SHADER_H
 #include <string>

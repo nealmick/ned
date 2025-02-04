@@ -1,14 +1,12 @@
-
-
-
-
 #pragma once
+
 #include <string>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
-#include "imgui.h"
 #include <iostream>
+
+#include "imgui.h"
 #include "../util/settings.h"
 
 class Settings;

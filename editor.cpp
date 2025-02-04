@@ -1,8 +1,15 @@
+/*  
+    editor.cpp
+    Main editor logic for displaying file content, handling keybinds and more...
+*/
+
+
 #include "editor.h"
-#include "util/bookmarks.h"
 #include "files.h"
+#include "util/bookmarks.h"
 #include "util/settings.h"
 #include "util/line_jump.h"
+
 #include <algorithm>
 #include <iostream>
 

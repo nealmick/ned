@@ -1,3 +1,14 @@
+/*  
+    util/bookmarks.h
+    This utility allows for saving a bookmark and restore back to the bookmark position.
+    Each bookmark stores the current file, the cursor location, and scroll position.
+    Up to 10 bookmarks can be set at once, to set a bookmark press cmd option 0-9.
+    To restore a bookmark postion press cmd 0-9 with the bookmark you want to restore.
+    This system allows for quick file and cursor position swapping without the need to 
+    keep multiple files open.
+*/
+
+
 #pragma once
 #include <array>
 #include <string>
@@ -36,7 +47,7 @@ private:
 
 public:
     bool showBookmarksWindow = false;
-    
+
     inline void setBookmark(size_t slot, const std::string& filePath, int cursorPosition, int lineNumber) {
         if (slot < NUM_BOOKMARKS) {
             float scrollX = ImGui::GetScrollX();
