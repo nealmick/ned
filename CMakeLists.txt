@@ -66,6 +66,7 @@ add_executable(ned
     shaders/shader.cpp
     util/settings.cpp
     util/terminal.cpp   
+    util/close_popper.cpp   
     files.cpp
     editor.cpp
     lib/imgui/imgui.cpp

@@ -3,6 +3,7 @@
 #include <string>
 #include <filesystem>
 #include "../lib/json.hpp"
+#include "close_popper.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -47,7 +48,11 @@ public:
     void renderSettingsWindow();
     void toggleSettingsWindow() { 
         showSettingsWindow = !showSettingsWindow;
-        blockInput = showSettingsWindow;  // Block input when window is open
+        if(showSettingsWindow) {  // Only close others if we're opening
+           ClosePopper::closeAllExcept(ClosePopper::Type::Settings);   // RIGHT
+
+        }
+        blockInput = showSettingsWindow;
     }
     bool isBlockingInput() const { return blockInput; }
     bool getRainbowMode() const { return settings["rainbow"].get<bool>(); }

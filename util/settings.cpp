@@ -7,6 +7,10 @@
 #include "../files.h" 
 #include <unistd.h>
 #include "config.h"
+
+#include "../files.h"
+
+
 Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f) {}

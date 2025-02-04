@@ -572,7 +572,8 @@ private:
         "--*"
     };
 
-        
+
+    
     Token lexCss(const std::string& code, size_t& pos) {
         size_t start = pos;
         char c = code[pos];

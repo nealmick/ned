@@ -5,6 +5,9 @@
 #include "files.h"
 #include "imgui.h"
 
+#include "../files.h"
+
+
 class Bookmarks {
 private:
     struct Bookmark {
@@ -30,9 +33,10 @@ private:
 
     static constexpr size_t NUM_BOOKMARKS = 9;
     std::array<Bookmark, NUM_BOOKMARKS> bookmarks;
-    bool showBookmarksWindow = false;
 
 public:
+    bool showBookmarksWindow = false;
+    
     inline void setBookmark(size_t slot, const std::string& filePath, int cursorPosition, int lineNumber) {
         if (slot < NUM_BOOKMARKS) {
             float scrollX = ImGui::GetScrollX();
@@ -71,12 +75,14 @@ public:
         bool shift_pressed = ImGui::GetIO().KeyShift;
         bool alt_pressed = ImGui::GetIO().KeyAlt;
 
-        if (main_key && ImGui::IsKeyPressed(ImGuiKey_B, false)) {  // false to not repeat
+        if (main_key && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
             showBookmarksWindow = !showBookmarksWindow;
-            //editorState.blockInput = showBookmarksWindow;  // Block input when window is open
+            if(showBookmarksWindow) {  // Only close others if we're opening
+                ClosePopper::closeAllExcept(ClosePopper::Type::Bookmarks);  // RIGHT
+
+            }
             return;
         }
-
         const ImGuiKey numberKeys[9] = {
             ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5,
             ImGuiKey_6, ImGuiKey_7, ImGuiKey_8, ImGuiKey_9
