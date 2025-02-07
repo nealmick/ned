@@ -180,6 +180,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         // Add terminal toggle with Cmd/Ctrl+T
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
+        gFileExplorer.saveCurrentFile();
         if (gTerminal.isTerminalVisible()) {
             ClosePopper::closeAll();  // Closes all popups, no exceptions
         }
