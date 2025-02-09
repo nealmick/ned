@@ -5,6 +5,7 @@
     Github:
     https://github.com/nealmick/ned
     Author:
+    Neal Mick
     nealmick.com
 */
 

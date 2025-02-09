@@ -107,6 +107,9 @@ void Terminal::startShell() {
         ioctl(STDIN_FILENO, TIOCSWINSZ, &ws);
 
         setenv("TERM", "xterm-256color", 1);
+
+        state.mode |= MODE_BRACKETPASTE;
+
         
         const char* shell = getenv("SHELL");
         if (!shell) shell = "/bin/bash";
@@ -1023,7 +1026,8 @@ void Terminal::handleCSI(const CSIEscape& csi) {
 
         case 'c': // DA -- Device Attributes
             if (csi.args.empty() || csi.args[0] == 0) {
-                processInput("\033[?6c"); // VT102
+                // Respond with xterm-like capabilities including 2004 (bracketed paste)
+                processInput("\033[?2004;1;6c"); // Indicate xterm with bracketed paste support
             }
             break;
 
@@ -2223,14 +2227,28 @@ void Terminal::copySelection() {
         ImGui::SetClipboardText(selected.c_str());
     }
 }
+
+
+
 void Terminal::pasteFromClipboard() {
     const char* text = ImGui::GetClipboardText();
+    std::cout << "state.mode: " << state.mode << "\n";
+    std::cout << "MODE_BRACKETPASTE: " << MODE_BRACKETPASTE << "\n";
+    std::cout << "Check result: " << (state.mode & MODE_BRACKETPASTE) << "\n";
    
-    // Minimal paste processing
-    write(ptyFd, text, strlen(text));
+    if (state.mode & MODE_BRACKETPASTE) {
+        std::cout << "Bracketed paste mode active\n";
+        // Send paste start sequence
+        write(ptyFd, "\033[200~", 6);
+        // Send the actual text
+        write(ptyFd, text, strlen(text));
+        // Send paste end sequence
+        write(ptyFd, "\033[201~", 6);
+    } else {
+        std::cout << "Normal paste mode\n";
+        write(ptyFd, text, strlen(text));
+    }
 }
-
-
 bool Terminal::selectedText(int x, int y) {
     if (sel.mode == SEL_IDLE || sel.ob.x == -1 ||
         sel.alt != (state.mode & MODE_ALTSCREEN))
@@ -2450,6 +2468,15 @@ void Terminal::tsetmode(int priv, int set, const std::vector<int>& args) {
                 case 1048:
                     (set) ? cursorSave() : cursorLoad();
                     break;
+                case 2004:  // Bracketed paste mode
+                    if (set) {
+                        state.mode |= MODE_BRACKETPASTE;
+                    } else {
+
+                        state.mode &= ~MODE_BRACKETPASTE;
+                    }
+                    break;
+
             }
         } else {
             switch(arg) {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(ned)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in"
     "${CMAKE_BINARY_DIR}/config.h"
@@ -36,7 +36,7 @@ elseif(UNIX)
     target_include_directories(nfd PRIVATE ${GTK3_INCLUDE_DIRS})
     target_link_libraries(nfd PRIVATE ${GTK3_LIBRARIES})
 endif()
-target_include_directories(nfd PUBLIC 
+target_include_directories(nfd PUBLIC
     ${NFD_DIR}/src
     ${NFD_DIR}/src/include
 )
@@ -50,7 +50,7 @@ file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
 add_library(util STATIC
     util/line_jump.cpp
 )
-target_include_directories(util PUBLIC 
+target_include_directories(util PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui/backends
@@ -65,8 +65,8 @@ add_executable(ned
     main.cpp
     shaders/shader.cpp
     util/settings.cpp
-    util/terminal.cpp   
-    util/close_popper.cpp   
+    util/terminal.cpp
+    util/close_popper.cpp
     files.cpp
     editor.cpp
     lib/imgui/imgui.cpp
@@ -77,7 +77,7 @@ add_executable(ned
     lib/imgui/backends/imgui_impl_glfw.cpp
     lib/imgui/backends/imgui_impl_opengl3.cpp
 )
-target_include_directories(ned PRIVATE 
+target_include_directories(ned PRIVATE
     lib/imgui
     lib/imgui/backends
     ${NFD_DIR}/src
@@ -88,7 +88,7 @@ target_include_directories(ned PRIVATE
 )
 
 # Link libraries
-target_link_libraries(ned PRIVATE 
+target_link_libraries(ned PRIVATE
     ${OPENGL_LIBRARIES}
     glfw
     nfd
@@ -97,7 +97,7 @@ target_link_libraries(ned PRIVATE
 )
 
 if(APPLE)
-    target_link_libraries(ned PRIVATE 
+    target_link_libraries(ned PRIVATE
         "-framework Cocoa"
         "-framework IOKit"
         "-framework CoreVideo"
