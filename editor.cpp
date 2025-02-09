@@ -1,19 +1,16 @@
-/*  
+/*
     editor.cpp
     Main editor logic for displaying file content, handling keybinds and more...
 */
 
-
 #include "editor.h"
 #include "files.h"
 #include "util/bookmarks.h"
-#include "util/settings.h"
 #include "util/line_jump.h"
+#include "util/settings.h"
 
 #include <algorithm>
 #include <iostream>
-
-
 
 int GetCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos,
                            const ImVec2 &text_start_pos,
@@ -71,13 +68,13 @@ float GetCursorYPosition(const EditorState &state, float line_height) {
 }
 
 // Copy, cut, and paste functions
-void CopySelectedText(const std::string& text, const EditorState& state) {
-    if (state.selection_start != state.selection_end) {
-        int start = GetSelectionStart(state);
-        int end = GetSelectionEnd(state);
-        std::string selected_text = text.substr(start, end - start);
-        ImGui::SetClipboardText(selected_text.c_str());
-    }
+void CopySelectedText(const std::string &text, const EditorState &state) {
+  if (state.selection_start != state.selection_end) {
+    int start = GetSelectionStart(state);
+    int end = GetSelectionEnd(state);
+    std::string selected_text = text.substr(start, end - start);
+    ImGui::SetClipboardText(selected_text.c_str());
+  }
 }
 
 float CalculateCursorXPosition(const ImVec2 &text_pos, const std::string &text,
@@ -120,23 +117,26 @@ ScrollChange EnsureCursorVisible(const ImVec2 &text_pos,
   }
 
   // Horizontal scrolling
-  float buffer = ImGui::GetFontSize() * 5.0f;  // Increased buffer
+  float buffer = ImGui::GetFontSize() * 5.0f; // Increased buffer
   float target_scroll_x = scroll_x;
 
   if (cursor_x < visible_start_x + buffer) {
-      // Scrolling left - immediately jump
-      state.scroll_x = cursor_x - text_pos.x - buffer * 2;  // Double buffer on left
-      changed.horizontal = true;
-  } else if (cursor_x > visible_end_x - buffer * 1.5f) {  // Start scrolling earlier
-      // Scrolling right - immediately jump
-      state.scroll_x = cursor_x - window_width + buffer * 2;  // More space on right
-      changed.horizontal = true;
+    // Scrolling left - immediately jump
+    state.scroll_x =
+        cursor_x - text_pos.x - buffer * 2; // Double buffer on left
+    changed.horizontal = true;
+  } else if (cursor_x >
+             visible_end_x - buffer * 1.5f) { // Start scrolling earlier
+    // Scrolling right - immediately jump
+    state.scroll_x =
+        cursor_x - window_width + buffer * 2; // More space on right
+    changed.horizontal = true;
   }
 
   // Ensure we don't scroll past the start of the text
   state.scroll_x = std::max(0.0f, state.scroll_x);
-  return changed; 
-} 
+  return changed;
+}
 
 void SelectAllText(EditorState &state, const std::string &text) {
   const size_t MAX_SELECTION_SIZE = 100000; // Adjust this value as needed
@@ -161,7 +161,7 @@ void CutSelectedText(std::string &text, std::vector<ImVec4> &colors,
 }
 
 void CutWholeLine(std::string &text, std::vector<ImVec4> &colors,
-	                  EditorState &state, bool &text_changed) {
+                  EditorState &state, bool &text_changed) {
 
   int line = GetLineFromPos(state.line_starts, state.cursor_pos);
   int line_start = state.line_starts[line];
@@ -178,9 +178,7 @@ void CutWholeLine(std::string &text, std::vector<ImVec4> &colors,
   state.cursor_pos = line > 0 ? state.line_starts[line] : 0;
   text_changed = true;
   UpdateLineStarts(text, state.line_starts);
-
 }
-
 
 void PasteText(std::string &text, std::vector<ImVec4> &colors,
                EditorState &state, bool &text_changed) {
@@ -419,30 +417,30 @@ void HandleCharacterInput(std::string &text, std::vector<ImVec4> &colors,
 }
 void HandleEnterKey(std::string &text, std::vector<ImVec4> &colors,
                     EditorState &state, bool &text_changed, int &input_end) {
-    
-    if (gLineJump.hasJustJumped()) {
-        return;
+
+  if (gLineJump.hasJustJumped()) {
+    return;
+  }
+
+  if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+    // Insert the newline character
+    text.insert(state.cursor_pos, 1, '\n');
+
+    // Safely insert the color
+    if (state.cursor_pos <= colors.size()) {
+      colors.insert(colors.begin() + state.cursor_pos, 1,
+                    ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    } else {
+      std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
+      colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
-    
-    if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-        // Insert the newline character
-        text.insert(state.cursor_pos, 1, '\n');
-        
-        // Safely insert the color
-        if (state.cursor_pos <= colors.size()) {
-            colors.insert(colors.begin() + state.cursor_pos, 1,
-                         ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        } else {
-            std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
-            colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        }
-        
-        state.cursor_pos++;
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-        text_changed = true;
-        input_end = state.cursor_pos;
-    }
+
+    state.cursor_pos++;
+    state.selection_start = state.selection_end = state.cursor_pos;
+    state.is_selecting = false;
+    text_changed = true;
+    input_end = state.cursor_pos;
+  }
 }
 void HandleDeleteKey(std::string &text, std::vector<ImVec4> &colors,
                      EditorState &state, bool &text_changed, int &input_end) {
@@ -738,60 +736,62 @@ void RenderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos,
                              const std::string &text,
                              const std::vector<ImVec4> &colors,
                              const EditorState &state, float line_height) {
-    ImVec2 text_pos = pos;
-    int selection_start = GetSelectionStart(state);
-    int selection_end = GetSelectionEnd(state);
-    const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
+  ImVec2 text_pos = pos;
+  int selection_start = GetSelectionStart(state);
+  int selection_end = GetSelectionEnd(state);
+  const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
 
-    // Calculate visible range
-    float scroll_y = ImGui::GetScrollY();
-    float window_height = ImGui::GetWindowHeight();
-    int start_line = static_cast<int>(scroll_y / line_height);
-    int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
+  // Calculate visible range
+  float scroll_y = ImGui::GetScrollY();
+  float window_height = ImGui::GetWindowHeight();
+  int start_line = static_cast<int>(scroll_y / line_height);
+  int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
 
-    int current_line = 0;
-    for (size_t i = 0; i < text.size(); i++) {
-        if (i >= colors.size()) {
-            std::cerr << "Error: Color index out of bounds in RenderTextWithSelection"
-                      << std::endl;
-            break;
-        }
-
-        if (text[i] == '\n') {
-            current_line++;
-            if (current_line > end_line)
-                break; // Stop if we've passed the visible area
-            text_pos.x = pos.x;
-            text_pos.y += line_height;
-        } else if (current_line >= start_line && current_line <= end_line) {
-            // Only render if we're in the visible range
-            bool should_highlight =
-                (i >= selection_start && i < selection_end &&
-                 (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
-
-            if (should_highlight) {
-                ImVec2 sel_start = text_pos;
-                ImVec2 sel_end =
-                    ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i + 1]).x,
-                           text_pos.y + line_height);
-                drawList->AddRectFilled(sel_start, sel_end,
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))); // Pink with 30% alpha
-            }
-
-            char buf[2] = {text[i], '\0'};
-            ImU32 color = ImGui::ColorConvertFloat4ToU32(colors[i]);
-            drawList->AddText(text_pos, color, buf);
-            text_pos.x += ImGui::CalcTextSize(buf).x;
-        }
+  int current_line = 0;
+  for (size_t i = 0; i < text.size(); i++) {
+    if (i >= colors.size()) {
+      std::cerr << "Error: Color index out of bounds in RenderTextWithSelection"
+                << std::endl;
+      break;
     }
+
+    if (text[i] == '\n') {
+      current_line++;
+      if (current_line > end_line)
+        break; // Stop if we've passed the visible area
+      text_pos.x = pos.x;
+      text_pos.y += line_height;
+    } else if (current_line >= start_line && current_line <= end_line) {
+      // Only render if we're in the visible range
+      bool should_highlight =
+          (i >= selection_start && i < selection_end &&
+           (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
+
+      if (should_highlight) {
+        ImVec2 sel_start = text_pos;
+        ImVec2 sel_end =
+            ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i + 1]).x,
+                   text_pos.y + line_height);
+        drawList->AddRectFilled(
+            sel_start, sel_end,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(1.0f, 0.1f, 0.7f, 0.3f))); // Pink with 30% alpha
+      }
+
+      char buf[2] = {text[i], '\0'};
+      ImU32 color = ImGui::ColorConvertFloat4ToU32(colors[i]);
+      drawList->AddText(text_pos, color, buf);
+      text_pos.x += ImGui::CalcTextSize(buf).x;
+    }
+  }
 }
 void RenderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos,
                   float line_height, float blink_time) {
   float blink_alpha =
       (sinf(blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
   ImU32 cursor_color;
-  bool rainbow_mode = gSettings.getRainbowMode();  // Get setting here
-  
+  bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
+
   if (rainbow_mode) {
     ImVec4 rainbow = GetRainbowColor(blink_time * 2.0f); // Rainbow frequency
     cursor_color = ImGui::ColorConvertFloat4ToU32(rainbow);
@@ -839,14 +839,15 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
   ImDrawList *draw_list = ImGui::GetWindowDrawList();
   const ImU32 default_line_number_color = IM_COL32(128, 128, 128, 255);
   const ImU32 current_line_color = IM_COL32(255, 255, 255, 255);
-  const ImU32 selected_line_color = IM_COL32(0, 40, 255, 200);  // Neon pink color
+  const ImU32 selected_line_color =
+      IM_COL32(0, 40, 255, 200); // Neon pink color
   int start_line = static_cast<int>(scroll_y / line_height);
   int end_line =
       std::min(num_lines,
                static_cast<int>((scroll_y + window_height) / line_height) + 1);
   // Pre-calculate rainbow color
   ImU32 rainbow_color = current_line_color;
-  bool rainbow_mode = gSettings.getRainbowMode();  // Get setting here
+  bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
   if (rainbow_mode) {
     // Update color less frequently
     static float last_update_time = 0.0f;
@@ -877,7 +878,8 @@ void RenderLineNumbers(const ImVec2 &pos, float line_number_width,
     ImU32 line_number_color;
     if (i >= selection_start_line && i < selection_end_line &&
         editor_state.is_selecting) {
-      line_number_color = selected_line_color;  // Use neon pink for selected lines
+      line_number_color =
+          selected_line_color; // Use neon pink for selected lines
     } else if (i == editor_state.current_line) {
       line_number_color = rainbow_mode ? rainbow_color : current_line_color;
     } else {
@@ -1169,7 +1171,8 @@ bool CustomTextEditor(const char *label, std::string &text,
   ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12.0f);
 
   float remaining_width = size.x - line_number_width;
-  float content_width = CalculateTextWidth(text, editor_state.line_starts) + ImGui::GetFontSize() * 10.0f; // Add padding
+  float content_width = CalculateTextWidth(text, editor_state.line_starts) +
+                        ImGui::GetFontSize() * 10.0f; // Add padding
 
   float content_height = editor_state.line_starts.size() * line_height;
   ImGui::SetNextWindowContentSize(ImVec2(content_width, content_height));
@@ -1198,7 +1201,6 @@ bool CustomTextEditor(const char *label, std::string &text,
   ImVec2 text_start_pos = text_pos;
 
   int initial_cursor_pos = editor_state.cursor_pos;
-
 
   if (!editor_state.blockInput) {
     HandleEditorInput(text, editor_state, text_start_pos, line_height,
@@ -1245,8 +1247,8 @@ bool CustomTextEditor(const char *label, std::string &text,
   }
   // Check for pending scroll request
   if (gEditor.handleScrollRequest(current_scroll_x, current_scroll_y)) {
-      // Disable ensure cursor visible since we're explicitly setting scroll
-      editor_state.ensure_cursor_visible_frames = -1;
+    // Disable ensure cursor visible since we're explicitly setting scroll
+    editor_state.ensure_cursor_visible_frames = -1;
   }
 
   // Apply the calculated scroll position
@@ -1267,7 +1269,8 @@ bool CustomTextEditor(const char *label, std::string &text,
     }
   }
 
-  RenderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
+  RenderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height,
+               editor_state.cursor_blink_time);
 
   ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height +
                        editor_top_margin);
@@ -1300,9 +1303,6 @@ bool CustomTextEditor(const char *label, std::string &text,
   return text_changed;
 }
 
-
-
-
 void Editor::cancelHighlighting() {
   cancelHighlightFlag = true;
   if (highlightFuture.valid()) {
@@ -1314,8 +1314,8 @@ void Editor::highlightContent(const std::string &content,
                               std::vector<ImVec4> &colors, int start_pos,
                               int end_pos) {
 
-  std::cout << "\033[36mEditor:\033[0m   Highlight Content. content size: " << content.size()
-            << std::endl;
+  std::cout << "\033[36mEditor:\033[0m   Highlight Content. content size: "
+            << content.size() << std::endl;
 
   if (content.empty()) {
     std::cerr << "Error: Empty content in highlightContent" << std::endl;
@@ -1357,24 +1357,31 @@ void Editor::highlightContent(const std::string &content,
 
   std::string extension =
       fs::path(gFileExplorer.getCurrentFile()).extension().string();
-  std::cout << "\033[36mEditor:\033[0m  File extension: " << extension << std::endl;
+  std::cout << "\033[36mEditor:\033[0m  File extension: " << extension
+            << std::endl;
 
   highlightFuture = std::async(std::launch::async, [this, content, &colors,
                                                     start_pos, end_pos,
                                                     extension]() {
     try {
       if (extension == ".cpp" || extension == ".h") {
-        std::cout << "\033[36mEditor:\033[0m Applying full C++ highlighting" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Applying full C++ highlighting"
+                  << std::endl;
         cppLexer.applyHighlighting(content, colors, 0);
-        std::cout << "\033[36mEditor:\033[0m C++ highlighting completed" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m C++ highlighting completed"
+                  << std::endl;
       } else if (extension == ".py") {
-        std::cout << "\033[36mEditor:\033[0m Applying full Python highlighting" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Applying full Python highlighting"
+                  << std::endl;
         pythonLexer.applyHighlighting(content, colors, 0);
-        std::cout << "\033[36mEditor:\033[0m Python highlighting completed" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Python highlighting completed"
+                  << std::endl;
       } else if (extension == ".html") {
-        std::cout << "\033[36mEditor:\033[0m Applying full html highlighting" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m Applying full html highlighting"
+                  << std::endl;
         htmlLexer.applyHighlighting(content, colors, 0);
-        std::cout << "\033[36mEditor:\033[0m html highlighting completed" << std::endl;
+        std::cout << "\033[36mEditor:\033[0m html highlighting completed"
+                  << std::endl;
       } else {
         int local_start_pos = start_pos < 0 ? 0 : start_pos;
         int local_end_pos =
@@ -1438,8 +1445,8 @@ void Editor::highlightContent(const std::string &content,
           applyTagRules(*it, cssRules);
         }
       }
-      std::cout << "\033[36mEditor:\033[0m highlight content sequence complete" << std::endl;
-
+      std::cout << "\033[36mEditor:\033[0m highlight content sequence complete"
+                << std::endl;
 
     } catch (const std::exception &e) {
       std::cerr << "Error in highlighting: " << e.what() << std::endl;
@@ -1454,9 +1461,9 @@ void Editor::highlightContent(const std::string &content,
 void Editor::applyRules(const std::string &view, std::vector<ImVec4> &colors,
                         int start_pos, const std::vector<SyntaxRule> &rules) {
 
-
   if (view.empty()) {
-    std::cerr << "\033[36mEditor:\033[0m  Error: Empty view in applyRules" << std::endl;
+    std::cerr << "\033[36mEditor:\033[0m  Error: Empty view in applyRules"
+              << std::endl;
     return;
   }
 
@@ -1536,7 +1543,8 @@ void Editor::applyRules(const std::string &view, std::vector<ImVec4> &colors,
 // Syntax highlighting functions
 
 void Editor::setLanguage(const std::string &extension) {
-  std::cout << "\033[36mEditor:\033[0m  Setting language for extension: " << extension << std::endl;
+  std::cout << "\033[36mEditor:\033[0m  Setting language for extension: "
+            << extension << std::endl;
   setupHtmlRules();
   setupJavaScriptRules();
   setupCssRules();
@@ -1676,9 +1684,6 @@ void Editor::setupJsonRules() {
       {std::regex(R"(:\s*(true|false|null))"), themeColors["keyword"]},
   };
 }
-
-
-
 
 void Editor::loadTheme(const std::string &themeName) {
   auto &settings = gSettings.getSettings();
