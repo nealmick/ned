@@ -16,6 +16,7 @@
 #include "imgui_impl_opengl3.h"
 #include "util/settings.h"
 #include "util/line_jump.h"
+#include "util/close_popper.h"
 
 #define NANOSVG_IMPLEMENTATION
 #include "lib/nanosvg.h"
@@ -680,6 +681,8 @@ void FileExplorer::renderFileContent() {
   bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
   bool cmd_pressed = ImGui::GetIO().KeySuper; // For macOS Command key
   if ((ctrl_pressed || cmd_pressed) && ImGui::IsKeyPressed(ImGuiKey_F)) {
+
+    ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
     editor_state.activateFindBox = !editor_state.activateFindBox;
     editor_state.blockInput = editor_state.activateFindBox;
     if (editor_state.activateFindBox) {

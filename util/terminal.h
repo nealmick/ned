@@ -219,6 +219,8 @@ private:
 
     CSIEscape csiescseq;
 
+    
+    float lastFontSize = 0;
 
     // Core functions
     void startShell();
