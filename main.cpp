@@ -47,6 +47,9 @@
 
 Bookmarks gBookmarks;
 
+bool shader_toggle = false; 
+
+
 float Clamp(float value, float min, float max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -148,7 +151,7 @@ void ApplySettings(ImGuiStyle& style) {
         gSettings.getSettings()["backgroundColor"][2].get<float>(),
         gSettings.getSettings()["backgroundColor"][3].get<float>()
     );
-
+    shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
     // Get text color from current theme
     std::string currentTheme = gSettings.getCurrentTheme();
     auto& textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
@@ -191,7 +194,9 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
         gSettings.toggleSettingsWindow();
     }
     if (gTerminal.isTerminalVisible()) {
+        ImGui::PushFont(currentFont);
         gTerminal.render();
+        ImGui::PopFont();
         return;
     }
     ImGui::PushFont(currentFont);
@@ -540,32 +545,38 @@ int main() {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // Rest of the shader rendering remains the same as in previous optimized version
-        // (Copy framebuffer, apply shader effect)
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
-        glBlitFramebuffer(0, 0, display_w, display_h, 
-                         0, 0, display_w, display_h,
-                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (shader_toggle) {
+            // Existing shader path
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
+            glBlitFramebuffer(0, 0, display_w, display_h, 
+                             0, 0, display_w, display_h,
+                             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(crtShader.shaderProgram);
-        
-        GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-        GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
-        GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
+            glUseProgram(crtShader.shaderProgram);
+            
+            GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
+            GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
+            GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
 
-        if (timeLocation != -1) glUniform1f(timeLocation, currentTime);
-        if (screenTextureLocation != -1) glUniform1i(screenTextureLocation, 0);
-        if (resolutionLocation != -1) {
-            glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
+            if (timeLocation != -1) glUniform1f(timeLocation, currentTime);
+            if (screenTextureLocation != -1) glUniform1i(screenTextureLocation, 0);
+            if (resolutionLocation != -1) {
+                glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
+            }
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
+            glBindVertexArray(quadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        } else {
+            // Direct rendering path without shaders
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         }
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
-        glBindVertexArray(quadVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         // Handle font reloading if needed
         if (needFontReload) {
