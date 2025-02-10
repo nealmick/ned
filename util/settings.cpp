@@ -59,6 +59,9 @@ void Settings::loadSettings() {
     if (!settings.contains("rainbow")) {
         settings["rainbow"] = true;  // default to true
     }
+    if (!settings.contains("shader_toggle")) {
+        settings["shader_toggle"] = true;  // default to shader enabled
+    }
     if (!settings.contains("themes")) {
     settings["themes"] = {
         {"default", {
@@ -124,6 +127,7 @@ void Settings::checkSettingsFile() {
             oldSettings["theme"] != settings["theme"] ||
             oldSettings["themes"] != settings["themes"] ||
             oldSettings["rainbow"] != settings["rainbow"] ||
+            oldSettings["shader_toggle"] != settings["shader_toggle"] ||
             oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
             
@@ -286,6 +290,14 @@ void Settings::renderSettingsWindow() {
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
     ImGui::Spacing();
+    bool shaderEnabled = settings["shader_toggle"].get<bool>();
+    if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled)) {
+        settings["shader_toggle"] = shaderEnabled;
+        settingsChanged = true;
+        saveSettings();
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(CRT and visual effects)");
 
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");

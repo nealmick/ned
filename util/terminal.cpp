@@ -110,7 +110,7 @@ void Terminal::startShell() {
 
         state.mode |= MODE_BRACKETPASTE;
 
-        
+
         const char* shell = getenv("SHELL");
         if (!shell) shell = "/bin/bash";
         
@@ -128,6 +128,21 @@ void Terminal::render() {
     if (ptyFd < 0) {
         startShell();
     }
+
+
+
+    ImGuiIO& io = ImGui::GetIO();
+    float currentFontSize = ImGui::GetFont()->FontSize;
+
+    // Check if font size changed
+    if (currentFontSize != lastFontSize) {
+        lastFontSize = currentFontSize;
+        // Force resize with current dimensions
+        ImVec2 contentSize = ImGui::GetContentRegionAvail();
+        resize(state.col, state.row); // Forces PTY update with new font metrics
+    }
+
+
 
     // Basic ImGui window setup
     ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -155,7 +170,6 @@ void Terminal::render() {
 
     // Handle mouse wheel for scrollback
     if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() && !(state.mode & MODE_ALTSCREEN)) {
-        ImGuiIO& io = ImGui::GetIO();
         if (io.MouseWheel != 0.0f) {
             int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
             scrollOffset -= static_cast<int>(io.MouseWheel * 3);
@@ -163,7 +177,6 @@ void Terminal::render() {
         }
     }
     // Handle mouse input
-    ImGuiIO& io = ImGui::GetIO();
     if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered()) {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 winPos = ImGui::GetWindowPos();
@@ -1882,17 +1895,22 @@ void Terminal::ringBell() {
         // Implement platform-specific bell
     }
 }
+
+
 void Terminal::resize(int cols, int rows) {
     std::lock_guard<std::mutex> lock(bufferMutex);
     
-    // Ensure minimum dimensions
-    cols = std::max(1, cols);
-    rows = std::max(1, rows);
-    
-    // Don't resize if dimensions haven't changed
-    if (cols == state.col && rows == state.row) {
-        return;
-    }
+    // Get actual content area size
+    ImVec2 contentSize = ImGui::GetContentRegionAvail();
+    float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+    float lineHeight = ImGui::GetTextLineHeight();
+
+    // Calculate new dimensions based on actual font metrics
+    int new_cols = std::max(1, static_cast<int>(contentSize.x / charWidth));
+    int new_rows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+
+    // Only resize if dimensions actually changed
+    if (new_cols == state.col && new_rows == state.row) return;
     
     try {
         // Create new buffers
