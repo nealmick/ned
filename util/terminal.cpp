@@ -19,13 +19,12 @@
 
 
 Terminal gTerminal;
+
 Terminal::Terminal() {
     // Initialize with safe default size
     state.row = 24;
     state.col = 80;
     state.bot = state.row - 1;
-    
-
     sel.mode = SEL_IDLE;
     sel.type = SEL_REGULAR;
     sel.snap = 0;
@@ -196,6 +195,8 @@ void Terminal::render() {
             // Extend selection
             selectionExtend(cellX, cellY);
         }
+
+        /* uncomment for auto copy on selection mouse release
         else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
             if (sel.mode != SEL_IDLE) {
                 // Copy selection to clipboard on mouse release
@@ -203,7 +204,9 @@ void Terminal::render() {
                 sel.mode = SEL_IDLE;
             }
         }
+        */
 
+        
         // Handle right-click paste
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
             pasteFromClipboard();
@@ -214,7 +217,7 @@ void Terminal::render() {
             if (ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
                 copySelection();
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
                 copySelection();
             }
             if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
@@ -373,6 +376,7 @@ void Terminal::renderBuffer() {
 
         // Draw alt screen characters
         for (int y = 0; y < state.row; y++) {
+            if (!state.dirty[y]) continue; // Skip unchanged rows
             for (int x = 0; x < state.col; x++) {
                 const Glyph& glyph = state.lines[y][x];
                 if (glyph.mode & ATTR_WDUMMY) continue;
@@ -2239,6 +2243,7 @@ std::string Terminal::getSelection() {
 
 
 void Terminal::copySelection() {
+    std::cout << "coppying selection dawggggg" << "\n";
     std::string selected = getSelection();
     if (!selected.empty()) {
         // Use ImGui's clipboard functions
