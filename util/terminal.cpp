@@ -1903,7 +1903,7 @@ void Terminal::ringBell() {
 
 void Terminal::resize(int cols, int rows) {
     std::lock_guard<std::mutex> lock(bufferMutex);
-    
+    selectionClear(); 
     // Get actual content area size
     ImVec2 contentSize = ImGui::GetContentRegionAvail();
     float charWidth = ImGui::GetFont()->GetCharAdvance('M');
@@ -2199,6 +2199,7 @@ void Terminal::selectionExtend(int col, int row) {
 }
 
 void Terminal::selectionNormalize() {
+    // Existing normalization logic
     if (sel.type == SEL_REGULAR && sel.ob.y != sel.oe.y) {
         sel.nb.x = sel.ob.y < sel.oe.y ? sel.ob.x : sel.oe.x;
         sel.ne.x = sel.ob.y < sel.oe.y ? sel.oe.x : sel.ob.x;
@@ -2208,6 +2209,12 @@ void Terminal::selectionNormalize() {
     }
     sel.nb.y = std::min(sel.ob.y, sel.oe.y);
     sel.ne.y = std::max(sel.ob.y, sel.oe.y);
+
+    // Clamp coordinates to terminal dimensions
+    sel.nb.y = std::clamp(sel.nb.y, 0, state.row - 1);
+    sel.ne.y = std::clamp(sel.ne.y, 0, state.row - 1);
+    sel.nb.x = std::clamp(sel.nb.x, 0, state.col - 1);
+    sel.ne.x = std::clamp(sel.ne.x, 0, state.col - 1);
 }
 
 void Terminal::selectionClear() {
@@ -2216,22 +2223,29 @@ void Terminal::selectionClear() {
     sel.mode = SEL_IDLE;
     sel.ob.x = -1;
 }
-
 std::string Terminal::getSelection() {
     std::string str;
     if (sel.ob.x == -1)
         return str;
         
     for (int y = sel.nb.y; y <= sel.ne.y; y++) {
+        // Bounds check for y
+        if (y < 0 || y >= state.lines.size()) continue;
+        
+        const auto& line = state.lines[y];
         int xstart = (y == sel.nb.y) ? sel.nb.x : 0;
         int xend = (y == sel.ne.y) ? sel.ne.x : state.col - 1;
         
+        // Clamp xstart and xend to line size
+        xstart = std::clamp(xstart, 0, static_cast<int>(line.size()) - 1);
+        xend = std::clamp(xend, 0, static_cast<int>(line.size()) - 1);
+        
         for (int x = xstart; x <= xend; x++) {
-            if (state.lines[y][x].mode & ATTR_WDUMMY)
+            if (line[x].mode & ATTR_WDUMMY)
                 continue;
             
             char buf[UTF_SIZ];
-            size_t len = utf8Encode(state.lines[y][x].u, buf);
+            size_t len = utf8Encode(line[x].u, buf);
             str.append(buf, len);
         }
         
@@ -2240,7 +2254,6 @@ std::string Terminal::getSelection() {
     }
     return str;
 }
-
 
 void Terminal::copySelection() {
     std::cout << "coppying selection dawggggg" << "\n";
