@@ -4,7 +4,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <iostream>
-
 #include "imgui.h"
 #include "../util/settings.h"
 

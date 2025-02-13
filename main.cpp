@@ -49,6 +49,10 @@ Bookmarks gBookmarks;
 
 bool shader_toggle = false; 
 
+void RenderWelcomeScreen();
+void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth);
+
+
 
 float Clamp(float value, float min, float max) {
     if (value < min) return min;
@@ -178,29 +182,51 @@ void ApplySettings(ImGuiStyle& style) {
 
     ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }
-
 void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth) {
+    
+
+    //terminal toggle
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-        // Add terminal toggle with Cmd/Ctrl+T
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
         gFileExplorer.saveCurrentFile();
         if (gTerminal.isTerminalVisible()) {
-            ClosePopper::closeAll();  // Closes all popups, no exceptions
+            ClosePopper::closeAll();
         }
     }
+
+    //open settings popup....
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
+
         std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
+
         gSettings.toggleSettingsWindow();
+
     }
+    //reset welcome message....
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+        std::cout << "\033[32mMain:\033[0m Ctrl+N pressed - Resetting to welcome screen" << std::endl;
+        gFileExplorer.setShowWelcomeScreen(true);
+        gFileExplorer.saveCurrentFile();  // Save any changes before resetting
+    }
+    // Render terminal if visible
     if (gTerminal.isTerminalVisible()) {
         ImGui::PushFont(currentFont);
         gTerminal.render();
         ImGui::PopFont();
         return;
     }
+
+    // Check if we should show welcome screen
+    if (gFileExplorer.getShowWelcomeScreen()) {
+        RenderWelcomeScreen();
+        return;
+    }
+
+    // Rest of your existing RenderMainWindow code...
     ImGui::PushFont(currentFont);
     ImGui::SetNextWindowPos(ImVec2(0, 0));
+
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
     ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
     
@@ -317,9 +343,72 @@ void updateFileExplorer() {
         last_refresh_time = current_time;
     }
 }
+void RenderWelcomeScreen() {
+    // Get viewport for full window size
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->Pos);
+    ImGui::SetNextWindowSize(viewport->Size);
+
+    // Create a borderless full window
+    ImGui::Begin("##WelcomeScreen", nullptr, 
+        ImGuiWindowFlags_NoDecoration | 
+        ImGuiWindowFlags_NoMove | 
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoSavedSettings);
+
+    // Center the welcome text and content
+    float windowWidth = ImGui::GetWindowWidth();
+    float windowHeight = ImGui::GetWindowHeight();
+    
+    // Title - "Welcome to NED"
+    ImGui::SetCursorPosY(windowHeight * 0.3f);
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);  // Use default font for title
+    const char* title = "Welcome to NED";
+    float titleWidth = ImGui::CalcTextSize(title).x;
+    ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
+    ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
+    ImGui::PopFont();
+
+    // Description text
+    ImGui::SetCursorPosY(windowHeight * 0.4f);
+    const char* description = "A lightweight, feature-rich text editor built with C++ and ImGui";
+    float descWidth = ImGui::CalcTextSize(description).x;
+    ImGui::SetCursorPosX((windowWidth - descWidth) * 0.5f);
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "%s", description);
+
+    // Link to GitHub
+    const char* github = "github.com/nealmick/ned";
+    float githubWidth = ImGui::CalcTextSize(github).x;
+    ImGui::SetCursorPosY(windowHeight * 0.45f);
+    ImGui::SetCursorPosX((windowWidth - githubWidth) * 0.5f);
+    ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "%s", github);
+    
+    // Open Folder button
+    float buttonWidth = 200;
+    float buttonHeight = 40;
+    ImGui::SetCursorPosY(windowHeight * 0.6f);
+    ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
+    
+    // Button styling
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+    
+    if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight))) {
+        std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked" << std::endl;
+        gFileExplorer.setShowFileDialog(true);
+    }
+    
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(3);
+
+    ImGui::End();
+}
 
 
 int main() {
+
     // Initialize GLFW
     InitializeGLFW();
     
@@ -526,6 +615,7 @@ int main() {
                 rootNode.isDirectory = true;
                 rootNode.children.clear();
                 gFileExplorer.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode);
+                gFileExplorer.setShowWelcomeScreen(false);  // Hide welcome screen after folder selection
             }
         }
 

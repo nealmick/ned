@@ -509,18 +509,21 @@ void FileExplorer::displayFileTree(FileNode &node) {
 }
 
 void FileExplorer::openFolderDialog() {
-  nfdchar_t *outPath = NULL;
-  nfdresult_t result = NFD_PickFolder(NULL, &outPath);
-  if (result == NFD_OKAY) {
-    selectedFolder = outPath;
-    std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
-    free(outPath);
-    _showFileDialog = false;
-  } else if (result == NFD_CANCEL) {
-    std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
-  } else {
-    std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
-  }
+    std::cout << "\033[35mFiles:\033[0m Opening folder dialog" << std::endl;
+    nfdchar_t *outPath = NULL;
+    nfdresult_t result = NFD_PickFolder(NULL, &outPath);
+    if (result == NFD_OKAY) {
+        selectedFolder = outPath;
+        std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
+        free(outPath);
+        _showFileDialog = false;
+        setShowWelcomeScreen(false);  // Hide welcome screen when folder selected
+    } else if (result == NFD_CANCEL) {
+        std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
+        _showFileDialog = false;  // Reset flag on cancel
+    } else {
+        std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
+    }
 }
 void FileExplorer::refreshSyntaxHighlighting() {
   if (!currentFile.empty()) {
