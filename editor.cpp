@@ -1382,6 +1382,12 @@ void Editor::highlightContent(const std::string &content,
         htmlLexer.applyHighlighting(content, colors, 0);
         std::cout << "\033[36mEditor:\033[0m html highlighting completed"
                   << std::endl;
+      } else if (extension == ".js" || extension == ".jsx") {
+        std::cout << "\033[36mEditor:\033[0m Applying full jsx highlighting"
+                  << std::endl;
+        jsxLexer.applyHighlighting(content, colors, 0);
+        std::cout << "\033[36mEditor:\033[0m JSX highlighting completed"
+                  << std::endl;
       } else {
         int local_start_pos = start_pos < 0 ? 0 : start_pos;
         int local_end_pos =
@@ -1557,7 +1563,7 @@ void Editor::setLanguage(const std::string &extension) {
   } else if (extension == ".py") {
     // custom lexer.. no rules here
   } else if (extension == ".js") {
-    rules = javascriptRules;
+    //rules = javascriptRules;
   } else if (extension == ".md") {
     setupMarkdownRules();
     rules = markdownRules;

@@ -8,6 +8,7 @@
 #include "lexers/python.h"
 #include "lexers/cpp.h"
 #include "lexers/html.h"
+#include "lexers/jsx.h"
 
 
 #include <string>
@@ -104,6 +105,7 @@ private:
     PythonLexer::Lexer pythonLexer;
     CppLexer::Lexer cppLexer;
     HtmlLexer::Lexer htmlLexer;
+    JsxLexer::Lexer jsxLexer;
     void setupCppRules();
     void setupJavaScriptRules();
     void setupMarkdownRules();

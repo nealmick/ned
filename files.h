@@ -80,9 +80,13 @@ public:
         }
         return fileTypeIcons.at("default"); // Return default icon if not found
     }
+    bool showWelcomeScreen = true;
+    void setShowWelcomeScreen(bool show) { showWelcomeScreen = show; }
+    bool getShowWelcomeScreen() const { return showWelcomeScreen; }
+    void setShowFileDialog(bool show) { _showFileDialog = show; }
 private:
     std::string selectedFolder;
-    bool _showFileDialog = true;
+    bool _showFileDialog = false;
     FileNode rootNode;
     bool _unsavedChanges = false;
 
