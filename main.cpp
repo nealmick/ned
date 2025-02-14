@@ -38,6 +38,8 @@
 #include "util/terminal.h"
 #include "util/settings.h"
 #include "util/close_popper.h"
+#include "util/welcome.h"
+#include "util/debug_console.h"
 #include "shaders/shader.h"
 
 #include "imgui.h"
@@ -49,7 +51,7 @@ Bookmarks gBookmarks;
 
 bool shader_toggle = false; 
 
-void RenderWelcomeScreen();
+
 void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth);
 
 
@@ -182,8 +184,10 @@ void ApplySettings(ImGuiStyle& style) {
 
     ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }
+
+
+
 void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWidth) {
-    
 
     //terminal toggle
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
@@ -199,15 +203,26 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
 
         std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
-
+        gFileExplorer.setShowWelcomeScreen(false);
         gSettings.toggleSettingsWindow();
 
     }
     //reset welcome message....
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
-        std::cout << "\033[32mMain:\033[0m Ctrl+N pressed - Resetting to welcome screen" << std::endl;
-        gFileExplorer.setShowWelcomeScreen(true);
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
+        std::cout << "\033[32mMain:\033[0m Ctrl+/ pressed - Resetting to welcome screen" << std::endl;
+        ClosePopper::closeAll();
+        gFileExplorer.setShowWelcomeScreen(!gFileExplorer.getShowWelcomeScreen());
+        if (gTerminal.isTerminalVisible()) {
+            gTerminal.toggleVisibility();
+        }
         gFileExplorer.saveCurrentFile();  // Save any changes before resetting
+    }
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
+        std::cout << "\033[32mMain:\033[0m Ctrl+O pressed - triggering file dialog" << std::endl;
+        ClosePopper::closeAll();
+        gFileExplorer.setShowWelcomeScreen(false);
+        gFileExplorer.saveCurrentFile();  // Save any changes before resetting
+        gFileExplorer.setShowFileDialog(true);
     }
     // Render terminal if visible
     if (gTerminal.isTerminalVisible()) {
@@ -219,7 +234,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
 
     // Check if we should show welcome screen
     if (gFileExplorer.getShowWelcomeScreen()) {
-        RenderWelcomeScreen();
+        gWelcome.render();
         return;
     }
 
@@ -389,7 +404,7 @@ void RenderWelcomeScreen() {
     
     // First row of keybinds
     ImGui::SetCursorPosX(windowWidth * 0.3f);
-    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + ,  Settings");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + O  Open Folder");
     ImGui::SameLine(windowWidth * 0.6f);
     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + T  Terminal");
 
@@ -403,7 +418,7 @@ void RenderWelcomeScreen() {
     ImGui::SetCursorPosX(windowWidth * 0.3f);
     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + F  Find");
     ImGui::SameLine(windowWidth * 0.6f);
-    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + N  New Window");
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD + /  Show this window");
 
     // Open Folder button
     float buttonWidth = 200;
@@ -449,6 +464,8 @@ int main() {
 
     // Initialize ImGui
     InitializeImGui(window);
+    //capture debug output..
+    gDebugConsole.toggleVisibility(); 
     
     // Load settings
     gSettings.loadSettings();   
