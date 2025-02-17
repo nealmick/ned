@@ -22,8 +22,8 @@ jobs:
 
       - name: Run formatting script
         run: |
-          chmod +x formater.sh
-          ./formater.sh
+          chmod +x format.sh
+          ./format.sh
 
       - name: Commit formatting changes if any
         run: |
