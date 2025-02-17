@@ -1,12 +1,12 @@
 {
     "backgroundColor": [
-        0.0,
-        0.4391084313392639,
-        0.3603626489639282,
+        0.018767040222883224,
+        0.2791057825088501,
+        0.232418954372406,
         0.30000001192092896
     ],
     "font": "SourceCodePro-Regular",
-    "fontSize": 19.0,
+    "fontSize": 18.0,
     "rainbow": true,
     "shader_toggle": false,
     "splitPos": 0.23415492475032806,

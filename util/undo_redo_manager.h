@@ -3,8 +3,6 @@
     This utility tracks changes made to files and can both undo changes and redo changes.
 */
 
-
-
 #pragma once
 #include <vector>
 #include <string>
@@ -12,12 +10,14 @@
 #include <algorithm>
 
 class UndoRedoManager {
-private:
+public:
     struct State {
         std::string content;
         int changeStart;
         int changeEnd;
     };
+
+private:
     std::vector<State> undoStack;
     std::vector<State> redoStack;
     size_t maxStackSize = 100;

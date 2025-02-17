@@ -801,7 +801,7 @@ void RenderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos,
 
   draw_list->AddLine(
       cursor_screen_pos,
-      ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + line_height),
+      ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + line_height -1 ),
       cursor_color);
 }
 

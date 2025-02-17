@@ -480,9 +480,9 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     handleKeyboardShortcuts();
 
     if (gTerminal.isTerminalVisible()) {
-        ImGui::PushFont(currentFont);
+        //ImGui::PushFont(currentFont);
         gTerminal.render();
-        ImGui::PopFont();
+        //ImGui::PopFont();
         return;
     }
 
@@ -510,7 +510,7 @@ void RenderMainWindow(ImFont* currentFont, float& explorerWidth, float& editorWi
     explorerWidth = availableWidth * gSettings.getSplitPos();
     editorWidth = availableWidth - explorerWidth - 6;
 
-    // Render the sections
+    // Render Main editor content with file explorer and syntax highlighter...
     renderFileExplorer(explorerWidth);
     renderSplitter(padding, availableWidth);
     renderEditor(currentFont, editorWidth);
@@ -548,8 +548,7 @@ void handleBackgroundUpdates(double currentTime, double& lastSettingsTime, doubl
     }
 }
 
-void handleFramebuffer(int width, int height, GLuint& fb, GLuint& tex, GLuint& rbo,
-                      int& last_w, int& last_h, bool& initialized) {
+void handleFramebuffer(int width, int height, GLuint& fb, GLuint& tex, GLuint& rbo,int& last_w, int& last_h, bool& initialized) {
     if (width == last_w && height == last_h && initialized) {
         return;
     }
@@ -642,7 +641,6 @@ void handleFileDialog() {
     }
 }
 
-// Rendering functions
 void beginFrame(int display_w, int display_h) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, display_w, display_h);
