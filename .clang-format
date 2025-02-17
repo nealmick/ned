@@ -1,6 +1,17 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
-UseTab: Always
-BreakBeforeBraces: Allman
-ColumnLimit: 120
+UseTab: Never
+BreakBeforeBraces: Attach
+ColumnLimit: 100
+
+# Disable bin-packing for parameters and arguments
+BinPackParameters: false
+BinPackArguments: false
+
+# Encourage fewer line breaks for function parameters
+PenaltyBreakBeforeFirstCallParameter: 200
+PenaltyExcessCharacter: 10000
+
+# Let short functions stay on one line if they fit
+AllowShortFunctionsOnASingleLine: All
