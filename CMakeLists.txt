@@ -69,6 +69,7 @@ add_executable(ned
     util/close_popper.cpp
     util/welcome.cpp
     util/debug_console.cpp
+    
     files.cpp
     editor.cpp
     lib/imgui/imgui.cpp
