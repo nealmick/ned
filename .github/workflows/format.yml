@@ -1,0 +1,39 @@
+name: Format Code on Main
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Ensure full history is available
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Run formatting script
+        run: |
+          chmod +x formater.sh
+          ./formater.sh
+
+      - name: Commit formatting changes if any
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add .
+          if ! git diff-index --quiet HEAD --; then
+            git commit -m "Apply automatic code formatting"
+            git push
+          else
+            echo "No formatting changes detected."
+          fi
+
