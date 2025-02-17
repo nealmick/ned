@@ -1,8 +1,7 @@
 name: Format Code on Main
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   format:
@@ -36,4 +35,3 @@ jobs:
           else
             echo "No formatting changes detected."
           fi
-
