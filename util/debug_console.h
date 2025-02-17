@@ -1,39 +1,38 @@
 // debug_console.h
 #pragma once
+#include "imgui.h"
+#include <deque>
 #include <sstream>
 #include <streambuf>
 #include <string>
 #include <vector>
-#include "imgui.h"
-#include <deque>
 
 class DebugConsole {
-private:
+  private:
     // Forward declare ConsoleBuf
     class ConsoleBuf;
-    
-public:
-    static DebugConsole& getInstance() {
+
+  public:
+    static DebugConsole &getInstance() {
         static DebugConsole instance;
         return instance;
     }
     void render();
-    void addLog(const std::string& message);
+    void addLog(const std::string &message);
     void clear() { logs.clear(); }
     void toggleVisibility() { isVisible = !isVisible; }
     bool isConsoleVisible() const { return isVisible; }
 
-private:
+  private:
     DebugConsole();
     std::deque<std::string> logs;
     bool isVisible;
-    
-    class ConsoleBuf : public std::streambuf {
-    public:
-        ConsoleBuf(DebugConsole& console, std::streambuf* orig) 
-            : console(console), originalBuffer(orig) {}
 
-    protected:
+    class ConsoleBuf : public std::streambuf {
+      public:
+        ConsoleBuf(DebugConsole &console, std::streambuf *orig) : console(console), originalBuffer(orig) {}
+
+      protected:
         virtual int_type overflow(int_type c = traits_type::eof()) override {
             if (c != traits_type::eof()) {
                 if (c == '\n') {
@@ -51,7 +50,7 @@ private:
             return c;
         }
 
-        virtual std::streamsize xsputn(const char* s, std::streamsize n) override {
+        virtual std::streamsize xsputn(const char *s, std::streamsize n) override {
             std::string str(s, n);
             size_t pos;
             while ((pos = str.find('\n')) != std::string::npos) {
@@ -69,15 +68,15 @@ private:
             return n;
         }
 
-    private:
+      private:
         std::string buffer;
-        DebugConsole& console;
-        std::streambuf* originalBuffer;
+        DebugConsole &console;
+        std::streambuf *originalBuffer;
     };
 
     ConsoleBuf consoleBuf;
-    std::streambuf* oldCoutBuf;
+    std::streambuf *oldCoutBuf;
     friend class ConsoleBuf;
 };
 
-extern DebugConsole& gDebugConsole;
+extern DebugConsole &gDebugConsole;

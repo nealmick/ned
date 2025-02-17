@@ -1,26 +1,24 @@
-/*  
+/*
     util/settings.h
-    This utility handles various settings such as font size and background color. 
+    This utility handles various settings such as font size and background color.
 */
 
-
 #pragma once
-#include <string>
-#include <filesystem>
 #include "../lib/json.hpp"
 #include "close_popper.h"
+#include <filesystem>
+#include <string>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-
 class Settings {
-public:
+  public:
     Settings();
     void loadSettings();
     void saveSettings();
     void checkSettingsFile();
-    json& getSettings() { return settings; }
+    json &getSettings() { return settings; }
     float getSplitPos() const { return splitPos; }
     void setSplitPos(float pos) {
         splitPos = pos;
@@ -35,8 +33,8 @@ public:
     std::string getCurrentFont() const { return settings["font"].get<std::string>(); }
     bool hasFontChanged() const { return fontChanged; }
     void resetFontChanged() { fontChanged = false; }
-    
-    float getFontSize() const {  return currentFontSize; }
+
+    float getFontSize() const { return currentFontSize; }
 
     void setFontSize(float size) {
         if (size != currentFontSize) {
@@ -48,20 +46,20 @@ public:
     }
     bool hasFontSizeChanged() const { return fontSizeChanged; }
     void resetFontSizeChanged() { fontSizeChanged = false; }
-    void ScrollRegion() const{}
+    void ScrollRegion() const {}
     bool showSettingsWindow = false;
     void renderSettingsWindow();
-    void toggleSettingsWindow() { 
+    void toggleSettingsWindow() {
         showSettingsWindow = !showSettingsWindow;
-        if(showSettingsWindow) {  // Only close others if we're opening
-           ClosePopper::closeAllExcept(ClosePopper::Type::Settings);   // RIGHT
-
+        if (showSettingsWindow) {                                     // Only close others if we're opening
+            ClosePopper::closeAllExcept(ClosePopper::Type::Settings); // RIGHT
         }
         blockInput = showSettingsWindow;
     }
     bool isBlockingInput() const { return blockInput; }
     bool getRainbowMode() const { return settings["rainbow"].get<bool>(); }
-private:
+
+  private:
     json settings;
     std::string settingsPath;
     float splitPos;

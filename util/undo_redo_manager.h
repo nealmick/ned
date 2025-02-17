@@ -1,29 +1,29 @@
-/*  
+/*
     util/undo_redo_manager.h
     This utility tracks changes made to files and can both undo changes and redo changes.
 */
 
 #pragma once
-#include <vector>
-#include <string>
-#include <iostream>
 #include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
 
 class UndoRedoManager {
-public:
+  public:
     struct State {
         std::string content;
         int changeStart;
         int changeEnd;
     };
 
-private:
+  private:
     std::vector<State> undoStack;
     std::vector<State> redoStack;
     size_t maxStackSize = 100;
 
-public:
-    void addState(const std::string& state, int changeStart, int changeEnd) {
+  public:
+    void addState(const std::string &state, int changeStart, int changeEnd) {
         if (changeStart < 0 || changeEnd < changeStart || changeEnd > static_cast<int>(state.length())) {
             std::cerr << "Invalid change range: " << changeStart << " to " << changeEnd << std::endl;
             return;
@@ -38,7 +38,7 @@ public:
         }
     }
 
-    State undo(const std::string& currentState) {
+    State undo(const std::string &currentState) {
         if (undoStack.size() <= 1) {
             return {currentState, 0, static_cast<int>(currentState.length())};
         }
@@ -47,7 +47,7 @@ public:
         return undoStack.back();
     }
 
-    State redo(const std::string& currentState) {
+    State redo(const std::string &currentState) {
         if (redoStack.empty()) {
             return {currentState, 0, static_cast<int>(currentState.length())};
         }
