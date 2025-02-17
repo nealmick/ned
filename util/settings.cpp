@@ -1,24 +1,22 @@
-/*  
+/*
     util/settings.cpp
-    This utility handles various settings such as font size and background color. 
+    This utility handles various settings such as font size and background color.
     The settings state is saved to the build folder as .ned.json
     This utility also draws a pop up window for adjusting settings, open with cmd ,(comma)
     The settings json file can edited manually, once saved the changes take effect.
 */
 
-
 #include "settings.h"
-#include <iostream>
-#include <fstream>
+#include "../editor.h"
+#include "../files.h"
+#include "config.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
-#include "../editor.h" 
-#include "../files.h" 
+#include <fstream>
+#include <iostream>
 #include <unistd.h>
-#include "config.h"
 
 #include "../files.h"
-
 
 Settings gSettings;
 
@@ -26,13 +24,13 @@ Settings::Settings() : splitPos(0.3f) {}
 void Settings::loadSettings() {
     settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
     std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
-    
+
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
             settingsFile >> settings;
             std::cout << "\033[95mSettings:\033[0m Json preferences loaded successfully" << std::endl;
-        } catch (json::parse_error& e) {
+        } catch (json::parse_error &e) {
             std::cerr << "\033[95mSettings:\033[0m Error parsing settings file: " << e.what() << std::endl;
             settings = json::object(); // Reset to empty object
         }
@@ -57,37 +55,15 @@ void Settings::loadSettings() {
         settings["theme"] = "default";
     }
     if (!settings.contains("rainbow")) {
-        settings["rainbow"] = true;  // default to true
+        settings["rainbow"] = true; // default to true
     }
     if (!settings.contains("shader_toggle")) {
-        settings["shader_toggle"] = true;  // default to shader enabled
+        settings["shader_toggle"] = true; // default to shader enabled
     }
     if (!settings.contains("themes")) {
-    settings["themes"] = {
-        {"default", {
-            {"function", {1.0f, 1.0f, 1.0f, 1.0f}},
-            {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
-            {"background", {0.2f, 0.2f, 0.2f, 1.0f}},
-            {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
-            {"string", {0.87f, 0.87f, 0.0f, 1.0f}},
-            {"number", {0.0f, 0.8f, 0.8f, 1.0f}},
-            {"comment", {0.5f, 0.5f, 0.5f, 1.0f}},
-            {"heading", {0.9f, 0.5f, 0.2f, 1.0f}},
-            {"bold", {1.0f, 0.7f, 0.7f, 1.0f}},
-            {"italic", {0.7f, 1.0f, 0.7f, 1.0f}},
-            {"link", {0.4f, 0.4f, 1.0f, 1.0f}},
-            {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}},
-            {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}},
-            {"tag", {0.3f, 0.7f, 0.9f, 1.0f}},
-            {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}},
-            {"selector", {0.9f, 0.4f, 0.6f, 1.0f}},
-            {"property", {0.6f, 0.9f, 0.4f, 1.0f}},
-            {"value", {0.4f, 0.6f, 0.9f, 1.0f}},
-            {"key", {0.9f, 0.6f, 0.4f, 1.0f}}
-        }}
-    };
-}
-    
+        settings["themes"] = {{"default", {{"function", {1.0f, 1.0f, 1.0f, 1.0f}}, {"text", {1.0f, 1.0f, 1.0f, 1.0f}}, {"background", {0.2f, 0.2f, 0.2f, 1.0f}}, {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}}, {"string", {0.87f, 0.87f, 0.0f, 1.0f}}, {"number", {0.0f, 0.8f, 0.8f, 1.0f}}, {"comment", {0.5f, 0.5f, 0.5f, 1.0f}}, {"heading", {0.9f, 0.5f, 0.2f, 1.0f}}, {"bold", {1.0f, 0.7f, 0.7f, 1.0f}}, {"italic", {0.7f, 1.0f, 0.7f, 1.0f}}, {"link", {0.4f, 0.4f, 1.0f, 1.0f}}, {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}}, {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}}, {"tag", {0.3f, 0.7f, 0.9f, 1.0f}}, {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}}, {"selector", {0.9f, 0.4f, 0.6f, 1.0f}}, {"property", {0.6f, 0.9f, 0.4f, 1.0f}}, {"value", {0.4f, 0.6f, 0.9f, 1.0f}}, {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
+    }
+
     splitPos = settings["splitPos"].get<float>();
     // Only update lastSettingsModification if the file exists
     if (fs::exists(settingsPath)) {
@@ -96,7 +72,7 @@ void Settings::loadSettings() {
         lastSettingsModification = fs::file_time_type::min();
     }
 
-    //std::cout << "Settings: Current preferences : " << settings.dump(4) << std::endl;
+    // std::cout << "Settings: Current preferences : " << settings.dump(4) << std::endl;
 }
 
 void Settings::saveSettings() {
@@ -106,31 +82,24 @@ void Settings::saveSettings() {
     }
 }
 void Settings::checkSettingsFile() {
-    
+
     if (!fs::exists(settingsPath)) {
         std::cout << "Settings file does not exist, skipping check" << std::endl;
         return;
     }
 
     auto currentModification = fs::last_write_time(settingsPath);
-    
+
     if (currentModification > lastSettingsModification) {
         std::cout << "Settings file has been modified, reloading" << std::endl;
         json oldSettings = settings;
         loadSettings();
         lastSettingsModification = currentModification;
-        
+
         // Rest of the existing check logic remains the same
-        if (oldSettings["backgroundColor"] != settings["backgroundColor"] ||
-            oldSettings["fontSize"] != settings["fontSize"] ||
-            oldSettings["splitPos"] != settings["splitPos"] ||
-            oldSettings["theme"] != settings["theme"] ||
-            oldSettings["themes"] != settings["themes"] ||
-            oldSettings["rainbow"] != settings["rainbow"] ||
-            oldSettings["shader_toggle"] != settings["shader_toggle"] ||
-            oldSettings["font"] != settings["font"]) {
+        if (oldSettings["backgroundColor"] != settings["backgroundColor"] || oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] || oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] || oldSettings["rainbow"] != settings["rainbow"] || oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
-            
+
             // Check if theme or themes have changed
             if (oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"]) {
                 themeChanged = true;
@@ -144,21 +113,14 @@ void Settings::checkSettingsFile() {
     }
 }
 void Settings::renderSettingsWindow() {
-    if (!showSettingsWindow) return;
+    if (!showSettingsWindow)
+        return;
 
     // Center the window - make height auto-adjustable
-    ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always);  // Fixed height
-    ImGui::SetNextWindowPos(
-        ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f),
-        ImGuiCond_Always,
-        ImVec2(0.5f, 0.5f)
-    );
-    
-    ImGuiWindowFlags windowFlags = 
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_AlwaysAutoResize;  // Removed NoScrollbar and NoScrollWithMouse
+    ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always); // Fixed height
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize; // Removed NoScrollbar and NoScrollWithMouse
 
     // Push custom styles for the window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
@@ -168,18 +130,15 @@ void Settings::renderSettingsWindow() {
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
     ImGui::Begin("Settings", nullptr, windowFlags);
-    
+
     // Check for clicks outside window
     if (ImGui::IsMouseClicked(0)) {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 windowPos = ImGui::GetWindowPos();
         ImVec2 windowSize = ImGui::GetWindowSize();
-        
-        bool isOutside = mousePos.x < windowPos.x || 
-                        mousePos.x > (windowPos.x + windowSize.x) ||
-                        mousePos.y < windowPos.y || 
-                        mousePos.y > (windowPos.y + windowSize.y);
-                        
+
+        bool isOutside = mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y);
+
         if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
             showSettingsWindow = false;
             saveSettings();
@@ -205,36 +164,29 @@ void Settings::renderSettingsWindow() {
     ImGui::SetCursorPos(cursor_pos);
 
     ImTextureID closeIcon = gFileExplorer.getIcon("close");
-    ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), 
-                 ImVec2(0,0), ImVec2(1,1),
-                 isHovered ? ImVec4(1,1,1,0.6f) : ImVec4(1,1,1,1));
+    ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), ImVec2(0, 0), ImVec2(1, 1), isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 
     ImGui::EndGroup();
     ImGui::Separator();
     ImGui::Spacing();
-    
-    static float tempFontSize = currentFontSize;  // Use currentFontSize instead of reading from settings
+
+    static float tempFontSize = currentFontSize; // Use currentFontSize instead of reading from settings
 
     if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f")) {
-        settings["fontSize"] = tempFontSize;  // Update settings but don't change display yet
+        settings["fontSize"] = tempFontSize; // Update settings but don't change display yet
     }
 
     if (ImGui::IsItemDeactivatedAfterEdit()) {
-        setFontSize(tempFontSize);  // This will update currentFontSize and trigger changes
+        setFontSize(tempFontSize); // This will update currentFontSize and trigger changes
         saveSettings();
     }
     ImGui::Spacing();
 
     // Background Color
-    auto& bgColorArray = settings["backgroundColor"];
-    ImVec4 bgColor(
-        bgColorArray[0].get<float>(),
-        bgColorArray[1].get<float>(),
-        bgColorArray[2].get<float>(),
-        bgColorArray[3].get<float>()
-    );
+    auto &bgColorArray = settings["backgroundColor"];
+    ImVec4 bgColor(bgColorArray[0].get<float>(), bgColorArray[1].get<float>(), bgColorArray[2].get<float>(), bgColorArray[3].get<float>());
 
-    if (ImGui::ColorEdit3("Background Color", (float*)&bgColor)) {
+    if (ImGui::ColorEdit3("Background Color", (float *)&bgColor)) {
         settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
         settingsChanged = true;
         saveSettings();
@@ -242,24 +194,20 @@ void Settings::renderSettingsWindow() {
 
     // Text Color
     std::string currentTheme = getCurrentTheme();
-    auto& themeColors = settings["themes"][currentTheme];
+    auto &themeColors = settings["themes"][currentTheme];
 
     // Create helper lambda for color editing
-    auto editThemeColor = [&](const char* label, const char* colorKey) {
-        auto& colorArray = themeColors[colorKey];
-        ImVec4 color(
-            colorArray[0].get<float>(),
-            colorArray[1].get<float>(),
-            colorArray[2].get<float>(),
-            colorArray[3].get<float>()
-        );
-        
-        ImGui::TextUnformatted(label); ImGui::SameLine(200);
-        if (ImGui::ColorEdit3(("##" + std::string(colorKey)).c_str(), (float*)&color)) {
+    auto editThemeColor = [&](const char *label, const char *colorKey) {
+        auto &colorArray = themeColors[colorKey];
+        ImVec4 color(colorArray[0].get<float>(), colorArray[1].get<float>(), colorArray[2].get<float>(), colorArray[3].get<float>());
+
+        ImGui::TextUnformatted(label);
+        ImGui::SameLine(200);
+        if (ImGui::ColorEdit3(("##" + std::string(colorKey)).c_str(), (float *)&color)) {
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
-            gEditor.forceColorUpdate(); 
+            gEditor.forceColorUpdate();
         }
     };
 
@@ -274,7 +222,7 @@ void Settings::renderSettingsWindow() {
     editThemeColor("Numbers", "number");
     editThemeColor("Comments", "comment");
     editThemeColor("Functions", "function");
-    
+
     ImGui::Spacing();
     ImGui::TextUnformatted("Toggle");
     ImGui::Separator();
