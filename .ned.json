@@ -8,8 +8,8 @@
     "font": "SourceCodePro-Regular",
     "fontSize": 18.0,
     "rainbow": true,
-    "shader_toggle": false,
-    "splitPos": 0.23415492475032806,
+    "shader_toggle": true,
+    "splitPos": 0.20510563254356384,
     "theme": "default",
     "themes": {
         "default": {
@@ -74,9 +74,9 @@
                 1.0
             ],
             "keyword": [
-                0.0,
-                0.5407932996749878,
-                0.9013215899467468,
+                0.14396628737449646,
+                0.5708910822868347,
+                0.8555065989494324,
                 1.0
             ],
             "link": [

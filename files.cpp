@@ -118,20 +118,19 @@ void FileExplorer::createDefaultIcon() {
     fileTypeIcons["default"] = reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
 }
 
-void FileExplorer::preserveOpenStates(const FileNode &oldNode,
-                                      FileNode &newNode) {
-  for (auto &newChild : newNode.children) {
-    auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(),
-                           [&newChild](const FileNode &oldChild) {
-                             return oldChild.fullPath == newChild.fullPath;
-                           });
-    if (it != oldNode.children.end()) {
-      newChild.isOpen = it->isOpen;
-      if (newChild.isDirectory && newChild.isOpen) {
-        preserveOpenStates(*it, newChild);
-      }
+void FileExplorer::preserveOpenStates(const FileNode &oldNode,FileNode &newNode) {
+    for (auto &newChild : newNode.children) {
+        auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(),
+                               [&newChild](const FileNode &oldChild) {
+                                 return oldChild.fullPath == newChild.fullPath;
+                               });
+        if (it != oldNode.children.end()) {
+            newChild.isOpen = it->isOpen;
+            if (newChild.isDirectory && newChild.isOpen) {
+                preserveOpenStates(*it, newChild);
+            }
+        }
     }
-  }
 }
 
 void FileExplorer::refreshFileTree() {
@@ -374,7 +373,6 @@ void FileExplorer::openFolderDialog() {
 void FileExplorer::refreshSyntaxHighlighting() {
   if (!currentFile.empty()) {
     std::string extension = fs::path(currentFile).extension().string();
-    gEditor.setLanguage(extension);
     gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
   }
 }
@@ -427,7 +425,6 @@ void FileExplorer::setupUndoManager(const std::string& path) {
 
 void FileExplorer::initializeSyntaxHighlighting(const std::string& path) {
     std::string extension = fs::path(path).extension().string();
-    gEditor.setLanguage(extension);
     gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
 }
 
@@ -543,80 +540,93 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd) {
     currentUndoManager->addState(fileContent, changeStart, changeEnd);
   }
 }
-
 void FileExplorer::renderFileContent() {
-  gLineJump.handleLineJumpInput(editor_state);
-  gLineJump.renderLineJumpWindow(editor_state);
-
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-
-  bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-  bool cmd_pressed = ImGui::GetIO().KeySuper; // For macOS Command key
-  if ((ctrl_pressed || cmd_pressed) && ImGui::IsKeyPressed(ImGuiKey_F)) {
-
-    ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
-    editor_state.activateFindBox = !editor_state.activateFindBox;
-    editor_state.blockInput = editor_state.activateFindBox;
+    gLineJump.handleLineJumpInput(editor_state);
+    gLineJump.renderLineJumpWindow(editor_state);
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    
+    handleFindBoxActivation();
+    
     if (editor_state.activateFindBox) {
-      findText = "";
+        renderFindBox();
     }
-  }
+    
+    bool text_changed;
+    renderEditor(text_changed);
+    
+    ImGui::PopStyleVar();
+}
 
-  if (editor_state.activateFindBox) {
+void FileExplorer::handleFindBoxActivation() {
+    bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
+    bool cmd_pressed = ImGui::GetIO().KeySuper;
+    
+    if ((ctrl_pressed || cmd_pressed) && ImGui::IsKeyPressed(ImGuiKey_F)) {
+        ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
+        editor_state.activateFindBox = !editor_state.activateFindBox;
+        editor_state.blockInput = editor_state.activateFindBox;
+        if (editor_state.activateFindBox) {
+            findText = "";
+        }
+    }
+}
+
+void FileExplorer::renderFindBox() {
     ImGui::SetNextItemWidth(-1);
-
-    // Push styles for rounded borders and custom background
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);  // Rounded corners
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f); // Border
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // Dark gray background
-    ImGui::PushStyleColor(
-        ImGuiCol_Border,
-        ImVec4(0.3f, 0.3f, 0.3f, 1.0f)); // Subtle border color
-
+    
+    // Apply find box styles
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+    
+    // Handle input text
     static char inputBuffer[256] = "";
     ImGui::SetKeyboardFocusHere();
-    ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue |
-                                ImGuiInputTextFlags_AutoSelectAll;
-
-    if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer),
-                         flags)) {
-      findText = inputBuffer;
-      lastFoundPos = std::string::npos; // Reset lastFoundPos for new search
-      findNext();
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | 
+                               ImGuiInputTextFlags_AutoSelectAll;
+    
+    if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags)) {
+        findText = inputBuffer;
+        lastFoundPos = std::string::npos;
+        findNext();
     }
-
-    // Pop the style variables and colors
+    
+    // Remove find box styles
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(2);
+    
+    handleFindBoxKeyboardShortcuts();
+}
 
+void FileExplorer::handleFindBoxKeyboardShortcuts() {
     bool shift_pressed = ImGui::GetIO().KeyShift;
+    bool cmd_pressed = ImGui::GetIO().KeySuper;
+    
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
-      if (shift_pressed || cmd_pressed) {
-        std::cout << "\033[35mFiles:\033[0m Searching previous" << std::endl;
-        findPrevious();
-      } else {
-        std::cout << "\033[35mFiles:\033[0m  Searching next" << std::endl;
-        findNext();
-      }
+        if (shift_pressed || cmd_pressed) {
+            std::cout << "\033[35mFiles:\033[0m Searching previous" << std::endl;
+            findPrevious();
+        } else {
+            std::cout << "\033[35mFiles:\033[0m  Searching next" << std::endl;
+            findNext();
+        }
     }
-
+    
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-      editor_state.activateFindBox = false;
-      editor_state.blockInput = false;
+        editor_state.activateFindBox = false;
+        editor_state.blockInput = false;
     }
-  }
+}
 
-  // Always render the editor
-  bool text_changed =
-      CustomTextEditor("##editor", fileContent, fileColors, editor_state);
-  if (text_changed && !editor_state.activateFindBox) {
-    setUnsavedChanges(true);
-    std::cout << "\033[35mFiles:\033[0m  Text changed, added undo/redo state" << std::endl;
-  }
-
-  ImGui::PopStyleVar();
+void FileExplorer::renderEditor(bool& text_changed) {
+    text_changed = gEditor.textEditor("##editor", fileContent, fileColors, editor_state);
+    
+    if (text_changed && !editor_state.activateFindBox) {
+        setUnsavedChanges(true);
+        std::cout << "\033[35mFiles:\033[0m  Text changed, added undo/redo state" << std::endl;
+    }
 }
 
 void FileExplorer::adjustColorBuffer(int changeStart, int lengthDiff) {
@@ -635,7 +645,6 @@ void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd) {
     int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
     
     std::string extension = fs::path(currentFile).extension().string();
-    gEditor.setLanguage(extension);
     gEditor.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
 }
 

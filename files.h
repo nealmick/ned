@@ -160,8 +160,11 @@ private:
     void adjustColorBuffer(int changeStart, int lengthDiff);
     void rehighlightChangedRegion(int changeStart, int changeEnd);
 
-    
-    
+    void handleFindBoxActivation();
+    void renderFindBox();
+    void handleFindBoxKeyboardShortcuts();
+    void renderEditor(bool& text_changed);
+
 };
 
 extern Editor gEditor;

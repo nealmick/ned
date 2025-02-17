@@ -6,7 +6,7 @@ DebugConsole& gDebugConsole = DebugConsole::getInstance();
 
 DebugConsole::DebugConsole() 
     : isVisible(false)
-    , consoleBuf(*this)
+    , consoleBuf(*this, std::cout.rdbuf())  // Pass original buffer
     , oldCoutBuf(nullptr) {
     // Redirect cout to our buffer
     oldCoutBuf = std::cout.rdbuf();
