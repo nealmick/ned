@@ -509,7 +509,9 @@ void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, doubl
     }
 }
 
-void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized) {
+void handleFramebuffer(int width,  int height,
+ GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized) {
+    
     if (width == last_w && height == last_h && initialized) {
         return;
     }
@@ -636,6 +638,8 @@ void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderT
         glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
     }
 
+
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, fullRenderTexture);
     glBindVertexArray(quadVAO);
@@ -666,6 +670,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader) {
         glfwTerminate();
         return false;
     }
+
 
     return true;
 }
