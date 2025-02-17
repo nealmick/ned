@@ -1,17 +1,17 @@
-/*  
+/*
     files.h
     Main file logic, handles rendering file tree, saving after changes, and more...
 */
 
 #pragma once
-#include <map>
-#include <string>
-#include <vector>
-#include <filesystem>
-#include <GLFW/glfw3.h>
 #include "editor.h"
 #include "imgui.h"
 #include "util/undo_redo_manager.h"
+#include <GLFW/glfw3.h>
+#include <filesystem>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -25,10 +25,10 @@ struct FileNode {
 };
 
 class FileExplorer {
-public:
+  public:
     EditorState editor_state;
-    UndoRedoManager* currentUndoManager = nullptr;
-    
+    UndoRedoManager *currentUndoManager = nullptr;
+
     std::map<std::string, UndoRedoManager> fileUndoManagers;
     std::string currentOpenFile;
     std::string previousOpenFile;
@@ -40,60 +40,60 @@ public:
     bool showWelcomeScreen = true;
 
     // File tree operations
-    void buildFileTree(const fs::path& path, FileNode& node);
+    void buildFileTree(const fs::path &path, FileNode &node);
     void refreshFileTree();
-    void preserveOpenStates(const FileNode& oldNode, FileNode& newNode);
-    FileNode& getRootNode() { return rootNode; }
-    
+    void preserveOpenStates(const FileNode &oldNode, FileNode &newNode);
+    FileNode &getRootNode() { return rootNode; }
+
     // File operations
-    void loadFileContent(const std::string& path, std::function<void()> afterLoadCallback = nullptr);
+    void loadFileContent(const std::string &path, std::function<void()> afterLoadCallback = nullptr);
     void saveCurrentFile();
-    void setFileContent(const std::string& content) {
+    void setFileContent(const std::string &content) {
         fileContent = content;
         fileColors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
-    
+
     // Content getters/setters
-    std::string& getFileContent() { return fileContent; }
-    std::vector<ImVec4>& getFileColors() { return fileColors; }
+    std::string &getFileContent() { return fileContent; }
+    std::vector<ImVec4> &getFileColors() { return fileColors; }
     std::string getCurrentFile() const { return currentFile; }
     bool hasUnsavedChanges() const { return _unsavedChanges; }
     void setUnsavedChanges(bool value) { _unsavedChanges = value; }
     std::string getSelectedFolder() const { return selectedFolder; }
-    
+
     // Undo/Redo
     void handleUndo();
     void handleRedo();
     void addUndoState(int changeStart, int changeEnd);
-    
+
     // Search functionality
     void findNext();
     void findPrevious();
-    
+
     // UI functions
     void openFolderDialog();
-    void displayFileTree(FileNode& node);
+    void displayFileTree(FileNode &node);
     void renderFileContent();
     void refreshSyntaxHighlighting();
-    
+
     // Icon handling
     void loadIcons();
-    ImTextureID getIconForFile(const std::string& filename);
-    ImTextureID getIcon(const std::string& iconName) const {
+    ImTextureID getIconForFile(const std::string &filename);
+    ImTextureID getIcon(const std::string &iconName) const {
         auto it = fileTypeIcons.find(iconName);
         if (it != fileTypeIcons.end()) {
             return it->second;
         }
         return fileTypeIcons.at("default");
     }
-    
+
     // Dialog state
     bool showFileDialog() const { return _showFileDialog; }
     void setShowFileDialog(bool show) { _showFileDialog = show; }
     void setShowWelcomeScreen(bool show) { showWelcomeScreen = show; }
     bool getShowWelcomeScreen() const { return showWelcomeScreen; }
 
-private:
+  private:
     FileNode rootNode;
     std::string selectedFolder;
     bool _showFileDialog = false;
@@ -103,12 +103,12 @@ private:
     std::map<std::string, ImTextureID> fileTypeIcons;
     double lastFileTreeRefreshTime = 0.0;
     const double FILE_TREE_REFRESH_INTERVAL = 1.0;
-    
+
     // Icon loading helpers
-    GLuint createTexture(const unsigned char* pixels, int width, int height);
-    bool loadSingleIcon(const std::string& iconFile);
+    GLuint createTexture(const unsigned char *pixels, int width, int height);
+    bool loadSingleIcon(const std::string &iconFile);
     void createDefaultIcon();
-    
+
     struct IconDimensions {
         static constexpr int WIDTH = 32;
         static constexpr int HEIGHT = 32;
@@ -117,13 +117,12 @@ private:
 
     // File loading helpers
     void resetEditorState();
-    bool readFileContent(const std::string& path);
+    bool readFileContent(const std::string &path);
     void updateFileColorBuffer();
-    void setupUndoManager(const std::string& path);
-    void initializeSyntaxHighlighting(const std::string& path);
+    void setupUndoManager(const std::string &path);
+    void initializeSyntaxHighlighting(const std::string &path);
     void handleLoadError();
-    void updateFilePathStates(const std::string& path);
-
+    void updateFilePathStates(const std::string &path);
 
     // File tree display helpers
     struct TreeDisplayMetrics {
@@ -149,22 +148,20 @@ private:
 
     TreeDisplayMetrics calculateDisplayMetrics();
     void pushTreeStyles();
-    void displayDirectoryNode(const FileNode& node, const TreeDisplayMetrics& metrics, int& depth);
-    void displayFileNode(const FileNode& node, const TreeDisplayMetrics& metrics, int depth);
+    void displayDirectoryNode(const FileNode &node, const TreeDisplayMetrics &metrics, int &depth);
+    void displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth);
     ImTextureID getFolderIcon(bool isOpen);
-    void renderNodeText(const std::string& name, bool isCurrentFile);
-
+    void renderNodeText(const std::string &name, bool isCurrentFile);
 
     // Undo/Redo helpers
-    void applyContentChange(const UndoRedoManager::State& state, bool preAllocate = false);
+    void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
     void adjustColorBuffer(int changeStart, int lengthDiff);
     void rehighlightChangedRegion(int changeStart, int changeEnd);
 
     void handleFindBoxActivation();
     void renderFindBox();
     void handleFindBoxKeyboardShortcuts();
-    void renderEditor(bool& text_changed);
-
+    void renderEditor(bool &text_changed);
 };
 
 extern Editor gEditor;

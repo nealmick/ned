@@ -3,7 +3,7 @@ IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 BreakBeforeBraces: Attach
-ColumnLimit: 100
+ColumnLimit: 1000
 
 # Disable bin-packing for parameters and arguments
 BinPackParameters: false

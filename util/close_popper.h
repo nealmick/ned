@@ -1,14 +1,10 @@
-// close_popper.h 
+// close_popper.h
 
 #pragma once
 
 namespace ClosePopper {
-    enum class Type {
-        Settings,
-        Bookmarks,
-        LineJump
-    };
-    
-    void closeAllExcept(Type keepOpen);
-    void closeAll();
-}
+enum class Type { Settings, Bookmarks, LineJump };
+
+void closeAllExcept(Type keepOpen);
+void closeAll();
+} // namespace ClosePopper

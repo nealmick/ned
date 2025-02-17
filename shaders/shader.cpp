@@ -1,26 +1,23 @@
-/*  
+/*
     shader.cpp
     Apply shaders to IMGUI output for visual effects
 */
 
-
 #include "shaders/shader.h"
-#include <iostream>
-#include <fstream>
-#include <sstream>
 #include <GL/glew.h>
-#include <unistd.h>  
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <unistd.h>
 
-Shader::Shader() {
-    shaderProgram = 0;
-}
+Shader::Shader() { shaderProgram = 0; }
 
 Shader::~Shader() {
     if (shaderProgram != 0) {
         glDeleteProgram(shaderProgram);
     }
 }
-bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& fragmentShaderPath) {
+bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath) {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         std::cout << "Current working directory: " << cwd << std::endl;
@@ -72,7 +69,7 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
 
     // Compile vertex shader
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    const char* vertexShaderCodePtr = vertexShaderCode.c_str();
+    const char *vertexShaderCodePtr = vertexShaderCode.c_str();
     glShaderSource(vertexShader, 1, &vertexShaderCodePtr, NULL);
     glCompileShader(vertexShader);
 
@@ -88,7 +85,7 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
 
     // Compile fragment shader
     unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    const char* fragmentShaderCodePtr = fragmentShaderCode.c_str();
+    const char *fragmentShaderCodePtr = fragmentShaderCode.c_str();
     glShaderSource(fragmentShader, 1, &fragmentShaderCodePtr, NULL);
     glCompileShader(fragmentShader);
 
@@ -97,7 +94,7 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
     if (!success) {
         glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
         std::cerr << "ERROR: Fragment shader compilation failed\n" << infoLog << std::endl;
-        glDeleteShader(vertexShader);  // Clean up vertex shader
+        glDeleteShader(vertexShader); // Clean up vertex shader
         return false;
     }
 
@@ -120,15 +117,15 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
     // Clean up
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-  int uniformCount;
+    int uniformCount;
     glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &uniformCount);
-    
+
     char uniformName[256];
     for (int i = 0; i < uniformCount; i++) {
         int length, size;
         GLenum type;
         glGetActiveUniform(shaderProgram, (GLuint)i, sizeof(uniformName), &length, &size, &type, uniformName);
-        
+
         GLint location = glGetUniformLocation(shaderProgram, uniformName);
         std::cout << "Uniform found: " << uniformName << " (location: " << location << ")" << std::endl;
     }
@@ -137,7 +134,7 @@ bool Shader::loadShader(const std::string& vertexShaderPath, const std::string& 
 }
 void Shader::useShader() {
     glUseProgram(shaderProgram);
-    
+
     // Debug uniform locations
     GLint textureLocation = glGetUniformLocation(shaderProgram, "screenTexture");
     if (textureLocation == -1) {
@@ -145,7 +142,7 @@ void Shader::useShader() {
     }
 }
 
-void Shader::setFloat(const std::string& name, float value) {
+void Shader::setFloat(const std::string &name, float value) {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
     if (location == -1) {
         std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
@@ -153,7 +150,7 @@ void Shader::setFloat(const std::string& name, float value) {
     }
     glUniform1f(location, value);
 }
-void Shader::setMatrix4fv(const std::string& name, const float* matrix) {
+void Shader::setMatrix4fv(const std::string &name, const float *matrix) {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
     if (location == -1) {
         std::cerr << "Warning: Matrix uniform '" << name << "' not found" << std::endl;
@@ -161,7 +158,7 @@ void Shader::setMatrix4fv(const std::string& name, const float* matrix) {
     }
     glUniformMatrix4fv(location, 1, GL_FALSE, matrix);
 }
-void Shader::setInt(const std::string& name, int value) {
+void Shader::setInt(const std::string &name, int value) {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
     if (location == -1) {
         std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
