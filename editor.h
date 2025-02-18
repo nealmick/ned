@@ -169,6 +169,7 @@ class Editor {
     float requestedScrollX = 0;
     float requestedScrollY = 0;
     bool hasScrollRequest = false;
+    bool showFileFinder = false; 
 
     void handleCharacterInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start, int &input_end);
     void handleEnterKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
