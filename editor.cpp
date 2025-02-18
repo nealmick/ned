@@ -8,6 +8,7 @@
 #include "util/bookmarks.h"
 #include "util/line_jump.h"
 #include "util/settings.h"
+#include "util/file_finder.h"
 
 #include <algorithm>
 #include <iostream>
@@ -59,6 +60,9 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
 
     // Render the main editor content (text and cursor).
     renderEditorContent(text, colors, editor_state, line_height, text_pos);
+
+    // Render file finder if active 
+    gFileFinder.renderWindow();
 
     // Update final scroll values and render the line numbers.
     updateFinalScrollAndRenderLineNumbers(line_numbers_pos, line_number_width, editor_top_margin, size, editor_state, line_height, total_height);
@@ -1124,9 +1128,16 @@ void Editor::processClipboardShortcuts(std::string &text, std::vector<ImVec4> &c
 void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible) {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     bool shift_pressed = ImGui::GetIO().KeyShift;
+
+    //block input if searching for file...
+    if (gFileFinder.isWindowOpen()) {
+        return;
+    }
     // Process bookmarks first
     gBookmarks.handleBookmarkInput(gFileExplorer, state);
 
+    
+  
     if (ImGui::IsWindowFocused() && !state.blockInput) {
         // Process Shift+Tab for indentation removal. If handled, exit
         // early.

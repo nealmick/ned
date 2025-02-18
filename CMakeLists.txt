@@ -49,6 +49,7 @@ file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
 # Add util library
 add_library(util STATIC
     util/line_jump.cpp
+    util/file_finder.cpp
 )
 target_include_directories(util PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

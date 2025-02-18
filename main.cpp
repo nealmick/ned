@@ -1,12 +1,9 @@
 /*
-    main.cpp
+    Main.cpp
     NED is a lightweight, feature-rich text editor built with C++ and ImGui.
     It offers syntax highlighting, project file tree, and a customizable interface.
     Github:
     https://github.com/nealmick/ned
-    Author:
-    Neal Mick
-    nealmick.com
 */
 
 #define GL_SILENCE_DEPRECATION
@@ -110,6 +107,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader);
 
 Bookmarks gBookmarks;
 bool shader_toggle = false;
+bool showSidebar = true;  
 GLFWwindow *CreateWindow();
 ImFont *LoadFont(const std::string &fontName, float fontSize);
 
@@ -190,6 +188,54 @@ float Clamp(float value, float min, float max) {
     return value;
 }
 
+GLFWwindow *CreateWindow() {
+    GLFWwindow *window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+    if (window == NULL) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        exit(1);
+    }
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+    return window;
+}
+
+void InitializeImGui(GLFWwindow *window) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+}
+
+void ApplySettings(ImGuiStyle &style) {
+    // Background color
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
+    shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+    // Get text color from current theme
+    std::string currentTheme = gSettings.getCurrentTheme();
+    auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
+    ImVec4 textCol(textColor[0].get<float>(), textColor[1].get<float>(), textColor[2].get<float>(), textColor[3].get<float>());
+
+    // Apply text color to all text-related ImGui elements
+    style.Colors[ImGuiCol_Text] = textCol; // Regular text
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f); // Neon pink with 30% alpha
+
+    // Rest of your existing settings
+    style.ScrollbarSize = 30.0f;
+    style.ScaleAllSizes(1.0f);
+
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+}
+
 ImFont *LoadFont(const std::string &fontName, float fontSize) {
     ImGuiIO &io = ImGui::GetIO();
     std::string fontPath = "fonts/" + fontName + ".ttf";
@@ -256,57 +302,13 @@ void InitializeGLFW() {
 #endif
 }
 
-GLFWwindow *CreateWindow() {
-    GLFWwindow *window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
-    if (window == NULL) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        exit(1);
-    }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-    return window;
-}
-
-void InitializeImGui(GLFWwindow *window) {
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
-}
-
-void ApplySettings(ImGuiStyle &style) {
-    // Background color
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
-    shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
-    // Get text color from current theme
-    std::string currentTheme = gSettings.getCurrentTheme();
-    auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
-    ImVec4 textCol(textColor[0].get<float>(), textColor[1].get<float>(), textColor[2].get<float>(), textColor[3].get<float>());
-
-    // Apply text color to all text-related ImGui elements
-    style.Colors[ImGuiCol_Text] = textCol; // Regular text
-    style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
-    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f); // Neon pink with 30% alpha
-
-    // Rest of your existing settings
-    style.ScrollbarSize = 30.0f;
-    style.ScaleAllSizes(1.0f);
-
-    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-
-    ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
-}
-
 // Handle keyboard shortcuts
 void handleKeyboardShortcuts() {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
+        showSidebar = !showSidebar;  // Toggle sidebar visibility
+        std::cout << "\033[32mMain:\033[0m Toggled sidebar visibility" << std::endl;
+    }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
         gFileExplorer.saveCurrentFile();
@@ -406,6 +408,7 @@ void renderSettingsIcon(float iconSize) {
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar();
 }
+
 void renderSplitter(float padding, float availableWidth) {
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.9f, 0.9f, 0.9f, 0.2f));
     ImGui::SameLine(0, 0);
@@ -468,12 +471,17 @@ void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWi
     float padding = ImGui::GetStyle().WindowPadding.x;
     float splitterWidth = 2.0f;
     float availableWidth = windowWidth - padding * 3 - splitterWidth;
-    explorerWidth = availableWidth * gSettings.getSplitPos();
-    editorWidth = availableWidth - explorerWidth - 6;
-
-    // Render Main editor content with file explorer and syntax highlighter...
-    renderFileExplorer(explorerWidth);
-    renderSplitter(padding, availableWidth);
+    if (showSidebar) {
+        // show sidebar
+        explorerWidth = availableWidth * gSettings.getSplitPos();
+        editorWidth = availableWidth - explorerWidth - 6;
+        
+        renderFileExplorer(explorerWidth);
+        renderSplitter(padding, availableWidth);
+    } else {
+        // When sidebar is hidden, editor takes full width
+        editorWidth = availableWidth;
+    }
     renderEditor(currentFont, editorWidth);
 
     ImGui::End();
