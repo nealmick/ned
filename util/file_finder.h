@@ -1,38 +1,51 @@
-/*
-    util/file_finder.h
-    This utility provides a fuzzy file finder popup similar to Sublime Text/Vim.
-*/
+// file_finder.h
 
 #pragma once
-#include "imgui.h"
 #include "files.h"
-#include <string>
-#include <iostream>
-#include <cstring>
-#include <vector>
+#include "imgui.h"
 #include <filesystem>
-#include <algorithm>
+#include <vector>
 
 namespace fs = std::filesystem;
 
+struct FileEntry {
+    std::string fullPath;
+    std::string relativePath;
+    std::string fullPathLower; // Lower-case full path for searching
+    std::string filenameLower; // Lower-case file name (from relativePath.filename())
+};
+
 class FileFinder {
-private:
+  private:
     bool showWindow = false;
-    char searchBuffer[256] = "";  // Buffer for the search input
+    char searchBuffer[256] = ""; // Buffer for the search input
     bool wasKeyboardFocusSet = false;
-    
-    std::vector<std::string> fileList;      // List of all files
-    std::vector<std::string> filteredList;  // List of filtered files
-    int selectedIndex = 0;                  // Currently selected file index
-    
-    void refreshFileList();                 // Refreshes the list of files
-    void handleNavigation();               // Handles up/down navigation
-    void updateFilteredList();             // Updates filtered list based on search
+
     std::string previousSearch;
-public:
+    std::string originalFile;
+    std::string currentlyLoadedFile;
+
+    std::vector<FileEntry> fileList;
+    std::vector<FileEntry> filteredList;
+    bool isInitialSelection = true; // Track if this is the first selection after opening
+
+    int selectedIndex = 0;
+
+    void refreshFileList();    // Refreshes the list of files
+    void updateFilteredList(); // Updates filtered list based on search
+
+    // Helper functions to break up the renderWindow() logic:
+    void renderHeader();
+    bool renderSearchInput();
+    void renderFileList();
+
+    void handleSelectionChange();
+
+  public:
     FileFinder() = default;
     void toggleWindow();
     bool isWindowOpen() const;
     void renderWindow();
 };
+
 extern FileFinder gFileFinder;

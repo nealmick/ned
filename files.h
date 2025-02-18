@@ -1,6 +1,6 @@
 /*
-    files.h
-    Main file logic, handles rendering file tree, saving after changes, and more...
+    File: files.h
+    Description: Main file logic, handles rendering file tree, saving after changes, and more...
 */
 
 #pragma once
@@ -27,6 +27,9 @@ struct FileNode {
 class FileExplorer {
   public:
     EditorState editor_state;
+
+    const size_t MAX_FILE_SIZE = 10 * 1024 * 1024;
+
     UndoRedoManager *currentUndoManager = nullptr;
 
     std::map<std::string, UndoRedoManager> fileUndoManagers;

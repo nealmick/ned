@@ -1,15 +1,15 @@
 {
     "backgroundColor": [
-        0.018767040222883224,
-        0.2791057825088501,
-        0.232418954372406,
+        0.16700266301631927,
+        0.767400860786438,
+        0.659730851650238,
         0.30000001192092896
     ],
     "font": "SourceCodePro-Regular",
     "fontSize": 18.0,
     "rainbow": true,
-    "shader_toggle": false,
-    "splitPos": 0.21390844881534576,
+    "shader_toggle": true,
+    "splitPos": 0.1857394427061081,
     "theme": "default",
     "themes": {
         "default": {
