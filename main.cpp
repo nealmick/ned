@@ -1,6 +1,6 @@
 /*
-    Main.cpp
-    NED is a lightweight, feature-rich text editor built with C++ and ImGui.
+    File: main.cpp
+    Description: NED is a lightweight, feature-rich text editor built with C++ and ImGui.
     It offers syntax highlighting, project file tree, and a customizable interface.
     Github:
     https://github.com/nealmick/ned
@@ -107,7 +107,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader);
 
 Bookmarks gBookmarks;
 bool shader_toggle = false;
-bool showSidebar = true;  
+bool showSidebar = true;
 GLFWwindow *CreateWindow();
 ImFont *LoadFont(const std::string &fontName, float fontSize);
 
@@ -306,7 +306,7 @@ void InitializeGLFW() {
 void handleKeyboardShortcuts() {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
-        showSidebar = !showSidebar;  // Toggle sidebar visibility
+        showSidebar = !showSidebar; // Toggle sidebar visibility
         std::cout << "\033[32mMain:\033[0m Toggled sidebar visibility" << std::endl;
     }
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
@@ -475,7 +475,7 @@ void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWi
         // show sidebar
         explorerWidth = availableWidth * gSettings.getSplitPos();
         editorWidth = availableWidth - explorerWidth - 6;
-        
+
         renderFileExplorer(explorerWidth);
         renderSplitter(padding, availableWidth);
     } else {

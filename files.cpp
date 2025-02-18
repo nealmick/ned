@@ -1,6 +1,6 @@
 /*
-    files.cpp
-    Main file logic, handles rendering file tree, saving after changes, and more...
+    File: files.cpp
+    Description: Main file logic, handles rendering file tree, saving after changes, and more...
 */
 
 #define GL_SILENCE_DEPRECATION
@@ -371,14 +371,51 @@ void FileExplorer::updateFilePathStates(const std::string &path) {
 }
 
 bool FileExplorer::readFileContent(const std::string &path) {
-    std::ifstream file(path);
-    if (!file) {
+    std::cout << "\033[35mFiles:\033[0m Reading file: " << path << std::endl;
+
+    try {
+        // First try a direct read approach
+        std::ifstream direct_read(path);
+        if (!direct_read) {
+            std::cout << "\033[35mFiles:\033[0m Direct read failed to open file" << std::endl;
+            return false;
+        }
+
+        std::string content((std::istreambuf_iterator<char>(direct_read)), std::istreambuf_iterator<char>());
+
+        // If we got content, do our usual binary check
+        if (!content.empty()) {
+            int nullCount = 0;
+            for (size_t i = 0; i < std::min(content.length(), size_t(1024)); i++) {
+                if (content[i] == 0)
+                    nullCount++;
+                else if (static_cast<unsigned char>(content[i]) < 32 && content[i] != '\n' && content[i] != '\r' && content[i] != '\t') {
+                    nullCount++;
+                }
+            }
+
+            size_t checkSize = std::min(content.length(), size_t(1024));
+
+            if (nullCount > checkSize / 10) {
+                std::cout << "\033[35mFiles:\033[0m File appears to be binary" << std::endl;
+                fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
+                return false;
+            }
+
+            // If we get here, the content is good
+            fileContent = content;
+            std::cout << "\033[35mFiles:\033[0m Successfully read file, content length: " << fileContent.length() << std::endl;
+            return true;
+        }
+
+        std::cout << "\033[35mFiles:\033[0m Direct read resulted in empty content" << std::endl;
+        return false;
+
+    } catch (const std::exception &e) {
+        std::cout << "\033[35mFiles:\033[0m Error reading file: " << e.what() << std::endl;
+        fileContent = "Error: " + std::string(e.what());
         return false;
     }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    fileContent = buffer.str();
-    return true;
 }
 
 void FileExplorer::updateFileColorBuffer() {

@@ -1,6 +1,6 @@
 /*
-    shader.cpp
-    Apply shaders to IMGUI output for visual effects
+    File: shader.cpp
+    Description: Apply shaders to IMGUI output for visual effects
 */
 
 #include "shaders/shader.h"

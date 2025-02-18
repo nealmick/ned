@@ -1,6 +1,6 @@
 /*
-    shader.h
-    Apply shaders to IMGUI output for visual effects
+    File: shader.h
+    Description: Apply shaders to IMGUI output for visual effects
 */
 
 #ifndef SHADER_H

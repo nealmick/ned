@@ -1,14 +1,14 @@
 /*
-    editor.cpp
-    Main editor logic for displaying file content, handling keybinds and more...
+    File: editor.cpp
+    Description: Main editor logic for displaying file content, handling keybinds and more...
 */
 
 #include "editor.h"
 #include "files.h"
 #include "util/bookmarks.h"
+#include "util/file_finder.h"
 #include "util/line_jump.h"
 #include "util/settings.h"
-#include "util/file_finder.h"
 
 #include <algorithm>
 #include <iostream>
@@ -61,7 +61,7 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     // Render the main editor content (text and cursor).
     renderEditorContent(text, colors, editor_state, line_height, text_pos);
 
-    // Render file finder if active 
+    // Render file finder if active
     gFileFinder.renderWindow();
 
     // Update final scroll values and render the line numbers.
@@ -1129,15 +1129,13 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
-    //block input if searching for file...
+    // block input if searching for file...
     if (gFileFinder.isWindowOpen()) {
         return;
     }
     // Process bookmarks first
     gBookmarks.handleBookmarkInput(gFileExplorer, state);
 
-    
-  
     if (ImGui::IsWindowFocused() && !state.blockInput) {
         // Process Shift+Tab for indentation removal. If handled, exit
         // early.
@@ -1219,46 +1217,68 @@ bool Editor::validateHighlightContentParams(const std::string &content, const st
 }
 
 void Editor::highlightContent(const std::string &content, std::vector<ImVec4> &colors, int start_pos, int end_pos) {
+    std::lock_guard<std::mutex> lock(highlight_mutex);
     std::cout << "\033[36mEditor:\033[0m   Highlight Content. content size: " << content.size() << std::endl;
 
-    // Validate inputs using the helper function.
+    // Cancel any ongoing highlighting first
+    cancelHighlighting();
+
+    // For large files (>100KB), just use default color
+    const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
+    if (content.size() > LARGE_FILE_THRESHOLD) {
+        // Pre-allocate colors vector to match content size
+        colors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        return;
+    }
+
+    // Validate inputs
     if (!validateHighlightContentParams(content, colors, start_pos, end_pos))
         return;
 
-    // Wait for any ongoing highlighting to complete
-    if (highlightingInProgress && highlightFuture.valid()) {
-        highlightFuture.wait();
-    }
+    // Pre-allocate vectors to avoid reallocation during async operation
+    std::string content_copy = content;
+    std::vector<ImVec4> colors_copy;
+    colors_copy.reserve(content.size()); // Reserve space before copying
+    colors_copy = colors;
 
-    cancelHighlightFlag = false;
+    std::string currentFile = gFileExplorer.getCurrentFile();
+
     highlightingInProgress = true;
+    cancelHighlightFlag = false;
 
-    // Determine file extension for syntax highlighting
-    std::string extension = fs::path(gFileExplorer.getCurrentFile()).extension().string();
-    std::cout << "\033[36mEditor:\033[0m  File extension: " << extension << std::endl;
+    std::string extension = fs::path(currentFile).extension().string();
 
-    // Launch the highlighting task asynchronously
-    highlightFuture = std::async(std::launch::async, [this, content, &colors, start_pos, end_pos, extension]() {
+    // Launch highlighting task - properly capture colors by reference
+    highlightFuture = std::async(std::launch::async, [this, content_copy, &colors, colors_copy = std::move(colors_copy), currentFile, start_pos, end_pos, extension]() mutable {
         try {
-            if (extension == ".cpp" || extension == ".h") {
-                cppLexer.applyHighlighting(content, colors, 0);
-            } else if (extension == ".py") {
-                pythonLexer.applyHighlighting(content, colors, 0);
-            } else if (extension == ".html") {
-                htmlLexer.applyHighlighting(content, colors, 0);
-            } else if (extension == ".js" || extension == ".jsx") {
-                jsxLexer.applyHighlighting(content, colors, 0);
-            } else {
-                // No syntax highlighting available; use default
-                // colors.
-                std::fill(colors.begin() + start_pos, colors.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            if (cancelHighlightFlag) {
+                highlightingInProgress = false;
+                return;
             }
-            std::cout << "\033[36mEditor:\033[0m highlight content "
-                         "sequence complete"
-                      << std::endl;
+
+            // Apply highlighting
+            if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
+                cppLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".py") {
+                pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".html") {
+                htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".js" || extension == ".jsx") {
+                jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else {
+                std::fill(colors_copy.begin() + start_pos, colors_copy.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+
+            if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile()) {
+                std::lock_guard<std::mutex> colorsLock(colorsMutex);
+                // Note: colors is captured by reference now
+                if (colors.size() == colors_copy.size()) {
+                    colors = std::move(colors_copy);
+                }
+            }
+
         } catch (const std::exception &e) {
             std::cerr << "Error in highlighting: " << e.what() << std::endl;
-            std::fill(colors.begin() + start_pos, colors.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
         highlightingInProgress = false;
     });
