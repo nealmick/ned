@@ -17,7 +17,6 @@ struct FileEntry {
 
 class FileFinder {
   private:
-    bool showWindow = false;
     char searchBuffer[256] = ""; // Buffer for the search input
     bool wasKeyboardFocusSet = false;
 
@@ -42,6 +41,7 @@ class FileFinder {
     void handleSelectionChange();
 
   public:
+    bool showFFWindow = false;
     FileFinder() = default;
     void toggleWindow();
     bool isWindowOpen() const;

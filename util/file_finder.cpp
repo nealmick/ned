@@ -3,6 +3,7 @@
     Implementation of the file finder utility.
 */
 #include "util/file_finder.h"
+#include "close_popper.h"
 
 FileFinder gFileFinder;
 
@@ -75,8 +76,10 @@ void FileFinder::handleSelectionChange() {
     }
 }
 void FileFinder::toggleWindow() {
-    showWindow = !showWindow;
-    if (showWindow) {
+    showFFWindow = !showFFWindow;
+    ClosePopper::closeAllExcept(ClosePopper::Type::FileFinder);
+
+    if (showFFWindow) {
         originalFile = gFileExplorer.getCurrentFile();
         currentlyLoadedFile = originalFile; // Initialize with original file
         memset(searchBuffer, 0, sizeof(searchBuffer));
@@ -90,7 +93,7 @@ void FileFinder::toggleWindow() {
     }
 }
 
-bool FileFinder::isWindowOpen() const { return showWindow; }
+bool FileFinder::isWindowOpen() const { return showFFWindow; }
 
 // Helper: Render window header (setup and title)
 void FileFinder::renderHeader() {
@@ -189,7 +192,7 @@ void FileFinder::renderWindow() {
         toggleWindow();
         return;
     }
-    if (showWindow && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    if (showFFWindow && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         // Restore the original file before closing
         if (!originalFile.empty()) {
             gFileExplorer.loadFileContent(originalFile);
@@ -198,7 +201,7 @@ void FileFinder::renderWindow() {
         return;
     }
 
-    if (!showWindow)
+    if (!showFFWindow)
         return;
 
     // Render header (window setup and title)
