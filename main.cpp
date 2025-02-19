@@ -77,8 +77,7 @@ struct ShaderQuad {
 
 void InitializeGLFW();
 void InitializeImGui(GLFWwindow *window);
-void ApplySettings(ImGuiStyle &style);
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
+void ApplySettings(ImGuiStyle &urrentFont, float &explorerWidth, float &editorWidth);
 void updateFileExplorer();
 void handleEvents(GLFWwindow *window);
 void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, double &lastTreeTime);
@@ -92,7 +91,7 @@ void beginFrame(int display_w, int display_h);
 void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth);
 void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime);
 void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
+void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
 void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont);
 void cleanup(GLFWwindow *window, FramebufferState &fb, ShaderQuad &quad);
 void handleKeyboardShortcuts();
@@ -443,7 +442,7 @@ void renderEditor(ImFont *currentFont, float editorWidth) {
     ImGui::PopStyleVar();
 }
 
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth) {
+void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth) {
     handleKeyboardShortcuts();
 
     if (gTerminal.isTerminalVisible()) {
@@ -619,7 +618,7 @@ void beginFrame(int display_w, int display_h) {
 }
 
 void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth) {
-    RenderMainWindow(currentFont, explorerWidth, editorWidth);
+    renderMainWindow(currentFont, explorerWidth, editorWidth);
     gBookmarks.renderBookmarksWindow();
     gSettings.renderSettingsWindow();
 }

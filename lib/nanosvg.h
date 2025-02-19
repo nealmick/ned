@@ -3078,6 +3078,7 @@ error:
     return NULL;
 }
 
+
 void nsvgDelete(NSVGimage* image)
 {
 	NSVGshape *snext, *shape;

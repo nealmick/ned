@@ -212,6 +212,7 @@ int Editor::getLineFromPos(const std::vector<int> &line_starts, int pos) {
     auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
     return std::distance(line_starts.begin(), it) - 1;
 }
+
 // Selection and cursor movement functions
 void Editor::startSelection(EditorState &state) {
     state.is_selecting = true;
