@@ -298,31 +298,39 @@ class Terminal {
     void tmoveato(int x, int y); // Absolute move with origin mode
     void tsetmode(int priv, int set, const std::vector<int> &args);
 
-
     // Render helper functions
     void checkFontSizeChange();
     void setupWindow();
     void handleTerminalResize();
-    void handleMouseInput(const ImGuiIO& io);
-    void handleScrollback(const ImGuiIO& io, int new_rows);
-    void handleKeyboardInput(const ImGuiIO& io);
-    void handleSpecialKeys(const ImGuiIO& io);
-    void handleControlCombos(const ImGuiIO& io);
-    void handleRegularTextInput(const ImGuiIO& io);
+    void handleMouseInput(const ImGuiIO &io);
+    void handleScrollback(const ImGuiIO &io, int new_rows);
+    void handleKeyboardInput(const ImGuiIO &io);
+    void handleSpecialKeys(const ImGuiIO &io);
+    void handleControlCombos(const ImGuiIO &io);
+    void handleRegularTextInput(const ImGuiIO &io);
 
     // RenderBuffer helper functions
-    void setupRenderContext(ImDrawList*& drawList, ImVec2& pos, float& charWidth, float& lineHeight);
-    void renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight);
-    void renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight);
-    
+    void setupRenderContext(ImDrawList *&drawList, ImVec2 &pos, float &charWidth, float &lineHeight);
+    void renderAltScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight);
+    void renderMainScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight);
+
     // Shared rendering helpers
-    void renderSelectionHighlight(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight, 
-                                int startY, int endY, int screenOffset = 0);
-    void renderGlyph(ImDrawList* drawList, const Glyph& glyph, const ImVec2& charPos, 
-                    float charWidth, float lineHeight);
-    void renderCursor(ImDrawList* drawList, const ImVec2& cursorPos, const Glyph& cursorCell,
-                     float charWidth, float lineHeight, float alpha);
-    void handleGlyphColors(const Glyph& glyph, ImVec4& fg, ImVec4& bg);
+    void renderSelectionHighlight(ImDrawList *drawList,
+                                  const ImVec2 &pos,
+                                  float charWidth,
+                                  float lineHeight,
+                                  int startY,
+                                  int endY,
+                                  int screenOffset = 0);
+    void
+    renderGlyph(ImDrawList *drawList, const Glyph &glyph, const ImVec2 &charPos, float charWidth, float lineHeight);
+    void renderCursor(ImDrawList *drawList,
+                      const ImVec2 &cursorPos,
+                      const Glyph &cursorCell,
+                      float charWidth,
+                      float lineHeight,
+                      float alpha);
+    void handleGlyphColors(const Glyph &glyph, ImVec4 &fg, ImVec4 &bg);
 
     static constexpr const ImVec4 defaultColorMap[16] = {
         // Standard colors
