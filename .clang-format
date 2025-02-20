@@ -2,8 +2,8 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-BreakBeforeBraces: Attach
-ColumnLimit: 120
+BreakBeforeBraces: Allman
+ColumnLimit: 1000
 
 # Disable bin-packing for parameters and arguments
 BinPackParameters: false

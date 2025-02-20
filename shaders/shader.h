@@ -6,7 +6,8 @@
 #ifndef SHADER_H
 #define SHADER_H
 #include <string>
-class Shader {
+class Shader
+{
   public:
     // Constructor and destructor
     Shader();

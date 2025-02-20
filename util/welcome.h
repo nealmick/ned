@@ -4,10 +4,12 @@
 #include <GLFW/glfw3.h>
 #include <string>
 
-class Welcome {
+class Welcome
+{
   public:
     void render(); // Main render function for welcome screen
-    static Welcome &getInstance() {
+    static Welcome &getInstance()
+    {
         static Welcome instance;
         return instance;
     }

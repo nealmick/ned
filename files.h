@@ -15,7 +15,8 @@
 
 namespace fs = std::filesystem;
 
-struct FileNode {
+struct FileNode
+{
     std::string name;
     std::string fullPath;
     bool isDirectory;
@@ -24,7 +25,8 @@ struct FileNode {
     ImTextureID iconTexture = nullptr;
 };
 
-class FileExplorer {
+class FileExplorer
+{
   public:
     EditorState editor_state;
 
@@ -51,7 +53,8 @@ class FileExplorer {
     // File operations
     void loadFileContent(const std::string &path, std::function<void()> afterLoadCallback = nullptr);
     void saveCurrentFile();
-    void setFileContent(const std::string &content) {
+    void setFileContent(const std::string &content)
+    {
         fileContent = content;
         fileColors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
@@ -83,9 +86,11 @@ class FileExplorer {
     // Icon handling
     void loadIcons();
     ImTextureID getIconForFile(const std::string &filename);
-    ImTextureID getIcon(const std::string &iconName) const {
+    ImTextureID getIcon(const std::string &iconName) const
+    {
         auto it = fileTypeIcons.find(iconName);
-        if (it != fileTypeIcons.end()) {
+        if (it != fileTypeIcons.end())
+        {
             return it->second;
         }
         return fileTypeIcons.at("default");
@@ -113,7 +118,8 @@ class FileExplorer {
     bool loadSingleIcon(const std::string &iconFile);
     void createDefaultIcon();
 
-    struct IconDimensions {
+    struct IconDimensions
+    {
         static constexpr int WIDTH = 32;
         static constexpr int HEIGHT = 32;
         static constexpr float SVG_DPI = 96.0f;
@@ -129,7 +135,8 @@ class FileExplorer {
     void updateFilePathStates(const std::string &path);
 
     // File tree display helpers
-    struct TreeDisplayMetrics {
+    struct TreeDisplayMetrics
+    {
         float currentFontSize;
         float folderIconSize;
         float fileIconSize;
@@ -138,7 +145,8 @@ class FileExplorer {
         ImVec2 cursorPos;
     };
 
-    struct TreeStyleSettings {
+    struct TreeStyleSettings
+    {
         static constexpr float FRAME_ROUNDING = 6.0f;
         static constexpr float HORIZONTAL_PADDING = 8.0f;
         static constexpr float TEXT_PADDING = 14.0f;

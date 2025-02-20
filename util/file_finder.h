@@ -8,14 +8,16 @@
 
 namespace fs = std::filesystem;
 
-struct FileEntry {
+struct FileEntry
+{
     std::string fullPath;
     std::string relativePath;
     std::string fullPathLower; // Lower-case full path for searching
     std::string filenameLower; // Lower-case file name (from relativePath.filename())
 };
 
-class FileFinder {
+class FileFinder
+{
   private:
     char searchBuffer[256] = ""; // Buffer for the search input
     bool wasKeyboardFocusSet = false;
