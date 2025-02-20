@@ -144,11 +144,8 @@ void Settings::renderSettingsWindow() {
     ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f),
                             ImGuiCond_Always,
                             ImVec2(0.5f, 0.5f));
-    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | 
-                                 ImGuiWindowFlags_NoResize | 
-                                 ImGuiWindowFlags_NoMove |
-                                 ImGuiWindowFlags_AlwaysAutoResize |
-                                 ImGuiWindowFlags_Modal;
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_Modal;
     // Push custom styles for the window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -156,13 +153,12 @@ void Settings::renderSettingsWindow() {
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
-    
     ImGui::Begin("Settings", nullptr, windowFlags);
 
     // Add focus detection
     static bool wasFocused = false;
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-    
+
     if (wasFocused && !isFocused) {
         std::cout << "Settings window lost focus!" << std::endl;
         std::cout << "Settings window lost focus!" << std::endl;
@@ -172,7 +168,6 @@ void Settings::renderSettingsWindow() {
         std::cout << "Settings window gained focus!" << std::endl;
     }
     wasFocused = isFocused;
-
 
     // Check for clicks outside window
     if (ImGui::IsMouseClicked(0)) {

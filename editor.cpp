@@ -11,9 +11,11 @@
 #include "util/settings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 Editor gEditor;
+EditorState editor_state;
 
 bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state) {
     // Validate and resize colors if neededw.
@@ -236,21 +238,31 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos,
     }
 }
 
+// Cursor rendering: Compute the cursor position on a per‑line basis by extracting
+// the substring from the start of the line to the cursor position. This uses the same
+// CalcTextSize call that our batching code uses, so the measurements are consistent.
 void Editor::renderEditorContent(const std::string &text,
                                  const std::vector<ImVec4> &colors,
                                  EditorState &editor_state,
                                  float line_height,
                                  const ImVec2 &text_pos) {
+    // Render the text (with selection) using our batched function.
     renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
+
+    // Compute the cursor's line by finding which line the cursor is on.
+    int cursor_line = getLineFromPos(editor_state.line_starts, editor_state.cursor_pos);
+    int line_start = editor_state.line_starts[cursor_line];
+    // Get the substring for this line up to the cursor.
+    std::string lineText = text.substr(line_start, editor_state.cursor_pos - line_start);
+    float x_offset = ImGui::CalcTextSize(lineText.c_str()).x;
+
     ImVec2 cursor_screen_pos = text_pos;
-    for (int i = 0; i < editor_state.cursor_pos; i++) {
-        if (text[i] == '\n') {
-            cursor_screen_pos.x = text_pos.x;
-            cursor_screen_pos.y += line_height;
-        } else {
-            cursor_screen_pos.x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
-        }
-    }
+    // Set x to the start of the line plus the measured offset.
+    cursor_screen_pos.x = text_pos.x + x_offset;
+    // Set y based on the line number.
+    cursor_screen_pos.y = text_pos.y + cursor_line * line_height;
+
+    // Draw the cursor.
     renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
@@ -282,15 +294,43 @@ void Editor::updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_po
     ImGui::EndGroup();
     ImGui::PopID();
 }
-
 void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts) {
+    // Only update if the text has changed.
+    if (text == editor_state.cached_text) {
+        return;
+    }
+    // Update cached text and clear old caches.
+    editor_state.cached_text = text;
     line_starts.clear();
-    line_starts.reserve(text.size() / 40); // Estimate average line length
+    editor_state.line_widths.clear();
+    editor_state.cachedLineCumulativeWidths.clear();
+
+    // Compute line_starts.
+    line_starts.reserve(text.size() / 40);
     line_starts.push_back(0);
     size_t pos = 0;
     while ((pos = text.find('\n', pos)) != std::string::npos) {
         line_starts.push_back(pos + 1);
         ++pos;
+    }
+
+    // Compute cached width for each line and cumulative widths.
+    for (size_t i = 0; i < line_starts.size(); ++i) {
+        int start = line_starts[i];
+        int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
+        float width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
+        editor_state.line_widths.push_back(width);
+
+        // Compute cumulative widths for this line.
+        std::vector<float> cumWidths;
+        cumWidths.reserve(end - start);
+        float cumulative = 0.0f;
+        for (int j = start; j < end; j++) {
+            float w = ImGui::CalcTextSize(&text[j], &text[j + 1]).x;
+            cumulative += w;
+            cumWidths.push_back(cumulative);
+        }
+        editor_state.cachedLineCumulativeWidths[i] = cumWidths;
     }
 }
 
@@ -454,45 +494,65 @@ void Editor::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorSta
         }
     }
 }
-
 void Editor::handleMouseInput(const std::string &text,
                               EditorState &state,
                               const ImVec2 &text_start_pos,
                               float line_height) {
     static bool is_dragging = false;
-    static int drag_start_pos = -1;
+    static int anchor_pos = -1; // anchor for shift-click selection
 
     ImVec2 mouse_pos = ImGui::GetMousePos();
-    int char_index = gEditor.getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.line_starts, line_height);
+    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.line_starts, line_height);
 
+    // When the left mouse button is clicked:
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (ImGui::GetIO().KeyShift) {
-            // Shift-click selection
+            // If shift is held and we're not already selecting, set the anchor to the current cursor position.
             if (!state.is_selecting) {
-                state.selection_start = state.cursor_pos;
+                anchor_pos = state.cursor_pos;
+                state.selection_start = anchor_pos;
                 state.is_selecting = true;
             }
+            // Update the selection end based on the new click.
             state.selection_end = char_index;
-        } else {
-            // Regular click
             state.cursor_pos = char_index;
-            state.selection_start = state.selection_end = char_index;
+        } else {
+            // On a regular click (without shift), reset the selection and update the anchor.
+            state.cursor_pos = char_index;
+            anchor_pos = char_index;
+            state.selection_start = char_index;
+            state.selection_end = char_index;
             state.is_selecting = false;
         }
         is_dragging = true;
-        drag_start_pos = char_index;
-    } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
-        // Click-and-drag selection
-        state.is_selecting = true;
-        state.selection_start = drag_start_pos;
-        state.selection_end = char_index;
-        state.cursor_pos = char_index;
-    } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+    }
+    // If the mouse is being dragged:
+    else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
+        if (ImGui::GetIO().KeyShift) {
+            // If shift is held, use the existing anchor for updating selection.
+            if (anchor_pos == -1) {
+                anchor_pos = state.cursor_pos;
+                state.selection_start = anchor_pos;
+            }
+            state.selection_end = char_index;
+            state.cursor_pos = char_index;
+        } else {
+            // Normal drag selection without shift: use the initial click as the anchor.
+            state.is_selecting = true;
+            if (anchor_pos == -1) {
+                anchor_pos = state.cursor_pos;
+            }
+            state.selection_start = anchor_pos;
+            state.selection_end = char_index;
+            state.cursor_pos = char_index;
+        }
+    }
+    // On mouse release, reset dragging state and clear the anchor.
+    else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         is_dragging = false;
-        drag_start_pos = -1;
+        anchor_pos = -1;
     }
 }
-
 void Editor::cursorLeft(EditorState &state) {
     if (state.cursor_pos > 0) {
         state.cursor_pos--;
@@ -960,7 +1020,8 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     }
 }
 
-// Rendering functions
+// Batched text rendering: We group characters per batch and compute the batch width
+// using a single CalcTextSize call so that kerning is applied consistently.
 void Editor::renderTextWithSelection(ImDrawList *drawList,
                                      const ImVec2 &pos,
                                      const std::string &text,
@@ -968,53 +1029,75 @@ void Editor::renderTextWithSelection(ImDrawList *drawList,
                                      const EditorState &state,
                                      float line_height) {
     ImVec2 text_pos = pos;
-    int selection_start = gEditor.getSelectionStart(state);
-    int selection_end = gEditor.getSelectionEnd(state);
-    const int MAX_HIGHLIGHT_CHARS = 100000; // Adjust this value as needed
+    int sel_start = getSelectionStart(state);
+    int sel_end = getSelectionEnd(state);
 
-    // Calculate visible range
+    // Calculate visible range.
     float scroll_y = ImGui::GetScrollY();
     float window_height = ImGui::GetWindowHeight();
     int start_line = static_cast<int>(scroll_y / line_height);
     int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
 
     int current_line = 0;
-    for (size_t i = 0; i < text.size(); i++) {
+    size_t i = 0;
+    while (i < text.size()) {
+        // Safety check.
         if (i >= colors.size()) {
-            std::cerr << "Error: Color index out of bounds in "
-                         "RenderTextWithSelection"
-                      << std::endl;
+            std::cerr << "Error: Color index out of bounds in renderTextWithSelection" << std::endl;
             break;
         }
 
+        // Handle newline: update line count and reset x.
         if (text[i] == '\n') {
             current_line++;
             if (current_line > end_line)
-                break; // Stop if we've passed the visible area
+                break;
             text_pos.x = pos.x;
             text_pos.y += line_height;
-        } else if (current_line >= start_line && current_line <= end_line) {
-            // Only render if we're in the visible range
-            bool should_highlight =
-                (i >= selection_start && i < selection_end && (selection_end - selection_start) <= MAX_HIGHLIGHT_CHARS);
-
-            if (should_highlight) {
-                ImVec2 sel_start = text_pos;
-                ImVec2 sel_end =
-                    ImVec2(text_pos.x + ImGui::CalcTextSize(&text[i], &text[i + 1]).x, text_pos.y + line_height);
-                drawList->AddRectFilled(sel_start,
-                                        sel_end,
-                                        ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f,
-                                                                              0.1f,
-                                                                              0.7f,
-                                                                              0.3f))); // Pink with 30% alpha
-            }
-
-            char buf[2] = {text[i], '\0'};
-            ImU32 color = ImGui::ColorConvertFloat4ToU32(colors[i]);
-            drawList->AddText(text_pos, color, buf);
-            text_pos.x += ImGui::CalcTextSize(buf).x;
+            i++;
+            continue;
         }
+
+        // Skip lines above visible area.
+        if (current_line < start_line) {
+            while (i < text.size() && text[i] != '\n')
+                i++;
+            continue;
+        }
+        if (current_line > end_line)
+            break;
+
+        // Batch by style only (do not break the batch at selection boundaries)
+        ImVec4 batchColor = colors[i];
+        size_t batchStart = i;
+        while (i < text.size() && text[i] != '\n' && i < colors.size() && colors[i].x == batchColor.x &&
+               colors[i].y == batchColor.y && colors[i].z == batchColor.z && colors[i].w == batchColor.w) {
+            i++;
+        }
+        std::string batchText = text.substr(batchStart, i - batchStart);
+        float batchWidth = ImGui::CalcTextSize(batchText.c_str()).x;
+
+        // Now, if any part of this batch is selected, draw a highlight rectangle only over that region.
+        // Compute the overlapping indices:
+        int batchStartInt = static_cast<int>(batchStart);
+        int batchEndInt = static_cast<int>(i);
+        int highlightStartIdx = std::max(sel_start, batchStartInt);
+        int highlightEndIdx = std::min(sel_end, batchEndInt);
+        if (highlightStartIdx < highlightEndIdx) {
+            // Compute the x-offset within the batch where highlighting should start.
+            std::string preHighlight = text.substr(batchStartInt, highlightStartIdx - batchStartInt);
+            float offsetX = ImGui::CalcTextSize(preHighlight.c_str()).x;
+            // Compute the width of the highlighted part.
+            std::string highlightText = text.substr(highlightStartIdx, highlightEndIdx - highlightStartIdx);
+            float highlightWidth = ImGui::CalcTextSize(highlightText.c_str()).x;
+            ImVec2 hlStart = text_pos;
+            hlStart.x += offsetX;
+            ImVec2 hlEnd = ImVec2(hlStart.x + highlightWidth, text_pos.y + line_height);
+            drawList->AddRectFilled(hlStart, hlEnd, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
+        }
+        // Draw the batch text.
+        drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(batchColor), batchText.c_str());
+        text_pos.x += batchWidth;
     }
 }
 
@@ -1040,23 +1123,45 @@ int Editor::getCharIndexFromCoords(const std::string &text,
                                    const ImVec2 &text_start_pos,
                                    const std::vector<int> &line_starts,
                                    float line_height) {
-    int clicked_line = static_cast<int>((click_pos.y - text_start_pos.y) / line_height);
-    clicked_line = std::max(0, std::min(clicked_line, static_cast<int>(line_starts.size()) - 1));
+    // Determine which line was clicked (clamped to valid indices)
+    int clicked_line = std::clamp(static_cast<int>((click_pos.y - text_start_pos.y) / line_height),
+                                  0,
+                                  static_cast<int>(line_starts.size()) - 1);
 
+    // Get start/end indices for that line in the text.
     int line_start = line_starts[clicked_line];
-    int line_end = (clicked_line + 1 < line_starts.size()) ? line_starts[clicked_line + 1] - 1 : text.size();
+    int line_end = (clicked_line + 1 < line_starts.size()) ? line_starts[clicked_line + 1] : text.size();
+    int n = line_end - line_start; // number of characters in the line
 
-    float x = text_start_pos.x;
-    for (int i = line_start; i < line_end; ++i) {
-        char buf[2] = {text[i], '\0'};
-        float char_width = ImGui::CalcTextSize(buf).x;
-        if (x + char_width / 2 > click_pos.x) {
-            return i;
-        }
-        x += char_width;
+    // If the line is empty, return its start.
+    if (n <= 0)
+        return line_start;
+
+    // Build an array of "insertion positions" (i.e. the x-coordinate for placing the cursor)
+    // For i=0, the insertion position is at 0 (the very start), and for i>0 it is the width
+    // of the substring [line_start, line_start+i].
+    std::vector<float> insertionPositions(n + 1, 0.0f);
+    insertionPositions[0] = 0.0f;
+    for (int i = 1; i <= n; i++) {
+        insertionPositions[i] = ImGui::CalcTextSize(&text[line_start], &text[line_start + i]).x;
     }
 
-    return line_end;
+    // Compute the click's x-coordinate relative to the beginning of the text.
+    float click_x = click_pos.x - text_start_pos.x;
+
+    // Find the insertion index (0...n) whose position is closest to click_x.
+    int bestIndex = 0;
+    float bestDist = std::abs(click_x - insertionPositions[0]);
+    for (int i = 1; i <= n; i++) {
+        float d = std::abs(click_x - insertionPositions[i]);
+        if (d < bestDist) {
+            bestDist = d;
+            bestIndex = i;
+        }
+    }
+
+    // Return the character index in the full text corresponding to that insertion point.
+    return line_start + bestIndex;
 }
 
 void Editor::renderLineNumbers(const ImVec2 &pos,
@@ -1116,12 +1221,10 @@ void Editor::renderLineNumbers(const ImVec2 &pos,
     }
 }
 float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts) {
+    // Assume updateLineStarts has been called so that editor_state.line_widths is up to date.
     float max_width = 0.0f;
-    for (size_t i = 0; i < line_starts.size(); ++i) {
-        int start = line_starts[i];
-        int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
-        float line_width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
-        max_width = std::max(max_width, line_width);
+    for (float width : editor_state.line_widths) {
+        max_width = std::max(max_width, width);
     }
     return max_width;
 }

@@ -126,7 +126,7 @@ void Terminal::render() {
     }
 
     ImGuiIO &io = ImGui::GetIO();
-    
+
     checkFontSizeChange();
     setupWindow();
     handleTerminalResize();
@@ -141,7 +141,7 @@ void Terminal::render() {
 void Terminal::renderBuffer() {
     std::lock_guard<std::mutex> lock(bufferMutex);
 
-    ImDrawList* drawList;
+    ImDrawList *drawList;
     ImVec2 pos;
     float charWidth, lineHeight;
     setupRenderContext(drawList, pos, charWidth, lineHeight);
@@ -183,7 +183,7 @@ void Terminal::handleTerminalResize() {
     }
 }
 
-void Terminal::handleScrollback(const ImGuiIO& io, int new_rows) {
+void Terminal::handleScrollback(const ImGuiIO &io, int new_rows) {
     if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() && !(state.mode & MODE_ALTSCREEN)) {
         if (io.MouseWheel != 0.0f) {
             int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
@@ -193,8 +193,9 @@ void Terminal::handleScrollback(const ImGuiIO& io, int new_rows) {
     }
 }
 
-void Terminal::handleMouseInput(const ImGuiIO& io) {
-    if (!ImGui::IsWindowFocused() || !ImGui::IsWindowHovered()) return;
+void Terminal::handleMouseInput(const ImGuiIO &io) {
+    if (!ImGui::IsWindowFocused() || !ImGui::IsWindowHovered())
+        return;
 
     ImVec2 mousePos = ImGui::GetMousePos();
     ImVec2 contentPos = ImGui::GetCursorScreenPos();
@@ -215,14 +216,14 @@ void Terminal::handleMouseInput(const ImGuiIO& io) {
     } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         ImVec2 dragDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
         float dragDistance = sqrt(dragDelta.x * dragDelta.x + dragDelta.y * dragDelta.y);
-        
+
         if (dragDistance > DRAG_THRESHOLD) {
             selectionExtend(cellX, cellY);
         }
     } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         ImVec2 dragDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
         float dragDistance = sqrt(dragDelta.x * dragDelta.x + dragDelta.y * dragDelta.y);
-        
+
         if (dragDistance <= DRAG_THRESHOLD) {
             selectionClear();
         }
@@ -234,8 +235,7 @@ void Terminal::handleMouseInput(const ImGuiIO& io) {
 
     // Handle clipboard shortcuts
     if (io.KeyCtrl) {
-        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || 
-            ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || ImGui::IsKeyPressed(ImGuiKey_C, false)) {
             copySelection();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
@@ -244,15 +244,16 @@ void Terminal::handleMouseInput(const ImGuiIO& io) {
     }
 }
 
-void Terminal::handleKeyboardInput(const ImGuiIO& io) {
-    if (!ImGui::IsWindowFocused()) return;
-    
+void Terminal::handleKeyboardInput(const ImGuiIO &io) {
+    if (!ImGui::IsWindowFocused())
+        return;
+
     handleSpecialKeys(io);
     handleControlCombos(io);
     handleRegularTextInput(io);
 }
 
-void Terminal::handleSpecialKeys(const ImGuiIO& io) {
+void Terminal::handleSpecialKeys(const ImGuiIO &io) {
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         processInput("\r");
     } else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
@@ -289,31 +290,28 @@ void Terminal::handleSpecialKeys(const ImGuiIO& io) {
         processInput("\033");
     }
 }
-void Terminal::handleControlCombos(const ImGuiIO& io) {
-    if (!io.KeyCtrl && !io.KeySuper) return;
-    
-    static const std::pair<ImGuiKey, char> controlKeys[] = {
-        {ImGuiKey_A, '\x01'}, {ImGuiKey_B, '\x02'}, {ImGuiKey_C, '\x03'},
-        {ImGuiKey_D, '\x04'}, {ImGuiKey_E, '\x05'}, {ImGuiKey_F, '\x06'},
-        {ImGuiKey_G, '\x07'}, {ImGuiKey_H, '\x08'}, {ImGuiKey_I, '\x09'},
-        {ImGuiKey_J, '\x0A'}, {ImGuiKey_K, '\x0B'}, {ImGuiKey_L, '\x0C'},
-        {ImGuiKey_M, '\x0D'}, {ImGuiKey_N, '\x0E'}, {ImGuiKey_O, '\x0F'},
-        {ImGuiKey_P, '\x10'}, {ImGuiKey_Q, '\x11'}, {ImGuiKey_R, '\x12'},
-        {ImGuiKey_S, '\x13'}, {ImGuiKey_T, '\x14'}, {ImGuiKey_U, '\x15'},
-        {ImGuiKey_W, '\x17'}, {ImGuiKey_X, '\x18'}, {ImGuiKey_Y, '\x19'},
-        {ImGuiKey_Z, '\x1A'}
-    };
+void Terminal::handleControlCombos(const ImGuiIO &io) {
+    if (!io.KeyCtrl && !io.KeySuper)
+        return;
 
-    for (const auto& [key, ctrl_char] : controlKeys) {
+    static const std::pair<ImGuiKey, char> controlKeys[] =
+        {{ImGuiKey_A, '\x01'}, {ImGuiKey_B, '\x02'}, {ImGuiKey_C, '\x03'}, {ImGuiKey_D, '\x04'}, {ImGuiKey_E, '\x05'},
+         {ImGuiKey_F, '\x06'}, {ImGuiKey_G, '\x07'}, {ImGuiKey_H, '\x08'}, {ImGuiKey_I, '\x09'}, {ImGuiKey_J, '\x0A'},
+         {ImGuiKey_K, '\x0B'}, {ImGuiKey_L, '\x0C'}, {ImGuiKey_M, '\x0D'}, {ImGuiKey_N, '\x0E'}, {ImGuiKey_O, '\x0F'},
+         {ImGuiKey_P, '\x10'}, {ImGuiKey_Q, '\x11'}, {ImGuiKey_R, '\x12'}, {ImGuiKey_S, '\x13'}, {ImGuiKey_T, '\x14'},
+         {ImGuiKey_U, '\x15'}, {ImGuiKey_W, '\x17'}, {ImGuiKey_X, '\x18'}, {ImGuiKey_Y, '\x19'}, {ImGuiKey_Z, '\x1A'}};
+
+    for (const auto &[key, ctrl_char] : controlKeys) {
         if (ImGui::IsKeyPressed(key)) {
             processInput(std::string(1, ctrl_char));
         }
     }
 }
 
-void Terminal::handleRegularTextInput(const ImGuiIO& io) {
-    if (io.KeySuper || io.KeyCtrl || io.KeyAlt) return;
-    
+void Terminal::handleRegularTextInput(const ImGuiIO &io) {
+    if (io.KeySuper || io.KeyCtrl || io.KeyAlt)
+        return;
+
     for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
         char c = (char)io.InputQueueCharacters[i];
         if (c != 0) {
@@ -322,14 +320,14 @@ void Terminal::handleRegularTextInput(const ImGuiIO& io) {
     }
 }
 
-void Terminal::setupRenderContext(ImDrawList*& drawList, ImVec2& pos, float& charWidth, float& lineHeight) {
+void Terminal::setupRenderContext(ImDrawList *&drawList, ImVec2 &pos, float &charWidth, float &lineHeight) {
     drawList = ImGui::GetWindowDrawList();
     pos = ImGui::GetCursorScreenPos();
     charWidth = ImGui::GetFont()->GetCharAdvance('M');
     lineHeight = ImGui::GetTextLineHeight();
 }
 
-void Terminal::renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight) {
+void Terminal::renderAltScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight) {
     // Handle selection highlight
     if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
         renderSelectionHighlight(drawList, pos, charWidth, lineHeight, 0, state.row);
@@ -337,16 +335,19 @@ void Terminal::renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float ch
 
     // Draw alt screen characters
     for (int y = 0; y < state.row; y++) {
-        if (!state.dirty[y]) continue;
-        
+        if (!state.dirty[y])
+            continue;
+
         for (int x = 0; x < state.col; x++) {
-            const Glyph& glyph = state.lines[y][x];
-            if (glyph.mode & ATTR_WDUMMY) continue;
+            const Glyph &glyph = state.lines[y][x];
+            if (glyph.mode & ATTR_WDUMMY)
+                continue;
 
             ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
             renderGlyph(drawList, glyph, charPos, charWidth, lineHeight);
 
-            if (glyph.mode & ATTR_WIDE) x++;
+            if (glyph.mode & ATTR_WIDE)
+                x++;
         }
     }
 
@@ -358,7 +359,7 @@ void Terminal::renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float ch
     }
 }
 
-void Terminal::renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight) {
+void Terminal::renderMainScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight) {
     ImVec2 contentSize = ImGui::GetContentRegionAvail();
     int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
     int totalLines = scrollbackBuffer.size() + state.row;
@@ -370,14 +371,14 @@ void Terminal::renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float c
 
     // Handle selection highlighting
     if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
-        renderSelectionHighlight(drawList, pos, charWidth, lineHeight, 
-                               startLine, startLine + visibleRows, scrollbackBuffer.size());
+        renderSelectionHighlight(
+            drawList, pos, charWidth, lineHeight, startLine, startLine + visibleRows, scrollbackBuffer.size());
     }
 
     // Draw content
     for (int visY = 0; visY < visibleRows; visY++) {
         int currentLine = startLine + visY;
-        const std::vector<Glyph>* line = nullptr;
+        const std::vector<Glyph> *line = nullptr;
 
         if (currentLine < scrollbackBuffer.size()) {
             line = &scrollbackBuffer[currentLine];
@@ -388,39 +389,42 @@ void Terminal::renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float c
             }
         }
 
-        if (!line) continue;
+        if (!line)
+            continue;
 
         for (int x = 0; x < state.col && x < line->size(); x++) {
-            const Glyph& glyph = (*line)[x];
-            if (glyph.mode & ATTR_WDUMMY) continue;
+            const Glyph &glyph = (*line)[x];
+            if (glyph.mode & ATTR_WDUMMY)
+                continue;
 
             ImVec2 charPos(pos.x + x * charWidth, pos.y + visY * lineHeight);
             renderGlyph(drawList, glyph, charPos, charWidth, lineHeight);
 
-            if (glyph.mode & ATTR_WIDE) x++;
+            if (glyph.mode & ATTR_WIDE)
+                x++;
         }
     }
 
     // Draw cursor when not scrolled
     if (ImGui::IsWindowFocused() && scrollOffset == 0) {
         ImVec2 cursorPos(pos.x + state.c.x * charWidth,
-                        pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) * lineHeight);
+                         pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) * lineHeight);
         float alpha = (sin(ImGui::GetTime() * 3.14159f) * 0.3f) + 0.5f;
         renderCursor(drawList, cursorPos, state.lines[state.c.y][state.c.x], charWidth, lineHeight, alpha);
     }
 }
-void Terminal::renderGlyph(ImDrawList* drawList, const Glyph& glyph, const ImVec2& charPos, 
-                          float charWidth, float lineHeight) {
+void Terminal::renderGlyph(
+    ImDrawList *drawList, const Glyph &glyph, const ImVec2 &charPos, float charWidth, float lineHeight) {
     ImVec4 fg = glyph.fg;
     ImVec4 bg = glyph.bg;
-    
+
     handleGlyphColors(glyph, fg, bg);
 
     // Draw background
     if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
         drawList->AddRectFilled(charPos,
-                               ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
-                               ImGui::ColorConvertFloat4ToU32(bg));
+                                ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
+                                ImGui::ColorConvertFloat4ToU32(bg));
     }
 
     // Draw character
@@ -433,19 +437,16 @@ void Terminal::renderGlyph(ImDrawList* drawList, const Glyph& glyph, const ImVec
     // Draw underline
     if (glyph.mode & ATTR_UNDERLINE) {
         drawList->AddLine(ImVec2(charPos.x, charPos.y + lineHeight - 1),
-                         ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
-                         ImGui::ColorConvertFloat4ToU32(fg));
+                          ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
+                          ImGui::ColorConvertFloat4ToU32(fg));
     }
 }
 
-void Terminal::handleGlyphColors(const Glyph& glyph, ImVec4& fg, ImVec4& bg) {
+void Terminal::handleGlyphColors(const Glyph &glyph, ImVec4 &fg, ImVec4 &bg) {
     // Handle true color
     if (glyph.colorMode == COLOR_TRUE) {
         uint32_t tc = glyph.trueColorFg;
-        fg = ImVec4(((tc >> 16) & 0xFF) / 255.0f, 
-                    ((tc >> 8) & 0xFF) / 255.0f, 
-                    (tc & 0xFF) / 255.0f, 
-                    1.0f);
+        fg = ImVec4(((tc >> 16) & 0xFF) / 255.0f, ((tc >> 8) & 0xFF) / 255.0f, (tc & 0xFF) / 255.0f, 1.0f);
     }
 
     // Handle reverse video
@@ -461,12 +462,16 @@ void Terminal::handleGlyphColors(const Glyph& glyph, ImVec4& fg, ImVec4& bg) {
     }
 }
 
-void Terminal::renderCursor(ImDrawList* drawList, const ImVec2& cursorPos, const Glyph& cursorCell,
-                          float charWidth, float lineHeight, float alpha) {
+void Terminal::renderCursor(ImDrawList *drawList,
+                            const ImVec2 &cursorPos,
+                            const Glyph &cursorCell,
+                            float charWidth,
+                            float lineHeight,
+                            float alpha) {
     if (state.mode & MODE_INSERT) {
         drawList->AddRectFilled(cursorPos,
-                               ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
-                               ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
+                                ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
+                                ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
     } else {
         if (cursorCell.u != 0) {
             char text[UTF_SIZ] = {0};
@@ -475,31 +480,33 @@ void Terminal::renderCursor(ImDrawList* drawList, const ImVec2& cursorPos, const
             ImVec4 fg = cursorCell.bg;
 
             drawList->AddRectFilled(cursorPos,
-                                  ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-                                  ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
+                                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                                    ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
             drawList->AddText(cursorPos, ImGui::ColorConvertFloat4ToU32(fg), text);
         } else {
             drawList->AddRectFilled(cursorPos,
-                                  ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-                                  ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
+                                    ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                                    ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
         }
     }
 }
 
-void Terminal::renderSelectionHighlight(ImDrawList* drawList, const ImVec2& pos, float charWidth, 
-                                      float lineHeight, int startY, int endY, int screenOffset) {
+void Terminal::renderSelectionHighlight(ImDrawList *drawList,
+                                        const ImVec2 &pos,
+                                        float charWidth,
+                                        float lineHeight,
+                                        int startY,
+                                        int endY,
+                                        int screenOffset) {
     for (int y = startY; y < endY; y++) {
         int screenY = y - screenOffset;
         if (screenY >= 0 && screenY < state.row) {
             for (int x = 0; x < state.col; x++) {
                 if (selectedText(x, screenY)) {
-                    ImVec2 highlightPos(pos.x + x * charWidth, 
-                                      pos.y + (y - startY) * lineHeight);
-                    drawList->AddRectFilled(
-                        highlightPos,
-                        ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))
-                    );
+                    ImVec2 highlightPos(pos.x + x * charWidth, pos.y + (y - startY) * lineHeight);
+                    drawList->AddRectFilled(highlightPos,
+                                            ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
+                                            ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
                 }
             }
         }
@@ -646,8 +653,8 @@ void Terminal::writeChar(Rune u) {
     } else {
         // Log unmapped characters
         if (u >= 0x2500 && u <= 0x257F) {
-            std::cerr << "Unmapped box drawing character: U+" << std::hex << u << std::dec << " (hex: 0x" << std::hex
-                      << u << std::dec << ")" << std::endl;
+            // std::cerr << "Unmapped box drawing character: U+" << std::hex << u << std::dec << " (hex: 0x" << std::hex
+            //           << u << std::dec << ")" << std::endl;
         }
     }
 

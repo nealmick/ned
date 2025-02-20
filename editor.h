@@ -31,7 +31,6 @@ struct CursorVisibility {
 
 // Editor state management
 struct EditorState {
-    // Cursor and selection state
     int cursor_pos;
     int current_line;
     int selection_start;
@@ -40,28 +39,30 @@ struct EditorState {
 
     // Display and scrolling
     std::vector<int> line_starts;
+    std::vector<float> line_widths; // NEW: cached width of each line
     ImVec2 scroll_pos;
     float scroll_x;
     float cursor_blink_time;
     int ensure_cursor_visible_frames;
 
-    // Visual settings
-    bool rainbow_cursor;
+    // Caching for expensive measurements
+    std::string cached_text; // NEW: copy of the text to detect modifications
+    std::unordered_map<int, std::vector<float>>
+        cachedLineCumulativeWidths; // NEW: for each line index, stores cumulative widths of each character
 
-    // Input state
+    // Visual settings, input state, etc.
+    bool rainbow_cursor;
     bool activateFindBox;
     bool blockInput;
     bool full_text_selected;
-
-    // Bookmark related
     bool pendingBookmarkScroll;
     float pendingScrollX;
     float pendingScrollY;
 
     EditorState()
         : ensure_cursor_visible_frames(0), cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
-          line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true), cursor_blink_time(0.0f),
-          activateFindBox(false), blockInput(false), current_line(0) {}
+          line_starts({0}), line_widths(), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true),
+          cursor_blink_time(0.0f), activateFindBox(false), blockInput(false), current_line(0) {}
 };
 
 // Forward declarations

@@ -70,8 +70,9 @@ class FileExplorer {
     void addUndoState(int changeStart, int changeEnd);
 
     // Search functionality
-    void findNext();
-    void findPrevious();
+    void findNext(bool ignoreCase = false);
+    void findPrevious(bool ignoreCase = false);
+    std::string toLower(const std::string &s);
 
     // UI functions
     void openFolderDialog();
@@ -163,8 +164,10 @@ class FileExplorer {
 
     void handleFindBoxActivation();
     void renderFindBox();
-    void handleFindBoxKeyboardShortcuts();
+    void handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox);
     void renderEditor(bool &text_changed);
+
+    bool findBoxShouldFocus = false;
 };
 
 extern Editor gEditor;
