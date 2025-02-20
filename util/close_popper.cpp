@@ -10,8 +10,10 @@
 #include "line_jump.h"
 #include "settings.h"
 
-void ClosePopper::closeAllExcept(Type keepOpen) {
-    switch (keepOpen) {
+void ClosePopper::closeAllExcept(Type keepOpen)
+{
+    switch (keepOpen)
+    {
     case Type::Settings:
         gBookmarks.showBookmarksWindow = false;
         gLineJump.showLineJumpWindow = false;
@@ -38,7 +40,8 @@ void ClosePopper::closeAllExcept(Type keepOpen) {
     }
 }
 
-void ClosePopper::closeAll() {
+void ClosePopper::closeAll()
+{
     gSettings.showSettingsWindow = false;
     gBookmarks.showBookmarksWindow = false;
     gLineJump.showLineJumpWindow = false;

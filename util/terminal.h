@@ -29,13 +29,15 @@ typedef unsigned char uchar;
 
 static constexpr size_t UTF_SIZ = 4;
 
-class Terminal {
+class Terminal
+{
   public:
     // Common type definitions
     using Rune = uint_least32_t;
 
     // Glyph attributes (matching st's glyph_attribute)
-    enum Attribute {
+    enum Attribute
+    {
         ATTR_NULL = 0,
         ATTR_BOLD = 1 << 0,
         ATTR_FAINT = 1 << 1,
@@ -52,7 +54,8 @@ class Terminal {
     };
 
     // Terminal modes
-    enum Mode {
+    enum Mode
+    {
         MODE_WRAP = 1 << 0,
         MODE_INSERT = 1 << 1,
         MODE_ALTSCREEN = 1 << 2,
@@ -71,7 +74,8 @@ class Terminal {
         MODE_VISUALBELL = 1 << 15
     };
 
-    struct STREscape {
+    struct STREscape
+    {
         char type;                     // ESC type
         std::string buf;               // Raw string buffer
         size_t len{0};                 // Raw string length
@@ -81,14 +85,30 @@ class Terminal {
 
     // Selection modes (matching st's selection_mode)
 
-    enum SelectionMode { SEL_IDLE = 0, SEL_EMPTY = 1, SEL_READY = 2, SEL_SELECTING = 3 };
+    enum SelectionMode
+    {
+        SEL_IDLE = 0,
+        SEL_EMPTY = 1,
+        SEL_READY = 2,
+        SEL_SELECTING = 3
+    };
 
     // Selection types
-    enum SelectionType { SEL_REGULAR = 1, SEL_RECTANGULAR = 2 };
+    enum SelectionType
+    {
+        SEL_REGULAR = 1,
+        SEL_RECTANGULAR = 2
+    };
 
-    enum CursorState { CURSOR_DEFAULT = 0, CURSOR_WRAPNEXT = 1, CURSOR_ORIGIN = 2 };
+    enum CursorState
+    {
+        CURSOR_DEFAULT = 0,
+        CURSOR_WRAPNEXT = 1,
+        CURSOR_ORIGIN = 2
+    };
 
-    enum EscapeState {
+    enum EscapeState
+    {
         ESC_START = 1,
         ESC_CSI = 2,
         ESC_STR = 4,
@@ -99,10 +119,16 @@ class Terminal {
         ESC_APPCURSOR = 128
     };
 
-    enum ColorMode { COLOR_BASIC = 0, COLOR_256 = 1, COLOR_TRUE = 2 };
+    enum ColorMode
+    {
+        COLOR_BASIC = 0,
+        COLOR_256 = 1,
+        COLOR_TRUE = 2
+    };
 
     // Core structures
-    struct Glyph {
+    struct Glyph
+    {
         Rune u{' '};                       // character code
         uint16_t mode{0};                  // attribute flags
         ImVec4 fg{1.0f, 1.0f, 1.0f, 1.0f}; // foreground color
@@ -111,7 +137,8 @@ class Terminal {
         uint32_t trueColorFg{0xFFFFFFFF};  // True color foreground
         uint32_t trueColorBg{0xFF000000};  // True color background
     };
-    struct TCursor {
+    struct TCursor
+    {
         int x{0};
         int y{0};
         Glyph attr;
@@ -125,11 +152,13 @@ class Terminal {
         uint32_t trueColorBg{0xFF000000};
     };
 
-    struct Selection {
+    struct Selection
+    {
         SelectionMode mode{SEL_IDLE};
         SelectionType type{SEL_REGULAR};
         int snap{0};
-        struct {
+        struct
+        {
             int x, y;
         } nb, ne, ob, oe; // normalized begin/end, original begin/end
         int alt{0};
@@ -150,7 +179,8 @@ class Terminal {
 
   private:
     // Terminal state
-    struct TermState {
+    struct TermState
+    {
         TCursor c;                                // Current cursor
         int row{0};                               // number of rows
         int col{0};                               // number of columns
@@ -168,7 +198,8 @@ class Terminal {
         std::vector<bool> tabs;                   // Tab stops
     } state;
 
-    struct CSIEscape {
+    struct CSIEscape
+    {
         char buf[256];         // Raw string
         size_t len;            // Raw string length
         char priv;             // Private mode
@@ -176,7 +207,8 @@ class Terminal {
         char mode[2];          // Final character(s)
     };
 
-    struct GlyphColors {
+    struct GlyphColors
+    {
         ImVec4 fg;
         ImVec4 bg;
     };
@@ -281,7 +313,15 @@ class Terminal {
     void disableBracketedPaste();
     void handlePastedContent(const std::string &content);
 
-    enum Charset { CS_GRAPHIC0, CS_UK, CS_USA, CS_MULTI, CS_GER, CS_FIN };
+    enum Charset
+    {
+        CS_GRAPHIC0,
+        CS_UK,
+        CS_USA,
+        CS_MULTI,
+        CS_GER,
+        CS_FIN
+    };
 
     STREscape strescseq;
 
@@ -315,21 +355,9 @@ class Terminal {
     void renderMainScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight);
 
     // Shared rendering helpers
-    void renderSelectionHighlight(ImDrawList *drawList,
-                                  const ImVec2 &pos,
-                                  float charWidth,
-                                  float lineHeight,
-                                  int startY,
-                                  int endY,
-                                  int screenOffset = 0);
-    void
-    renderGlyph(ImDrawList *drawList, const Glyph &glyph, const ImVec2 &charPos, float charWidth, float lineHeight);
-    void renderCursor(ImDrawList *drawList,
-                      const ImVec2 &cursorPos,
-                      const Glyph &cursorCell,
-                      float charWidth,
-                      float lineHeight,
-                      float alpha);
+    void renderSelectionHighlight(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight, int startY, int endY, int screenOffset = 0);
+    void renderGlyph(ImDrawList *drawList, const Glyph &glyph, const ImVec2 &charPos, float charWidth, float lineHeight);
+    void renderCursor(ImDrawList *drawList, const ImVec2 &cursorPos, const Glyph &cursorCell, float charWidth, float lineHeight, float alpha);
     void handleGlyphColors(const Glyph &glyph, ImVec4 &fg, ImVec4 &bg);
 
     static constexpr const ImVec4 defaultColorMap[16] = {
