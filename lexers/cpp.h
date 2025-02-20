@@ -48,7 +48,21 @@ struct Context {
     bool inTemplate = false;
     std::vector<std::string> knownClasses;
     std::vector<std::string> knownFunctions;
-    std::unordered_set<std::string> knownTypes = {"int", "char", "bool", "float", "double", "void", "size_t", "std::string", "vector", "map", "set", "string", "array", "unique_ptr", "shared_ptr"};
+    std::unordered_set<std::string> knownTypes = {"int",
+                                                  "char",
+                                                  "bool",
+                                                  "float",
+                                                  "double",
+                                                  "void",
+                                                  "size_t",
+                                                  "std::string",
+                                                  "vector",
+                                                  "map",
+                                                  "set",
+                                                  "string",
+                                                  "array",
+                                                  "unique_ptr",
+                                                  "shared_ptr"};
 };
 
 struct Token {
@@ -76,9 +90,27 @@ class Lexer {
     };
 
     Lexer() {
-        keywords = {"auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern", "float", "for", "goto", "if", "int", "long", "register", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "class", "namespace", "try", "catch", "throw", "new", "delete", "public", "private", "protected", "virtual", "friend", "inline", "template", "typename", "using", "bool", "true", "false", "nullptr", "and", "or", "not", "xor", "and_eq", "or_eq", "not_eq", "xor_eq", "bitand", "bitor", "compl", "constexpr", "decltype", "mutable", "noexcept", "static_assert", "thread_local", "alignas", "alignof", "char16_t", "char32_t", "export", "explicit", "final", "override", "operator", "this"};
+        keywords =
+            {"auto",     "break",     "case",     "char",          "const",        "continue", "default",  "do",
+             "double",   "else",      "enum",     "extern",        "float",        "for",      "goto",     "if",
+             "int",      "long",      "register", "return",        "short",        "signed",   "sizeof",   "static",
+             "struct",   "switch",    "typedef",  "union",         "unsigned",     "void",     "volatile", "while",
+             "class",    "namespace", "try",      "catch",         "throw",        "new",      "delete",   "public",
+             "private",  "protected", "virtual",  "friend",        "inline",       "template", "typename", "using",
+             "bool",     "true",      "false",    "nullptr",       "and",          "or",       "not",      "xor",
+             "and_eq",   "or_eq",     "not_eq",   "xor_eq",        "bitand",       "bitor",    "compl",    "constexpr",
+             "decltype", "mutable",   "noexcept", "static_assert", "thread_local", "alignas",  "alignof",  "char16_t",
+             "char32_t", "export",    "explicit", "final",         "override",     "operator", "this"};
 
-        operators = {{"+", TokenType::Operator}, {"-", TokenType::Operator}, {"*", TokenType::Operator}, {"/", TokenType::Operator}, {"%", TokenType::Operator}, {"=", TokenType::Operator}, {"==", TokenType::Operator}, {"!=", TokenType::Operator}, {">", TokenType::Operator}, {"<", TokenType::Operator}, {">=", TokenType::Operator}, {"<=", TokenType::Operator}, {"&&", TokenType::Operator}, {"||", TokenType::Operator}, {"!", TokenType::Operator}, {"&", TokenType::Operator}, {"|", TokenType::Operator}, {"^", TokenType::Operator}, {"~", TokenType::Operator}, {"<<", TokenType::Operator}, {">>", TokenType::Operator}, {"++", TokenType::Operator}, {"--", TokenType::Operator}, {"->", TokenType::Operator}, {".*", TokenType::Operator}, {"->*", TokenType::Operator}, {"::", TokenType::Operator}};
+        operators = {{"+", TokenType::Operator},  {"-", TokenType::Operator},   {"*", TokenType::Operator},
+                     {"/", TokenType::Operator},  {"%", TokenType::Operator},   {"=", TokenType::Operator},
+                     {"==", TokenType::Operator}, {"!=", TokenType::Operator},  {">", TokenType::Operator},
+                     {"<", TokenType::Operator},  {">=", TokenType::Operator},  {"<=", TokenType::Operator},
+                     {"&&", TokenType::Operator}, {"||", TokenType::Operator},  {"!", TokenType::Operator},
+                     {"&", TokenType::Operator},  {"|", TokenType::Operator},   {"^", TokenType::Operator},
+                     {"~", TokenType::Operator},  {"<<", TokenType::Operator},  {">>", TokenType::Operator},
+                     {"++", TokenType::Operator}, {"--", TokenType::Operator},  {"->", TokenType::Operator},
+                     {".*", TokenType::Operator}, {"->*", TokenType::Operator}, {"::", TokenType::Operator}};
     }
     void themeChanged() { colorsNeedUpdate = true; }
     std::vector<Token> tokenize(const std::string &code) {
@@ -102,7 +134,8 @@ class Lexer {
                     tokens.push_back(lexIdentifierOrKeyword(code, pos));
                 } else if (isDigit(code[pos])) {
                     tokens.push_back(lexNumber(code, pos));
-                } else if (code[pos] == '/' && pos + 1 < code.length() && (code[pos + 1] == '/' || code[pos + 1] == '*')) {
+                } else if (code[pos] == '/' && pos + 1 < code.length() &&
+                           (code[pos + 1] == '/' || code[pos + 1] == '*')) {
                     tokens.push_back(lexComment(code, pos));
                 } else if (code[pos] == '"' || code[pos] == '\'') {
                     tokens.push_back(lexString(code, pos));
@@ -134,7 +167,8 @@ class Lexer {
         return tokens;
     }
     void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos) {
-        std::cout << "Entering C++ applyHighlighting, code length: " << code.length() << ", colors size: " << colors.size() << ", start_pos: " << start_pos << std::endl;
+        std::cout << "Entering C++ applyHighlighting, code length: " << code.length()
+                  << ", colors size: " << colors.size() << ", start_pos: " << start_pos << std::endl;
         try {
             std::vector<Token> tokens = tokenize(code.substr(start_pos));
             std::cout << "After tokenize, tokens size: " << tokens.size() << std::endl;
@@ -209,7 +243,23 @@ class Lexer {
         bool isFunction = next < code.length() && code[next] == '(';
 
         // Basic types that should be highlighted
-        static std::unordered_set<std::string> basicTypes = {"void", "bool", "char", "int", "float", "double", "long", "int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t", "uint64_t", "size_t", "wchar_t"};
+        static std::unordered_set<std::string> basicTypes = {"void",
+                                                             "bool",
+                                                             "char",
+                                                             "int",
+                                                             "float",
+                                                             "double",
+                                                             "long",
+                                                             "int8_t",
+                                                             "int16_t",
+                                                             "int32_t",
+                                                             "int64_t",
+                                                             "uint8_t",
+                                                             "uint16_t",
+                                                             "uint32_t",
+                                                             "uint64_t",
+                                                             "size_t",
+                                                             "wchar_t"};
 
         if (keywords.find(word) != keywords.end()) {
             return {TokenType::Keyword, start, pos - start};
@@ -228,7 +278,9 @@ class Lexer {
 
     Token lexNumber(const std::string &code, size_t &pos) {
         size_t start = pos;
-        while (pos < code.length() && (isDigit(code[pos]) || code[pos] == '.' || code[pos] == 'e' || code[pos] == 'E' || code[pos] == '+' || code[pos] == '-' || code[pos] == 'f' || code[pos] == 'F' || code[pos] == 'l' || code[pos] == 'L' || code[pos] == 'u' || code[pos] == 'U')) {
+        while (pos < code.length() && (isDigit(code[pos]) || code[pos] == '.' || code[pos] == 'e' || code[pos] == 'E' ||
+                                       code[pos] == '+' || code[pos] == '-' || code[pos] == 'f' || code[pos] == 'F' ||
+                                       code[pos] == 'l' || code[pos] == 'L' || code[pos] == 'u' || code[pos] == 'U')) {
             pos++;
         }
         return {TokenType::Number, start, pos - start};
@@ -342,7 +394,10 @@ class Lexer {
             return cachedColors.function;
 
         case TokenType::Operator:
-            return ImVec4(cachedColors.text.x * 0.8f, cachedColors.text.y * 0.8f, cachedColors.text.z * 0.8f, cachedColors.text.w);
+            return ImVec4(cachedColors.text.x * 0.8f,
+                          cachedColors.text.y * 0.8f,
+                          cachedColors.text.z * 0.8f,
+                          cachedColors.text.w);
 
         default:
             return cachedColors.text;

@@ -57,7 +57,8 @@ struct ShaderQuad {
     GLuint VAO, VBO;
 
     void initialize() {
-        float quadVertices[] = {-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f};
+        float quadVertices[] = {-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f,  1.0f, 1.0f, 1.0f,
+                                -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f};
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
         glBindVertexArray(VAO);
@@ -81,7 +82,8 @@ void ApplySettings(ImGuiStyle &urrentFont, float &explorerWidth, float &editorWi
 void updateFileExplorer();
 void handleEvents(GLFWwindow *window);
 void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, double &lastTreeTime);
-void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized);
+void handleFramebuffer(
+    int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized);
 void setupImGuiFrame();
 void handleWindowFocus(GLFWwindow *window, bool &windowFocused);
 void handleSettingsChanges(ImGuiStyle &style, bool &needFontReload);
@@ -89,7 +91,13 @@ void handleFontReload(ImFont *&currentFont, bool &needFontReload);
 void handleFileDialog();
 void beginFrame(int display_w, int display_h);
 void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth);
-void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime);
+void renderWithShader(Shader &shader,
+                      GLuint fullFramebuffer,
+                      GLuint fullRenderTexture,
+                      GLuint quadVAO,
+                      int display_w,
+                      int display_h,
+                      double currentTime);
 void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
 void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
 void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont);
@@ -135,7 +143,6 @@ int main() {
     bool needFontReload = false;
     bool windowFocused = true;
     float explorerWidth = 0.0f, editorWidth = 0.0f;
-
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
@@ -148,7 +155,14 @@ int main() {
         // Handle framebuffer updates
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
-        handleFramebuffer(display_w, display_h, fb.framebuffer, fb.renderTexture, fb.rbo, fb.last_display_w, fb.last_display_h, fb.initialized);
+        handleFramebuffer(display_w,
+                          display_h,
+                          fb.framebuffer,
+                          fb.renderTexture,
+                          fb.rbo,
+                          fb.last_display_w,
+                          fb.last_display_h,
+                          fb.initialized);
 
         // Setup ImGui frame and state
         setupImGuiFrame();
@@ -164,7 +178,12 @@ int main() {
 
         // Handle shader effects
         if (shader_toggle) {
-            renderWithShader(crtShader, fb.framebuffer, fb.renderTexture, quad.VAO, display_w, display_h,
+            renderWithShader(crtShader,
+                             fb.framebuffer,
+                             fb.renderTexture,
+                             quad.VAO,
+                             display_w,
+                             display_h,
                              currentTime); // Changed from quadVAO to quad.VAO
         } else {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -211,12 +230,18 @@ void InitializeImGui(GLFWwindow *window) {
 
 void ApplySettings(ImGuiStyle &style) {
     // Background color
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
+                                             gSettings.getSettings()["backgroundColor"][1].get<float>(),
+                                             gSettings.getSettings()["backgroundColor"][2].get<float>(),
+                                             gSettings.getSettings()["backgroundColor"][3].get<float>());
     shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
     // Get text color from current theme
     std::string currentTheme = gSettings.getCurrentTheme();
     auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
-    ImVec4 textCol(textColor[0].get<float>(), textColor[1].get<float>(), textColor[2].get<float>(), textColor[3].get<float>());
+    ImVec4 textCol(textColor[0].get<float>(),
+                   textColor[1].get<float>(),
+                   textColor[2].get<float>(),
+                   textColor[3].get<float>());
 
     // Apply text color to all text-related ImGui elements
     style.Colors[ImGuiCol_Text] = textCol; // Regular text
@@ -365,7 +390,8 @@ void renderEditorHeader(ImFont *currentFont) {
 
     // Display the file path and get line height while font is pushed
     float lineHeight = ImGui::GetTextLineHeight();
-    ImGui::Text("Editor - %s", gFileExplorer.getCurrentFile().empty() ? "No file selected" : gFileExplorer.getCurrentFile().c_str());
+    ImGui::Text("Editor - %s",
+                gFileExplorer.getCurrentFile().empty() ? "No file selected" : gFileExplorer.getCurrentFile().c_str());
 
     // Calculate sizes
     float iconSize = lineHeight - 5;
@@ -461,7 +487,9 @@ void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWi
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
 
-    ImGui::Begin("Main Window", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+    ImGui::Begin("Main Window",
+                 nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 
     ImGui::PopFont();
 
@@ -516,7 +544,8 @@ void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, doubl
     }
 }
 
-void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized) {
+void handleFramebuffer(
+    int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized) {
 
     if (width == last_w && height == last_h && initialized) {
         return;
@@ -623,7 +652,13 @@ void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorW
     gSettings.renderSettingsWindow();
 }
 
-void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime) {
+void renderWithShader(Shader &shader,
+                      GLuint fullFramebuffer,
+                      GLuint fullRenderTexture,
+                      GLuint quadVAO,
+                      int display_w,
+                      int display_h,
+                      double currentTime) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
     glBlitFramebuffer(0, 0, display_w, display_h, 0, 0, display_w, display_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);

@@ -62,11 +62,37 @@ class Lexer {
     };
 
     Lexer() {
-        keywords = {"function", "const", "let", "var", "if", "else", "return", "import", "export", "default", "class", "extends", "super", "this", "new", "try", "catch", "throw", "typeof", "instanceof", "async", "await", "for", "of", "while", "do", "switch", "case", "break", "continue", "static", "true", "false", "null", "undefined", "void", "delete", "yield", "interface", "type", "as", "from", "in", "is"};
+        keywords = {"function", "const",      "let",       "var",    "if",   "else",  "return", "import",    "export",
+                    "default",  "class",      "extends",   "super",  "this", "new",   "try",    "catch",     "throw",
+                    "typeof",   "instanceof", "async",     "await",  "for",  "of",    "while",  "do",        "switch",
+                    "case",     "break",      "continue",  "static", "true", "false", "null",   "undefined", "void",
+                    "delete",   "yield",      "interface", "type",   "as",   "from",  "in",     "is"};
 
-        reactKeywords = {"useState", "useEffect", "useContext", "useReducer", "useCallback", "useMemo", "useRef", "useLayoutEffect", "useImperativeHandle", "Fragment", "createContext", "createRef", "forwardRef"};
+        reactKeywords = {"useState",
+                         "useEffect",
+                         "useContext",
+                         "useReducer",
+                         "useCallback",
+                         "useMemo",
+                         "useRef",
+                         "useLayoutEffect",
+                         "useImperativeHandle",
+                         "Fragment",
+                         "createContext",
+                         "createRef",
+                         "forwardRef"};
 
-        operators = {{"=", TokenType::Operator}, {"+", TokenType::Operator}, {"-", TokenType::Operator}, {"*", TokenType::Operator}, {"/", TokenType::Operator}, {"%", TokenType::Operator}, {"==", TokenType::Operator}, {"===", TokenType::Operator}, {"!=", TokenType::Operator}, {"!==", TokenType::Operator}, {">", TokenType::Operator}, {"<", TokenType::Operator}, {">=", TokenType::Operator}, {"<=", TokenType::Operator}, {"&&", TokenType::Operator}, {"||", TokenType::Operator}, {"!", TokenType::Operator}, {"?", TokenType::Operator}, {":", TokenType::Colon}, {"=>", TokenType::ArrowFunction}, {"...", TokenType::Destructuring}, {"::", TokenType::ScopeOperator}};
+        operators = {{"=", TokenType::Operator},        {"+", TokenType::Operator},
+                     {"-", TokenType::Operator},        {"*", TokenType::Operator},
+                     {"/", TokenType::Operator},        {"%", TokenType::Operator},
+                     {"==", TokenType::Operator},       {"===", TokenType::Operator},
+                     {"!=", TokenType::Operator},       {"!==", TokenType::Operator},
+                     {">", TokenType::Operator},        {"<", TokenType::Operator},
+                     {">=", TokenType::Operator},       {"<=", TokenType::Operator},
+                     {"&&", TokenType::Operator},       {"||", TokenType::Operator},
+                     {"!", TokenType::Operator},        {"?", TokenType::Operator},
+                     {":", TokenType::Colon},           {"=>", TokenType::ArrowFunction},
+                     {"...", TokenType::Destructuring}, {"::", TokenType::ScopeOperator}};
 
         colorsNeedUpdate = true;
     }
@@ -354,7 +380,10 @@ class Lexer {
             return cachedColors.function;
 
         case TokenType::Operator:
-            return ImVec4(cachedColors.text.x * 0.8f, cachedColors.text.y * 0.8f, cachedColors.text.z * 0.8f, cachedColors.text.w);
+            return ImVec4(cachedColors.text.x * 0.8f,
+                          cachedColors.text.y * 0.8f,
+                          cachedColors.text.z * 0.8f,
+                          cachedColors.text.w);
 
         default:
             return cachedColors.text;

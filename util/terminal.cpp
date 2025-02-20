@@ -126,37 +126,64 @@ void Terminal::render() {
     }
 
     ImGuiIO &io = ImGui::GetIO();
-    float currentFontSize = ImGui::GetFont()->FontSize;
+    
+    checkFontSizeChange();
+    setupWindow();
+    handleTerminalResize();
+    renderBuffer();
+    handleScrollback(io, state.row);
+    handleMouseInput(io);
+    handleKeyboardInput(io);
 
-    // Check if font size changed
+    ImGui::End();
+}
+
+void Terminal::renderBuffer() {
+    std::lock_guard<std::mutex> lock(bufferMutex);
+
+    ImDrawList* drawList;
+    ImVec2 pos;
+    float charWidth, lineHeight;
+    setupRenderContext(drawList, pos, charWidth, lineHeight);
+
+    if (state.mode & MODE_ALTSCREEN) {
+        renderAltScreen(drawList, pos, charWidth, lineHeight);
+    } else {
+        renderMainScreen(drawList, pos, charWidth, lineHeight);
+    }
+}
+
+void Terminal::checkFontSizeChange() {
+    float currentFontSize = ImGui::GetFont()->FontSize;
     if (currentFontSize != lastFontSize) {
         lastFontSize = currentFontSize;
-        // Force resize with current dimensions
         ImVec2 contentSize = ImGui::GetContentRegionAvail();
-        resize(state.col, state.row); // Forces PTY update with new font metrics
+        resize(state.col, state.row);
     }
+}
 
-    // Basic ImGui window setup
+void Terminal::setupWindow() {
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-    ImGui::Begin("Terminal", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
-    // Get actual content size excluding window borders/padding
+    ImGui::Begin("Terminal",
+                 nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+}
+
+void Terminal::handleTerminalResize() {
     ImVec2 contentSize = ImGui::GetContentRegionAvail();
     float charWidth = ImGui::GetFont()->GetCharAdvance('M');
     float lineHeight = ImGui::GetTextLineHeight();
 
-    // Calculate new terminal dimensions
     int new_cols = std::max(1, static_cast<int>(contentSize.x / charWidth));
     int new_rows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
 
-    // Resize if dimensions changed
     if (new_cols != state.col || new_rows != state.row) {
         resize(new_cols, new_rows);
     }
+}
 
-    renderBuffer();
-
-    // Handle mouse wheel for scrollback
+void Terminal::handleScrollback(const ImGuiIO& io, int new_rows) {
     if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() && !(state.mode & MODE_ALTSCREEN)) {
         if (io.MouseWheel != 0.0f) {
             int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
@@ -164,414 +191,315 @@ void Terminal::render() {
             scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
         }
     }
-    // Handle mouse input
-    if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered()) {
-        ImVec2 mousePos = ImGui::GetMousePos();
-        ImVec2 winPos = ImGui::GetWindowPos();
-        float charWidth = ImGui::GetFont()->GetCharAdvance('M');
-        float lineHeight = ImGui::GetTextLineHeight();
-
-        // Convert mouse position to terminal cell coordinates
-        int cellX = static_cast<int>((mousePos.x - winPos.x) / charWidth);
-        int cellY = static_cast<int>((mousePos.y - winPos.y) / lineHeight);
-
-        // Handle selection
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            // Start new selection
-            selectionStart(cellX, cellY);
-        } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            // Extend selection
-            selectionExtend(cellX, cellY);
-        }
-
-        /* uncomment for auto copy on selection mouse release
-        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-            if (sel.mode != SEL_IDLE) {
-                // Copy selection to clipboard on mouse release
-                copySelection();
-                sel.mode = SEL_IDLE;
-            }
-        }
-        */
-
-        // Handle right-click paste
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            pasteFromClipboard();
-        }
-
-        // Handle clipboard shortcuts
-        if (io.KeyCtrl) {
-            if (ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
-                copySelection();
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-                copySelection();
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
-                std::cout << "Cmd+V pressed" << std::endl;
-                pasteFromClipboard();
-            }
-        }
-    }
-    // Improved input handling
-    if (ImGui::IsWindowFocused()) {
-        ImGuiIO &io = ImGui::GetIO();
-
-        // Handle special keys
-        if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-            processInput("\r");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
-            processInput("\x7f"); // Delete character
-        } else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-            if (state.mode & MODE_APPCURSOR) {
-                processInput("\033OA");
-            } else {
-                std::cout << "sending [A" << std::endl;
-                processInput("\033[A");
-            }
-
-        } else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-            if (state.mode & MODE_APPCURSOR) {
-                processInput("\033OB");
-            } else {
-                std::cout << "sending [B" << std::endl;
-                processInput("\033[B");
-            }
-
-        } else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
-            if (state.mode & MODE_APPCURSOR)
-                processInput("\033OC");
-            else
-                processInput("\033[C");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
-            if (io.KeyCtrl) {
-                // Ctrl+Left: Move word left
-                processInput("\033[1;5D");
-            } else if (io.KeyShift) {
-                // Shift+Left: Selection
-                processInput("\033[1;2D");
-            } else if (state.mode & MODE_APPCURSOR) {
-                processInput("\033OD");
-            } else {
-                // Normal left arrow
-                processInput("\033[D");
-            }
-        }
-        // More special keys
-        else if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            processInput("\033[H");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_End)) {
-            processInput("\033[F");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
-            processInput("\033[3~");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
-            processInput("\033[5~");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
-            processInput("\033[6~");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-            processInput("\t");
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-            processInput("\033");
-        }
-
-        // Handle Ctrl key combinations
-        if (io.KeyCtrl || io.KeySuper) {
-            // Map common control combinations explicitly
-            if (ImGui::IsKeyPressed(ImGuiKey_A))
-                processInput("\x01");
-            if (ImGui::IsKeyPressed(ImGuiKey_B))
-                processInput("\x02");
-            if (ImGui::IsKeyPressed(ImGuiKey_C))
-                processInput("\x03");
-            if (ImGui::IsKeyPressed(ImGuiKey_D))
-                processInput("\x04");
-            if (ImGui::IsKeyPressed(ImGuiKey_E))
-                processInput("\x05");
-            if (ImGui::IsKeyPressed(ImGuiKey_F))
-                processInput("\x06");
-            if (ImGui::IsKeyPressed(ImGuiKey_G))
-                processInput("\x07");
-            if (ImGui::IsKeyPressed(ImGuiKey_H))
-                processInput("\x08");
-            if (ImGui::IsKeyPressed(ImGuiKey_I))
-                processInput("\x09");
-            if (ImGui::IsKeyPressed(ImGuiKey_J))
-                processInput("\x0A");
-            if (ImGui::IsKeyPressed(ImGuiKey_K))
-                processInput("\x0B");
-            if (ImGui::IsKeyPressed(ImGuiKey_L))
-                processInput("\x0C");
-            if (ImGui::IsKeyPressed(ImGuiKey_M))
-                processInput("\x0D");
-            if (ImGui::IsKeyPressed(ImGuiKey_N))
-                processInput("\x0E");
-            if (ImGui::IsKeyPressed(ImGuiKey_O))
-                processInput("\x0F");
-            if (ImGui::IsKeyPressed(ImGuiKey_P))
-                processInput("\x10");
-            if (ImGui::IsKeyPressed(ImGuiKey_Q))
-                processInput("\x11");
-            if (ImGui::IsKeyPressed(ImGuiKey_R))
-                processInput("\x12");
-            if (ImGui::IsKeyPressed(ImGuiKey_S))
-                processInput("\x13");
-            if (ImGui::IsKeyPressed(ImGuiKey_T))
-                processInput("\x14");
-            if (ImGui::IsKeyPressed(ImGuiKey_U))
-                processInput("\x15");
-            // if (ImGui::IsKeyPressed(ImGuiKey_V)) processInput("\x16");//removed for cmd v
-            if (ImGui::IsKeyPressed(ImGuiKey_W))
-                processInput("\x17");
-            if (ImGui::IsKeyPressed(ImGuiKey_X))
-                processInput("\x18");
-            if (ImGui::IsKeyPressed(ImGuiKey_Y))
-                processInput("\x19");
-            if (ImGui::IsKeyPressed(ImGuiKey_Z))
-                processInput("\x1A");
-        }
-
-        // Regular text input - only if no control key is pressed
-        if (!io.KeySuper && !io.KeyCtrl && !io.KeyAlt) {
-            for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
-                char c = (char)io.InputQueueCharacters[i];
-                if (c != 0) {
-                    processInput(std::string(1, c));
-                }
-            }
-        }
-    }
-
-    ImGui::End();
 }
-void Terminal::renderBuffer() {
-    std::lock_guard<std::mutex> lock(bufferMutex);
 
-    ImDrawList *drawList = ImGui::GetWindowDrawList();
-    ImVec2 pos = ImGui::GetCursorScreenPos();
+void Terminal::handleMouseInput(const ImGuiIO& io) {
+    if (!ImGui::IsWindowFocused() || !ImGui::IsWindowHovered()) return;
+
+    ImVec2 mousePos = ImGui::GetMousePos();
+    ImVec2 contentPos = ImGui::GetCursorScreenPos();
     float charWidth = ImGui::GetFont()->GetCharAdvance('M');
     float lineHeight = ImGui::GetTextLineHeight();
-    bool altScreen = state.mode & MODE_ALTSCREEN;
 
-    if (altScreen) {
-        // Alternate screen rendering (vim/htop)
-        // Draw selection highlight
-        if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
-            for (int y = 0; y < state.row; y++) {
-                for (int x = 0; x < state.col; x++) {
-                    if (selectedText(x, y)) {
-                        ImVec2 highlightPos(pos.x + x * charWidth, pos.y + y * lineHeight);
-                        drawList->AddRectFilled(highlightPos, ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)) // Pink color to match editor
-                        );
-                    }
-                }
+    int cellX = static_cast<int>((mousePos.x - contentPos.x) / charWidth);
+    int cellY = static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
+
+    cellX = std::clamp(cellX, 0, state.col - 1);
+    cellY = std::clamp(cellY, 0, state.row - 1);
+
+    static ImVec2 clickStartPos{0, 0};
+
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        clickStartPos = mousePos;
+        selectionStart(cellX, cellY);
+    } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        ImVec2 dragDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+        float dragDistance = sqrt(dragDelta.x * dragDelta.x + dragDelta.y * dragDelta.y);
+        
+        if (dragDistance > DRAG_THRESHOLD) {
+            selectionExtend(cellX, cellY);
+        }
+    } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+        ImVec2 dragDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+        float dragDistance = sqrt(dragDelta.x * dragDelta.x + dragDelta.y * dragDelta.y);
+        
+        if (dragDistance <= DRAG_THRESHOLD) {
+            selectionClear();
+        }
+    }
+
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        pasteFromClipboard();
+    }
+
+    // Handle clipboard shortcuts
+    if (io.KeyCtrl) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || 
+            ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+            copySelection();
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+            pasteFromClipboard();
+        }
+    }
+}
+
+void Terminal::handleKeyboardInput(const ImGuiIO& io) {
+    if (!ImGui::IsWindowFocused()) return;
+    
+    handleSpecialKeys(io);
+    handleControlCombos(io);
+    handleRegularTextInput(io);
+}
+
+void Terminal::handleSpecialKeys(const ImGuiIO& io) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+        processInput("\r");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
+        processInput("\x7f");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+        processInput(state.mode & MODE_APPCURSOR ? "\033OA" : "\033[A");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+        processInput(state.mode & MODE_APPCURSOR ? "\033OB" : "\033[B");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
+        processInput(state.mode & MODE_APPCURSOR ? "\033OC" : "\033[C");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
+        if (io.KeyCtrl) {
+            processInput("\033[1;5D");
+        } else if (io.KeyShift) {
+            processInput("\033[1;2D");
+        } else if (state.mode & MODE_APPCURSOR) {
+            processInput("\033OD");
+        } else {
+            processInput("\033[D");
+        }
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
+        processInput("\033[H");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_End)) {
+        processInput("\033[F");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
+        processInput("\033[3~");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
+        processInput("\033[5~");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
+        processInput("\033[6~");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
+        processInput("\t");
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        processInput("\033");
+    }
+}
+void Terminal::handleControlCombos(const ImGuiIO& io) {
+    if (!io.KeyCtrl && !io.KeySuper) return;
+    
+    static const std::pair<ImGuiKey, char> controlKeys[] = {
+        {ImGuiKey_A, '\x01'}, {ImGuiKey_B, '\x02'}, {ImGuiKey_C, '\x03'},
+        {ImGuiKey_D, '\x04'}, {ImGuiKey_E, '\x05'}, {ImGuiKey_F, '\x06'},
+        {ImGuiKey_G, '\x07'}, {ImGuiKey_H, '\x08'}, {ImGuiKey_I, '\x09'},
+        {ImGuiKey_J, '\x0A'}, {ImGuiKey_K, '\x0B'}, {ImGuiKey_L, '\x0C'},
+        {ImGuiKey_M, '\x0D'}, {ImGuiKey_N, '\x0E'}, {ImGuiKey_O, '\x0F'},
+        {ImGuiKey_P, '\x10'}, {ImGuiKey_Q, '\x11'}, {ImGuiKey_R, '\x12'},
+        {ImGuiKey_S, '\x13'}, {ImGuiKey_T, '\x14'}, {ImGuiKey_U, '\x15'},
+        {ImGuiKey_W, '\x17'}, {ImGuiKey_X, '\x18'}, {ImGuiKey_Y, '\x19'},
+        {ImGuiKey_Z, '\x1A'}
+    };
+
+    for (const auto& [key, ctrl_char] : controlKeys) {
+        if (ImGui::IsKeyPressed(key)) {
+            processInput(std::string(1, ctrl_char));
+        }
+    }
+}
+
+void Terminal::handleRegularTextInput(const ImGuiIO& io) {
+    if (io.KeySuper || io.KeyCtrl || io.KeyAlt) return;
+    
+    for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
+        char c = (char)io.InputQueueCharacters[i];
+        if (c != 0) {
+            processInput(std::string(1, c));
+        }
+    }
+}
+
+void Terminal::setupRenderContext(ImDrawList*& drawList, ImVec2& pos, float& charWidth, float& lineHeight) {
+    drawList = ImGui::GetWindowDrawList();
+    pos = ImGui::GetCursorScreenPos();
+    charWidth = ImGui::GetFont()->GetCharAdvance('M');
+    lineHeight = ImGui::GetTextLineHeight();
+}
+
+void Terminal::renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight) {
+    // Handle selection highlight
+    if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+        renderSelectionHighlight(drawList, pos, charWidth, lineHeight, 0, state.row);
+    }
+
+    // Draw alt screen characters
+    for (int y = 0; y < state.row; y++) {
+        if (!state.dirty[y]) continue;
+        
+        for (int x = 0; x < state.col; x++) {
+            const Glyph& glyph = state.lines[y][x];
+            if (glyph.mode & ATTR_WDUMMY) continue;
+
+            ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
+            renderGlyph(drawList, glyph, charPos, charWidth, lineHeight);
+
+            if (glyph.mode & ATTR_WIDE) x++;
+        }
+    }
+
+    // Draw cursor
+    if (ImGui::IsWindowFocused()) {
+        ImVec2 cursorPos(pos.x + state.c.x * charWidth, pos.y + state.c.y * lineHeight);
+        float alpha = (sin(ImGui::GetTime() * 3.14159f) * 0.3f) + 0.5f;
+        renderCursor(drawList, cursorPos, state.lines[state.c.y][state.c.x], charWidth, lineHeight, alpha);
+    }
+}
+
+void Terminal::renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight) {
+    ImVec2 contentSize = ImGui::GetContentRegionAvail();
+    int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+    int totalLines = scrollbackBuffer.size() + state.row;
+
+    // Handle scrollback clamping
+    int maxScroll = std::max(0, totalLines - visibleRows);
+    scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+    int startLine = std::max(0, totalLines - visibleRows - scrollOffset);
+
+    // Handle selection highlighting
+    if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
+        renderSelectionHighlight(drawList, pos, charWidth, lineHeight, 
+                               startLine, startLine + visibleRows, scrollbackBuffer.size());
+    }
+
+    // Draw content
+    for (int visY = 0; visY < visibleRows; visY++) {
+        int currentLine = startLine + visY;
+        const std::vector<Glyph>* line = nullptr;
+
+        if (currentLine < scrollbackBuffer.size()) {
+            line = &scrollbackBuffer[currentLine];
+        } else {
+            int screenY = currentLine - scrollbackBuffer.size();
+            if (screenY >= 0 && screenY < state.row) {
+                line = &state.lines[screenY];
             }
         }
 
-        // Draw alt screen characters
-        for (int y = 0; y < state.row; y++) {
-            if (!state.dirty[y])
-                continue; // Skip unchanged rows
-            for (int x = 0; x < state.col; x++) {
-                const Glyph &glyph = state.lines[y][x];
-                if (glyph.mode & ATTR_WDUMMY)
-                    continue;
+        if (!line) continue;
 
-                char text[UTF_SIZ] = {0};
-                char *p = text;
-                utf8Encode(glyph.u, p);
+        for (int x = 0; x < state.col && x < line->size(); x++) {
+            const Glyph& glyph = (*line)[x];
+            if (glyph.mode & ATTR_WDUMMY) continue;
 
-                ImVec2 charPos(pos.x + x * charWidth, pos.y + y * lineHeight);
-                ImVec4 fg = glyph.fg;
-                ImVec4 bg = glyph.bg;
+            ImVec2 charPos(pos.x + x * charWidth, pos.y + visY * lineHeight);
+            renderGlyph(drawList, glyph, charPos, charWidth, lineHeight);
 
-                // Handle true color
-                if (glyph.colorMode == COLOR_TRUE) {
-                    uint32_t tc = glyph.trueColorFg;
-                    fg = ImVec4(((tc >> 16) & 0xFF) / 255.0f, ((tc >> 8) & 0xFF) / 255.0f, (tc & 0xFF) / 255.0f, 1.0f);
-                }
-
-                // Handle reverse video
-                if (glyph.mode & ATTR_REVERSE)
-                    std::swap(fg, bg);
-
-                // Handle bold
-                if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
-                    fg.x = std::min(1.0f, fg.x * 1.5f);
-                    fg.y = std::min(1.0f, fg.y * 1.5f);
-                    fg.z = std::min(1.0f, fg.z * 1.5f);
-                }
-
-                // Draw background
-                if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
-                    drawList->AddRectFilled(charPos, ImVec2(charPos.x + charWidth, charPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(bg));
-                }
-
-                // Draw character
-                if (glyph.u != ' ' && glyph.u != 0) {
-                    drawList->AddText(charPos, ImGui::ColorConvertFloat4ToU32(fg), text);
-                }
-
-                // Draw underline
-                if (glyph.mode & ATTR_UNDERLINE) {
-                    drawList->AddLine(ImVec2(charPos.x, charPos.y + lineHeight - 1), ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1), ImGui::ColorConvertFloat4ToU32(fg));
-                }
-
-                if (glyph.mode & ATTR_WIDE)
-                    x++;
-            }
+            if (glyph.mode & ATTR_WIDE) x++;
         }
+    }
 
-        // Draw alt screen cursor
-        if (ImGui::IsWindowFocused()) {
-            ImVec2 cursorPos(pos.x + state.c.x * charWidth, pos.y + state.c.y * lineHeight);
+    // Draw cursor when not scrolled
+    if (ImGui::IsWindowFocused() && scrollOffset == 0) {
+        ImVec2 cursorPos(pos.x + state.c.x * charWidth,
+                        pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) * lineHeight);
+        float alpha = (sin(ImGui::GetTime() * 3.14159f) * 0.3f) + 0.5f;
+        renderCursor(drawList, cursorPos, state.lines[state.c.y][state.c.x], charWidth, lineHeight, alpha);
+    }
+}
+void Terminal::renderGlyph(ImDrawList* drawList, const Glyph& glyph, const ImVec2& charPos, 
+                          float charWidth, float lineHeight) {
+    ImVec4 fg = glyph.fg;
+    ImVec4 bg = glyph.bg;
+    
+    handleGlyphColors(glyph, fg, bg);
 
-            const Glyph &cursorCell = state.lines[state.c.y][state.c.x];
-            float time = ImGui::GetTime();
-            float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;
+    // Draw background
+    if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
+        drawList->AddRectFilled(charPos,
+                               ImVec2(charPos.x + charWidth, charPos.y + lineHeight),
+                               ImGui::ColorConvertFloat4ToU32(bg));
+    }
 
-            if (state.mode & MODE_INSERT) {
-                // Vertical bar cursor
-                drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
-            } else {
-                if (cursorCell.u != 0) {
-                    char text[UTF_SIZ] = {0};
-                    utf8Encode(cursorCell.u, text);
+    // Draw character
+    if (glyph.u != ' ' && glyph.u != 0) {
+        char text[UTF_SIZ] = {0};
+        utf8Encode(glyph.u, text);
+        drawList->AddText(charPos, ImGui::ColorConvertFloat4ToU32(fg), text);
+    }
 
-                    // Inverse colors
-                    ImVec4 bg = cursorCell.fg;
-                    ImVec4 fg = cursorCell.bg;
+    // Draw underline
+    if (glyph.mode & ATTR_UNDERLINE) {
+        drawList->AddLine(ImVec2(charPos.x, charPos.y + lineHeight - 1),
+                         ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1),
+                         ImGui::ColorConvertFloat4ToU32(fg));
+    }
+}
 
-                    drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
+void Terminal::handleGlyphColors(const Glyph& glyph, ImVec4& fg, ImVec4& bg) {
+    // Handle true color
+    if (glyph.colorMode == COLOR_TRUE) {
+        uint32_t tc = glyph.trueColorFg;
+        fg = ImVec4(((tc >> 16) & 0xFF) / 255.0f, 
+                    ((tc >> 8) & 0xFF) / 255.0f, 
+                    (tc & 0xFF) / 255.0f, 
+                    1.0f);
+    }
 
-                    drawList->AddText(cursorPos, ImGui::ColorConvertFloat4ToU32(fg), text);
-                } else {
-                    // Empty cell cursor
-                    drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
-                }
-            }
-        }
+    // Handle reverse video
+    if (glyph.mode & ATTR_REVERSE) {
+        std::swap(fg, bg);
+    }
+
+    // Handle bold
+    if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
+        fg.x = std::min(1.0f, fg.x * 1.5f);
+        fg.y = std::min(1.0f, fg.y * 1.5f);
+        fg.z = std::min(1.0f, fg.z * 1.5f);
+    }
+}
+
+void Terminal::renderCursor(ImDrawList* drawList, const ImVec2& cursorPos, const Glyph& cursorCell,
+                          float charWidth, float lineHeight, float alpha) {
+    if (state.mode & MODE_INSERT) {
+        drawList->AddRectFilled(cursorPos,
+                               ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
+                               ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
     } else {
-        // Main screen with scrollback
-        ImVec2 contentSize = ImGui::GetContentRegionAvail();
-        int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
-        int totalLines = scrollbackBuffer.size() + state.row;
+        if (cursorCell.u != 0) {
+            char text[UTF_SIZ] = {0};
+            utf8Encode(cursorCell.u, text);
+            ImVec4 bg = cursorCell.fg;
+            ImVec4 fg = cursorCell.bg;
 
-        // Clamp scroll offset
-        int maxScroll = std::max(0, totalLines - visibleRows);
-        scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
-        int startLine = std::max(0, totalLines - visibleRows - scrollOffset);
-
-        // Draw selection highlight
-        if (sel.mode != SEL_IDLE && sel.ob.x != -1) {
-            for (int visY = 0; visY < visibleRows; visY++) {
-                int currentLine = startLine + visY;
-                if (currentLine >= scrollbackBuffer.size()) {
-                    int screenY = currentLine - scrollbackBuffer.size();
-                    if (screenY >= 0 && screenY < state.row) {
-                        for (int x = 0; x < state.col; x++) {
-                            if (selectedText(x, screenY)) {
-                                ImVec2 highlightPos(pos.x + x * charWidth, pos.y + visY * lineHeight);
-                                drawList->AddRectFilled(highlightPos, ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)) // Pink color to match editor
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+            drawList->AddRectFilled(cursorPos,
+                                  ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                                  ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
+            drawList->AddText(cursorPos, ImGui::ColorConvertFloat4ToU32(fg), text);
+        } else {
+            drawList->AddRectFilled(cursorPos,
+                                  ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+                                  ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
         }
+    }
+}
 
-        // Draw scrollback + main screen
-        for (int visY = 0; visY < visibleRows; visY++) {
-            int currentLine = startLine + visY;
-            const std::vector<Glyph> *line = nullptr;
-
-            if (currentLine < scrollbackBuffer.size()) {
-                line = &scrollbackBuffer[currentLine];
-            } else {
-                int screenY = currentLine - scrollbackBuffer.size();
-                if (screenY >= 0 && screenY < state.row) {
-                    line = &state.lines[screenY];
-                }
-            }
-
-            if (!line)
-                continue;
-
+void Terminal::renderSelectionHighlight(ImDrawList* drawList, const ImVec2& pos, float charWidth, 
+                                      float lineHeight, int startY, int endY, int screenOffset) {
+    for (int y = startY; y < endY; y++) {
+        int screenY = y - screenOffset;
+        if (screenY >= 0 && screenY < state.row) {
             for (int x = 0; x < state.col; x++) {
-                if (x >= line->size())
-                    break;
-                const Glyph &glyph = (*line)[x];
-                if (glyph.mode & ATTR_WDUMMY)
-                    continue;
-
-                char text[UTF_SIZ] = {0};
-                char *p = text;
-                utf8Encode(glyph.u, p);
-
-                ImVec2 charPos(pos.x + x * charWidth, pos.y + visY * lineHeight);
-                ImVec4 fg = glyph.fg;
-                ImVec4 bg = glyph.bg;
-
-                // Handle true color
-                if (glyph.colorMode == COLOR_TRUE) {
-                    uint32_t tc = glyph.trueColorFg;
-                    fg = ImVec4(((tc >> 16) & 0xFF) / 255.0f, ((tc >> 8) & 0xFF) / 255.0f, (tc & 0xFF) / 255.0f, 1.0f);
-                }
-
-                // Handle reverse video
-                if (glyph.mode & ATTR_REVERSE)
-                    std::swap(fg, bg);
-
-                // Handle bold
-                if (glyph.mode & ATTR_BOLD && glyph.colorMode == COLOR_BASIC) {
-                    fg.x = std::min(1.0f, fg.x * 1.5f);
-                    fg.y = std::min(1.0f, fg.y * 1.5f);
-                    fg.z = std::min(1.0f, fg.z * 1.5f);
-                }
-
-                // Draw background
-                if (bg.x != 0 || bg.y != 0 || bg.z != 0 || (glyph.mode & ATTR_REVERSE)) {
-                    drawList->AddRectFilled(charPos, ImVec2(charPos.x + charWidth, charPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(bg));
-                }
-
-                // Draw character
-                if (glyph.u != ' ' && glyph.u != 0) {
-                    drawList->AddText(charPos, ImGui::ColorConvertFloat4ToU32(fg), text);
-                }
-
-                // Draw underline
-                if (glyph.mode & ATTR_UNDERLINE) {
-                    drawList->AddLine(ImVec2(charPos.x, charPos.y + lineHeight - 1), ImVec2(charPos.x + charWidth, charPos.y + lineHeight - 1), ImGui::ColorConvertFloat4ToU32(fg));
-                }
-
-                if (glyph.mode & ATTR_WIDE)
-                    x++;
-            }
-        }
-
-        // Draw main screen cursor (only when not scrolled)
-        if (ImGui::IsWindowFocused() && scrollOffset == 0) {
-            ImVec2 cursorPos(pos.x + state.c.x * charWidth, pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) * lineHeight);
-
-            const Glyph &cursorCell = state.lines[state.c.y][state.c.x];
-            float time = ImGui::GetTime();
-            float alpha = (sin(time * 3.14159f) * 0.3f) + 0.5f;
-
-            if (state.mode & MODE_INSERT) {
-                drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
-            } else {
-                if (cursorCell.u != 0) {
-                    char text[UTF_SIZ] = {0};
-                    utf8Encode(cursorCell.u, text);
-
-                    ImVec4 bg = cursorCell.fg;
-                    ImVec4 fg = cursorCell.bg;
-
-                    drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
-
-                    drawList->AddText(cursorPos, ImGui::ColorConvertFloat4ToU32(fg), text);
-                } else {
-                    drawList->AddRectFilled(cursorPos, ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight), ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
+                if (selectedText(x, screenY)) {
+                    ImVec2 highlightPos(pos.x + x * charWidth, 
+                                      pos.y + (y - startY) * lineHeight);
+                    drawList->AddRectFilled(
+                        highlightPos,
+                        ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f))
+                    );
                 }
             }
         }
@@ -684,7 +612,10 @@ void Terminal::writeToBuffer(const char *data, size_t length) {
                 if ((c & 0xC0) == 0x80) {
                     utf8buf[utf8len++] = c;
 
-                    size_t expected_len = ((utf8buf[0] & 0xE0) == 0xC0) ? 2 : ((utf8buf[0] & 0xF0) == 0xE0) ? 3 : ((utf8buf[0] & 0xF8) == 0xF0) ? 4 : 0;
+                    size_t expected_len = ((utf8buf[0] & 0xE0) == 0xC0)   ? 2
+                                          : ((utf8buf[0] & 0xF0) == 0xE0) ? 3
+                                          : ((utf8buf[0] & 0xF8) == 0xF0) ? 4
+                                                                          : 0;
 
                     if (utf8len == expected_len) {
                         Rune u;
@@ -715,7 +646,8 @@ void Terminal::writeChar(Rune u) {
     } else {
         // Log unmapped characters
         if (u >= 0x2500 && u <= 0x257F) {
-            std::cerr << "Unmapped box drawing character: U+" << std::hex << u << std::dec << " (hex: 0x" << std::hex << u << std::dec << ")" << std::endl;
+            std::cerr << "Unmapped box drawing character: U+" << std::hex << u << std::dec << " (hex: 0x" << std::hex
+                      << u << std::dec << ")" << std::endl;
         }
     }
 
@@ -1380,7 +1312,8 @@ void Terminal::writeGlyph(const Glyph &g, int x, int y) {
         cell.mode &= ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
     }
 
-    cell.mode = (cell.mode & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)) | (g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE));
+    cell.mode = (cell.mode & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)) |
+                (g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE));
 
     cell.colorMode = g.colorMode;
 
@@ -1700,7 +1633,8 @@ size_t Terminal::utf8Decode(const char *c, Rune *u, size_t clen) {
     for (size_t i = 1; i < len; i++) {
         // Validate continuation byte
         if ((c[i] & 0xC0) != 0x80) {
-            std::cerr << "Invalid continuation byte at position " << i << ": 0x" << std::hex << static_cast<int>(c[i]) << std::dec << std::endl;
+            std::cerr << "Invalid continuation byte at position " << i << ": 0x" << std::hex << static_cast<int>(c[i])
+                      << std::dec << std::endl;
             return 0;
         }
 
@@ -1724,7 +1658,13 @@ void Terminal::handleCharset(char c) {
         char code;
         Charset charset;
         const char *description;
-    } charsetMap[] = {{'(', CS_USA, "US ASCII"}, {')', CS_UK, "UK"}, {'*', CS_MULTI, "Multilingual"}, {'+', CS_GER, "German"}, {'0', CS_GRAPHIC0, "Special Graphics"}, {'A', CS_GER, "German"}, {'B', CS_USA, "US ASCII"}};
+    } charsetMap[] = {{'(', CS_USA, "US ASCII"},
+                      {')', CS_UK, "UK"},
+                      {'*', CS_MULTI, "Multilingual"},
+                      {'+', CS_GER, "German"},
+                      {'0', CS_GRAPHIC0, "Special Graphics"},
+                      {'A', CS_GER, "German"},
+                      {'B', CS_USA, "US ASCII"}};
 
     for (const auto &entry : charsetMap) {
         if (entry.code == c) {
@@ -2257,7 +2197,13 @@ void Terminal::handleOSCColor(const std::vector<std::string> &args) {
         if (args[2][0] == '?') {
             // Color query - respond with current color
             char response[64];
-            snprintf(response, sizeof(response), "\033]4;%d;rgb:%.2X/%.2X/%.2X\007", index, (int)(state.c.fg.x * 255), (int)(state.c.fg.y * 255), (int)(state.c.fg.z * 255));
+            snprintf(response,
+                     sizeof(response),
+                     "\033]4;%d;rgb:%.2X/%.2X/%.2X\007",
+                     index,
+                     (int)(state.c.fg.x * 255),
+                     (int)(state.c.fg.y * 255),
+                     (int)(state.c.fg.z * 255));
             processInput(response);
         } else {
             // Set color - parse color value (typically in rgb:RR/GG/BB format)

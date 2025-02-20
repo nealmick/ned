@@ -28,7 +28,7 @@ class FileExplorer {
   public:
     EditorState editor_state;
 
-    const size_t MAX_FILE_SIZE = 10 * 1024 * 1024;
+    const size_t MAX_FILE_SIZE = 1 * 1024 * 1024; // 1mb
 
     UndoRedoManager *currentUndoManager = nullptr;
 

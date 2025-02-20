@@ -255,7 +255,10 @@ class Lexer {
         case TokenType::JsFunction:
             return cachedColors.function;
         case TokenType::JsOperator:
-            return ImVec4(cachedColors.text.x * 0.8f, cachedColors.text.y * 0.8f, cachedColors.text.z * 0.8f, cachedColors.text.w);
+            return ImVec4(cachedColors.text.x * 0.8f,
+                          cachedColors.text.y * 0.8f,
+                          cachedColors.text.z * 0.8f,
+                          cachedColors.text.w);
         case TokenType::JsBrace:
             return cachedColors.bracket;
         case TokenType::JsIdentifier:
@@ -276,7 +279,10 @@ class Lexer {
         case TokenType::CssColon:
         case TokenType::CssSemicolon:
         case TokenType::CssOperator:
-            return ImVec4(cachedColors.text.x * 0.8f, cachedColors.text.y * 0.8f, cachedColors.text.z * 0.8f, cachedColors.text.w);
+            return ImVec4(cachedColors.text.x * 0.8f,
+                          cachedColors.text.y * 0.8f,
+                          cachedColors.text.z * 0.8f,
+                          cachedColors.text.w);
         case TokenType::CssImportant:
             return cachedColors.function;
 
@@ -411,7 +417,10 @@ class Lexer {
         return {TokenType::StyleContent, contentStart, pos - contentStart};
     }
 
-    std::unordered_set<std::string> jsKeywords = {"function", "var", "let", "const", "if", "else", "for", "while", "do", "break", "continue", "return", "class", "new", "this", "undefined", "null", "true", "false", "typeof", "instanceof"};
+    std::unordered_set<std::string> jsKeywords = {"function", "var",    "let",       "const",     "if",       "else",
+                                                  "for",      "while",  "do",        "break",     "continue", "return",
+                                                  "class",    "new",    "this",      "undefined", "null",     "true",
+                                                  "false",    "typeof", "instanceof"};
 
     Token lexJavaScript(const std::string &code, size_t &pos) {
         size_t start = pos; // Add this line to fix the error
@@ -715,7 +724,9 @@ class Lexer {
         // Hex and RGB Colors
         if (c == '#') {
             pos++;
-            while (pos < code.length() && ((code[pos] >= '0' && code[pos] <= '9') || (code[pos] >= 'a' && code[pos] <= 'f') || (code[pos] >= 'A' && code[pos] <= 'F'))) {
+            while (pos < code.length() &&
+                   ((code[pos] >= '0' && code[pos] <= '9') || (code[pos] >= 'a' && code[pos] <= 'f') ||
+                    (code[pos] >= 'A' && code[pos] <= 'F'))) {
                 pos++;
             }
             return {TokenType::CssColor, start, pos - start};
@@ -736,7 +747,13 @@ class Lexer {
             }
 
             // Special values
-            static const std::unordered_set<std::string> specialValues = {"inherit", "initial", "unset", "none", "auto", "block", "inline", "inline-block", "flex", "grid", "absolute", "relative", "fixed", "sticky", "bold", "normal", "italic", "center", "left", "right"};
+            static const std::unordered_set<std::string> specialValues = {"inherit", "initial",      "unset",
+                                                                          "none",    "auto",         "block",
+                                                                          "inline",  "inline-block", "flex",
+                                                                          "grid",    "absolute",     "relative",
+                                                                          "fixed",   "sticky",       "bold",
+                                                                          "normal",  "italic",       "center",
+                                                                          "left",    "right"};
 
             if (specialValues.find(word) != specialValues.end()) {
                 return {TokenType::CssValue, start, pos - start};

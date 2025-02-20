@@ -52,7 +52,8 @@ void FileFinder::updateFilteredList() {
         // Only add if the relative path contains the search term
         if (relativeLower.find(searchTerm) != std::string::npos) {
             // If the search term doesn't include a dot, skip files whose filename begins with '.'
-            if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() && file.filenameLower[0] == '.') {
+            if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() &&
+                file.filenameLower[0] == '.') {
                 continue;
             }
             filteredList.push_back(file);
@@ -60,7 +61,9 @@ void FileFinder::updateFilteredList() {
     }
 
     // (Optional) Sort by the length of the relative path (shortest first)
-    std::sort(filteredList.begin(), filteredList.end(), [](const FileEntry &a, const FileEntry &b) { return a.relativePath.size() < b.relativePath.size(); });
+    std::sort(filteredList.begin(), filteredList.end(), [](const FileEntry &a, const FileEntry &b) {
+        return a.relativePath.size() < b.relativePath.size();
+    });
 }
 
 void FileFinder::handleSelectionChange() {
@@ -99,8 +102,11 @@ bool FileFinder::isWindowOpen() const { return showFFWindow; }
 void FileFinder::renderHeader() {
     // Window setup (size, position, flags)
     ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
-    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f),
+                            ImGuiCond_Always,
+                            ImVec2(0.5f, 0.5f));
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     // Push window style (3 style vars, 3 style colors)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -129,7 +135,10 @@ bool FileFinder::renderSearchInput() {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
     // Force keyboard focus each frame so the input stays focused
     ImGui::SetKeyboardFocusHere();
-    bool enterPressed = ImGui::InputText("##SearchInput", searchBuffer, sizeof(searchBuffer), ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
+    bool enterPressed = ImGui::InputText("##SearchInput",
+                                         searchBuffer,
+                                         sizeof(searchBuffer),
+                                         ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::PopStyleVar(2);
     ImGui::PopItemWidth();
     return enterPressed;
@@ -150,7 +159,10 @@ void FileFinder::renderFileList() {
     // Begin a child window for the file list.
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
-    ImGui::BeginChild("SearchResults", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("SearchResults",
+                      ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
+                      false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     // Push styling for list items.
     ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));

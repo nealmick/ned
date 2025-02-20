@@ -81,7 +81,15 @@ bool FileExplorer::loadSingleIcon(const std::string &iconFile) {
     auto pixels = std::make_unique<unsigned char[]>(IconDimensions::WIDTH * IconDimensions::HEIGHT * 4);
 
     // Rasterize SVG
-    nsvgRasterize(rast, image, 0, 0, IconDimensions::WIDTH / image->width, pixels.get(), IconDimensions::WIDTH, IconDimensions::HEIGHT, IconDimensions::WIDTH * 4);
+    nsvgRasterize(rast,
+                  image,
+                  0,
+                  0,
+                  IconDimensions::WIDTH / image->width,
+                  pixels.get(),
+                  IconDimensions::WIDTH,
+                  IconDimensions::HEIGHT,
+                  IconDimensions::WIDTH * 4);
 
     // Create OpenGL texture
     GLuint texture = createTexture(pixels.get(), IconDimensions::WIDTH, IconDimensions::HEIGHT);
@@ -115,7 +123,9 @@ void FileExplorer::createDefaultIcon() {
 
 void FileExplorer::preserveOpenStates(const FileNode &oldNode, FileNode &newNode) {
     for (auto &newChild : newNode.children) {
-        auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(), [&newChild](const FileNode &oldChild) { return oldChild.fullPath == newChild.fullPath; });
+        auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(), [&newChild](const FileNode &oldChild) {
+            return oldChild.fullPath == newChild.fullPath;
+        });
         if (it != oldNode.children.end()) {
             newChild.isOpen = it->isOpen;
             if (newChild.isDirectory && newChild.isOpen) {
@@ -170,7 +180,10 @@ void FileExplorer::buildFileTree(const fs::path &path, FileNode &node) {
             child.isDirectory = entry.is_directory();
 
             // Find existing child to preserve its state
-            auto existingChild = std::find_if(node.children.begin(), node.children.end(), [&child](const FileNode &existing) { return existing.fullPath == child.fullPath; });
+            auto existingChild =
+                std::find_if(node.children.begin(), node.children.end(), [&child](const FileNode &existing) {
+                    return existing.fullPath == child.fullPath;
+                });
 
             if (existingChild != node.children.end()) {
                 // Preserve the existing child's state and children
@@ -243,7 +256,9 @@ void FileExplorer::renderNodeText(const std::string &name, bool isCurrentFile) {
     }
 }
 
-void FileExplorer::displayDirectoryNode(const FileNode &node, const FileExplorer::TreeDisplayMetrics &metrics, int &depth) {
+void FileExplorer::displayDirectoryNode(const FileNode &node,
+                                        const FileExplorer::TreeDisplayMetrics &metrics,
+                                        int &depth) {
     ImVec2 iconSize(metrics.folderIconSize, metrics.folderIconSize);
     float verticalPadding = (metrics.itemHeight - iconSize.y) * 0.5f;
 
@@ -252,17 +267,21 @@ void FileExplorer::displayDirectoryNode(const FileNode &node, const FileExplorer
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(TreeStyleSettings::HORIZONTAL_PADDING, verticalPadding));
 
-    bool isOpen = ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
+    bool isOpen =
+        ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
 
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(2);
 
     // Draw folder icon
-    ImGui::SetCursorPos(ImVec2(metrics.cursorPos.x + depth * metrics.indentWidth + TreeStyleSettings::HORIZONTAL_PADDING, metrics.cursorPos.y + verticalPadding));
+    ImGui::SetCursorPos(
+        ImVec2(metrics.cursorPos.x + depth * metrics.indentWidth + TreeStyleSettings::HORIZONTAL_PADDING,
+               metrics.cursorPos.y + verticalPadding));
     ImGui::Image(getFolderIcon(node.isOpen), iconSize);
 
     // Draw folder name
-    ImGui::SameLine(depth * metrics.indentWidth + iconSize.x + TreeStyleSettings::HORIZONTAL_PADDING + TreeStyleSettings::TEXT_PADDING);
+    ImGui::SameLine(depth * metrics.indentWidth + iconSize.x + TreeStyleSettings::HORIZONTAL_PADDING +
+                    TreeStyleSettings::TEXT_PADDING);
     ImGui::SetCursorPosY(metrics.cursorPos.y + (metrics.itemHeight - ImGui::GetTextLineHeight()) * 0.5f);
     ImGui::Text("%s", node.name.c_str());
 
@@ -292,7 +311,8 @@ void FileExplorer::displayFileNode(const FileNode &node, const TreeDisplayMetric
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
-    bool clicked = ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
+    bool clicked =
+        ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
 
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(2);
@@ -374,42 +394,75 @@ bool FileExplorer::readFileContent(const std::string &path) {
     std::cout << "\033[35mFiles:\033[0m Reading file: " << path << std::endl;
 
     try {
-        // First try a direct read approach
-        std::ifstream direct_read(path);
-        if (!direct_read) {
-            std::cout << "\033[35mFiles:\033[0m Direct read failed to open file" << std::endl;
+        // First check if the path exists and is a regular file
+        if (!std::filesystem::exists(path)) {
+            std::cout << "\033[35mFiles:\033[0m File does not exist: " << path << std::endl;
             return false;
         }
 
-        std::string content((std::istreambuf_iterator<char>(direct_read)), std::istreambuf_iterator<char>());
-
-        // If we got content, do our usual binary check
-        if (!content.empty()) {
-            int nullCount = 0;
-            for (size_t i = 0; i < std::min(content.length(), size_t(1024)); i++) {
-                if (content[i] == 0)
-                    nullCount++;
-                else if (static_cast<unsigned char>(content[i]) < 32 && content[i] != '\n' && content[i] != '\r' && content[i] != '\t') {
-                    nullCount++;
-                }
-            }
-
-            size_t checkSize = std::min(content.length(), size_t(1024));
-
-            if (nullCount > checkSize / 10) {
-                std::cout << "\033[35mFiles:\033[0m File appears to be binary" << std::endl;
-                fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
-                return false;
-            }
-
-            // If we get here, the content is good
-            fileContent = content;
-            std::cout << "\033[35mFiles:\033[0m Successfully read file, content length: " << fileContent.length() << std::endl;
-            return true;
+        if (!std::filesystem::is_regular_file(path)) {
+            std::cout << "\033[35mFiles:\033[0m Not a regular file: " << path << std::endl;
+            return false;
         }
 
-        std::cout << "\033[35mFiles:\033[0m Direct read resulted in empty content" << std::endl;
-        return false;
+        // Now safely check file size
+        std::error_code ec;
+        uintmax_t fileSize = std::filesystem::file_size(path, ec);
+        if (ec) {
+            std::cout << "\033[35mFiles:\033[0m Error getting file size: " << ec.message() << std::endl;
+            return false;
+        }
+
+        bool isTruncated = fileSize > MAX_FILE_SIZE;
+
+        // Open file in binary mode
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            std::cout << "\033[35mFiles:\033[0m Failed to open file" << std::endl;
+            return false;
+        }
+
+        // Read content (either full file or truncated)
+        size_t readSize = isTruncated ? MAX_FILE_SIZE : fileSize;
+        std::vector<char> buffer(readSize);
+        file.read(buffer.data(), readSize);
+
+        if (file.bad()) {
+            std::cout << "\033[35mFiles:\033[0m Error reading file content" << std::endl;
+            return false;
+        }
+
+        std::string content(buffer.data(), file.gcount());
+
+        // Check for binary content in the first part
+        int nullCount = 0;
+        size_t checkSize = std::min(content.length(), size_t(1024));
+
+        for (size_t i = 0; i < checkSize; i++) {
+            if (content[i] == 0 || (static_cast<unsigned char>(content[i]) < 32 && content[i] != '\n' &&
+                                    content[i] != '\r' && content[i] != '\t')) {
+                nullCount++;
+            }
+        }
+
+        if (nullCount > checkSize / 10) {
+            std::cout << "\033[35mFiles:\033[0m File appears to be binary" << std::endl;
+            fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
+            return false;
+        }
+
+        // Add truncation notice if needed
+        if (isTruncated) {
+            std::string notice = "\n\n[File truncated - showing first " +
+                                 std::to_string(MAX_FILE_SIZE / (1024 * 1024)) + "MB of " +
+                                 std::to_string(fileSize / (1024 * 1024)) + "MB]\n";
+            content += notice;
+        }
+
+        fileContent = std::move(content);
+        std::cout << "\033[35mFiles:\033[0m Successfully read file" << (isTruncated ? " (truncated)" : "")
+                  << ", content length: " << fileContent.length() << std::endl;
+        return true;
 
     } catch (const std::exception &e) {
         std::cout << "\033[35mFiles:\033[0m Error reading file: " << e.what() << std::endl;
@@ -493,7 +546,8 @@ void FileExplorer::findNext() {
 
     size_t foundPos = fileContent.find(findText, startPos);
 
-    std::cout << "\033[35mFiles:\033[0m  Searching for '" << findText << "' starting from position " << startPos << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Searching for '" << findText << "' starting from position " << startPos
+              << std::endl;
 
     if (foundPos == std::string::npos) {
         // Wrap around to the beginning
@@ -506,7 +560,8 @@ void FileExplorer::findNext() {
         editor_state.cursor_pos = foundPos;
         editor_state.selection_start = foundPos;
         editor_state.selection_end = foundPos + findText.length();
-        std::cout << "\033[35mFiles:\033[0m Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
+        std::cout << "\033[35mFiles:\033[0m Found at position: " << foundPos
+                  << ", cursor now at: " << editor_state.cursor_pos << std::endl;
     } else {
         std::cout << "\033[35mFiles:\033[0m  Not found" << std::endl;
     }
@@ -525,7 +580,8 @@ void FileExplorer::findPrevious() {
 
     size_t foundPos = fileContent.rfind(findText, startPos);
 
-    std::cout << "\033[35mFiles:\033[0m  Searching backwards for '" << findText << "' starting from position " << startPos << std::endl;
+    std::cout << "\033[35mFiles:\033[0m  Searching backwards for '" << findText << "' starting from position "
+              << startPos << std::endl;
 
     if (foundPos == std::string::npos) {
         // Wrap around to the end
@@ -538,7 +594,8 @@ void FileExplorer::findPrevious() {
         editor_state.cursor_pos = foundPos;
         editor_state.selection_start = foundPos;
         editor_state.selection_end = foundPos + findText.length();
-        std::cout << "\033[35mFiles:\033[0m  Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
+        std::cout << "\033[35mFiles:\033[0m  Found at position: " << foundPos
+                  << ", cursor now at: " << editor_state.cursor_pos << std::endl;
     } else {
         std::cout << "\033[35mFiles:\033[0m Not found" << std::endl;
     }
@@ -684,17 +741,23 @@ void FileExplorer::handleRedo() {
         applyContentChange(state, true); // Pre-allocate memory for redo
     }
 }
-
 void FileExplorer::saveCurrentFile() {
     if (!currentFile.empty() && _unsavedChanges) {
+        // Check if we're dealing with a truncated file
+        if (fileContent.find("[File truncated - showing first") != std::string::npos) {
+            std::cerr << "\033[35mFiles:\033[0m Cannot save truncated file content" << std::endl;
+            // TODO: Show warning to user that they can't save changes to truncated files
+            return;
+        }
+
         std::ofstream file(currentFile);
         if (file.is_open()) {
             file << fileContent;
             file.close();
             _unsavedChanges = false;
-            std::cout << "\033[35mFiles:\033[0m  File saved: " << currentFile << std::endl;
+            std::cout << "\033[35mFiles:\033[0m File saved: " << currentFile << std::endl;
         } else {
-            std::cerr << "\033[35mFiles:\033[0m  Unable to save file: " << currentFile << std::endl;
+            std::cerr << "\033[35mFiles:\033[0m Unable to save file: " << currentFile << std::endl;
         }
     }
 }

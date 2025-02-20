@@ -61,7 +61,26 @@ void Settings::loadSettings() {
         settings["shader_toggle"] = true; // default to shader enabled
     }
     if (!settings.contains("themes")) {
-        settings["themes"] = {{"default", {{"function", {1.0f, 1.0f, 1.0f, 1.0f}}, {"text", {1.0f, 1.0f, 1.0f, 1.0f}}, {"background", {0.2f, 0.2f, 0.2f, 1.0f}}, {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}}, {"string", {0.87f, 0.87f, 0.0f, 1.0f}}, {"number", {0.0f, 0.8f, 0.8f, 1.0f}}, {"comment", {0.5f, 0.5f, 0.5f, 1.0f}}, {"heading", {0.9f, 0.5f, 0.2f, 1.0f}}, {"bold", {1.0f, 0.7f, 0.7f, 1.0f}}, {"italic", {0.7f, 1.0f, 0.7f, 1.0f}}, {"link", {0.4f, 0.4f, 1.0f, 1.0f}}, {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}}, {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}}, {"tag", {0.3f, 0.7f, 0.9f, 1.0f}}, {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}}, {"selector", {0.9f, 0.4f, 0.6f, 1.0f}}, {"property", {0.6f, 0.9f, 0.4f, 1.0f}}, {"value", {0.4f, 0.6f, 0.9f, 1.0f}}, {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
+        settings["themes"] = {{"default",
+                               {{"function", {1.0f, 1.0f, 1.0f, 1.0f}},
+                                {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
+                                {"background", {0.2f, 0.2f, 0.2f, 1.0f}},
+                                {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
+                                {"string", {0.87f, 0.87f, 0.0f, 1.0f}},
+                                {"number", {0.0f, 0.8f, 0.8f, 1.0f}},
+                                {"comment", {0.5f, 0.5f, 0.5f, 1.0f}},
+                                {"heading", {0.9f, 0.5f, 0.2f, 1.0f}},
+                                {"bold", {1.0f, 0.7f, 0.7f, 1.0f}},
+                                {"italic", {0.7f, 1.0f, 0.7f, 1.0f}},
+                                {"link", {0.4f, 0.4f, 1.0f, 1.0f}},
+                                {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}},
+                                {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}},
+                                {"tag", {0.3f, 0.7f, 0.9f, 1.0f}},
+                                {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}},
+                                {"selector", {0.9f, 0.4f, 0.6f, 1.0f}},
+                                {"property", {0.6f, 0.9f, 0.4f, 1.0f}},
+                                {"value", {0.4f, 0.6f, 0.9f, 1.0f}},
+                                {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
     }
 
     splitPos = settings["splitPos"].get<float>();
@@ -97,7 +116,11 @@ void Settings::checkSettingsFile() {
         lastSettingsModification = currentModification;
 
         // Rest of the existing check logic remains the same
-        if (oldSettings["backgroundColor"] != settings["backgroundColor"] || oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] || oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] || oldSettings["rainbow"] != settings["rainbow"] || oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"]) {
+        if (oldSettings["backgroundColor"] != settings["backgroundColor"] ||
+            oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] ||
+            oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] ||
+            oldSettings["rainbow"] != settings["rainbow"] ||
+            oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
 
             // Check if theme or themes have changed
@@ -115,13 +138,17 @@ void Settings::checkSettingsFile() {
 void Settings::renderSettingsWindow() {
     if (!showSettingsWindow)
         return;
-
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
     // Center the window - make height auto-adjustable
     ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always); // Fixed height
-    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-
-    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize; // Removed NoScrollbar and NoScrollWithMouse
-
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f),
+                            ImGuiCond_Always,
+                            ImVec2(0.5f, 0.5f));
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | 
+                                 ImGuiWindowFlags_NoResize | 
+                                 ImGuiWindowFlags_NoMove |
+                                 ImGuiWindowFlags_AlwaysAutoResize |
+                                 ImGuiWindowFlags_Modal;
     // Push custom styles for the window
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -129,7 +156,23 @@ void Settings::renderSettingsWindow() {
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
+    
     ImGui::Begin("Settings", nullptr, windowFlags);
+
+    // Add focus detection
+    static bool wasFocused = false;
+    bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+    
+    if (wasFocused && !isFocused) {
+        std::cout << "Settings window lost focus!" << std::endl;
+        std::cout << "Settings window lost focus!" << std::endl;
+        showSettingsWindow = false;
+        saveSettings();
+    } else if (!wasFocused && isFocused) {
+        std::cout << "Settings window gained focus!" << std::endl;
+    }
+    wasFocused = isFocused;
+
 
     // Check for clicks outside window
     if (ImGui::IsMouseClicked(0)) {
@@ -137,7 +180,8 @@ void Settings::renderSettingsWindow() {
         ImVec2 windowPos = ImGui::GetWindowPos();
         ImVec2 windowSize = ImGui::GetWindowSize();
 
-        bool isOutside = mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y);
+        bool isOutside = mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) ||
+                         mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y);
 
         if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
             showSettingsWindow = false;
@@ -164,7 +208,11 @@ void Settings::renderSettingsWindow() {
     ImGui::SetCursorPos(cursor_pos);
 
     ImTextureID closeIcon = gFileExplorer.getIcon("close");
-    ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), ImVec2(0, 0), ImVec2(1, 1), isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
+    ImGui::Image(closeIcon,
+                 ImVec2(closeIconSize, closeIconSize),
+                 ImVec2(0, 0),
+                 ImVec2(1, 1),
+                 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 
     ImGui::EndGroup();
     ImGui::Separator();
@@ -184,7 +232,10 @@ void Settings::renderSettingsWindow() {
 
     // Background Color
     auto &bgColorArray = settings["backgroundColor"];
-    ImVec4 bgColor(bgColorArray[0].get<float>(), bgColorArray[1].get<float>(), bgColorArray[2].get<float>(), bgColorArray[3].get<float>());
+    ImVec4 bgColor(bgColorArray[0].get<float>(),
+                   bgColorArray[1].get<float>(),
+                   bgColorArray[2].get<float>(),
+                   bgColorArray[3].get<float>());
 
     if (ImGui::ColorEdit3("Background Color", (float *)&bgColor)) {
         settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
@@ -199,7 +250,10 @@ void Settings::renderSettingsWindow() {
     // Create helper lambda for color editing
     auto editThemeColor = [&](const char *label, const char *colorKey) {
         auto &colorArray = themeColors[colorKey];
-        ImVec4 color(colorArray[0].get<float>(), colorArray[1].get<float>(), colorArray[2].get<float>(), colorArray[3].get<float>());
+        ImVec4 color(colorArray[0].get<float>(),
+                     colorArray[1].get<float>(),
+                     colorArray[2].get<float>(),
+                     colorArray[3].get<float>());
 
         ImGui::TextUnformatted(label);
         ImGui::SameLine(200);
@@ -259,5 +313,5 @@ void Settings::renderSettingsWindow() {
 
     // Pop all styles
     ImGui::PopStyleColor(3);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
 }

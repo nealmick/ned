@@ -52,7 +52,24 @@ class Terminal {
     };
 
     // Terminal modes
-    enum Mode { MODE_WRAP = 1 << 0, MODE_INSERT = 1 << 1, MODE_ALTSCREEN = 1 << 2, MODE_CRLF = 1 << 3, MODE_ECHO = 1 << 4, MODE_PRINT = 1 << 5, MODE_UTF8 = 1 << 6, MODE_SIXEL = 1 << 7, MODE_BRACKETPASTE = 1 << 8, MODE_APPCURSOR = 1 << 9, MODE_MOUSEBTN = 1 << 10, MODE_MOUSESGR = 1 << 11, MODE_MOUSEX10 = 1 << 12, MODE_MOUSEMANY = 1 << 13, MODE_SMOOTHSCROLL = 1 << 14, MODE_VISUALBELL = 1 << 15 };
+    enum Mode {
+        MODE_WRAP = 1 << 0,
+        MODE_INSERT = 1 << 1,
+        MODE_ALTSCREEN = 1 << 2,
+        MODE_CRLF = 1 << 3,
+        MODE_ECHO = 1 << 4,
+        MODE_PRINT = 1 << 5,
+        MODE_UTF8 = 1 << 6,
+        MODE_SIXEL = 1 << 7,
+        MODE_BRACKETPASTE = 1 << 8,
+        MODE_APPCURSOR = 1 << 9,
+        MODE_MOUSEBTN = 1 << 10,
+        MODE_MOUSESGR = 1 << 11,
+        MODE_MOUSEX10 = 1 << 12,
+        MODE_MOUSEMANY = 1 << 13,
+        MODE_SMOOTHSCROLL = 1 << 14,
+        MODE_VISUALBELL = 1 << 15
+    };
 
     struct STREscape {
         char type;                     // ESC type
@@ -71,7 +88,16 @@ class Terminal {
 
     enum CursorState { CURSOR_DEFAULT = 0, CURSOR_WRAPNEXT = 1, CURSOR_ORIGIN = 2 };
 
-    enum EscapeState { ESC_START = 1, ESC_CSI = 2, ESC_STR = 4, ESC_ALTCHARSET = 8, ESC_STR_END = 16, ESC_UTF8 = 64, ESC_TEST = 32, ESC_APPCURSOR = 128 };
+    enum EscapeState {
+        ESC_START = 1,
+        ESC_CSI = 2,
+        ESC_STR = 4,
+        ESC_ALTCHARSET = 8,
+        ESC_STR_END = 16,
+        ESC_UTF8 = 64,
+        ESC_TEST = 32,
+        ESC_APPCURSOR = 128
+    };
 
     enum ColorMode { COLOR_BASIC = 0, COLOR_256 = 1, COLOR_TRUE = 2 };
 
@@ -150,7 +176,13 @@ class Terminal {
         char mode[2];          // Final character(s)
     };
 
+    struct GlyphColors {
+        ImVec4 fg;
+        ImVec4 bg;
+    };
+
     // Selection state
+    static constexpr float DRAG_THRESHOLD = 3.0f;
     Selection sel;
 
     // Thread and synchronization
@@ -265,6 +297,32 @@ class Terminal {
 
     void tmoveato(int x, int y); // Absolute move with origin mode
     void tsetmode(int priv, int set, const std::vector<int> &args);
+
+
+    // Render helper functions
+    void checkFontSizeChange();
+    void setupWindow();
+    void handleTerminalResize();
+    void handleMouseInput(const ImGuiIO& io);
+    void handleScrollback(const ImGuiIO& io, int new_rows);
+    void handleKeyboardInput(const ImGuiIO& io);
+    void handleSpecialKeys(const ImGuiIO& io);
+    void handleControlCombos(const ImGuiIO& io);
+    void handleRegularTextInput(const ImGuiIO& io);
+
+    // RenderBuffer helper functions
+    void setupRenderContext(ImDrawList*& drawList, ImVec2& pos, float& charWidth, float& lineHeight);
+    void renderAltScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight);
+    void renderMainScreen(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight);
+    
+    // Shared rendering helpers
+    void renderSelectionHighlight(ImDrawList* drawList, const ImVec2& pos, float charWidth, float lineHeight, 
+                                int startY, int endY, int screenOffset = 0);
+    void renderGlyph(ImDrawList* drawList, const Glyph& glyph, const ImVec2& charPos, 
+                    float charWidth, float lineHeight);
+    void renderCursor(ImDrawList* drawList, const ImVec2& cursorPos, const Glyph& cursorCell,
+                     float charWidth, float lineHeight, float alpha);
+    void handleGlyphColors(const Glyph& glyph, ImVec4& fg, ImVec4& bg);
 
     static constexpr const ImVec4 defaultColorMap[16] = {
         // Standard colors

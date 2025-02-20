@@ -57,12 +57,44 @@ class Lexer {
     };
 
     Lexer() {
-        keywords = {"and", "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except", "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield"};
+        keywords = {"and",    "as",     "assert", "break",   "class",    "continue", "def",    "del",  "elif",
+                    "else",   "except", "False",  "finally", "for",      "from",     "global", "if",   "import",
+                    "in",     "is",     "lambda", "None",    "nonlocal", "not",      "or",     "pass", "raise",
+                    "return", "True",   "try",    "while",   "with",     "yield"};
 
         // Add built-in types
-        builtinTypes = {"int", "str", "float", "bool", "list", "dict", "set", "tuple", "bytes", "object", "BaseException", "Exception"};
+        builtinTypes = {"int",
+                        "str",
+                        "float",
+                        "bool",
+                        "list",
+                        "dict",
+                        "set",
+                        "tuple",
+                        "bytes",
+                        "object",
+                        "BaseException",
+                        "Exception"};
 
-        operators = {{"+", TokenType::Operator}, {"-", TokenType::Operator}, {"*", TokenType::Operator}, {"/", TokenType::Operator}, {"//", TokenType::Operator}, {"%", TokenType::Operator}, {"**", TokenType::Operator}, {"=", TokenType::Operator}, {"==", TokenType::Operator}, {"!=", TokenType::Operator}, {">", TokenType::Operator}, {"<", TokenType::Operator}, {">=", TokenType::Operator}, {"<=", TokenType::Operator}, {"and", TokenType::Operator}, {"or", TokenType::Operator}, {"not", TokenType::Operator}, {"in", TokenType::Operator}, {"is", TokenType::Operator}};
+        operators = {{"+", TokenType::Operator},
+                     {"-", TokenType::Operator},
+                     {"*", TokenType::Operator},
+                     {"/", TokenType::Operator},
+                     {"//", TokenType::Operator},
+                     {"%", TokenType::Operator},
+                     {"**", TokenType::Operator},
+                     {"=", TokenType::Operator},
+                     {"==", TokenType::Operator},
+                     {"!=", TokenType::Operator},
+                     {">", TokenType::Operator},
+                     {"<", TokenType::Operator},
+                     {">=", TokenType::Operator},
+                     {"<=", TokenType::Operator},
+                     {"and", TokenType::Operator},
+                     {"or", TokenType::Operator},
+                     {"not", TokenType::Operator},
+                     {"in", TokenType::Operator},
+                     {"is", TokenType::Operator}};
         colorsNeedUpdate = true;
     }
 
@@ -295,7 +327,10 @@ class Lexer {
             return cachedColors.function; // Use function color for .
 
         case TokenType::Operator:
-            return ImVec4(cachedColors.text.x * 0.8f, cachedColors.text.y * 0.8f, cachedColors.text.z * 0.8f, cachedColors.text.w);
+            return ImVec4(cachedColors.text.x * 0.8f,
+                          cachedColors.text.y * 0.8f,
+                          cachedColors.text.z * 0.8f,
+                          cachedColors.text.w);
 
         default:
             return cachedColors.text;
