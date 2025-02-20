@@ -31,7 +31,8 @@ class Bookmarks {
         Bookmark() : filePath(""), cursorPosition(0), lineNumber(0), scrollX(0), scrollY(0), isSet(false) {}
 
         // Main constructor - updated to include scroll positions
-        Bookmark(const std::string &path, int cursor, int line, float sx, float sy, bool set) : filePath(path), cursorPosition(cursor), lineNumber(line), scrollX(sx), scrollY(sy), isSet(set) {}
+        Bookmark(const std::string &path, int cursor, int line, float sx, float sy, bool set)
+            : filePath(path), cursorPosition(cursor), lineNumber(line), scrollX(sx), scrollY(sy), isSet(set) {}
     };
 
     static constexpr size_t NUM_BOOKMARKS = 9;
@@ -47,14 +48,17 @@ class Bookmarks {
             bookmarks[slot] = Bookmark(filePath, cursorPosition, lineNumber, scrollX, scrollY, true);
 
             // Debug print
-            std::cout << "Set bookmark " << slot << " with scroll positions - X: " << scrollX << ", Y: " << scrollY << std::endl;
+            std::cout << "Set bookmark " << slot << " with scroll positions - X: " << scrollX << ", Y: " << scrollY
+                      << std::endl;
         }
     }
     inline bool jumpToBookmark(size_t slot, FileExplorer &fileExplorer, EditorState &editorState) {
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
             if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
                 // Create callback to set scroll after file loads
-                auto setScroll = [this, slot]() { gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY); };
+                auto setScroll = [this, slot]() {
+                    gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+                };
 
                 fileExplorer.loadFileContent(bookmarks[slot].filePath, setScroll);
             } else {
@@ -82,7 +86,8 @@ class Bookmarks {
             }
             return;
         }
-        const ImGuiKey numberKeys[9] = {ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5, ImGuiKey_6, ImGuiKey_7, ImGuiKey_8, ImGuiKey_9};
+        const ImGuiKey numberKeys[9] = {
+            ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5, ImGuiKey_6, ImGuiKey_7, ImGuiKey_8, ImGuiKey_9};
 
         for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
             if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
@@ -103,9 +108,13 @@ class Bookmarks {
     inline void renderBookmarksWindow() {
         if (showBookmarksWindow) {
             ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f),
+                                    ImGuiCond_Always,
+                                    ImVec2(0.5f, 0.5f));
 
-            ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+            ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                           ImGuiWindowFlags_NoScrollWithMouse;
 
             // Push custom styles for the window
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);  // Add rounded corners
@@ -119,12 +128,15 @@ class Bookmarks {
             ImGui::TextUnformatted("Bookmarks");
             ImGui::Separator();
 
-            ImGui::BeginChild("ScrollingRegion", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), false, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::BeginChild("ScrollingRegion",
+                              ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
+                              false,
+                              ImGuiWindowFlags_HorizontalScrollbar);
             for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
                 if (bookmarks[i].isSet) {
                     ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "%zu:", i + 1);
                     ImGui::SameLine();
-                    ImGui::TextWrapped("%s Line %d", bookmarks[i].filePath.c_str(), bookmarks[i].lineNumber);
+                    ImGui::TextWrapped("%s Line %d", bookmarks[i].filePath.c_str(), bookmarks[i].lineNumber - 1);
                 } else {
                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), " %zu: Empty slot", i + 1);
                 }

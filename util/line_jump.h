@@ -28,7 +28,8 @@ class LineJump {
             justJumped = false;
         }
 
-        if (main_key && (ImGui::IsKeyPressed(ImGuiKey_Semicolon) || (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon)))) {
+        if (main_key &&
+            (ImGui::IsKeyPressed(ImGuiKey_Semicolon) || (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon)))) {
             showLineJumpWindow = !showLineJumpWindow;
             if (showLineJumpWindow) {                                     // Only close others if we're opening
                 ClosePopper::closeAllExcept(ClosePopper::Type::LineJump); // RIGHT
@@ -56,16 +57,23 @@ class LineJump {
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
         ImGui::SetNextWindowSize(ImVec2(400, 90), ImGuiCond_Always);
-        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.2f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.2f),
+                                ImGuiCond_Always,
+                                ImVec2(0.5f, 0.5f));
 
-        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                                       ImGuiWindowFlags_NoScrollWithMouse;
 
         if (ImGui::Begin("Line Jump", nullptr, windowFlags)) {
             ImGui::TextUnformatted("Jump to line:");
 
             ImGui::SetKeyboardFocusHere();
 
-            if (ImGui::InputText("##linejump", lineNumberBuffer, sizeof(lineNumberBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (ImGui::InputText("##linejump",
+                                 lineNumberBuffer,
+                                 sizeof(lineNumberBuffer),
+                                 ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue)) {
                 int lineNumber = std::atoi(lineNumberBuffer);
                 jumpToLine(lineNumber - 1, state);
                 showLineJumpWindow = false;
@@ -127,7 +135,9 @@ class LineJump {
         state.pendingBookmarkScroll = true;
         state.pendingScrollY = target_scroll;
 
-        std::cout << "Jumping to line " << (lineNumber + 1) << " (target scroll pos: " << target_scroll << ", window height: " << window_height << ", visible lines: " << visible_lines << ", line height: " << line_height << ")" << std::endl;
+        std::cout << "Jumping to line " << (lineNumber + 1) << " (target scroll pos: " << target_scroll
+                  << ", window height: " << window_height << ", visible lines: " << visible_lines
+                  << ", line height: " << line_height << ")" << std::endl;
     }
 
     inline bool isWindowOpen() const { return showLineJumpWindow; }

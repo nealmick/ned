@@ -28,7 +28,10 @@ void DebugConsole::render() {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.1f, 0.1f, 0.1f, 0.3f));
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 
-    ImGui::BeginChild("ScrollingRegion", ImVec2(ImGui::GetWindowWidth() * 0.6f, 150), true, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("ScrollingRegion",
+                      ImVec2(ImGui::GetWindowWidth() * 0.6f, 150),
+                      true,
+                      ImGuiWindowFlags_HorizontalScrollbar);
 
     // Iterate through logs from beginning to end (oldest first)
     auto it = logs.begin();

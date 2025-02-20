@@ -58,7 +58,10 @@ struct EditorState {
     float pendingScrollX;
     float pendingScrollY;
 
-    EditorState() : ensure_cursor_visible_frames(0), cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false), line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true), cursor_blink_time(0.0f), activateFindBox(false), blockInput(false), current_line(0) {}
+    EditorState()
+        : ensure_cursor_visible_frames(0), cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false),
+          line_starts({0}), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true), cursor_blink_time(0.0f),
+          activateFindBox(false), blockInput(false), current_line(0) {}
 };
 
 // Forward declarations
@@ -99,10 +102,25 @@ class Editor {
         return false;
     }
 
-    int getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height);
+    int getCharIndexFromCoords(const std::string &text,
+                               const ImVec2 &click_pos,
+                               const ImVec2 &text_start_pos,
+                               const std::vector<int> &line_starts,
+                               float line_height);
 
-    void handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width);
-    void handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible);
+    void handleCursorMovement(const std::string &text,
+                              EditorState &state,
+                              const ImVec2 &text_pos,
+                              float line_height,
+                              float window_height,
+                              float window_width);
+    void handleEditorInput(std::string &text,
+                           EditorState &state,
+                           const ImVec2 &text_start_pos,
+                           float line_height,
+                           bool &text_changed,
+                           std::vector<ImVec4> &colors,
+                           CursorVisibility &ensure_cursor_visible);
 
     void updateLineStarts(const std::string &text, std::vector<int> &line_starts);
     int getLineFromPos(const std::vector<int> &line_starts, int pos);
@@ -123,7 +141,12 @@ class Editor {
 
     // Cursor and viewport management
     float calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
-    ScrollChange ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width);
+    ScrollChange ensureCursorVisible(const ImVec2 &text_pos,
+                                     const std::string &text,
+                                     EditorState &state,
+                                     float line_height,
+                                     float window_height,
+                                     float window_width);
 
     // Text selection
     void selectAllText(EditorState &state, const std::string &text);
@@ -140,9 +163,21 @@ class Editor {
     void moveCursorVertically(std::string &text, EditorState &state, int line_delta);
 
     // Rendering
-    void renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height);
+    void renderTextWithSelection(ImDrawList *drawList,
+                                 const ImVec2 &pos,
+                                 const std::string &text,
+                                 const std::vector<ImVec4> &colors,
+                                 const EditorState &state,
+                                 float line_height);
     void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
-    void renderLineNumbers(const ImVec2 &pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState &editor_state, float blink_time);
+    void renderLineNumbers(const ImVec2 &pos,
+                           float line_number_width,
+                           float line_height,
+                           int num_lines,
+                           float scroll_y,
+                           float window_height,
+                           const EditorState &editor_state,
+                           float blink_time);
 
     // Utility functions
     float calculateTextWidth(const std::string &text, const std::vector<int> &line_starts);
@@ -171,32 +206,101 @@ class Editor {
     bool hasScrollRequest = false;
     bool showFileFinder = false;
 
-    void handleCharacterInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start, int &input_end);
-    void handleEnterKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
-    void handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
-    void handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start);
-    void handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
+    void handleCharacterInput(std::string &text,
+                              std::vector<ImVec4> &colors,
+                              EditorState &state,
+                              bool &text_changed,
+                              int &input_start,
+                              int &input_end);
+    void handleEnterKey(
+        std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
+    void handleDeleteKey(
+        std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
+    void handleBackspaceKey(
+        std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start);
+    void handleTabKey(
+        std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
 
     // handling editor input
-    bool processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible);
+    bool processIndentRemoval(std::string &text,
+                              EditorState &state,
+                              bool &text_changed,
+                              CursorVisibility &ensure_cursor_visible);
     void processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible);
     void processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
-    void processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
-    void processWordMovement(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
+    void processUndoRedo(std::string &text,
+                         std::vector<ImVec4> &colors,
+                         EditorState &state,
+                         bool &text_changed,
+                         CursorVisibility &ensure_cursor_visible,
+                         bool shift_pressed);
+    void processWordMovement(std::string &text,
+                             EditorState &state,
+                             CursorVisibility &ensure_cursor_visible,
+                             bool shift_pressed);
     void processCursorJump(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
     void processMouseWheelScrolling(float line_height, EditorState &state);
-    void processClipboardShortcuts(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible);
+    void processClipboardShortcuts(std::string &text,
+                                   std::vector<ImVec4> &colors,
+                                   EditorState &state,
+                                   bool &text_changed,
+                                   CursorVisibility &ensure_cursor_visible);
 
     bool validateAndResizeColors(std::string &text, std::vector<ImVec4> &colors);
-    void setupEditorWindow(const char *label, ImVec2 &size, float &line_number_width, float &line_height, float &editor_top_margin, float &text_left_margin);
+    void setupEditorWindow(const char *label,
+                           ImVec2 &size,
+                           float &line_number_width,
+                           float &line_height,
+                           float &editor_top_margin,
+                           float &text_left_margin);
     ImVec2 renderLineNumbersPanel(float line_number_width, float editor_top_margin);
-    void beginTextEditorChild(const char *label, float remaining_width, float content_width, float content_height, float &current_scroll_y, float &current_scroll_x, ImVec2 &text_pos, float editor_top_margin, float text_left_margin, EditorState &editor_state);
-    void processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos);
-    void processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x, EditorState &editor_state);
-    void adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &editor_state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible);
-    void renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos);
-    void updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_pos, float line_number_width, float editor_top_margin, const ImVec2 &size, EditorState &editor_state, float line_height, float total_height);
-    bool validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos);
+    void beginTextEditorChild(const char *label,
+                              float remaining_width,
+                              float content_width,
+                              float content_height,
+                              float &current_scroll_y,
+                              float &current_scroll_x,
+                              ImVec2 &text_pos,
+                              float editor_top_margin,
+                              float text_left_margin,
+                              EditorState &editor_state);
+    void processTextEditorInput(std::string &text,
+                                EditorState &editor_state,
+                                const ImVec2 &text_start_pos,
+                                float line_height,
+                                bool &text_changed,
+                                std::vector<ImVec4> &colors,
+                                CursorVisibility &ensure_cursor_visible,
+                                int initial_cursor_pos);
+    void processMouseWheelForEditor(float line_height,
+                                    float &current_scroll_y,
+                                    float &current_scroll_x,
+                                    EditorState &editor_state);
+    void adjustScrollForCursorVisibility(const ImVec2 &text_pos,
+                                         const std::string &text,
+                                         EditorState &editor_state,
+                                         float line_height,
+                                         float window_height,
+                                         float window_width,
+                                         float &current_scroll_y,
+                                         float &current_scroll_x,
+                                         CursorVisibility &ensure_cursor_visible);
+    void renderEditorContent(const std::string &text,
+                             const std::vector<ImVec4> &colors,
+                             EditorState &editor_state,
+                             float line_height,
+                             const ImVec2 &text_pos);
+    void updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_pos,
+                                               float line_number_width,
+                                               float editor_top_margin,
+                                               const ImVec2 &size,
+                                               EditorState &editor_state,
+                                               float line_height,
+                                               float total_height);
+    bool validateHighlightContentParams(const std::string &content,
+                                        const std::vector<ImVec4> &colors,
+                                        int start_pos,
+                                        int end_pos);
 };
 
 // Utility functions
