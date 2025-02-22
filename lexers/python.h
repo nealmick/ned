@@ -76,7 +76,6 @@ class Lexer
 
     std::vector<Token> tokenize(const std::string &code)
     {
-        std::cout << "inside tokenizer.." << std::endl;
         std::vector<Token> tokens;
         size_t pos = 0;
         size_t lastPos = 0;
@@ -85,7 +84,6 @@ class Lexer
 
         try
         {
-            std::cout << "Starting tokenization loop" << std::endl;
             while (pos < code.length() && iterations < maxIterations)
             {
                 lastPos = pos;
@@ -127,16 +125,16 @@ class Lexer
 
             if (iterations >= maxIterations)
             {
-                std::cerr << "Tokenizer exceeded maximum iterations." << std::endl;
+                std::cerr << "🔴 Tokenizer exceeded maximum iterations." << std::endl;
             }
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Exception in tokenize: " << e.what() << std::endl;
+            std::cerr << "🔴 Exception in tokenize: " << e.what() << std::endl;
         }
         catch (...)
         {
-            std::cerr << "Unknown exception in tokenize" << std::endl;
+            std::cerr << "🔴 Unknown exception in tokenize" << std::endl;
         }
 
         return tokens;
@@ -163,7 +161,7 @@ class Lexer
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Exception in applyHighlighting: " << e.what() << std::endl;
+            std::cerr << "🔴 Exception in applyHighlighting: " << e.what() << std::endl;
         }
     }
     void forceColorUpdate() { colorsNeedUpdate = true; }

@@ -16,7 +16,11 @@ find_package(glfw3 REQUIRED)
 set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
 set(GLEW_LIBRARY_DIRS "/usr/local/Cellar/glew/2.2.0_1/lib")
 set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
-
+if(APPLE)
+    add_definitions(-DGL_SILENCE_DEPRECATION)
+    # For the NFD cocoa warnings
+    add_compile_options(-Wno-deprecated-declarations)
+endif()
 # NFD setup
 set(NFD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog)
 if(APPLE)
@@ -24,7 +28,7 @@ if(APPLE)
         ${NFD_DIR}/src/nfd_common.c
         ${NFD_DIR}/src/nfd_cocoa.m
     )
-    target_compile_options(nfd PRIVATE -x objective-c)
+    target_compile_options(nfd PRIVATE -x objective-c -Wno-deprecated-declarations)
     target_link_libraries(nfd PRIVATE "-framework Cocoa")
 elseif(UNIX)
     add_library(nfd STATIC

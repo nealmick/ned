@@ -152,11 +152,11 @@ class Lexer
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Exception in C++ tokenize: " << e.what() << std::endl;
+            std::cerr << "🔴 Exception in C++ tokenize: " << e.what() << std::endl;
         }
         catch (...)
         {
-            std::cerr << "Unknown exception in C++ tokenize" << std::endl;
+            std::cerr << "🔴 Unknown exception in C++ tokenize" << std::endl;
         }
 
         std::cout << "Exiting C++ tokenizer, tokens size: " << tokens.size() << std::endl;
@@ -188,12 +188,12 @@ class Lexer
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Exception in C++ applyHighlighting: " << e.what() << std::endl;
+            std::cerr << "🔴 Exception in C++ applyHighlighting: " << e.what() << std::endl;
             std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
         catch (...)
         {
-            std::cerr << "Unknown exception in C++ applyHighlighting" << std::endl;
+            std::cerr << "🔴 Unknown exception in C++ applyHighlighting" << std::endl;
             std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
     }
