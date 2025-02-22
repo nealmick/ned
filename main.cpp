@@ -6,7 +6,6 @@
     https://github.com/nealmick/ned
 */
 
-#define GL_SILENCE_DEPRECATION
 #define GLEW_NO_GLU
 
 #include <GL/glew.h>
@@ -172,7 +171,7 @@ int main()
         // Handle shader effects
         if (shader_toggle)
         {
-            renderWithShader(crtShader, fb.framebuffer, fb.renderTexture, quad.VAO, display_w, display_h,currentTime); // Changed from quadVAO to quad.VAO
+            renderWithShader(crtShader, fb.framebuffer, fb.renderTexture, quad.VAO, display_w, display_h, currentTime); // Changed from quadVAO to quad.VAO
         }
         else
         {
@@ -202,7 +201,7 @@ GLFWwindow *CreateWindow()
     GLFWwindow *window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
     if (window == NULL)
     {
-        std::cerr << "Failed to create GLFW window" << std::endl;
+        std::cerr << "🔴 Failed to create GLFW window" << std::endl;
         glfwTerminate();
         exit(1);
     }
@@ -257,17 +256,17 @@ ImFont *LoadFont(const std::string &fontName, float fontSize)
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL)
     {
-        std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
+        // std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
     }
     else
     {
-        std::cerr << "getcwd() error" << std::endl;
+        std::cerr << "🔴 getcwd() error" << std::endl;
     }
 
-    std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
+    // std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
     if (!std::filesystem::exists(fontPath))
     {
-        std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
+        std::cerr << "🔴 \033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
@@ -301,7 +300,7 @@ ImFont *LoadFont(const std::string &fontName, float fontSize)
 
     if (font == nullptr)
     {
-        std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
+        std::cerr << "🔴 \033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
     std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
@@ -312,7 +311,7 @@ void InitializeGLFW()
 {
     if (!glfwInit())
     {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
+        std::cerr << "🔴 Failed to initialize GLFW" << std::endl;
         exit(1);
     }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -740,7 +739,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader)
     glewExperimental = GL_TRUE;
     if (GLenum err = glewInit(); GLEW_OK != err)
     {
-        std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+        std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
         glfwTerminate();
         return false;
     }
@@ -748,7 +747,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader)
 
     if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl"))
     {
-        std::cerr << "Shader load failed" << std::endl;
+        std::cerr << "🔴 Shader load failed" << std::endl;
         glfwTerminate();
         return false;
     }
@@ -768,7 +767,7 @@ void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont)
     currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
     if (currentFont == nullptr)
     {
-        std::cerr << "Failed to load font, using default font" << std::endl;
+        std::cerr << "🔴 Failed to load font, using default font" << std::endl;
         currentFont = ImGui::GetIO().Fonts->AddFontDefault();
     }
 }

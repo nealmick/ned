@@ -3,8 +3,6 @@
     Description: Main file logic, handles rendering file tree, saving after changes, and more...
 */
 
-#define GL_SILENCE_DEPRECATION
-
 #include <algorithm>
 #include <fstream>
 #include <iostream>

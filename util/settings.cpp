@@ -24,7 +24,7 @@ Settings::Settings() : splitPos(0.3f) {}
 void Settings::loadSettings()
 {
     settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
-    std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
+    // std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
 
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open())
