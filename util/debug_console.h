@@ -7,13 +7,15 @@
 #include <string>
 #include <vector>
 
-class DebugConsole {
+class DebugConsole
+{
   private:
     // Forward declare ConsoleBuf
     class ConsoleBuf;
 
   public:
-    static DebugConsole &getInstance() {
+    static DebugConsole &getInstance()
+    {
         static DebugConsole instance;
         return instance;
     }
@@ -28,41 +30,52 @@ class DebugConsole {
     std::deque<std::string> logs;
     bool isVisible;
 
-    class ConsoleBuf : public std::streambuf {
+    class ConsoleBuf : public std::streambuf
+    {
       public:
         ConsoleBuf(DebugConsole &console, std::streambuf *orig) : console(console), originalBuffer(orig) {}
 
       protected:
-        virtual int_type overflow(int_type c = traits_type::eof()) override {
-            if (c != traits_type::eof()) {
-                if (c == '\n') {
+        virtual int_type overflow(int_type c = traits_type::eof()) override
+        {
+            if (c != traits_type::eof())
+            {
+                if (c == '\n')
+                {
                     buffer += '\n';
                     console.addLog(buffer);
                     // Write to original buffer
-                    if (originalBuffer) {
+                    if (originalBuffer)
+                    {
                         originalBuffer->sputn(buffer.c_str(), buffer.length());
                     }
                     buffer.clear();
-                } else {
+                }
+                else
+                {
                     buffer += static_cast<char>(c);
                 }
             }
             return c;
         }
 
-        virtual std::streamsize xsputn(const char *s, std::streamsize n) override {
+        virtual std::streamsize xsputn(const char *s, std::streamsize n) override
+        {
             std::string str(s, n);
             size_t pos;
-            while ((pos = str.find('\n')) != std::string::npos) {
+            while ((pos = str.find('\n')) != std::string::npos)
+            {
                 std::string line = str.substr(0, pos + 1);
                 console.addLog(line);
                 // Write to original buffer
-                if (originalBuffer) {
+                if (originalBuffer)
+                {
                     originalBuffer->sputn(line.c_str(), line.length());
                 }
                 str.erase(0, pos + 1);
             }
-            if (!str.empty()) {
+            if (!str.empty())
+            {
                 buffer += str;
             }
             return n;

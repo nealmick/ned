@@ -1,12 +1,13 @@
 /*
-    shader.h
-    Apply shaders to IMGUI output for visual effects
+    File: shader.h
+    Description: Apply shaders to IMGUI output for visual effects
 */
 
 #ifndef SHADER_H
 #define SHADER_H
 #include <string>
-class Shader {
+class Shader
+{
   public:
     // Constructor and destructor
     Shader();

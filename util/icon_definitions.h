@@ -2,7 +2,8 @@
 #include <string>
 #include <vector>
 
-namespace IconDefinitions {
+namespace IconDefinitions
+{
 static const std::vector<std::string> DEFAULT_ICONS = {"close.svg",
                                                        "gear.svg",
                                                        "gear-hover.svg",
