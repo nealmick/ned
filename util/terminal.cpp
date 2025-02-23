@@ -104,6 +104,7 @@ void Terminal::startShell()
         {
             exit(1);
         }
+        state.mode |= MODE_BRACKETPASTE;
 
         // Set window size
         struct winsize ws = {};
@@ -112,8 +113,6 @@ void Terminal::startShell()
         ioctl(STDIN_FILENO, TIOCSWINSZ, &ws);
 
         setenv("TERM", "xterm-256color", 1);
-
-        state.mode |= MODE_BRACKETPASTE;
 
         const char *shell = getenv("SHELL");
         if (!shell)

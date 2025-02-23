@@ -1,0 +1,122 @@
+[
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include  -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -x objective-c -o CMakeFiles/nfd.dir/lib/nativefiledialog/src/nfd_common.c.o -c /Users/neal/editor/lib/nativefiledialog/src/nfd_common.c",
+  "file": "/Users/neal/editor/lib/nativefiledialog/src/nfd_common.c",
+  "output": "CMakeFiles/nfd.dir/lib/nativefiledialog/src/nfd_common.c.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include  -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -x objective-c -o CMakeFiles/nfd.dir/lib/nativefiledialog/src/nfd_cocoa.m.o -c /Users/neal/editor/lib/nativefiledialog/src/nfd_cocoa.m",
+  "file": "/Users/neal/editor/lib/nativefiledialog/src/nfd_cocoa.m",
+  "output": "CMakeFiles/nfd.dir/lib/nativefiledialog/src/nfd_cocoa.m.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/util.dir/util/line_jump.cpp.o -c /Users/neal/editor/util/line_jump.cpp",
+  "file": "/Users/neal/editor/util/line_jump.cpp",
+  "output": "CMakeFiles/util.dir/util/line_jump.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/util.dir/util/file_finder.cpp.o -c /Users/neal/editor/util/file_finder.cpp",
+  "file": "/Users/neal/editor/util/file_finder.cpp",
+  "output": "CMakeFiles/util.dir/util/file_finder.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/main.cpp.o -c /Users/neal/editor/main.cpp",
+  "file": "/Users/neal/editor/main.cpp",
+  "output": "CMakeFiles/ned.dir/main.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/shaders/shader.cpp.o -c /Users/neal/editor/shaders/shader.cpp",
+  "file": "/Users/neal/editor/shaders/shader.cpp",
+  "output": "CMakeFiles/ned.dir/shaders/shader.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/util/settings.cpp.o -c /Users/neal/editor/util/settings.cpp",
+  "file": "/Users/neal/editor/util/settings.cpp",
+  "output": "CMakeFiles/ned.dir/util/settings.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/util/terminal.cpp.o -c /Users/neal/editor/util/terminal.cpp",
+  "file": "/Users/neal/editor/util/terminal.cpp",
+  "output": "CMakeFiles/ned.dir/util/terminal.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/util/close_popper.cpp.o -c /Users/neal/editor/util/close_popper.cpp",
+  "file": "/Users/neal/editor/util/close_popper.cpp",
+  "output": "CMakeFiles/ned.dir/util/close_popper.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/util/welcome.cpp.o -c /Users/neal/editor/util/welcome.cpp",
+  "file": "/Users/neal/editor/util/welcome.cpp",
+  "output": "CMakeFiles/ned.dir/util/welcome.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/util/debug_console.cpp.o -c /Users/neal/editor/util/debug_console.cpp",
+  "file": "/Users/neal/editor/util/debug_console.cpp",
+  "output": "CMakeFiles/ned.dir/util/debug_console.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/files.cpp.o -c /Users/neal/editor/files.cpp",
+  "file": "/Users/neal/editor/files.cpp",
+  "output": "CMakeFiles/ned.dir/files.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/editor.cpp.o -c /Users/neal/editor/editor.cpp",
+  "file": "/Users/neal/editor/editor.cpp",
+  "output": "CMakeFiles/ned.dir/editor.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/imgui.cpp.o -c /Users/neal/editor/lib/imgui/imgui.cpp",
+  "file": "/Users/neal/editor/lib/imgui/imgui.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/imgui.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/imgui_demo.cpp.o -c /Users/neal/editor/lib/imgui/imgui_demo.cpp",
+  "file": "/Users/neal/editor/lib/imgui/imgui_demo.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/imgui_demo.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/imgui_draw.cpp.o -c /Users/neal/editor/lib/imgui/imgui_draw.cpp",
+  "file": "/Users/neal/editor/lib/imgui/imgui_draw.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/imgui_draw.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/imgui_tables.cpp.o -c /Users/neal/editor/lib/imgui/imgui_tables.cpp",
+  "file": "/Users/neal/editor/lib/imgui/imgui_tables.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/imgui_tables.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/imgui_widgets.cpp.o -c /Users/neal/editor/lib/imgui/imgui_widgets.cpp",
+  "file": "/Users/neal/editor/lib/imgui/imgui_widgets.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/imgui_widgets.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/backends/imgui_impl_glfw.cpp.o -c /Users/neal/editor/lib/imgui/backends/imgui_impl_glfw.cpp",
+  "file": "/Users/neal/editor/lib/imgui/backends/imgui_impl_glfw.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/backends/imgui_impl_glfw.cpp.o"
+},
+{
+  "directory": "/Users/neal/editor/.build",
+  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ -DGL_SILENCE_DEPRECATION -I/Users/neal/editor/lib/imgui -I/Users/neal/editor/lib/imgui/backends -I/Users/neal/editor/lib/nativefiledialog/src -I/Users/neal/editor/lib/nativefiledialog/src/include -I/Users/neal/editor -I/Users/neal/editor/.build -I/usr/local/Cellar/glew/2.2.0_1/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/System/Library/Frameworks -isystem /usr/local/include -std=gnu++17 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk -mmacosx-version-min=14.5 -Wno-deprecated-declarations -o CMakeFiles/ned.dir/lib/imgui/backends/imgui_impl_opengl3.cpp.o -c /Users/neal/editor/lib/imgui/backends/imgui_impl_opengl3.cpp",
+  "file": "/Users/neal/editor/lib/imgui/backends/imgui_impl_opengl3.cpp",
+  "output": "CMakeFiles/ned.dir/lib/imgui/backends/imgui_impl_opengl3.cpp.o"
+}
+]

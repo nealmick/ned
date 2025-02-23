@@ -13,6 +13,7 @@ count=$(find . \
    -not -path "./lib/*" \
    -not -path "./fonts/*" \
    -not -path "./icons/*" \
+   -not -path "./.build/*" \
    -not -path "./build/*" \
    -exec clang-format -i {} \; \
    -exec echo "." \; | wc -l)
