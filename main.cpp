@@ -1,15 +1,11 @@
 /*
-    main.cpp
-    NED is a lightweight, feature-rich text editor built with C++ and ImGui.
+    File: main.cpp
+    Description: NED is a lightweight, feature-rich text editor built with C++ and ImGui.
     It offers syntax highlighting, project file tree, and a customizable interface.
     Github:
     https://github.com/nealmick/ned
-    Author:
-    Neal Mick
-    nealmick.com
 */
 
-#define GL_SILENCE_DEPRECATION
 #define GLEW_NO_GLU
 
 #include <GL/glew.h>
@@ -43,23 +39,27 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-struct FramebufferState {
+struct FramebufferState
+{
     GLuint framebuffer = 0, renderTexture = 0, rbo = 0;
     int last_display_w = 0, last_display_h = 0;
     bool initialized = false;
 };
 
-struct TimingState {
+struct TimingState
+{
     int frameCount = 0;
     double lastFPSTime = glfwGetTime();
     double lastSettingsCheck = lastFPSTime;
     double lastFileTreeRefresh = lastFPSTime;
 };
 
-struct ShaderQuad {
+struct ShaderQuad
+{
     GLuint VAO, VBO;
 
-    void initialize() {
+    void initialize()
+    {
         float quadVertices[] = {-1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f};
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
@@ -72,7 +72,8 @@ struct ShaderQuad {
         glEnableVertexAttribArray(1);
     }
 
-    void cleanup() {
+    void cleanup()
+    {
         glDeleteVertexArrays(1, &VAO);
         glDeleteBuffers(1, &VBO);
     }
@@ -80,8 +81,7 @@ struct ShaderQuad {
 
 void InitializeGLFW();
 void InitializeImGui(GLFWwindow *window);
-void ApplySettings(ImGuiStyle &style);
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
+void ApplySettings(ImGuiStyle &urrentFont, float &explorerWidth, float &editorWidth);
 void updateFileExplorer();
 void handleEvents(GLFWwindow *window);
 void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, double &lastTreeTime);
@@ -95,7 +95,7 @@ void beginFrame(int display_w, int display_h);
 void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth);
 void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime);
 void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
+void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth);
 void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont);
 void cleanup(GLFWwindow *window, FramebufferState &fb, ShaderQuad &quad);
 void handleKeyboardShortcuts();
@@ -110,6 +110,7 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader);
 
 Bookmarks gBookmarks;
 bool shader_toggle = false;
+bool showSidebar = true;
 GLFWwindow *CreateWindow();
 ImFont *LoadFont(const std::string &fontName, float fontSize);
 
@@ -119,11 +120,13 @@ constexpr double TARGET_FPS = 60.0;
 const std::chrono::duration<double> TARGET_FRAME_DURATION(1.0 / TARGET_FPS);
 
 /* ---- main render pipeline ----- */
-int main() {
+int main()
+{
     GLFWwindow *window = nullptr;
     Shader crtShader;
 
-    if (!initializeGraphics(window, crtShader)) {
+    if (!initializeGraphics(window, crtShader))
+    {
         return -1;
     }
 
@@ -138,9 +141,9 @@ int main() {
     bool needFontReload = false;
     bool windowFocused = true;
     float explorerWidth = 0.0f, editorWidth = 0.0f;
-
     // Main loop
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window))
+    {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
         // Handle events and updates
@@ -166,10 +169,12 @@ int main() {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // Handle shader effects
-        if (shader_toggle) {
-            renderWithShader(crtShader, fb.framebuffer, fb.renderTexture, quad.VAO, display_w, display_h,
-                             currentTime); // Changed from quadVAO to quad.VAO
-        } else {
+        if (shader_toggle)
+        {
+            renderWithShader(crtShader, fb.framebuffer, fb.renderTexture, quad.VAO, display_w, display_h, currentTime); // Changed from quadVAO to quad.VAO
+        }
+        else
+        {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         }
 
@@ -182,7 +187,8 @@ int main() {
     return 0;
 }
 
-float Clamp(float value, float min, float max) {
+float Clamp(float value, float min, float max)
+{
     if (value < min)
         return min;
     if (value > max)
@@ -190,20 +196,77 @@ float Clamp(float value, float min, float max) {
     return value;
 }
 
-ImFont *LoadFont(const std::string &fontName, float fontSize) {
+GLFWwindow *CreateWindow()
+{
+    GLFWwindow *window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+    if (window == NULL)
+    {
+        std::cerr << "🔴 Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        exit(1);
+    }
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+    return window;
+}
+
+void InitializeImGui(GLFWwindow *window)
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+}
+
+void ApplySettings(ImGuiStyle &style)
+{
+    // Background color
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
+    shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+    // Get text color from current theme
+    std::string currentTheme = gSettings.getCurrentTheme();
+    auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
+    ImVec4 textCol(textColor[0].get<float>(), textColor[1].get<float>(), textColor[2].get<float>(), textColor[3].get<float>());
+
+    // Apply text color to all text-related ImGui elements
+    style.Colors[ImGuiCol_Text] = textCol; // Regular text
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f); // Neon pink with 30% alpha
+
+    // Rest of your existing settings
+    style.ScrollbarSize = 30.0f;
+    style.ScaleAllSizes(1.0f);
+
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+}
+
+ImFont *LoadFont(const std::string &fontName, float fontSize)
+{
     ImGuiIO &io = ImGui::GetIO();
     std::string fontPath = "fonts/" + fontName + ".ttf";
 
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != NULL) {
-        std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
-    } else {
-        std::cerr << "getcwd() error" << std::endl;
+    if (getcwd(cwd, sizeof(cwd)) != NULL)
+    {
+        // std::cout << "\033[32mMain:\033[0m opening working directory : " << cwd << std::endl;
+    }
+    else
+    {
+        std::cerr << "🔴 getcwd() error" << std::endl;
     }
 
-    std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
-    if (!std::filesystem::exists(fontPath)) {
-        std::cerr << "\033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
+    // std::cout << "\033[32mMain:\033[0m Attempting to load font from: " << fontPath << std::endl;
+    if (!std::filesystem::exists(fontPath))
+    {
+        std::cerr << "🔴 \033[32mMain:\033[0m Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
@@ -235,17 +298,20 @@ ImFont *LoadFont(const std::string &fontName, float fontSize) {
     static const ImWchar braille_ranges[] = {0x2800, 0x28FF, 0};
     io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
 
-    if (font == nullptr) {
-        std::cerr << "\033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
+    if (font == nullptr)
+    {
+        std::cerr << "🔴 \033[32mMain:\033[0m Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
     std::cout << "\033[32mMain:\033[0m Successfully loaded font: " << fontName << std::endl;
     return font;
 }
 
-void InitializeGLFW() {
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
+void InitializeGLFW()
+{
+    if (!glfwInit())
+    {
+        std::cerr << "🔴 Failed to initialize GLFW" << std::endl;
         exit(1);
     }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -256,79 +322,42 @@ void InitializeGLFW() {
 #endif
 }
 
-GLFWwindow *CreateWindow() {
-    GLFWwindow *window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
-    if (window == NULL) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        exit(1);
-    }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-    return window;
-}
-
-void InitializeImGui(GLFWwindow *window) {
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
-}
-
-void ApplySettings(ImGuiStyle &style) {
-    // Background color
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
-    shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
-    // Get text color from current theme
-    std::string currentTheme = gSettings.getCurrentTheme();
-    auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
-    ImVec4 textCol(textColor[0].get<float>(), textColor[1].get<float>(), textColor[2].get<float>(), textColor[3].get<float>());
-
-    // Apply text color to all text-related ImGui elements
-    style.Colors[ImGuiCol_Text] = textCol; // Regular text
-    style.Colors[ImGuiCol_TextDisabled] = ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
-    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f); // Neon pink with 30% alpha
-
-    // Rest of your existing settings
-    style.ScrollbarSize = 30.0f;
-    style.ScaleAllSizes(1.0f);
-
-    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-
-    ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
-}
-
-// Handle keyboard shortcuts
-void handleKeyboardShortcuts() {
+void handleKeyboardShortcuts()
+{
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_S, false))
+    {
+        showSidebar = !showSidebar; // Toggle sidebar visibility
+        std::cout << "\033[32mMain:\033[0m Toggled sidebar visibility" << std::endl;
+    }
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_T, false))
+    {
         gTerminal.toggleVisibility();
         gFileExplorer.saveCurrentFile();
-        if (gTerminal.isTerminalVisible()) {
+        if (gTerminal.isTerminalVisible())
+        {
             ClosePopper::closeAll();
         }
     }
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false))
+    {
         std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
         gFileExplorer.setShowWelcomeScreen(false);
         gSettings.toggleSettingsWindow();
     }
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false))
+    {
         std::cout << "\033[32mMain:\033[0m Ctrl+/ pressed - Resetting to welcome screen" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(!gFileExplorer.getShowWelcomeScreen());
-        if (gTerminal.isTerminalVisible()) {
+        if (gTerminal.isTerminalVisible())
+        {
             gTerminal.toggleVisibility();
         }
         gFileExplorer.saveCurrentFile();
     }
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_O, false))
+    {
         std::cout << "\033[32mMain:\033[0m Ctrl+O pressed - triggering file dialog" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(false);
@@ -338,7 +367,8 @@ void handleKeyboardShortcuts() {
 }
 
 // Render file explorer section
-void renderFileExplorer(float explorerWidth) {
+void renderFileExplorer(float explorerWidth)
+{
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.5f, 0.5f, 0.5f, 0.0f));
@@ -346,7 +376,8 @@ void renderFileExplorer(float explorerWidth) {
 
     ImGui::Text("File Explorer");
     ImGui::Separator();
-    if (!gFileExplorer.getSelectedFolder().empty()) {
+    if (!gFileExplorer.getSelectedFolder().empty())
+    {
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
     }
     ImGui::EndChild();
@@ -355,7 +386,8 @@ void renderFileExplorer(float explorerWidth) {
 }
 
 // Render editor header
-void renderEditorHeader(ImFont *currentFont) {
+void renderEditorHeader(ImFont *currentFont)
+{
     // Create a group for the header line
     ImGui::BeginGroup();
 
@@ -382,7 +414,8 @@ void renderEditorHeader(ImFont *currentFont) {
 }
 
 // Render settings icon
-void renderSettingsIcon(float iconSize) {
+void renderSettingsIcon(float iconSize)
+{
     bool settingsOpen = gSettings.showSettingsWindow;
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -390,30 +423,37 @@ void renderSettingsIcon(float iconSize) {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 
-    if (!settingsOpen) {
+    if (!settingsOpen)
+    {
         ImVec2 cursor_pos = ImGui::GetCursorPos();
-        if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize))) {
+        if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)))
+        {
             gSettings.toggleSettingsWindow();
         }
         bool isHovered = ImGui::IsItemHovered();
         ImGui::SetCursorPos(cursor_pos);
         ImTextureID icon = isHovered ? gFileExplorer.getIcon("gear-hover") : gFileExplorer.getIcon("gear");
         ImGui::Image(icon, ImVec2(iconSize, iconSize));
-    } else {
+    }
+    else
+    {
         ImGui::Image(gFileExplorer.getIcon("gear"), ImVec2(iconSize, iconSize));
     }
 
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar();
 }
-void renderSplitter(float padding, float availableWidth) {
+
+void renderSplitter(float padding, float availableWidth)
+{
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.9f, 0.9f, 0.9f, 0.2f));
     ImGui::SameLine(0, 0);
     float splitterWidth = 2.0f;
     ImGui::Button("##vsplitter", ImVec2(splitterWidth, -1));
     ImGui::PopStyleColor();
 
-    if (ImGui::IsItemActive()) {
+    if (ImGui::IsItemActive())
+    {
         float mousePosInWindow = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
         float leftPadding = padding * 2;
         float rightPadding = padding * 2 + 6;
@@ -423,7 +463,8 @@ void renderSplitter(float padding, float availableWidth) {
     }
 }
 
-void renderEditor(ImFont *currentFont, float editorWidth) {
+void renderEditor(ImFont *currentFont, float editorWidth)
+{
     ImGui::SameLine(0, 0); // Add this to ensure proper layout
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
@@ -440,17 +481,20 @@ void renderEditor(ImFont *currentFont, float editorWidth) {
     ImGui::PopStyleVar();
 }
 
-void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth) {
+void renderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWidth)
+{
     handleKeyboardShortcuts();
 
-    if (gTerminal.isTerminalVisible()) {
+    if (gTerminal.isTerminalVisible())
+    {
         // ImGui::PushFont(currentFont);
         gTerminal.render();
         // ImGui::PopFont();
         return;
     }
 
-    if (gFileExplorer.getShowWelcomeScreen()) {
+    if (gFileExplorer.getShowWelcomeScreen())
+    {
         gWelcome.render();
         return;
     }
@@ -468,54 +512,74 @@ void RenderMainWindow(ImFont *currentFont, float &explorerWidth, float &editorWi
     float padding = ImGui::GetStyle().WindowPadding.x;
     float splitterWidth = 2.0f;
     float availableWidth = windowWidth - padding * 3 - splitterWidth;
-    explorerWidth = availableWidth * gSettings.getSplitPos();
-    editorWidth = availableWidth - explorerWidth - 6;
+    if (showSidebar)
+    {
+        // show sidebar
+        explorerWidth = availableWidth * gSettings.getSplitPos();
+        editorWidth = availableWidth - explorerWidth - 6;
 
-    // Render Main editor content with file explorer and syntax highlighter...
-    renderFileExplorer(explorerWidth);
-    renderSplitter(padding, availableWidth);
+        renderFileExplorer(explorerWidth);
+        renderSplitter(padding, availableWidth);
+    }
+    else
+    {
+        // When sidebar is hidden, editor takes full width
+        editorWidth = availableWidth;
+    }
     renderEditor(currentFont, editorWidth);
 
     ImGui::End();
 }
 
-void updateFileExplorer() {
+void updateFileExplorer()
+{
     static float last_refresh_time = 0.0f;
     float current_time = ImGui::GetTime();
 
-    if (current_time - last_refresh_time > 5.0f) { // Refresh every 5 seconds
+    if (current_time - last_refresh_time > 5.0f)
+    { // Refresh every 5 seconds
         gFileExplorer.refreshFileTree();
         last_refresh_time = current_time;
     }
 }
 
-void handleEvents(GLFWwindow *window) {
-    if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+void handleEvents(GLFWwindow *window)
+{
+    if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
+    {
         glfwPollEvents();
-    } else {
+    }
+    else
+    {
         glfwWaitEventsTimeout(0.016); // 16ms ~60Hz timeout
     }
 }
 
-void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, double &lastTreeTime) {
-    if (currentTime - lastSettingsTime >= SETTINGS_CHECK_INTERVAL) {
+void handleBackgroundUpdates(double currentTime, double &lastSettingsTime, double &lastTreeTime)
+{
+    if (currentTime - lastSettingsTime >= SETTINGS_CHECK_INTERVAL)
+    {
         gSettings.checkSettingsFile();
         lastSettingsTime = currentTime;
     }
 
-    if (currentTime - lastTreeTime >= FILE_TREE_REFRESH_INTERVAL) {
+    if (currentTime - lastTreeTime >= FILE_TREE_REFRESH_INTERVAL)
+    {
         gFileExplorer.refreshFileTree();
         lastTreeTime = currentTime;
     }
 }
 
-void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized) {
+void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &rbo, int &last_w, int &last_h, bool &initialized)
+{
 
-    if (width == last_w && height == last_h && initialized) {
+    if (width == last_w && height == last_h && initialized)
+    {
         return;
     }
 
-    if (initialized) {
+    if (initialized)
+    {
         glDeleteFramebuffers(1, &fb);
         glDeleteTextures(1, &tex);
         glDeleteRenderbuffers(1, &rbo);
@@ -544,38 +608,47 @@ void handleFramebuffer(int width, int height, GLuint &fb, GLuint &tex, GLuint &r
 }
 
 // ImGui frame setup/handling
-void setupImGuiFrame() {
+void setupImGuiFrame()
+{
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void handleWindowFocus(GLFWwindow *window, bool &windowFocused) {
+void handleWindowFocus(GLFWwindow *window, bool &windowFocused)
+{
     bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-    if (windowFocused && !currentFocus) {
+    if (windowFocused && !currentFocus)
+    {
         gFileExplorer.saveCurrentFile();
     }
     windowFocused = currentFocus;
 }
 
 // Settings and font handling
-void handleSettingsChanges(ImGuiStyle &style, bool &needFontReload) {
-    if (gSettings.hasSettingsChanged()) {
+void handleSettingsChanges(ImGuiStyle &style, bool &needFontReload)
+{
+    if (gSettings.hasSettingsChanged())
+    {
         ApplySettings(style);
-        if (gSettings.hasThemeChanged()) {
+        if (gSettings.hasThemeChanged())
+        {
             gEditor.setTheme(gSettings.getCurrentTheme());
             gFileExplorer.refreshSyntaxHighlighting();
             gSettings.resetThemeChanged();
         }
-        if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged()) {
+        if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged())
+        {
             needFontReload = true;
         }
         gSettings.resetSettingsChanged();
     }
 }
 
-void handleFontReload(ImFont *&currentFont, bool &needFontReload) {
-    if (needFontReload) {
+void handleFontReload(ImFont *&currentFont, bool &needFontReload)
+{
+    if (needFontReload)
+    {
         ImGui_ImplOpenGL3_DestroyFontsTexture();
         ImGui::GetIO().Fonts->Clear();
         currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getFontSize());
@@ -588,10 +661,13 @@ void handleFontReload(ImFont *&currentFont, bool &needFontReload) {
 }
 
 // File dialog handling
-void handleFileDialog() {
-    if (gFileExplorer.showFileDialog()) {
+void handleFileDialog()
+{
+    if (gFileExplorer.showFileDialog())
+    {
         gFileExplorer.openFolderDialog();
-        if (!gFileExplorer.getSelectedFolder().empty()) {
+        if (!gFileExplorer.getSelectedFolder().empty())
+        {
             auto &rootNode = gFileExplorer.getRootNode();
             rootNode.name = fs::path(gFileExplorer.getSelectedFolder()).filename().string();
             rootNode.fullPath = gFileExplorer.getSelectedFolder();
@@ -603,20 +679,23 @@ void handleFileDialog() {
     }
 }
 
-void beginFrame(int display_w, int display_h) {
+void beginFrame(int display_w, int display_h)
+{
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, display_w, display_h);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth) {
-    RenderMainWindow(currentFont, explorerWidth, editorWidth);
+void renderMainContent(ImFont *currentFont, float &explorerWidth, float &editorWidth)
+{
+    renderMainWindow(currentFont, explorerWidth, editorWidth);
     gBookmarks.renderBookmarksWindow();
     gSettings.renderSettingsWindow();
 }
 
-void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime) {
+void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderTexture, GLuint quadVAO, int display_w, int display_h, double currentTime)
+{
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fullFramebuffer);
     glBlitFramebuffer(0, 0, display_w, display_h, 0, 0, display_w, display_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -633,7 +712,8 @@ void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderT
         glUniform1f(timeLocation, currentTime);
     if (screenTextureLocation != -1)
         glUniform1i(screenTextureLocation, 0);
-    if (resolutionLocation != -1) {
+    if (resolutionLocation != -1)
+    {
         glUniform2f(resolutionLocation, static_cast<float>(display_w), static_cast<float>(display_h));
     }
 
@@ -643,27 +723,31 @@ void renderWithShader(Shader &shader, GLuint fullFramebuffer, GLuint fullRenderT
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start) {
+void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
+{
     auto frame_end = std::chrono::high_resolution_clock::now();
     auto frame_duration = frame_end - frame_start;
     std::this_thread::sleep_for(TARGET_FRAME_DURATION - frame_duration);
 }
 
-bool initializeGraphics(GLFWwindow *&window, Shader &crtShader) {
+bool initializeGraphics(GLFWwindow *&window, Shader &crtShader)
+{
     InitializeGLFW();
     window = CreateWindow();
     glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
     glewExperimental = GL_TRUE;
-    if (GLenum err = glewInit(); GLEW_OK != err) {
-        std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+    if (GLenum err = glewInit(); GLEW_OK != err)
+    {
+        std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
         glfwTerminate();
         return false;
     }
     glGetError();
 
-    if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl")) {
-        std::cerr << "Shader load failed" << std::endl;
+    if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl"))
+    {
+        std::cerr << "🔴 Shader load failed" << std::endl;
         glfwTerminate();
         return false;
     }
@@ -671,7 +755,8 @@ bool initializeGraphics(GLFWwindow *&window, Shader &crtShader) {
     return true;
 }
 
-void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont) {
+void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont)
+{
     InitializeImGui(window);
     gDebugConsole.toggleVisibility();
     gSettings.loadSettings();
@@ -680,15 +765,18 @@ void initializeImGuiAndResources(GLFWwindow *window, ImFont *&currentFont) {
     gFileExplorer.loadIcons();
 
     currentFont = LoadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
-    if (currentFont == nullptr) {
-        std::cerr << "Failed to load font, using default font" << std::endl;
+    if (currentFont == nullptr)
+    {
+        std::cerr << "🔴 Failed to load font, using default font" << std::endl;
         currentFont = ImGui::GetIO().Fonts->AddFontDefault();
     }
 }
 
-void cleanup(GLFWwindow *window, FramebufferState &fb, ShaderQuad &quad) {
+void cleanup(GLFWwindow *window, FramebufferState &fb, ShaderQuad &quad)
+{
     quad.cleanup();
-    if (fb.initialized) {
+    if (fb.initialized)
+    {
         glDeleteFramebuffers(1, &fb.framebuffer);
         glDeleteTextures(1, &fb.renderTexture);
         glDeleteRenderbuffers(1, &fb.rbo);

@@ -12,8 +12,10 @@
 class Settings;
 extern Settings gSettings;
 
-namespace PythonLexer {
-enum class TokenType {
+namespace PythonLexer
+{
+enum class TokenType
+{
     Whitespace,
     Identifier,
     Keyword,
@@ -38,16 +40,19 @@ enum class TokenType {
     ScopeOperator // For . in method calls
 };
 
-struct Token {
+struct Token
+{
     TokenType type;
     size_t start;
     size_t length;
 };
 
-class Lexer {
+class Lexer
+{
   public:
     // Theme colors cache
-    struct ThemeColors {
+    struct ThemeColors
+    {
         ImVec4 keyword;
         ImVec4 string;
         ImVec4 number;
@@ -56,7 +61,8 @@ class Lexer {
         ImVec4 function; // Add this
     };
 
-    Lexer() {
+    Lexer()
+    {
         keywords = {"and", "as", "assert", "break", "class", "continue", "def", "del", "elif", "else", "except", "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield"};
 
         // Add built-in types
@@ -68,34 +74,47 @@ class Lexer {
 
     void themeChanged() { colorsNeedUpdate = true; }
 
-    std::vector<Token> tokenize(const std::string &code) {
-        std::cout << "inside tokenizer.." << std::endl;
+    std::vector<Token> tokenize(const std::string &code)
+    {
         std::vector<Token> tokens;
         size_t pos = 0;
         size_t lastPos = 0;
         size_t maxIterations = code.length() * 2;
         size_t iterations = 0;
 
-        try {
-            std::cout << "Starting tokenization loop" << std::endl;
-            while (pos < code.length() && iterations < maxIterations) {
+        try
+        {
+            while (pos < code.length() && iterations < maxIterations)
+            {
                 lastPos = pos;
-                if (isWhitespace(code[pos])) {
+                if (isWhitespace(code[pos]))
+                {
                     tokens.push_back({TokenType::Whitespace, pos, 1});
                     pos++;
-                } else if (isAlpha(code[pos]) || code[pos] == '_') {
+                }
+                else if (isAlpha(code[pos]) || code[pos] == '_')
+                {
                     tokens.push_back(lexIdentifierOrKeyword(code, pos));
-                } else if (isDigit(code[pos])) {
+                }
+                else if (isDigit(code[pos]))
+                {
                     tokens.push_back(lexNumber(code, pos));
-                } else if (code[pos] == '#') {
+                }
+                else if (code[pos] == '#')
+                {
                     tokens.push_back(lexComment(code, pos));
-                } else if (code[pos] == '"' || code[pos] == '\'') {
+                }
+                else if (code[pos] == '"' || code[pos] == '\'')
+                {
                     tokens.push_back(lexString(code, pos));
-                } else {
+                }
+                else
+                {
                     tokens.push_back(lexOperator(code, pos));
                 }
 
-                if (pos == lastPos) {
+                if (pos == lastPos)
+                {
                     // std::cerr << "Tokenizer stuck at position " << pos << ", character: '" <<
                     // code[pos] << "'" << std::endl;
                     pos++;
@@ -104,34 +123,45 @@ class Lexer {
                 iterations++;
             }
 
-            if (iterations >= maxIterations) {
-                std::cerr << "Tokenizer exceeded maximum iterations." << std::endl;
+            if (iterations >= maxIterations)
+            {
+                std::cerr << "🔴 Tokenizer exceeded maximum iterations." << std::endl;
             }
-
-        } catch (const std::exception &e) {
-            std::cerr << "Exception in tokenize: " << e.what() << std::endl;
-        } catch (...) {
-            std::cerr << "Unknown exception in tokenize" << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "🔴 Exception in tokenize: " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "🔴 Unknown exception in tokenize" << std::endl;
         }
 
         return tokens;
     }
 
-    void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos) {
-        try {
+    void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+    {
+        try
+        {
             std::vector<Token> tokens = tokenize(code);
 
-            for (const auto &token : tokens) {
+            for (const auto &token : tokens)
+            {
                 ImVec4 color = getColorForTokenType(token.type);
-                for (size_t i = 0; i < token.length; ++i) {
+                for (size_t i = 0; i < token.length; ++i)
+                {
                     size_t index = start_pos + token.start + i;
-                    if (index < colors.size()) {
+                    if (index < colors.size())
+                    {
                         colors[index] = color;
                     }
                 }
             }
-        } catch (const std::exception &e) {
-            std::cerr << "Exception in applyHighlighting: " << e.what() << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "🔴 Exception in applyHighlighting: " << e.what() << std::endl;
         }
     }
     void forceColorUpdate() { colorsNeedUpdate = true; }
@@ -143,13 +173,15 @@ class Lexer {
     mutable ThemeColors cachedColors;
     mutable bool colorsNeedUpdate = true;
 
-    void updateThemeColors() const {
+    void updateThemeColors() const
+    {
         if (!colorsNeedUpdate)
             return;
 
         auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 
-        auto loadColor = [&theme](const char *key) -> ImVec4 {
+        auto loadColor = [&theme](const char *key) -> ImVec4
+        {
             auto &c = theme[key];
             return ImVec4(c[0], c[1], c[2], c[3]);
         };
@@ -169,7 +201,8 @@ class Lexer {
     bool isDigit(char c) const { return c >= '0' && c <= '9'; }
     bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; }
 
-    Token lexIdentifierOrKeyword(const std::string &code, size_t &pos) {
+    Token lexIdentifierOrKeyword(const std::string &code, size_t &pos)
+    {
         size_t start = pos;
         while (pos < code.length() && isAlphaNumeric(code[pos]))
             pos++;
@@ -182,44 +215,53 @@ class Lexer {
         bool isFunction = next < code.length() && code[next] == '(';
 
         // Check for decorators
-        if (start > 0 && code[start - 1] == '@') {
+        if (start > 0 && code[start - 1] == '@')
+        {
             return {TokenType::Decorator, start, pos - start};
         }
 
         // Check priority in this order
-        if (keywords.find(word) != keywords.end()) {
-            if (word == "class") {
+        if (keywords.find(word) != keywords.end())
+        {
+            if (word == "class")
+            {
                 return {TokenType::ClassName, start, pos - start};
             }
             return {TokenType::Keyword, start, pos - start};
         }
 
-        if (builtinTypes.find(word) != builtinTypes.end()) {
+        if (builtinTypes.find(word) != builtinTypes.end())
+        {
             return {TokenType::BuiltinType, start, pos - start};
         }
 
-        if (word == "self") {
+        if (word == "self")
+        {
             return {TokenType::SelfParam, start, pos - start};
         }
 
-        if (isFunction) {
+        if (isFunction)
+        {
             return {TokenType::Function, start, pos - start};
         }
 
         return {TokenType::Identifier, start, pos - start};
     }
 
-    Token lexNumber(const std::string &code, size_t &pos) {
+    Token lexNumber(const std::string &code, size_t &pos)
+    {
         size_t start = pos;
         while (pos < code.length() && (isDigit(code[pos]) || code[pos] == '.'))
             pos++;
         return {TokenType::Number, start, pos - start};
     }
 
-    Token lexString(const std::string &code, size_t &pos) {
+    Token lexString(const std::string &code, size_t &pos)
+    {
         size_t start = pos;
         char quote = code[pos++];
-        while (pos < code.length() && code[pos] != quote) {
+        while (pos < code.length() && code[pos] != quote)
+        {
             if (code[pos] == '\\' && pos + 1 < code.length())
                 pos++;
             pos++;
@@ -229,14 +271,16 @@ class Lexer {
         return {TokenType::String, start, pos - start};
     }
 
-    Token lexComment(const std::string &code, size_t &pos) {
+    Token lexComment(const std::string &code, size_t &pos)
+    {
         size_t start = pos;
         while (pos < code.length() && code[pos] != '\n')
             pos++;
         return {TokenType::Comment, start, pos - start};
     }
 
-    Token lexOperator(const std::string &code, size_t &pos) {
+    Token lexOperator(const std::string &code, size_t &pos)
+    {
         size_t start = pos;
         if (code[pos] == '(' || code[pos] == ')')
             return {TokenType::Parenthesis, start, 1};
@@ -252,23 +296,27 @@ class Lexer {
             return {TokenType::Dot, start, 1};
 
         std::string op;
-        while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos])) {
+        while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos]))
+        {
             op += code[pos++];
             if (operators.find(op) != operators.end())
                 break;
         }
 
-        if (op.empty()) {
+        if (op.empty())
+        {
             op = code[pos++];
         }
 
         return {operators.find(op) != operators.end() ? TokenType::Operator : TokenType::Unknown, start, op.length()};
     }
 
-    ImVec4 getColorForTokenType(TokenType type) const {
+    ImVec4 getColorForTokenType(TokenType type) const
+    {
         updateThemeColors();
 
-        switch (type) {
+        switch (type)
+        {
         case TokenType::Keyword:
         case TokenType::BuiltinType:
             return cachedColors.keyword;

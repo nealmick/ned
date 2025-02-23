@@ -34,6 +34,7 @@ Temporary Items
 
 # CMake build directory
 build/
+.build/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake

@@ -5,18 +5,21 @@
 
 Welcome &gWelcome = Welcome::getInstance();
 
-void Welcome::calculateFPS() {
+void Welcome::calculateFPS()
+{
     frameCount++;
     double currentTime = glfwGetTime();
 
-    if (currentTime - lastTime >= 1.0) {
+    if (currentTime - lastTime >= 1.0)
+    {
         fps = frameCount;
         frameCount = 0;
         lastTime = currentTime;
     }
 }
 
-void Welcome::render() {
+void Welcome::render()
+{
     calculateFPS(); // Update FPS count
 
     ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -31,11 +34,16 @@ void Welcome::render() {
     // FPS Counter in top right
     ImGui::SetCursorPos(ImVec2(windowWidth - 80, 10));
     ImVec4 fpsColor;
-    if (fps >= 55) {
+    if (fps >= 55)
+    {
         fpsColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for good FPS
-    } else if (fps >= 30) {
+    }
+    else if (fps >= 30)
+    {
         fpsColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for okay FPS
-    } else {
+    }
+    else
+    {
         fpsColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red for bad FPS
     }
     ImGui::TextColored(fpsColor, "FPS: %d", fps);
@@ -99,7 +107,8 @@ void Welcome::render() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
 
-    if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight))) {
+    if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
+    {
         std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked" << std::endl;
         gFileExplorer.setShowFileDialog(true);
     }

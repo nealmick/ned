@@ -12,7 +12,8 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-class Settings {
+class Settings
+{
   public:
     Settings();
     void loadSettings();
@@ -20,7 +21,8 @@ class Settings {
     void checkSettingsFile();
     json &getSettings() { return settings; }
     float getSplitPos() const { return splitPos; }
-    void setSplitPos(float pos) {
+    void setSplitPos(float pos)
+    {
         splitPos = pos;
         settings["splitPos"] = pos;
         settingsChanged = true;
@@ -36,8 +38,10 @@ class Settings {
 
     float getFontSize() const { return currentFontSize; }
 
-    void setFontSize(float size) {
-        if (size != currentFontSize) {
+    void setFontSize(float size)
+    {
+        if (size != currentFontSize)
+        {
             settings["fontSize"] = size;
             currentFontSize = size;
             fontSizeChanged = true;
@@ -49,9 +53,11 @@ class Settings {
     void ScrollRegion() const {}
     bool showSettingsWindow = false;
     void renderSettingsWindow();
-    void toggleSettingsWindow() {
+    void toggleSettingsWindow()
+    {
         showSettingsWindow = !showSettingsWindow;
-        if (showSettingsWindow) {                                     // Only close others if we're opening
+        if (showSettingsWindow)
+        {                                                             // Only close others if we're opening
             ClosePopper::closeAllExcept(ClosePopper::Type::Settings); // RIGHT
         }
         blockInput = showSettingsWindow;
