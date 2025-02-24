@@ -379,24 +379,51 @@ void Ned::renderFileExplorer(float explorerWidth)
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(2);
 }
-
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
     ImGui::BeginGroup();
     ImGui::PushFont(currentFont);
+    // Determine the base icon size (equal to font size, or adjust with a multiplier)
+    float iconSize = ImGui::GetFontSize();
+    std::string currentFile = gFileExplorer.getCurrentFile();
 
-    float lineHeight = ImGui::GetTextLineHeight();
-    ImGui::Text("Editor - %s", gFileExplorer.getCurrentFile().empty() ? "No file selected" : gFileExplorer.getCurrentFile().c_str());
+    // Render the left part: file icon (if available) and file path text.
+    if (currentFile.empty())
+    {
+        ImGui::Text("Editor - No file selected");
+    }
+    else
+    {
+        // Get the file type icon.
+        ImTextureID fileIcon = gFileExplorer.getIconForFile(currentFile);
+        if (fileIcon)
+        {
+            ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
+            ImGui::SameLine();
+        }
+        ImGui::Text("Editor - %s", currentFile.c_str());
+    }
 
-    float iconSize = lineHeight - 5;
-    float verticalOffset = (lineHeight - iconSize) / 2;
+    // Now, to place the settings toggle on the far right,
+    // get the available width of the current window.
+    float availableWidth = ImGui::GetWindowContentRegionMax().x;
+    float rightPadding = 10.0f;               // Add padding from the right edge
+    float adjustedIconSize = iconSize * 0.9f; // Make the icon slightly smaller
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - iconSize - 8);
+    // Calculate vertical alignment to center the icon with the text
+    float textHeight = ImGui::GetTextLineHeight();
+    float verticalOffset = (textHeight - adjustedIconSize) * 0.5f;
+
+    // Move the cursor to a position near the far right with padding
+    ImGui::SameLine(availableWidth - adjustedIconSize - rightPadding);
+
+    // Apply vertical alignment
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + verticalOffset);
 
-    ImGui::PopFont();
+    // Render the settings icon
+    renderSettingsIcon(adjustedIconSize * 0.82f);
 
-    renderSettingsIcon(iconSize);
+    ImGui::PopFont();
     ImGui::EndGroup();
     ImGui::Separator();
 }
@@ -404,7 +431,6 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 void Ned::renderSettingsIcon(float iconSize)
 {
     bool settingsOpen = gSettings.showSettingsWindow;
-
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));

@@ -146,6 +146,15 @@ void Editor::processTextEditorInput(std::string &text, EditorState &editor_state
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
+
+    // Handle frame counter for ensuring cursor visibility
+    if (editor_state.ensure_cursor_visible_frames > 0)
+    {
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible_frames--;
+    }
+
     if (editor_state.cursor_pos != initial_cursor_pos)
     {
         ensure_cursor_visible.vertical = true;
@@ -159,62 +168,89 @@ void Editor::processMouseWheelForEditor(float line_height, float &current_scroll
     {
         float wheel_y = ImGui::GetIO().MouseWheel;
         float wheel_x = ImGui::GetIO().MouseWheelH;
+
+        // Reduce the multiplier from 3 to 1.5 for a slower vertical scroll
         if (wheel_y != 0)
         {
-            current_scroll_y -= wheel_y * line_height * 3;
+            current_scroll_y -= wheel_y * line_height * 1.0f;
             current_scroll_y = std::max(0.0f, std::min(current_scroll_y, ImGui::GetScrollMaxY()));
         }
+
+        // Also reduce the horizontal scroll speed multiplier
         if (wheel_x != 0)
         {
-            current_scroll_x -= wheel_x * ImGui::GetFontSize() * 3;
+            current_scroll_x -= wheel_x * ImGui::GetFontSize() * 1.0f;
             current_scroll_x = std::max(0.0f, std::min(current_scroll_x, ImGui::GetScrollMaxX()));
         }
     }
 }
 
-void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &editor_state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
+void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
 {
-    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal || editor_state.ensure_cursor_visible_frames > 0)
+    // First check if there's a direct scroll request
+    float requested_x, requested_y;
+    if (handleScrollRequest(requested_x, requested_y))
     {
-        ScrollChange scroll_change = ensureCursorVisible(text_pos, text, editor_state, line_height, window_height, window_width);
-        if (scroll_change.vertical)
-        {
-            current_scroll_y = editor_state.scroll_pos.y;
-        }
+        current_scroll_x = requested_x;
+        current_scroll_y = requested_y;
+        state.scroll_x = requested_x;
+        state.scroll_pos.y = requested_y;
+
+        // Directly apply the scroll in ImGui too
+        ImGui::SetScrollX(requested_x);
+        ImGui::SetScrollY(requested_y);
+
+        // Reset visibility flags - we've just explicitly scrolled
+        ensure_cursor_visible.vertical = false;
+        ensure_cursor_visible.horizontal = false;
+
+        return;
+    }
+
+    // Original logic...
+    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal)
+    {
+        // Call ensureCursorVisible to calculate and apply scroll adjustments
+        ScrollChange scroll_change = ensureCursorVisible(text_pos, text, state, line_height, window_height, window_width);
+
+        // Update the current scroll position variables with the new values
         if (scroll_change.horizontal)
         {
-            current_scroll_x = editor_state.scroll_pos.x;
+            current_scroll_x = state.scroll_x; // Use the value from state that was updated in ensureCursorVisible
         }
-        editor_state.ensure_cursor_visible_frames--;
-    }
-    if (handleScrollRequest(current_scroll_x, current_scroll_y))
-    {
-        editor_state.ensure_cursor_visible_frames = -1;
+
+        if (scroll_change.vertical)
+        {
+            current_scroll_y = state.scroll_pos.y; // Use the value from state that was updated in ensureCursorVisible
+        }
+
+        // Reset the visibility flags since we've handled them
+        ensure_cursor_visible.vertical = false;
+        ensure_cursor_visible.horizontal = false;
     }
 }
 
-// Cursor rendering: Compute the cursor position on a per‑line basis by extracting
-// the substring from the start of the line to the cursor position. This uses the same
-// CalcTextSize call that our batching code uses, so the measurements are consistent.
 void Editor::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos)
 {
-    // Render the text (with selection) using our batched function.
+    // Render the text (with selection) using our character-by-character function
     renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 
-    // Compute the cursor's line by finding which line the cursor is on.
+    // Compute the cursor's line by finding which line the cursor is on
     int cursor_line = getLineFromPos(editor_state.line_starts, editor_state.cursor_pos);
+
+    // Calculate cursor x position character-by-character
+    float cursor_x = text_pos.x;
     int line_start = editor_state.line_starts[cursor_line];
-    // Get the substring for this line up to the cursor.
-    std::string lineText = text.substr(line_start, editor_state.cursor_pos - line_start);
-    float x_offset = ImGui::CalcTextSize(lineText.c_str()).x;
+    for (int i = line_start; i < editor_state.cursor_pos; i++)
+    {
+        cursor_x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+    }
 
     ImVec2 cursor_screen_pos = text_pos;
-    // Set x to the start of the line plus the measured offset.
-    cursor_screen_pos.x = text_pos.x + x_offset;
-    // Set y based on the line number.
+    cursor_screen_pos.x = cursor_x;
     cursor_screen_pos.y = text_pos.y + cursor_line * line_height;
 
-    // Draw the cursor.
+    // Draw the cursor
     renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
@@ -239,10 +275,13 @@ void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_st
     {
         return;
     }
+
     // Update cached text and clear old caches.
     editor_state.cached_text = text;
     line_starts.clear();
     editor_state.line_widths.clear();
+
+    // Remove the cached cumulative widths completely
     editor_state.cachedLineCumulativeWidths.clear();
 
     // Compute line_starts.
@@ -255,25 +294,13 @@ void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_st
         ++pos;
     }
 
-    // Compute cached width for each line and cumulative widths.
+    // Just compute the total width for each line (for layout calculations)
     for (size_t i = 0; i < line_starts.size(); ++i)
     {
         int start = line_starts[i];
         int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
         float width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
         editor_state.line_widths.push_back(width);
-
-        // Compute cumulative widths for this line.
-        std::vector<float> cumWidths;
-        cumWidths.reserve(end - start);
-        float cumulative = 0.0f;
-        for (int j = start; j < end; j++)
-        {
-            float w = ImGui::CalcTextSize(&text[j], &text[j + 1]).x;
-            cumulative += w;
-            cumWidths.push_back(cumulative);
-        }
-        editor_state.cachedLineCumulativeWidths[i] = cumWidths;
     }
 }
 
@@ -342,46 +369,94 @@ float Editor::calculateCursorXPosition(const ImVec2 &text_pos, const std::string
 
 ScrollChange Editor::ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width)
 {
-    float cursor_y = (gEditor.getLineFromPos(state.line_starts, state.cursor_pos) * line_height);
-    float cursor_x = gEditor.calculateCursorXPosition(text_pos, text, state.cursor_pos);
-    float scroll_y = ImGui::GetScrollY();
+    // Get current scroll offsets
     float scroll_x = ImGui::GetScrollX();
-    float visible_start_x = text_pos.x + scroll_x; // Use text_pos.x as the reference point
-    float visible_end_x = visible_start_x + window_width;
-    ScrollChange changed = {false, false};
+    float scroll_y = ImGui::GetScrollY();
 
-    // Vertical scrolling
-    if (cursor_y < scroll_y + line_height)
-    { // Start scrolling up one line earlier
-        state.scroll_pos.y = std::max(0.0f, cursor_y - line_height);
-        changed.vertical = true;
-    }
-    else if (cursor_y > scroll_y + window_height - line_height * 2)
-    { // Start scrolling down one line earlier
-        state.scroll_pos.y = cursor_y - window_height + line_height * 2;
-        changed.vertical = true;
-    }
+    // Calculate viewport dimensions
+    float scrollbar_width = ImGui::GetStyle().ScrollbarSize;
+    float additional_padding = 80.0f;
+    float viewport_width = window_width - scrollbar_width - additional_padding;
+    float viewport_height = window_height;
 
-    // Horizontal scrolling
-    float buffer = ImGui::GetFontSize() * 5.0f; // Increased buffer
-    float target_scroll_x = scroll_x;
+    // Calculate cursor position
+    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
+    int cursor_line = getLineFromPos(state.line_starts, state.cursor_pos);
+    float abs_cursor_y = text_pos.y + cursor_line * line_height;
 
-    if (cursor_x < visible_start_x + buffer)
+    // Calculate cursor position relative to viewport
+    float visible_cursor_x = abs_cursor_x - text_pos.x - scroll_x;
+    float visible_cursor_y = abs_cursor_y - text_pos.y - scroll_y;
+
+    // Margins - space to keep between cursor and edges
+    float margin_x = ImGui::GetFontSize() * 3.0f;
+    float margin_y = line_height * 1.5f;
+
+    // Calculate distances from each edge (negative means cursor is outside)
+    float dist_left = visible_cursor_x;
+    float dist_right = viewport_width - visible_cursor_x;
+    float dist_top = visible_cursor_y;
+    float dist_bottom = viewport_height - visible_cursor_y - line_height;
+
+    bool scroll_x_changed = false;
+    bool scroll_y_changed = false;
+    float new_scroll_x = scroll_x;
+    float new_scroll_y = scroll_y;
+
+    // Check if cursor needs horizontal scrolling
+    if (dist_left < margin_x)
     {
-        // Scrolling left - immediately jump
-        state.scroll_x = cursor_x - text_pos.x - buffer * 2; // Double buffer on left
-        changed.horizontal = true;
+        // Cursor too close to or beyond left edge
+        new_scroll_x = scroll_x - (margin_x - dist_left);
+        new_scroll_x = std::max(0.0f, new_scroll_x);
+        scroll_x_changed = true;
     }
-    else if (cursor_x > visible_end_x - buffer * 1.5f)
-    { // Start scrolling earlier
-        // Scrolling right - immediately jump
-        state.scroll_x = cursor_x - window_width + buffer * 2; // More space on right
-        changed.horizontal = true;
+    else if (dist_right < margin_x)
+    {
+        // Cursor too close to or beyond right edge
+        new_scroll_x = scroll_x + (margin_x - dist_right);
+        new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
+        scroll_x_changed = true;
     }
 
-    // Ensure we don't scroll past the start of the text
-    state.scroll_x = std::max(0.0f, state.scroll_x);
-    return changed;
+    // Check if cursor needs vertical scrolling
+    if (dist_top < margin_y)
+    {
+        // Cursor too close to or beyond top edge
+        new_scroll_y = scroll_y - (margin_y - dist_top);
+        new_scroll_y = std::max(0.0f, new_scroll_y);
+        scroll_y_changed = true;
+    }
+    else if (dist_bottom < margin_y)
+    {
+        // Cursor too close to or beyond bottom edge
+        new_scroll_y = scroll_y + (margin_y - dist_bottom);
+        new_scroll_y = std::min(new_scroll_y, ImGui::GetScrollMaxY());
+        scroll_y_changed = true;
+    }
+
+    // Apply scroll changes directly
+    if (scroll_x_changed)
+    {
+        ImGui::SetScrollX(new_scroll_x);
+        state.scroll_x = new_scroll_x;
+    }
+
+    if (scroll_y_changed)
+    {
+        ImGui::SetScrollY(new_scroll_y);
+        state.scroll_pos.y = new_scroll_y;
+    }
+    /*
+    // Debug output
+    std::cout << "=== ensureCursorVisible DEBUG ===" << std::endl;
+    std::cout << "Distance from left: " << dist_left << ", right: " << dist_right
+              << ", top: " << dist_top << ", bottom: " << dist_bottom << std::endl;
+    std::cout << "Scroll changes - X: " << (scroll_x_changed ? "YES" : "NO")
+              << ", Y: " << (scroll_y_changed ? "YES" : "NO") << std::endl;
+    std::cout << "=================================" << std::endl;
+    */
+    return {scroll_y_changed, scroll_x_changed};
 }
 
 void Editor::selectAllText(EditorState &state, const std::string &text)
@@ -1046,32 +1121,29 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     }
 }
 
-// Batched text rendering: We group characters per batch and compute the batch width
-// using a single CalcTextSize call so that kerning is applied consistently.
 void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
 {
     ImVec2 text_pos = pos;
     int sel_start = getSelectionStart(state);
     int sel_end = getSelectionEnd(state);
 
-    // Calculate visible range.
+    // Calculate visible range
     float scroll_y = ImGui::GetScrollY();
     float window_height = ImGui::GetWindowHeight();
     int start_line = static_cast<int>(scroll_y / line_height);
     int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
 
     int current_line = 0;
-    size_t i = 0;
-    while (i < text.size())
+    for (size_t i = 0; i < text.size(); i++)
     {
-        // Safety check.
+        // Safety check
         if (i >= colors.size())
         {
             std::cerr << "Error: Color index out of bounds in renderTextWithSelection" << std::endl;
             break;
         }
 
-        // Handle newline: update line count and reset x.
+        // Handle newline: update line count and reset x
         if (text[i] == '\n')
         {
             current_line++;
@@ -1079,52 +1151,35 @@ void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, co
                 break;
             text_pos.x = pos.x;
             text_pos.y += line_height;
-            i++;
             continue;
         }
 
-        // Skip lines above visible area.
+        // Skip lines above visible area
         if (current_line < start_line)
         {
             while (i < text.size() && text[i] != '\n')
                 i++;
+            i--; // Adjust for the outer loop's increment
             continue;
         }
         if (current_line > end_line)
             break;
 
-        // Batch by style only (do not break the batch at selection boundaries)
-        ImVec4 batchColor = colors[i];
-        size_t batchStart = i;
-        while (i < text.size() && text[i] != '\n' && i < colors.size() && colors[i].x == batchColor.x && colors[i].y == batchColor.y && colors[i].z == batchColor.z && colors[i].w == batchColor.w)
+        // Check if this character is selected
+        bool is_selected = (i >= sel_start && i < sel_end);
+        if (is_selected)
         {
-            i++;
+            // Draw selection highlight
+            float char_width = ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+            ImVec2 sel_start_pos = text_pos;
+            ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + char_width, sel_start_pos.y + line_height);
+            drawList->AddRectFilled(sel_start_pos, sel_end_pos, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
         }
-        std::string batchText = text.substr(batchStart, i - batchStart);
-        float batchWidth = ImGui::CalcTextSize(batchText.c_str()).x;
 
-        // Now, if any part of this batch is selected, draw a highlight rectangle only over that
-        // region. Compute the overlapping indices:
-        int batchStartInt = static_cast<int>(batchStart);
-        int batchEndInt = static_cast<int>(i);
-        int highlightStartIdx = std::max(sel_start, batchStartInt);
-        int highlightEndIdx = std::min(sel_end, batchEndInt);
-        if (highlightStartIdx < highlightEndIdx)
-        {
-            // Compute the x-offset within the batch where highlighting should start.
-            std::string preHighlight = text.substr(batchStartInt, highlightStartIdx - batchStartInt);
-            float offsetX = ImGui::CalcTextSize(preHighlight.c_str()).x;
-            // Compute the width of the highlighted part.
-            std::string highlightText = text.substr(highlightStartIdx, highlightEndIdx - highlightStartIdx);
-            float highlightWidth = ImGui::CalcTextSize(highlightText.c_str()).x;
-            ImVec2 hlStart = text_pos;
-            hlStart.x += offsetX;
-            ImVec2 hlEnd = ImVec2(hlStart.x + highlightWidth, text_pos.y + line_height);
-            drawList->AddRectFilled(hlStart, hlEnd, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
-        }
-        // Draw the batch text.
-        drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(batchColor), batchText.c_str());
-        text_pos.x += batchWidth;
+        // Draw individual character
+        char buf[2] = {text[i], '\0'};
+        drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(colors[i]), buf);
+        text_pos.x += ImGui::CalcTextSize(buf).x;
     }
 }
 
