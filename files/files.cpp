@@ -9,13 +9,13 @@
 #include <nfd.h>
 #include <sstream>
 
+#include "../editor/line_jump.h"
+#include "../util/close_popper.h"
+#include "../util/icon_definitions.h"
+#include "../util/settings.h"
 #include "files.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
-#include "util/close_popper.h"
-#include "util/icon_definitions.h"
-#include "util/line_jump.h"
-#include "util/settings.h"
 
 #define NANOSVG_IMPLEMENTATION
 #include "lib/nanosvg.h"

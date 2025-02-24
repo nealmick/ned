@@ -7,16 +7,14 @@
 */
 
 #include "settings.h"
-#include "../editor.h"
-#include "../files.h"
+#include "../editor/editor.h"
+#include "../files/files.h"
 #include "config.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
-
-#include "../files.h"
 
 Settings gSettings;
 

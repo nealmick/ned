@@ -16,11 +16,12 @@ find_package(glfw3 REQUIRED)
 set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
 set(GLEW_LIBRARY_DIRS "/usr/local/Cellar/glew/2.2.0_1/lib")
 set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
+
 if(APPLE)
     add_definitions(-DGL_SILENCE_DEPRECATION)
-    # For the NFD cocoa warnings
     add_compile_options(-Wno-deprecated-declarations)
 endif()
+
 # NFD setup
 set(NFD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog)
 if(APPLE)
@@ -40,6 +41,7 @@ elseif(UNIX)
     target_include_directories(nfd PRIVATE ${GTK3_INCLUDE_DIRS})
     target_link_libraries(nfd PRIVATE ${GTK3_LIBRARIES})
 endif()
+
 target_include_directories(nfd PUBLIC
     ${NFD_DIR}/src
     ${NFD_DIR}/src/include
@@ -52,31 +54,41 @@ file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
 
 # Add util library
 add_library(util STATIC
-    util/line_jump.cpp
-    util/file_finder.cpp
-)
-target_include_directories(util PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui/backends
-)
-target_link_libraries(util PUBLIC
-    ${OPENGL_LIBRARIES}
-    glfw
-)
-
-# Main executable
-add_executable(ned
-    main.cpp
-    shaders/shader.cpp
     util/settings.cpp
     util/terminal.cpp
     util/close_popper.cpp
     util/welcome.cpp
     util/debug_console.cpp
+)
+add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_include_directories(util PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui/backends
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor  # Add editor directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
+    ${CMAKE_BINARY_DIR}  # This is where config.h gets generated
+)
+target_link_libraries(util PUBLIC
+    ${OPENGL_LIBRARIES}
+    glfw
+)
+# Main executable
+add_executable(ned
+    main.cpp
+    ned.cpp
+    globals.cpp 
+    shaders/shader.cpp
+
+    # Editor files
+    editor/editor.cpp
+    editor/line_jump.cpp
     
-    files.cpp
-    editor.cpp
+    # Files
+    files/files.cpp
+    files/file_finder.cpp
+    
+    # ImGui files
     lib/imgui/imgui.cpp
     lib/imgui/imgui_demo.cpp
     lib/imgui/imgui_draw.cpp
@@ -85,12 +97,15 @@ add_executable(ned
     lib/imgui/backends/imgui_impl_glfw.cpp
     lib/imgui/backends/imgui_impl_opengl3.cpp
 )
+
 target_include_directories(ned PRIVATE
     lib/imgui
     lib/imgui/backends
     ${NFD_DIR}/src
     ${NFD_DIR}/src/include
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor  # Add editor directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
     ${CMAKE_BINARY_DIR}
     ${GLEW_INCLUDE_DIRS}
 )

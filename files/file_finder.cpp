@@ -2,8 +2,8 @@
     util/file_finder.cpp
     Implementation of the file finder utility.
 */
-#include "util/file_finder.h"
-#include "close_popper.h"
+#include "file_finder.h"
+#include "../util/close_popper.h"
 
 FileFinder gFileFinder;
 
