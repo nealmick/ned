@@ -233,7 +233,7 @@ FileExplorer::TreeDisplayMetrics FileExplorer::calculateDisplayMetrics()
     TreeDisplayMetrics metrics;
     metrics.currentFontSize = gSettings.getFontSize();
     metrics.folderIconSize = metrics.currentFontSize * 0.8f;
-    metrics.fileIconSize = metrics.currentFontSize * 1.2f;
+    metrics.fileIconSize = metrics.currentFontSize * 1.2f; // Restore original value
     metrics.itemHeight = ImGui::GetFrameHeight();
     metrics.indentWidth = 28.0f;
     metrics.cursorPos = ImGui::GetCursorPos();
@@ -324,10 +324,10 @@ void FileExplorer::displayDirectoryNode(const FileNode &node, const FileExplorer
         depth--;
     }
 }
-
 void FileExplorer::displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth)
 {
-    ImVec2 iconSize(metrics.fileIconSize, metrics.fileIconSize);
+    float reducedSize = metrics.fileIconSize * 0.9f;
+    ImVec2 iconSize(reducedSize, reducedSize);
     ImTextureID fileIcon = getIconForFile(node.name);
 
     // Setup file button
