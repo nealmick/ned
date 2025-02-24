@@ -1,5 +1,5 @@
 #include "welcome.h"
-#include "../files.h"
+#include "../files/files.h"
 #include "util/debug_console.h"
 #include <iostream>
 

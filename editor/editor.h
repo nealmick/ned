@@ -4,11 +4,11 @@
 */
 
 #pragma once
+#include "../lexers/cpp.h"
+#include "../lexers/html.h"
+#include "../lexers/jsx.h"
+#include "../lexers/python.h"
 #include "imgui.h"
-#include "lexers/cpp.h"
-#include "lexers/html.h"
-#include "lexers/jsx.h"
-#include "lexers/python.h"
 
 #include <atomic>
 #include <cmath>

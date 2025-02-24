@@ -4,9 +4,9 @@
 */
 
 #pragma once
-#include "editor.h"
+#include "../editor/editor.h"
 #include "imgui.h"
-#include "util/undo_redo_manager.h"
+#include "undo_redo_manager.h"
 #include <GLFW/glfw3.h>
 #include <filesystem>
 #include <map>

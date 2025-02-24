@@ -6,10 +6,10 @@
 */
 
 #pragma once
-#include "../editor.h"
-#include "../files.h"
+#include "../files/files.h"
 #include "../imgui/imgui.h"
-#include "close_popper.h"
+#include "../util/close_popper.h"
+#include "editor.h"
 #include <string>
 
 class LineJump

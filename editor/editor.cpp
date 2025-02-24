@@ -4,11 +4,11 @@
 */
 
 #include "editor.h"
-#include "files.h"
-#include "util/bookmarks.h"
-#include "util/file_finder.h"
-#include "util/line_jump.h"
-#include "util/settings.h"
+#include "../files/file_finder.h"
+#include "../files/files.h"
+#include "../util/settings.h"
+#include "bookmarks.h"
+#include "line_jump.h"
 
 #include <algorithm>
 #include <cmath>

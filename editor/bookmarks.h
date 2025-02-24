@@ -10,12 +10,11 @@
 
 #pragma once
 #include "editor.h"
-#include "files.h"
 #include "imgui.h"
 #include <array>
 #include <string>
 
-#include "../files.h"
+#include "../files/files.h"
 
 class Bookmarks
 {

@@ -5,9 +5,9 @@
     both linejump and bookmarks popup to close.
 */
 #include "close_popper.h"
-#include "bookmarks.h"
-#include "file_finder.h"
-#include "line_jump.h"
+#include "../editor/bookmarks.h"
+#include "../editor/line_jump.h"
+#include "../files/file_finder.h"
 #include "settings.h"
 
 void ClosePopper::closeAllExcept(Type keepOpen)
