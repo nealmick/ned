@@ -26,20 +26,16 @@ class LineJump
         bool shift_pressed = ImGui::GetIO().KeyShift;
 
         // Reset justJumped if Enter isn't being pressed
-        if (!ImGui::IsKeyPressed(ImGuiKey_Enter))
-        {
+        if (!ImGui::IsKeyPressed(ImGuiKey_Enter)) {
             justJumped = false;
         }
 
-        if (main_key && (ImGui::IsKeyPressed(ImGuiKey_Semicolon) || (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon))))
-        {
+        if (main_key && (ImGui::IsKeyPressed(ImGuiKey_Semicolon) || (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon)))) {
             showLineJumpWindow = !showLineJumpWindow;
-            if (showLineJumpWindow)
-            {                                                             // Only close others if we're opening
+            if (showLineJumpWindow) {                                     // Only close others if we're opening
                 ClosePopper::closeAllExcept(ClosePopper::Type::LineJump); // RIGHT
             }
-            if (showLineJumpWindow)
-            {
+            if (showLineJumpWindow) {
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 ImGui::SetKeyboardFocusHere();
             }
@@ -91,8 +87,7 @@ class LineJump
         // Set custom item spacing
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(paddingHorizontal, itemSpacing));
 
-        if (ImGui::Begin("Line Jump", nullptr, windowFlags))
-        {
+        if (ImGui::Begin("Line Jump", nullptr, windowFlags)) {
             // Make input field use full width
             ImGui::PushItemWidth(-1);
 
@@ -105,8 +100,7 @@ class LineJump
             // Set keyboard focus to input field
             ImGui::SetKeyboardFocusHere();
 
-            if (ImGui::InputText("##linejump", lineNumberBuffer, sizeof(lineNumberBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue))
-            {
+            if (ImGui::InputText("##linejump", lineNumberBuffer, sizeof(lineNumberBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue)) {
                 int lineNumber = std::atoi(lineNumberBuffer);
                 jumpToLine(lineNumber - 1, state);
                 showLineJumpWindow = false;
@@ -121,8 +115,7 @@ class LineJump
             // Instruction text
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Type line number then Enter");
 
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-            {
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
                 showLineJumpWindow = false;
                 state.blockInput = false;
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
@@ -142,8 +135,7 @@ class LineJump
     {
         if (lineNumber < 0)
             lineNumber = 0;
-        if (lineNumber >= static_cast<int>(state.line_starts.size()))
-        {
+        if (lineNumber >= static_cast<int>(state.line_starts.size())) {
             lineNumber = static_cast<int>(state.line_starts.size()) - 1;
         }
 

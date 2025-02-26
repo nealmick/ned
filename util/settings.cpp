@@ -25,66 +25,49 @@ void Settings::loadSettings()
     // std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
 
     std::ifstream settingsFile(settingsPath);
-    if (settingsFile.is_open())
-    {
-        try
-        {
+    if (settingsFile.is_open()) {
+        try {
             settingsFile >> settings;
             std::cout << "\033[95mSettings:\033[0m Json preferences loaded successfully" << std::endl;
-        }
-        catch (json::parse_error &e)
-        {
+        } catch (json::parse_error &e) {
             std::cerr << "\033[95mSettings:\033[0m Error parsing settings file: " << e.what() << std::endl;
             settings = json::object(); // Reset to empty object
         }
-    }
-    else
-    {
+    } else {
         std::cout << "\033[95mSettings:\033[0m json file not found, using defaults" << std::endl;
         settings = json::object(); // Create an empty JSON object
     }
-    if (!settings.contains("font"))
-    {
+    if (!settings.contains("font")) {
         settings["font"] = "default";
     }
     // Set default values if not present
-    if (!settings.contains("backgroundColor"))
-    {
+    if (!settings.contains("backgroundColor")) {
         settings["backgroundColor"] = {0.45f, 0.55f, 0.60f, 1.00f};
     }
-    if (!settings.contains("fontSize"))
-    {
+    if (!settings.contains("fontSize")) {
         currentFontSize = settings["fontSize"].get<float>();
     }
-    if (!settings.contains("splitPos"))
-    {
+    if (!settings.contains("splitPos")) {
         settings["splitPos"] = 0.3f;
     }
-    if (!settings.contains("theme"))
-    {
+    if (!settings.contains("theme")) {
         settings["theme"] = "default";
     }
-    if (!settings.contains("rainbow"))
-    {
+    if (!settings.contains("rainbow")) {
         settings["rainbow"] = true; // default to true
     }
-    if (!settings.contains("shader_toggle"))
-    {
+    if (!settings.contains("shader_toggle")) {
         settings["shader_toggle"] = true; // default to shader enabled
     }
-    if (!settings.contains("themes"))
-    {
+    if (!settings.contains("themes")) {
         settings["themes"] = {{"default", {{"function", {1.0f, 1.0f, 1.0f, 1.0f}}, {"text", {1.0f, 1.0f, 1.0f, 1.0f}}, {"background", {0.2f, 0.2f, 0.2f, 1.0f}}, {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}}, {"string", {0.87f, 0.87f, 0.0f, 1.0f}}, {"number", {0.0f, 0.8f, 0.8f, 1.0f}}, {"comment", {0.5f, 0.5f, 0.5f, 1.0f}}, {"heading", {0.9f, 0.5f, 0.2f, 1.0f}}, {"bold", {1.0f, 0.7f, 0.7f, 1.0f}}, {"italic", {0.7f, 1.0f, 0.7f, 1.0f}}, {"link", {0.4f, 0.4f, 1.0f, 1.0f}}, {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}}, {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}}, {"tag", {0.3f, 0.7f, 0.9f, 1.0f}}, {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}}, {"selector", {0.9f, 0.4f, 0.6f, 1.0f}}, {"property", {0.6f, 0.9f, 0.4f, 1.0f}}, {"value", {0.4f, 0.6f, 0.9f, 1.0f}}, {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
     }
 
     splitPos = settings["splitPos"].get<float>();
     // Only update lastSettingsModification if the file exists
-    if (fs::exists(settingsPath))
-    {
+    if (fs::exists(settingsPath)) {
         lastSettingsModification = fs::last_write_time(settingsPath);
-    }
-    else
-    {
+    } else {
         lastSettingsModification = fs::file_time_type::min();
     }
 
@@ -94,43 +77,37 @@ void Settings::loadSettings()
 void Settings::saveSettings()
 {
     std::ofstream settingsFile(settingsPath);
-    if (settingsFile.is_open())
-    {
+    if (settingsFile.is_open()) {
         settingsFile << std::setw(4) << settings << std::endl;
     }
 }
 void Settings::checkSettingsFile()
 {
 
-    if (!fs::exists(settingsPath))
-    {
+    if (!fs::exists(settingsPath)) {
         std::cout << "Settings file does not exist, skipping check" << std::endl;
         return;
     }
 
     auto currentModification = fs::last_write_time(settingsPath);
 
-    if (currentModification > lastSettingsModification)
-    {
+    if (currentModification > lastSettingsModification) {
         std::cout << "Settings file has been modified, reloading" << std::endl;
         json oldSettings = settings;
         loadSettings();
         lastSettingsModification = currentModification;
 
         // Rest of the existing check logic remains the same
-        if (oldSettings["backgroundColor"] != settings["backgroundColor"] || oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] || oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] || oldSettings["rainbow"] != settings["rainbow"] || oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"])
-        {
+        if (oldSettings["backgroundColor"] != settings["backgroundColor"] || oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] || oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] || oldSettings["rainbow"] != settings["rainbow"] || oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
 
             // Check if theme or themes have changed
-            if (oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"])
-            {
+            if (oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"]) {
                 themeChanged = true;
             }
 
             // Check if font has changed
-            if (oldSettings["font"] != settings["font"])
-            {
+            if (oldSettings["font"] != settings["font"]) {
                 fontChanged = true;
             }
         }
@@ -158,30 +135,25 @@ void Settings::renderSettingsWindow()
     static bool wasFocused = false;
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
-    if (wasFocused && !isFocused)
-    {
+    if (wasFocused && !isFocused) {
         std::cout << "Settings window lost focus!" << std::endl;
         std::cout << "Settings window lost focus!" << std::endl;
         showSettingsWindow = false;
         saveSettings();
-    }
-    else if (!wasFocused && isFocused)
-    {
+    } else if (!wasFocused && isFocused) {
         std::cout << "Settings window gained focus!" << std::endl;
     }
     wasFocused = isFocused;
 
     // Check for clicks outside window
-    if (ImGui::IsMouseClicked(0))
-    {
+    if (ImGui::IsMouseClicked(0)) {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 windowPos = ImGui::GetWindowPos();
         ImVec2 windowSize = ImGui::GetWindowSize();
 
         bool isOutside = mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y);
 
-        if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup))
-        {
+        if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
             showSettingsWindow = false;
             saveSettings();
         }
@@ -197,8 +169,7 @@ void Settings::renderSettingsWindow()
     ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20);
 
     ImVec2 cursor_pos = ImGui::GetCursorPos();
-    if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize)))
-    {
+    if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize))) {
         showSettingsWindow = false;
         saveSettings();
     }
@@ -215,13 +186,11 @@ void Settings::renderSettingsWindow()
 
     static float tempFontSize = currentFontSize; // Use currentFontSize instead of reading from settings
 
-    if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
-    {
+    if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f")) {
         settings["fontSize"] = tempFontSize; // Update settings but don't change display yet
     }
 
-    if (ImGui::IsItemDeactivatedAfterEdit())
-    {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
         setFontSize(tempFontSize); // This will update currentFontSize and trigger changes
         saveSettings();
     }
@@ -231,8 +200,7 @@ void Settings::renderSettingsWindow()
     auto &bgColorArray = settings["backgroundColor"];
     ImVec4 bgColor(bgColorArray[0].get<float>(), bgColorArray[1].get<float>(), bgColorArray[2].get<float>(), bgColorArray[3].get<float>());
 
-    if (ImGui::ColorEdit3("Background Color", (float *)&bgColor))
-    {
+    if (ImGui::ColorEdit3("Background Color", (float *)&bgColor)) {
         settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
         settingsChanged = true;
         saveSettings();
@@ -243,15 +211,13 @@ void Settings::renderSettingsWindow()
     auto &themeColors = settings["themes"][currentTheme];
 
     // Create helper lambda for color editing
-    auto editThemeColor = [&](const char *label, const char *colorKey)
-    {
+    auto editThemeColor = [&](const char *label, const char *colorKey) {
         auto &colorArray = themeColors[colorKey];
         ImVec4 color(colorArray[0].get<float>(), colorArray[1].get<float>(), colorArray[2].get<float>(), colorArray[3].get<float>());
 
         ImGui::TextUnformatted(label);
         ImGui::SameLine(200);
-        if (ImGui::ColorEdit3(("##" + std::string(colorKey)).c_str(), (float *)&color))
-        {
+        if (ImGui::ColorEdit3(("##" + std::string(colorKey)).c_str(), (float *)&color)) {
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
@@ -278,8 +244,7 @@ void Settings::renderSettingsWindow()
 
     // Rainbow Mode Toggle
     bool rainbowMode = settings["rainbow"].get<bool>();
-    if (ImGui::Checkbox("Rainbow Mode", &rainbowMode))
-    {
+    if (ImGui::Checkbox("Rainbow Mode", &rainbowMode)) {
         settings["rainbow"] = rainbowMode;
         settingsChanged = true;
         saveSettings();
@@ -288,8 +253,7 @@ void Settings::renderSettingsWindow()
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
     ImGui::Spacing();
     bool shaderEnabled = settings["shader_toggle"].get<bool>();
-    if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled))
-    {
+    if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled)) {
         settings["shader_toggle"] = shaderEnabled;
         settingsChanged = true;
         saveSettings();
@@ -300,8 +264,7 @@ void Settings::renderSettingsWindow()
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSettingsWindow = false;
         saveSettings();
     }

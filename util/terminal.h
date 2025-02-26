@@ -36,8 +36,7 @@ class Terminal
     using Rune = uint_least32_t;
 
     // Glyph attributes (matching st's glyph_attribute)
-    enum Attribute
-    {
+    enum Attribute {
         ATTR_NULL = 0,
         ATTR_BOLD = 1 << 0,
         ATTR_FAINT = 1 << 1,
@@ -54,25 +53,7 @@ class Terminal
     };
 
     // Terminal modes
-    enum Mode
-    {
-        MODE_WRAP = 1 << 0,
-        MODE_INSERT = 1 << 1,
-        MODE_ALTSCREEN = 1 << 2,
-        MODE_CRLF = 1 << 3,
-        MODE_ECHO = 1 << 4,
-        MODE_PRINT = 1 << 5,
-        MODE_UTF8 = 1 << 6,
-        MODE_SIXEL = 1 << 7,
-        MODE_BRACKETPASTE = 1 << 8,
-        MODE_APPCURSOR = 1 << 9,
-        MODE_MOUSEBTN = 1 << 10,
-        MODE_MOUSESGR = 1 << 11,
-        MODE_MOUSEX10 = 1 << 12,
-        MODE_MOUSEMANY = 1 << 13,
-        MODE_SMOOTHSCROLL = 1 << 14,
-        MODE_VISUALBELL = 1 << 15
-    };
+    enum Mode { MODE_WRAP = 1 << 0, MODE_INSERT = 1 << 1, MODE_ALTSCREEN = 1 << 2, MODE_CRLF = 1 << 3, MODE_ECHO = 1 << 4, MODE_PRINT = 1 << 5, MODE_UTF8 = 1 << 6, MODE_SIXEL = 1 << 7, MODE_BRACKETPASTE = 1 << 8, MODE_APPCURSOR = 1 << 9, MODE_MOUSEBTN = 1 << 10, MODE_MOUSESGR = 1 << 11, MODE_MOUSEX10 = 1 << 12, MODE_MOUSEMANY = 1 << 13, MODE_SMOOTHSCROLL = 1 << 14, MODE_VISUALBELL = 1 << 15 };
 
     struct STREscape
     {
@@ -85,46 +66,16 @@ class Terminal
 
     // Selection modes (matching st's selection_mode)
 
-    enum SelectionMode
-    {
-        SEL_IDLE = 0,
-        SEL_EMPTY = 1,
-        SEL_READY = 2,
-        SEL_SELECTING = 3
-    };
+    enum SelectionMode { SEL_IDLE = 0, SEL_EMPTY = 1, SEL_READY = 2, SEL_SELECTING = 3 };
 
     // Selection types
-    enum SelectionType
-    {
-        SEL_REGULAR = 1,
-        SEL_RECTANGULAR = 2
-    };
+    enum SelectionType { SEL_REGULAR = 1, SEL_RECTANGULAR = 2 };
 
-    enum CursorState
-    {
-        CURSOR_DEFAULT = 0,
-        CURSOR_WRAPNEXT = 1,
-        CURSOR_ORIGIN = 2
-    };
+    enum CursorState { CURSOR_DEFAULT = 0, CURSOR_WRAPNEXT = 1, CURSOR_ORIGIN = 2 };
 
-    enum EscapeState
-    {
-        ESC_START = 1,
-        ESC_CSI = 2,
-        ESC_STR = 4,
-        ESC_ALTCHARSET = 8,
-        ESC_STR_END = 16,
-        ESC_UTF8 = 64,
-        ESC_TEST = 32,
-        ESC_APPCURSOR = 128
-    };
+    enum EscapeState { ESC_START = 1, ESC_CSI = 2, ESC_STR = 4, ESC_ALTCHARSET = 8, ESC_STR_END = 16, ESC_UTF8 = 64, ESC_TEST = 32, ESC_APPCURSOR = 128 };
 
-    enum ColorMode
-    {
-        COLOR_BASIC = 0,
-        COLOR_256 = 1,
-        COLOR_TRUE = 2
-    };
+    enum ColorMode { COLOR_BASIC = 0, COLOR_256 = 1, COLOR_TRUE = 2 };
 
     // Core structures
     struct Glyph
@@ -313,15 +264,7 @@ class Terminal
     void disableBracketedPaste();
     void handlePastedContent(const std::string &content);
 
-    enum Charset
-    {
-        CS_GRAPHIC0,
-        CS_UK,
-        CS_USA,
-        CS_MULTI,
-        CS_GER,
-        CS_FIN
-    };
+    enum Charset { CS_GRAPHIC0, CS_UK, CS_USA, CS_MULTI, CS_GER, CS_FIN };
 
     STREscape strescseq;
 

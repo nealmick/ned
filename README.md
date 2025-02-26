@@ -34,13 +34,9 @@ git submodule update
 
 Building the Project
 ```sh
-mkdir build
-cd build
-cmake ..
 
-make
+./build.sh
 
-./ned
 ```
 
 

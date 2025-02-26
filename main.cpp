@@ -9,8 +9,7 @@ int main()
 {
     Ned ned;
 
-    if (!ned.initialize())
-    {
+    if (!ned.initialize()) {
         return -1;
     }
 

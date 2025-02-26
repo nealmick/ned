@@ -12,10 +12,8 @@
 class Settings;
 extern Settings gSettings;
 
-namespace PythonLexer
-{
-enum class TokenType
-{
+namespace PythonLexer {
+enum class TokenType {
     Whitespace,
     Identifier,
     Keyword,
@@ -82,39 +80,25 @@ class Lexer
         size_t maxIterations = code.length() * 2;
         size_t iterations = 0;
 
-        try
-        {
-            while (pos < code.length() && iterations < maxIterations)
-            {
+        try {
+            while (pos < code.length() && iterations < maxIterations) {
                 lastPos = pos;
-                if (isWhitespace(code[pos]))
-                {
+                if (isWhitespace(code[pos])) {
                     tokens.push_back({TokenType::Whitespace, pos, 1});
                     pos++;
-                }
-                else if (isAlpha(code[pos]) || code[pos] == '_')
-                {
+                } else if (isAlpha(code[pos]) || code[pos] == '_') {
                     tokens.push_back(lexIdentifierOrKeyword(code, pos));
-                }
-                else if (isDigit(code[pos]))
-                {
+                } else if (isDigit(code[pos])) {
                     tokens.push_back(lexNumber(code, pos));
-                }
-                else if (code[pos] == '#')
-                {
+                } else if (code[pos] == '#') {
                     tokens.push_back(lexComment(code, pos));
-                }
-                else if (code[pos] == '"' || code[pos] == '\'')
-                {
+                } else if (code[pos] == '"' || code[pos] == '\'') {
                     tokens.push_back(lexString(code, pos));
-                }
-                else
-                {
+                } else {
                     tokens.push_back(lexOperator(code, pos));
                 }
 
-                if (pos == lastPos)
-                {
+                if (pos == lastPos) {
                     // std::cerr << "Tokenizer stuck at position " << pos << ", character: '" <<
                     // code[pos] << "'" << std::endl;
                     pos++;
@@ -123,17 +107,12 @@ class Lexer
                 iterations++;
             }
 
-            if (iterations >= maxIterations)
-            {
+            if (iterations >= maxIterations) {
                 std::cerr << "🔴 Tokenizer exceeded maximum iterations." << std::endl;
             }
-        }
-        catch (const std::exception &e)
-        {
+        } catch (const std::exception &e) {
             std::cerr << "🔴 Exception in tokenize: " << e.what() << std::endl;
-        }
-        catch (...)
-        {
+        } catch (...) {
             std::cerr << "🔴 Unknown exception in tokenize" << std::endl;
         }
 
@@ -142,25 +121,19 @@ class Lexer
 
     void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
     {
-        try
-        {
+        try {
             std::vector<Token> tokens = tokenize(code);
 
-            for (const auto &token : tokens)
-            {
+            for (const auto &token : tokens) {
                 ImVec4 color = getColorForTokenType(token.type);
-                for (size_t i = 0; i < token.length; ++i)
-                {
+                for (size_t i = 0; i < token.length; ++i) {
                     size_t index = start_pos + token.start + i;
-                    if (index < colors.size())
-                    {
+                    if (index < colors.size()) {
                         colors[index] = color;
                     }
                 }
             }
-        }
-        catch (const std::exception &e)
-        {
+        } catch (const std::exception &e) {
             std::cerr << "🔴 Exception in applyHighlighting: " << e.what() << std::endl;
         }
     }
@@ -180,8 +153,7 @@ class Lexer
 
         auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 
-        auto loadColor = [&theme](const char *key) -> ImVec4
-        {
+        auto loadColor = [&theme](const char *key) -> ImVec4 {
             auto &c = theme[key];
             return ImVec4(c[0], c[1], c[2], c[3]);
         };
@@ -215,33 +187,27 @@ class Lexer
         bool isFunction = next < code.length() && code[next] == '(';
 
         // Check for decorators
-        if (start > 0 && code[start - 1] == '@')
-        {
+        if (start > 0 && code[start - 1] == '@') {
             return {TokenType::Decorator, start, pos - start};
         }
 
         // Check priority in this order
-        if (keywords.find(word) != keywords.end())
-        {
-            if (word == "class")
-            {
+        if (keywords.find(word) != keywords.end()) {
+            if (word == "class") {
                 return {TokenType::ClassName, start, pos - start};
             }
             return {TokenType::Keyword, start, pos - start};
         }
 
-        if (builtinTypes.find(word) != builtinTypes.end())
-        {
+        if (builtinTypes.find(word) != builtinTypes.end()) {
             return {TokenType::BuiltinType, start, pos - start};
         }
 
-        if (word == "self")
-        {
+        if (word == "self") {
             return {TokenType::SelfParam, start, pos - start};
         }
 
-        if (isFunction)
-        {
+        if (isFunction) {
             return {TokenType::Function, start, pos - start};
         }
 
@@ -260,8 +226,7 @@ class Lexer
     {
         size_t start = pos;
         char quote = code[pos++];
-        while (pos < code.length() && code[pos] != quote)
-        {
+        while (pos < code.length() && code[pos] != quote) {
             if (code[pos] == '\\' && pos + 1 < code.length())
                 pos++;
             pos++;
@@ -296,15 +261,13 @@ class Lexer
             return {TokenType::Dot, start, 1};
 
         std::string op;
-        while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos]))
-        {
+        while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos])) {
             op += code[pos++];
             if (operators.find(op) != operators.end())
                 break;
         }
 
-        if (op.empty())
-        {
+        if (op.empty()) {
             op = code[pos++];
         }
 
@@ -315,8 +278,7 @@ class Lexer
     {
         updateThemeColors();
 
-        switch (type)
-        {
+        switch (type) {
         case TokenType::Keyword:
         case TokenType::BuiltinType:
             return cachedColors.keyword;

@@ -27,17 +27,14 @@ class UndoRedoManager
   public:
     void addState(const std::string &state, int changeStart, int changeEnd)
     {
-        if (changeStart < 0 || changeEnd < changeStart || changeEnd > static_cast<int>(state.length()))
-        {
+        if (changeStart < 0 || changeEnd < changeStart || changeEnd > static_cast<int>(state.length())) {
             std::cerr << "Invalid change range: " << changeStart << " to " << changeEnd << std::endl;
             return;
         }
 
-        if (undoStack.empty() || state != undoStack.back().content)
-        {
+        if (undoStack.empty() || state != undoStack.back().content) {
             undoStack.push_back({state, changeStart, changeEnd});
-            if (undoStack.size() > maxStackSize)
-            {
+            if (undoStack.size() > maxStackSize) {
                 undoStack.erase(undoStack.begin());
             }
             redoStack.clear();
@@ -46,8 +43,7 @@ class UndoRedoManager
 
     State undo(const std::string &currentState)
     {
-        if (undoStack.size() <= 1)
-        {
+        if (undoStack.size() <= 1) {
             return {currentState, 0, static_cast<int>(currentState.length())};
         }
         redoStack.push_back(undoStack.back());
@@ -57,8 +53,7 @@ class UndoRedoManager
 
     State redo(const std::string &currentState)
     {
-        if (redoStack.empty())
-        {
+        if (redoStack.empty()) {
             return {currentState, 0, static_cast<int>(currentState.length())};
         }
         State nextState = redoStack.back();
