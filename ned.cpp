@@ -701,8 +701,8 @@ void Ned::handleScrollInput()
     float dt = io.DeltaTime;
 
     // Spring physics parameters with enhanced smoothing
-    const float stiffness = 3.0f; // Reduced for smoother response (was 8.0f)
-    const float damping = 8.0f;   // Reduced for more gentle deceleration (was 12.0f)
+    const float stiffness = 6.0f; // Reduced for smoother response (was 8.0f)
+    const float damping = 10.0f;  // Reduced for more gentle deceleration (was 12.0f)
 
     // Friction to gradually bring target velocity to zero
     const float friction = 5.0f; // Reduced for longer-lasting momentum (was 8.0f)
@@ -724,7 +724,7 @@ void Ned::handleScrollInput()
 
     // Set ImGui scroll values based on current velocity
     // Use smaller multiplier for more controlled scrolling speed
-    const float outputMultiplier = 0.0004f; // Reduced by half for slower scrolling
+    const float outputMultiplier = 0.0001f; // Reduced by half for slower scrolling
     io.MouseWheel = currentScrollVelocity.y * outputMultiplier;
     io.MouseWheelH = currentScrollVelocity.x * outputMultiplier;
 }
