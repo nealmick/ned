@@ -14,16 +14,14 @@ Shader::Shader() { shaderProgram = 0; }
 
 Shader::~Shader()
 {
-    if (shaderProgram != 0)
-    {
+    if (shaderProgram != 0) {
         glDeleteProgram(shaderProgram);
     }
 }
 bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath)
 {
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != NULL)
-    {
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
         // std::cout << "Current working directory: " << cwd << std::endl;
     }
     // std::cout << "Attempting to load vertex shader from: " << vertexShaderPath << std::endl;
@@ -33,8 +31,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
     // Read vertex shader
     std::string vertexShaderCode;
     std::ifstream vertexShaderFile(vertexShaderPath);
-    if (!vertexShaderFile.is_open())
-    {
+    if (!vertexShaderFile.is_open()) {
         std::cerr << "🔴 ERROR: Cannot open vertex shader file: " << vertexShaderPath << std::endl;
         return false;
     }
@@ -50,8 +47,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
     // Read fragment shader
     std::string fragmentShaderCode;
     std::ifstream fragmentShaderFile(fragmentShaderPath);
-    if (!fragmentShaderFile.is_open())
-    {
+    if (!fragmentShaderFile.is_open()) {
         std::cerr << "🔴 ERROR: Cannot open fragment shader file: " << fragmentShaderPath << std::endl;
         return false;
     }
@@ -65,13 +61,11 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
     // std::cout << fragmentShaderCode << std::endl;
 
     // Check if shaders are empty
-    if (vertexShaderCode.empty())
-    {
+    if (vertexShaderCode.empty()) {
         std::cerr << "🔴 ERROR: Vertex shader is empty!" << std::endl;
         return false;
     }
-    if (fragmentShaderCode.empty())
-    {
+    if (fragmentShaderCode.empty()) {
         std::cerr << "🔴 ERROR: Fragment shader is empty!" << std::endl;
         return false;
     }
@@ -86,8 +80,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
     int success = 0;
     char infoLog[512];
     glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
+    if (!success) {
         glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
         std::cerr << "🔴 ERROR: Vertex shader compilation failed\n" << infoLog << std::endl;
         return false;
@@ -101,8 +94,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 
     // Check fragment shader compilation
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
+    if (!success) {
         glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
         std::cerr << "🔴 ERROR: Fragment shader compilation failed\n" << infoLog << std::endl;
         glDeleteShader(vertexShader); // Clean up vertex shader
@@ -117,8 +109,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 
     // Check program linking
     glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success)
-    {
+    if (!success) {
         glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
         std::cerr << "🔴 ERROR: Shader program linking failed\n" << infoLog << std::endl;
         glDeleteShader(vertexShader);
@@ -133,8 +124,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
     glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &uniformCount);
 
     char uniformName[256];
-    for (int i = 0; i < uniformCount; i++)
-    {
+    for (int i = 0; i < uniformCount; i++) {
         int length, size;
         GLenum type;
         glGetActiveUniform(shaderProgram, (GLuint)i, sizeof(uniformName), &length, &size, &type, uniformName);
@@ -150,8 +140,7 @@ void Shader::useShader()
 
     // Debug uniform locations
     GLint textureLocation = glGetUniformLocation(shaderProgram, "screenTexture");
-    if (textureLocation == -1)
-    {
+    if (textureLocation == -1) {
         std::cerr << "🔴 Failed to find 'screenTexture' uniform" << std::endl;
     }
 }
@@ -159,8 +148,7 @@ void Shader::useShader()
 void Shader::setFloat(const std::string &name, float value)
 {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
-    if (location == -1)
-    {
+    if (location == -1) {
         std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
         return;
     }
@@ -169,8 +157,7 @@ void Shader::setFloat(const std::string &name, float value)
 void Shader::setMatrix4fv(const std::string &name, const float *matrix)
 {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
-    if (location == -1)
-    {
+    if (location == -1) {
         std::cerr << "🔴 Warning: Matrix uniform '" << name << "' not found" << std::endl;
         return;
     }
@@ -179,8 +166,7 @@ void Shader::setMatrix4fv(const std::string &name, const float *matrix)
 void Shader::setInt(const std::string &name, int value)
 {
     GLint location = glGetUniformLocation(shaderProgram, name.c_str());
-    if (location == -1)
-    {
+    if (location == -1) {
         std::cerr << "🔴 Warning: Uniform '" << name << "' not found in shader program" << std::endl;
         return;
     }

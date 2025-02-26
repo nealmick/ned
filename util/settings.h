@@ -40,8 +40,7 @@ class Settings
 
     void setFontSize(float size)
     {
-        if (size != currentFontSize)
-        {
+        if (size != currentFontSize) {
             settings["fontSize"] = size;
             currentFontSize = size;
             fontSizeChanged = true;
@@ -56,8 +55,7 @@ class Settings
     void toggleSettingsWindow()
     {
         showSettingsWindow = !showSettingsWindow;
-        if (showSettingsWindow)
-        {                                                             // Only close others if we're opening
+        if (showSettingsWindow) {                                     // Only close others if we're opening
             ClosePopper::closeAllExcept(ClosePopper::Type::Settings); // RIGHT
         }
         blockInput = showSettingsWindow;

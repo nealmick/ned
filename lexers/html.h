@@ -10,11 +10,9 @@
 class Settings;
 extern Settings gSettings;
 
-namespace HtmlLexer
-{
+namespace HtmlLexer {
 
-enum class TokenType
-{
+enum class TokenType {
     Whitespace,
     Identifier,
     TagName,
@@ -99,35 +97,26 @@ class Lexer
         bool inScript = false;
         bool inStyle = false;
 
-        while (pos < code.length())
-        {
-            if (inScript)
-            {
+        while (pos < code.length()) {
+            if (inScript) {
                 tokens.push_back(lexScriptContent(code, pos));
                 inScript = false;
                 continue;
             }
-            if (inStyle)
-            {
+            if (inStyle) {
                 tokens.push_back(lexStyleContent(code, pos));
                 inStyle = false;
                 continue;
             }
 
             char c = code[pos];
-            if (isWhitespace(c))
-            {
+            if (isWhitespace(c)) {
                 tokens.push_back({TokenType::Whitespace, pos, 1});
                 pos++;
-            }
-            else if (c == '<')
-            {
-                if (pos + 3 < code.length() && code.substr(pos, 4) == "<!--")
-                {
+            } else if (c == '<') {
+                if (pos + 3 < code.length() && code.substr(pos, 4) == "<!--") {
                     tokens.push_back(lexComment(code, pos));
-                }
-                else
-                {
+                } else {
                     auto tag = lexTag(code, pos);
                     tokens.push_back(tag);
                     if (isScriptTag(code, tag))
@@ -136,39 +125,26 @@ class Lexer
                         inStyle = true;
 
                     // After tag name, look for attributes
-                    while (pos < code.length() && code[pos] != '>')
-                    {
-                        if (isWhitespace(code[pos]))
-                        {
+                    while (pos < code.length() && code[pos] != '>') {
+                        if (isWhitespace(code[pos])) {
                             pos++;
-                        }
-                        else if (isAlpha(code[pos]))
-                        {
+                        } else if (isAlpha(code[pos])) {
                             tokens.push_back(lexAttribute(code, pos));
-                        }
-                        else if (code[pos] == '=')
-                        {
+                        } else if (code[pos] == '=') {
                             tokens.push_back({TokenType::Equals, pos, 1});
                             pos++;
-                        }
-                        else if (code[pos] == '"' || code[pos] == '\'')
-                        {
+                        } else if (code[pos] == '"' || code[pos] == '\'') {
                             tokens.push_back(lexString(code, pos));
-                        }
-                        else
-                        {
+                        } else {
                             pos++;
                         }
                     }
-                    if (pos < code.length() && code[pos] == '>')
-                    {
+                    if (pos < code.length() && code[pos] == '>') {
                         tokens.push_back({TokenType::AngledBracket, pos, 1});
                         pos++;
                     }
                 }
-            }
-            else if (c == '&')
-            {
+            } else if (c == '&') {
                 // Handle entity references
                 size_t start = pos;
                 while (pos < code.length() && code[pos] != ';')
@@ -176,9 +152,7 @@ class Lexer
                 if (pos < code.length())
                     pos++; // Include the semicolon
                 tokens.push_back({TokenType::EntityRef, start, pos - start});
-            }
-            else
-            {
+            } else {
                 // Plain text
                 size_t start = pos;
                 while (pos < code.length() && code[pos] != '<' && code[pos] != '&')
@@ -190,29 +164,23 @@ class Lexer
     }
     void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
     {
-        try
-        {
+        try {
             std::vector<Token> tokens = tokenize(code);
-            for (const auto &token : tokens)
-            {
-                if (token.type == TokenType::ScriptContent)
-                {
+            for (const auto &token : tokens) {
+                if (token.type == TokenType::ScriptContent) {
                     // Extract JavaScript content
                     std::string jsContent = code.substr(token.start, token.length);
 
                     // Tokenize the JavaScript content
                     size_t jsPos = 0;
-                    while (jsPos < jsContent.length())
-                    {
+                    while (jsPos < jsContent.length()) {
                         Token jsToken = lexJavaScript(jsContent, jsPos);
 
                         // Apply color based on JavaScript token type
                         ImVec4 color = getColorForTokenType(jsToken.type);
-                        for (size_t i = 0; i < jsToken.length; ++i)
-                        {
+                        for (size_t i = 0; i < jsToken.length; ++i) {
                             size_t index = start_pos + token.start + jsToken.start + i;
-                            if (index < colors.size())
-                            {
+                            if (index < colors.size()) {
                                 colors[index] = color;
                             }
                         }
@@ -220,24 +188,20 @@ class Lexer
                     continue;
                 }
 
-                if (token.type == TokenType::StyleContent)
-                {
+                if (token.type == TokenType::StyleContent) {
                     // Extract CSS content
                     std::string cssContent = code.substr(token.start, token.length);
 
                     // Tokenize CSS content
                     size_t cssPos = 0;
-                    while (cssPos < cssContent.length())
-                    {
+                    while (cssPos < cssContent.length()) {
                         Token cssToken = lexCss(cssContent, cssPos);
 
                         // Apply color based on CSS token type
                         ImVec4 color = getColorForTokenType(cssToken.type);
-                        for (size_t i = 0; i < cssToken.length; ++i)
-                        {
+                        for (size_t i = 0; i < cssToken.length; ++i) {
                             size_t index = start_pos + token.start + cssToken.start + i;
-                            if (index < colors.size())
-                            {
+                            if (index < colors.size()) {
                                 colors[index] = color;
                             }
                         }
@@ -247,18 +211,14 @@ class Lexer
 
                 // Normal HTML token handling
                 ImVec4 color = getColorForTokenType(token.type);
-                for (size_t i = 0; i < token.length; ++i)
-                {
+                for (size_t i = 0; i < token.length; ++i) {
                     size_t index = start_pos + token.start + i;
-                    if (index < colors.size())
-                    {
+                    if (index < colors.size()) {
                         colors[index] = color;
                     }
                 }
             }
-        }
-        catch (const std::exception &e)
-        {
+        } catch (const std::exception &e) {
             std::cerr << "Exception in HTML applyHighlighting: " << e.what() << std::endl;
         }
     }
@@ -275,8 +235,7 @@ class Lexer
     {
         updateThemeColors();
 
-        switch (type)
-        {
+        switch (type) {
         case TokenType::TagName:
             return cachedColors.tagName;
         case TokenType::AttributeName:
@@ -340,8 +299,7 @@ class Lexer
 
         auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 
-        auto loadColor = [&theme](const char *key) -> ImVec4
-        {
+        auto loadColor = [&theme](const char *key) -> ImVec4 {
             auto &c = theme[key];
             return ImVec4(c[0], c[1], c[2], c[3]);
         };
@@ -378,8 +336,7 @@ class Lexer
             pos++;
 
         // Get tag name
-        while (pos < code.length() && code[pos] != '>' && !isWhitespace(code[pos]))
-        {
+        while (pos < code.length() && code[pos] != '>' && !isWhitespace(code[pos])) {
             pos++;
         }
 
@@ -389,8 +346,7 @@ class Lexer
     Token lexAttribute(const std::string &code, size_t &pos)
     {
         size_t start = pos;
-        while (pos < code.length() && isAlphaNumeric(code[pos]))
-        {
+        while (pos < code.length() && isAlphaNumeric(code[pos])) {
             pos++;
         }
         return {TokenType::AttributeName, start, pos - start};
@@ -400,8 +356,7 @@ class Lexer
     {
         size_t start = pos;
         char quote = code[pos++];
-        while (pos < code.length() && code[pos] != quote)
-        {
+        while (pos < code.length() && code[pos] != quote) {
             if (code[pos] == '\\' && pos + 1 < code.length())
                 pos++;
             pos++;
@@ -415,8 +370,7 @@ class Lexer
     {
         size_t start = pos;
         pos += 4; // Skip <!--
-        while (pos + 2 < code.length() && !(code[pos] == '-' && code[pos + 1] == '-' && code[pos + 2] == '>'))
-        {
+        while (pos + 2 < code.length() && !(code[pos] == '-' && code[pos + 1] == '-' && code[pos + 2] == '>')) {
             pos++;
         }
         pos += 3; // Skip -->
@@ -445,10 +399,8 @@ class Lexer
         size_t contentStart = pos; // Mark where actual JS content begins
 
         // Find the end of script tag
-        while (pos < code.length())
-        {
-            if (pos + 8 < code.length() && code.substr(pos, 9) == "</script>")
-            {
+        while (pos < code.length()) {
+            if (pos + 8 < code.length() && code.substr(pos, 9) == "</script>") {
                 // Create a ScriptContent token that only includes the JS content
                 // not including the closing tag
                 return {TokenType::ScriptContent, contentStart, pos - contentStart};
@@ -464,10 +416,8 @@ class Lexer
         size_t start = pos;
         size_t contentStart = pos; // Mark where actual CSS content begins
 
-        while (pos < code.length())
-        {
-            if (pos + 7 < code.length() && code.substr(pos, 8) == "</style>")
-            {
+        while (pos < code.length()) {
+            if (pos + 7 < code.length() && code.substr(pos, 8) == "</style>") {
                 // Create a StyleContent token that only includes the CSS content
                 return {TokenType::StyleContent, contentStart, pos - contentStart};
             }
@@ -484,15 +434,12 @@ class Lexer
         size_t start = pos; // Add this line to fix the error
         char c = code[pos];
 
-        if (isWhitespace(c))
-        {
+        if (isWhitespace(c)) {
             return {TokenType::Whitespace, pos++, 1};
         }
 
-        if (c == '/' && pos + 1 < code.length())
-        {
-            if (code[pos + 1] == '/')
-            {
+        if (c == '/' && pos + 1 < code.length()) {
+            if (code[pos + 1] == '/') {
                 // Single line comment
                 size_t start = pos;
                 pos += 2;
@@ -500,8 +447,7 @@ class Lexer
                     pos++;
                 return {TokenType::JsComment, start, pos - start};
             }
-            if (code[pos + 1] == '*')
-            {
+            if (code[pos + 1] == '*') {
                 // Multi-line comment
                 size_t start = pos;
                 pos += 2;
@@ -512,13 +458,11 @@ class Lexer
             }
         }
 
-        if (c == '"' || c == '\'' || c == '`')
-        {
+        if (c == '"' || c == '\'' || c == '`') {
             // String literals including template literals
             size_t start = pos++;
             char quote = c;
-            while (pos < code.length() && code[pos] != quote)
-            {
+            while (pos < code.length() && code[pos] != quote) {
                 if (code[pos] == '\\' && pos + 1 < code.length())
                     pos++;
                 pos++;
@@ -528,8 +472,7 @@ class Lexer
             return {TokenType::JsString, start, pos - start};
         }
 
-        if (isDigit(c) || (c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1])))
-        {
+        if (isDigit(c) || (c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1]))) {
             // Numbers including decimals
             size_t start = pos++;
             while (pos < code.length() && (isDigit(code[pos]) || code[pos] == '.'))
@@ -537,16 +480,14 @@ class Lexer
             return {TokenType::JsNumber, start, pos - start};
         }
 
-        if (isAlpha(c) || c == '_' || c == '$')
-        {
+        if (isAlpha(c) || c == '_' || c == '$') {
             // Keywords and identifiers
             size_t start = pos++;
             while (pos < code.length() && (isAlphaNumeric(code[pos]) || code[pos] == '_' || code[pos] == '$'))
                 pos++;
 
             std::string word = code.substr(start, pos - start);
-            if (jsKeywords.find(word) != jsKeywords.end())
-            {
+            if (jsKeywords.find(word) != jsKeywords.end()) {
                 return {TokenType::JsKeyword, start, pos - start};
             }
 
@@ -554,8 +495,7 @@ class Lexer
             size_t temp = pos;
             while (temp < code.length() && isWhitespace(code[temp]))
                 temp++;
-            if (temp < code.length() && code[temp] == '(')
-            {
+            if (temp < code.length() && code[temp] == '(') {
                 return {TokenType::JsFunction, start, pos - start};
             }
 
@@ -720,25 +660,20 @@ class Lexer
         size_t start = pos;
         char c = code[pos];
 
-        if (isWhitespace(c))
-        {
+        if (isWhitespace(c)) {
             return {TokenType::Whitespace, pos++, 1};
         }
 
         // CSS Comments (both single-line and multi-line)
-        if (c == '/' && pos + 1 < code.length())
-        {
-            if (code[pos + 1] == '*')
-            {
+        if (c == '/' && pos + 1 < code.length()) {
+            if (code[pos + 1] == '*') {
                 size_t start = pos;
                 pos += 2;
                 while (pos + 1 < code.length() && !(code[pos] == '*' && code[pos + 1] == '/'))
                     pos++;
                 pos += 2;
                 return {TokenType::CssComment, start, pos - start};
-            }
-            else if (code[pos + 1] == '/')
-            {
+            } else if (code[pos + 1] == '/') {
                 // Single-line comment
                 size_t start = pos;
                 pos += 2;
@@ -749,8 +684,7 @@ class Lexer
         }
 
         // Colors and Functions
-        if (c == 'r' && pos + 3 < code.length() && (code.substr(pos, 4) == "rgba" || code.substr(pos, 3) == "rgb"))
-        {
+        if (c == 'r' && pos + 3 < code.length() && (code.substr(pos, 4) == "rgba" || code.substr(pos, 3) == "rgb")) {
             size_t start = pos;
             while (pos < code.length() && code[pos] != ')')
                 pos++;
@@ -760,8 +694,7 @@ class Lexer
         }
 
         // HSL/HSLA Functions
-        if (c == 'h' && pos + 3 < code.length() && (code.substr(pos, 4) == "hsla" || code.substr(pos, 3) == "hsl"))
-        {
+        if (c == 'h' && pos + 3 < code.length() && (code.substr(pos, 4) == "hsla" || code.substr(pos, 3) == "hsl")) {
             size_t start = pos;
             while (pos < code.length() && code[pos] != ')')
                 pos++;
@@ -771,8 +704,7 @@ class Lexer
         }
 
         // URL Function
-        if (c == 'u' && pos + 3 < code.length() && code.substr(pos, 4) == "url(")
-        {
+        if (c == 'u' && pos + 3 < code.length() && code.substr(pos, 4) == "url(") {
             size_t start = pos;
             while (pos < code.length() && code[pos] != ')')
                 pos++;
@@ -782,8 +714,7 @@ class Lexer
         }
 
         // Numbers and Units
-        if (isDigit(c) || (c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1])))
-        {
+        if (isDigit(c) || (c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1]))) {
             size_t numStart = pos;
             while (pos < code.length() && (isDigit(code[pos]) || code[pos] == '.'))
                 pos++;
@@ -793,46 +724,39 @@ class Lexer
             while (pos < code.length() && isAlpha(code[pos]))
                 pos++;
 
-            if (pos > unitStart)
-            {
+            if (pos > unitStart) {
                 return {TokenType::CssNumber, numStart, pos - numStart};
             }
             return {TokenType::CssNumber, numStart, pos - numStart};
         }
 
         // Hex and RGB Colors
-        if (c == '#')
-        {
+        if (c == '#') {
             pos++;
-            while (pos < code.length() && ((code[pos] >= '0' && code[pos] <= '9') || (code[pos] >= 'a' && code[pos] <= 'f') || (code[pos] >= 'A' && code[pos] <= 'F')))
-            {
+            while (pos < code.length() && ((code[pos] >= '0' && code[pos] <= '9') || (code[pos] >= 'a' && code[pos] <= 'f') || (code[pos] >= 'A' && code[pos] <= 'F'))) {
                 pos++;
             }
             return {TokenType::CssColor, start, pos - start};
         }
 
         // Identifiers, Properties, and Values
-        if (isAlpha(c) || c == '-' || c == '_')
-        {
+        if (isAlpha(c) || c == '-' || c == '_') {
             // Read the entire identifier
-            while (pos < code.length() && (isAlphaNumeric(code[pos]) || code[pos] == '-' || code[pos] == '_'))
-            {
+            while (pos < code.length() && (isAlphaNumeric(code[pos]) || code[pos] == '-' || code[pos] == '_')) {
                 pos++;
             }
 
             std::string word = code.substr(start, pos - start);
 
             // Check for properties
-            if (cssProperties.find(word) != cssProperties.end() || (word.substr(0, 2) == "--"))
-            { // Custom properties
+            if (cssProperties.find(word) != cssProperties.end() || (word.substr(0, 2) == "--")) { // Custom properties
                 return {TokenType::CssProperty, start, pos - start};
             }
 
             // Special values
             static const std::unordered_set<std::string> specialValues = {"inherit", "initial", "unset", "none", "auto", "block", "inline", "inline-block", "flex", "grid", "absolute", "relative", "fixed", "sticky", "bold", "normal", "italic", "center", "left", "right"};
 
-            if (specialValues.find(word) != specialValues.end())
-            {
+            if (specialValues.find(word) != specialValues.end()) {
                 return {TokenType::CssValue, start, pos - start};
             }
 
@@ -842,8 +766,7 @@ class Lexer
 
         // Single character tokens
         pos++;
-        switch (c)
-        {
+        switch (c) {
         case '{':
         case '}':
             return {TokenType::CssBrace, start, 1};

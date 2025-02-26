@@ -4,9 +4,9 @@
 */
 
 #pragma once
-#include "editor.h"
+#include "../editor/editor.h"
 #include "imgui.h"
-#include "util/undo_redo_manager.h"
+#include "undo_redo_manager.h"
 #include <GLFW/glfw3.h>
 #include <filesystem>
 #include <map>
@@ -89,8 +89,7 @@ class FileExplorer
     ImTextureID getIcon(const std::string &iconName) const
     {
         auto it = fileTypeIcons.find(iconName);
-        if (it != fileTypeIcons.end())
-        {
+        if (it != fileTypeIcons.end()) {
             return it->second;
         }
         return fileTypeIcons.at("default");
