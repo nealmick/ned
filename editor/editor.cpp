@@ -540,6 +540,8 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
             state.selection_start = char_index;
             state.selection_end = char_index;
             state.is_selecting = false;
+            int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
         }
         is_dragging = true;
     }
@@ -570,10 +572,15 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
         anchor_pos = -1;
     }
 }
+
 void Editor::cursorLeft(EditorState &state)
 {
     if (state.cursor_pos > 0) {
         state.cursor_pos--;
+
+        // Update preferred column when moving horizontally
+        int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
     }
 }
 
@@ -581,6 +588,10 @@ void Editor::cursorRight(const std::string &text, EditorState &state)
 {
     if (state.cursor_pos < text.size()) {
         state.cursor_pos++;
+
+        // Update preferred column when moving horizontally
+        int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
     }
 }
 
@@ -588,8 +599,19 @@ void Editor::cursorUp(const std::string &text, EditorState &state, float line_he
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     if (current_line > 0) {
-        int current_column = state.cursor_pos - state.line_starts[current_line];
-        state.cursor_pos = std::min(state.line_starts[current_line - 1] + current_column, state.line_starts[current_line] - 1);
+        // Calculate current column only if preferred_column hasn't been set yet
+        if (state.preferred_column == 0) {
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+        }
+
+        // Use the preferred column instead of current column
+        int target_line = current_line - 1;
+        int new_line_start = state.line_starts[target_line];
+        int new_line_end = state.line_starts[current_line] - 1;
+
+        // Try to place cursor at preferred column, but don't exceed line length
+        state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
+
         state.scroll_pos.y = std::max(0.0f, state.scroll_pos.y - line_height);
     }
 }
@@ -598,8 +620,19 @@ void Editor::cursorDown(const std::string &text, EditorState &state, float line_
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     if (current_line < state.line_starts.size() - 1) {
-        int current_column = state.cursor_pos - state.line_starts[current_line];
-        state.cursor_pos = std::min(state.line_starts[current_line + 1] + current_column, static_cast<int>(text.size()));
+        // Calculate current column only if preferred_column hasn't been set yet
+        if (state.preferred_column == 0) {
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+        }
+
+        // Use the preferred column instead of current column
+        int target_line = current_line + 1;
+        int new_line_start = state.line_starts[target_line];
+        int new_line_end = (target_line + 1 < state.line_starts.size()) ? state.line_starts[target_line + 1] - 1 : text.size();
+
+        // Try to place cursor at preferred column, but don't exceed line length
+        state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
+
         state.scroll_pos.y = state.scroll_pos.y + line_height;
     }
 }
@@ -609,16 +642,17 @@ void Editor::moveCursorVertically(std::string &text, EditorState &state, int lin
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     int target_line = std::max(0, std::min(static_cast<int>(state.line_starts.size()) - 1, current_line + line_delta));
 
-    // Calculate the current column (horizontal position)
-    int current_column = state.cursor_pos - state.line_starts[current_line];
+    // Calculate current column only if preferred_column hasn't been set yet
+    if (state.preferred_column == 0) {
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+    }
 
-    // Set the new cursor position
+    // Set the new cursor position using preferred column
     int new_line_start = state.line_starts[target_line];
     int new_line_end = (target_line + 1 < state.line_starts.size()) ? state.line_starts[target_line + 1] - 1 : text.size();
 
-    // Try to maintain the same column, but don't go past the end of the new
-    // line
-    state.cursor_pos = std::min(new_line_start + current_column, new_line_end);
+    // Try to maintain the preferred column position, but don't go past the end of the line
+    state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
 }
 
 void Editor::handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width)

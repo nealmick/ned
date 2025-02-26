@@ -73,7 +73,9 @@ struct EditorState
     float pendingScrollX;
     float pendingScrollY;
 
-    EditorState() : ensure_cursor_visible_frames(0), cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false), line_starts({0}), line_widths(), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true), cursor_blink_time(0.0f), activateFindBox(false), blockInput(false), current_line(0) {}
+    int preferred_column; // Tracks intended horizontal position during vertical movement
+
+    EditorState() : preferred_column(0), ensure_cursor_visible_frames(0), cursor_pos(0), selection_start(0), selection_end(0), is_selecting(false), line_starts({0}), line_widths(), scroll_pos(0, 0), scroll_x(0.0f), rainbow_cursor(true), cursor_blink_time(0.0f), activateFindBox(false), blockInput(false), current_line(0) {}
 };
 
 // Forward declarations
