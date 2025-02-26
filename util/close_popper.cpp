@@ -12,8 +12,7 @@
 
 void ClosePopper::closeAllExcept(Type keepOpen)
 {
-    switch (keepOpen)
-    {
+    switch (keepOpen) {
     case Type::Settings:
         gBookmarks.showBookmarksWindow = false;
         gLineJump.showLineJumpWindow = false;

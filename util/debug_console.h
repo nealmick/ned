@@ -38,21 +38,16 @@ class DebugConsole
       protected:
         virtual int_type overflow(int_type c = traits_type::eof()) override
         {
-            if (c != traits_type::eof())
-            {
-                if (c == '\n')
-                {
+            if (c != traits_type::eof()) {
+                if (c == '\n') {
                     buffer += '\n';
                     console.addLog(buffer);
                     // Write to original buffer
-                    if (originalBuffer)
-                    {
+                    if (originalBuffer) {
                         originalBuffer->sputn(buffer.c_str(), buffer.length());
                     }
                     buffer.clear();
-                }
-                else
-                {
+                } else {
                     buffer += static_cast<char>(c);
                 }
             }
@@ -63,19 +58,16 @@ class DebugConsole
         {
             std::string str(s, n);
             size_t pos;
-            while ((pos = str.find('\n')) != std::string::npos)
-            {
+            while ((pos = str.find('\n')) != std::string::npos) {
                 std::string line = str.substr(0, pos + 1);
                 console.addLog(line);
                 // Write to original buffer
-                if (originalBuffer)
-                {
+                if (originalBuffer) {
                     originalBuffer->sputn(line.c_str(), line.length());
                 }
                 str.erase(0, pos + 1);
             }
-            if (!str.empty())
-            {
+            if (!str.empty()) {
                 buffer += str;
             }
             return n;

@@ -24,8 +24,7 @@ Ned::Ned() : window(nullptr), currentFont(nullptr), needFontReload(false), windo
 
 Ned::~Ned()
 {
-    if (initialized)
-    {
+    if (initialized) {
         cleanup();
     }
 }
@@ -54,10 +53,16 @@ void Ned::ShaderQuad::cleanup()
 
 bool Ned::initialize()
 {
-    if (!initializeGraphics())
-    {
+    if (!initializeGraphics()) {
         return false;
     }
+
+    // Set up the scroll callback for smooth scrolling
+    glfwSetWindowUserPointer(window, this);
+    glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
+        Ned *ned = static_cast<Ned *>(glfwGetWindowUserPointer(window));
+        ned->handleScrollEvent(xoffset, yoffset);
+    });
 
     initializeImGui();
     initializeResources();
@@ -70,8 +75,7 @@ bool Ned::initialize()
 
 bool Ned::initializeGraphics()
 {
-    if (!glfwInit())
-    {
+    if (!glfwInit()) {
         std::cerr << "🔴 Failed to initialize GLFW" << std::endl;
         return false;
     }
@@ -84,8 +88,7 @@ bool Ned::initializeGraphics()
 #endif
 
     window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
-    if (!window)
-    {
+    if (!window) {
         std::cerr << "🔴 Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return false;
@@ -96,16 +99,14 @@ bool Ned::initializeGraphics()
     glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
     glewExperimental = GL_TRUE;
-    if (GLenum err = glewInit(); GLEW_OK != err)
-    {
+    if (GLenum err = glewInit(); GLEW_OK != err) {
         std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
         glfwTerminate();
         return false;
     }
     glGetError(); // Clear any GLEW startup errors
 
-    if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl"))
-    {
+    if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl")) {
         std::cerr << "🔴 Shader load failed" << std::endl;
         glfwTerminate();
         return false;
@@ -137,8 +138,7 @@ void Ned::initializeResources()
     gFileExplorer.loadIcons();
 
     currentFont = loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
-    if (!currentFont)
-    {
+    if (!currentFont) {
         std::cerr << "🔴 Failed to load font, using default font" << std::endl;
         currentFont = ImGui::GetIO().Fonts->AddFontDefault();
     }
@@ -158,8 +158,7 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
     ImGuiIO &io = ImGui::GetIO();
     std::string fontPath = "fonts/" + fontName + ".ttf";
 
-    if (!std::filesystem::exists(fontPath))
-    {
+    if (!std::filesystem::exists(fontPath)) {
         std::cerr << "🔴 Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
@@ -190,8 +189,7 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
     static const ImWchar braille_ranges[] = {0x2800, 0x28FF, 0};
     io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
 
-    if (!font)
-    {
+    if (!font) {
         std::cerr << "🔴 Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
@@ -202,14 +200,12 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 
 void Ned::run()
 {
-    if (!initialized)
-    {
+    if (!initialized) {
         std::cerr << "🔴 Cannot run: Not initialized" << std::endl;
         return;
     }
 
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         auto frame_start = std::chrono::high_resolution_clock::now();
 
         // Handle events and updates
@@ -238,26 +234,21 @@ void Ned::run()
 
 void Ned::handleEvents()
 {
-    if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
-    {
+    if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
         glfwPollEvents();
-    }
-    else
-    {
+    } else {
         glfwWaitEventsTimeout(0.016); // 16ms ~60Hz timeout
     }
 }
 
 void Ned::handleBackgroundUpdates(double currentTime)
 {
-    if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
-    {
+    if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL) {
         gSettings.checkSettingsFile();
         timing.lastSettingsCheck = currentTime;
     }
 
-    if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL)
-    {
+    if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL) {
         gFileExplorer.refreshFileTree();
         timing.lastFileTreeRefresh = currentTime;
     }
@@ -265,13 +256,11 @@ void Ned::handleBackgroundUpdates(double currentTime)
 
 void Ned::handleFramebuffer(int width, int height)
 {
-    if (width == fb.last_display_w && height == fb.last_display_h && fb.initialized)
-    {
+    if (width == fb.last_display_w && height == fb.last_display_h && fb.initialized) {
         return;
     }
 
-    if (fb.initialized)
-    {
+    if (fb.initialized) {
         glDeleteFramebuffers(1, &fb.framebuffer);
         glDeleteTextures(1, &fb.renderTexture);
         glDeleteRenderbuffers(1, &fb.rbo);
@@ -303,14 +292,17 @@ void Ned::setupImGuiFrame()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+
+    // Apply smooth scrolling right before ImGui's NewFrame
+    handleScrollInput();
+
     ImGui::NewFrame();
 }
 
 void Ned::handleWindowFocus()
 {
     bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-    if (windowFocused && !currentFocus)
-    {
+    if (windowFocused && !currentFocus) {
         gFileExplorer.saveCurrentFile();
     }
     windowFocused = currentFocus;
@@ -321,39 +313,32 @@ void Ned::handleKeyboardShortcuts()
     // Accept either Ctrl or Super (Command on macOS)
     bool modPressed = io.KeyCtrl || io.KeySuper;
 
-    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_S, false))
-    {
+    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
         showSidebar = !showSidebar; // Toggle sidebar visibility
         std::cout << "\033[32mNed:\033[0m Toggled sidebar visibility" << std::endl;
     }
-    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_T, false))
-    {
+    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
         gFileExplorer.saveCurrentFile();
-        if (gTerminal.isTerminalVisible())
-        {
+        if (gTerminal.isTerminalVisible()) {
             ClosePopper::closeAll();
         }
     }
-    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false))
-    {
+    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
         std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
         gFileExplorer.setShowWelcomeScreen(false);
         gSettings.toggleSettingsWindow();
     }
-    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false))
-    {
+    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
         std::cout << "\033[32mNed:\033[0m Ctrl+/ pressed - Resetting to welcome screen" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(!gFileExplorer.getShowWelcomeScreen());
-        if (gTerminal.isTerminalVisible())
-        {
+        if (gTerminal.isTerminalVisible()) {
             gTerminal.toggleVisibility();
         }
         gFileExplorer.saveCurrentFile();
     }
-    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false))
-    {
+    if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
         std::cout << "\033[32mNed:\033[0m Ctrl+O pressed - triggering file dialog" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(false);
@@ -371,8 +356,7 @@ void Ned::renderFileExplorer(float explorerWidth)
 
     ImGui::Text("File Explorer");
     ImGui::Separator();
-    if (!gFileExplorer.getSelectedFolder().empty())
-    {
+    if (!gFileExplorer.getSelectedFolder().empty()) {
         gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
     }
     ImGui::EndChild();
@@ -383,23 +367,31 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 {
     ImGui::BeginGroup();
     ImGui::PushFont(currentFont);
+
     // Determine the base icon size (equal to font size, or adjust with a multiplier)
     float iconSize = ImGui::GetFontSize();
     std::string currentFile = gFileExplorer.getCurrentFile();
 
     // Render the left part: file icon (if available) and file path text.
-    if (currentFile.empty())
-    {
+    if (currentFile.empty()) {
         ImGui::Text("Editor - No file selected");
-    }
-    else
-    {
+    } else {
         // Get the file type icon.
         ImTextureID fileIcon = gFileExplorer.getIconForFile(currentFile);
-        if (fileIcon)
-        {
+        if (fileIcon) {
+            // Calculate the center point of the line
+            float textHeight = ImGui::GetTextLineHeight();
+            float lineCenterY = ImGui::GetCursorPosY() + (textHeight / 2.0f);
+
+            // Position the icon so its center aligns with the line center
+            float iconTopY = lineCenterY - (iconSize / 2.0f);
+            ImGui::SetCursorPosY(iconTopY);
+
             ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
             ImGui::SameLine();
+
+            // Reset cursor Y for text
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (iconSize - textHeight) / 2.0f);
         }
         ImGui::Text("Editor - %s", currentFile.c_str());
     }
@@ -408,26 +400,28 @@ void Ned::renderEditorHeader(ImFont *currentFont)
     // get the available width of the current window.
     float availableWidth = ImGui::GetWindowContentRegionMax().x;
     float rightPadding = 10.0f;               // Add padding from the right edge
-    float adjustedIconSize = iconSize * 0.9f; // Make the icon slightly smaller
+    float adjustedIconSize = iconSize * 0.8f; // Make the icon slightly smaller
 
-    // Calculate vertical alignment to center the icon with the text
+    // Calculate the line's center point
     float textHeight = ImGui::GetTextLineHeight();
-    float verticalOffset = (textHeight - adjustedIconSize) * 0.5f;
+    float lineCenterY = ImGui::GetCursorPosY() - textHeight + (textHeight / 2.0f);
+
+    // Position the icon so its center aligns with the line center
+    float iconTopY = lineCenterY - (adjustedIconSize / 2.0f);
 
     // Move the cursor to a position near the far right with padding
     ImGui::SameLine(availableWidth - adjustedIconSize - rightPadding);
 
-    // Apply vertical alignment
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + verticalOffset);
+    // Apply vertical centering by directly setting cursor Y
+    ImGui::SetCursorPosY(iconTopY);
 
     // Render the settings icon
-    renderSettingsIcon(adjustedIconSize * 0.82f);
+    renderSettingsIcon(adjustedIconSize * 0.80f);
 
     ImGui::PopFont();
     ImGui::EndGroup();
     ImGui::Separator();
 }
-
 void Ned::renderSettingsIcon(float iconSize)
 {
     bool settingsOpen = gSettings.showSettingsWindow;
@@ -436,20 +430,16 @@ void Ned::renderSettingsIcon(float iconSize)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 
-    if (!settingsOpen)
-    {
+    if (!settingsOpen) {
         ImVec2 cursor_pos = ImGui::GetCursorPos();
-        if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)))
-        {
+        if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize))) {
             gSettings.toggleSettingsWindow();
         }
         bool isHovered = ImGui::IsItemHovered();
         ImGui::SetCursorPos(cursor_pos);
         ImTextureID icon = isHovered ? gFileExplorer.getIcon("gear-hover") : gFileExplorer.getIcon("gear");
         ImGui::Image(icon, ImVec2(iconSize, iconSize));
-    }
-    else
-    {
+    } else {
         ImGui::Image(gFileExplorer.getIcon("gear"), ImVec2(iconSize, iconSize));
     }
 
@@ -465,8 +455,7 @@ void Ned::renderSplitter(float padding, float availableWidth)
     ImGui::Button("##vsplitter", ImVec2(splitterWidth, -1));
     ImGui::PopStyleColor();
 
-    if (ImGui::IsItemActive())
-    {
+    if (ImGui::IsItemActive()) {
         float mousePosInWindow = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
         float leftPadding = padding * 2;
         float rightPadding = padding * 2 + 6;
@@ -494,14 +483,12 @@ void Ned::renderMainWindow()
 {
     handleKeyboardShortcuts();
 
-    if (gTerminal.isTerminalVisible())
-    {
+    if (gTerminal.isTerminalVisible()) {
         gTerminal.render();
         return;
     }
 
-    if (gFileExplorer.getShowWelcomeScreen())
-    {
+    if (gFileExplorer.getShowWelcomeScreen()) {
         gWelcome.render();
         return;
     }
@@ -519,16 +506,13 @@ void Ned::renderMainWindow()
     float splitterWidth = 2.0f;
     float availableWidth = windowWidth - padding * 3 - splitterWidth;
 
-    if (showSidebar)
-    {
+    if (showSidebar) {
         explorerWidth = availableWidth * gSettings.getSplitPos();
         editorWidth = availableWidth - explorerWidth - 6;
 
         renderFileExplorer(explorerWidth);
         renderSplitter(padding, availableWidth);
-    }
-    else
-    {
+    } else {
         editorWidth = availableWidth;
     }
     renderEditor(currentFont, editorWidth);
@@ -555,8 +539,7 @@ void Ned::renderFrame()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     // If shader post-processing is enabled, run the shader pass.
-    if (shader_toggle)
-    {
+    if (shader_toggle) {
         renderWithShader(display_w, display_h, glfwGetTime());
     }
 
@@ -565,11 +548,9 @@ void Ned::renderFrame()
 
 void Ned::handleFileDialog()
 {
-    if (gFileExplorer.showFileDialog())
-    {
+    if (gFileExplorer.showFileDialog()) {
         gFileExplorer.openFolderDialog();
-        if (!gFileExplorer.getSelectedFolder().empty())
-        {
+        if (!gFileExplorer.getSelectedFolder().empty()) {
             auto &rootNode = gFileExplorer.getRootNode();
             rootNode.name = fs::path(gFileExplorer.getSelectedFolder()).filename().string();
             rootNode.fullPath = gFileExplorer.getSelectedFolder();
@@ -614,22 +595,19 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 }
 void Ned::handleSettingsChanges()
 {
-    if (gSettings.hasSettingsChanged())
-    {
+    if (gSettings.hasSettingsChanged()) {
         ImGuiStyle &style = ImGui::GetStyle();
         style.Colors[ImGuiCol_WindowBg] = ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(), gSettings.getSettings()["backgroundColor"][1].get<float>(), gSettings.getSettings()["backgroundColor"][2].get<float>(), gSettings.getSettings()["backgroundColor"][3].get<float>());
 
         // Update shader toggle here:
         shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
-        if (gSettings.hasThemeChanged())
-        {
+        if (gSettings.hasThemeChanged()) {
             gEditor.setTheme(gSettings.getCurrentTheme());
             gFileExplorer.refreshSyntaxHighlighting();
             gSettings.resetThemeChanged();
         }
-        if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged())
-        {
+        if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged()) {
             needFontReload = true;
         }
         gSettings.resetSettingsChanged();
@@ -638,8 +616,7 @@ void Ned::handleSettingsChanges()
 
 void Ned::handleFontReload()
 {
-    if (needFontReload)
-    {
+    if (needFontReload) {
         ImGui_ImplOpenGL3_DestroyFontsTexture();
         ImGui::GetIO().Fonts->Clear();
         currentFont = loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
@@ -654,8 +631,7 @@ void Ned::handleFontReload()
 void Ned::cleanup()
 {
     quad.cleanup();
-    if (fb.initialized)
-    {
+    if (fb.initialized) {
         glDeleteFramebuffers(1, &fb.framebuffer);
         glDeleteTextures(1, &fb.renderTexture);
         glDeleteRenderbuffers(1, &fb.rbo);
@@ -695,4 +671,60 @@ void ApplySettings(ImGuiStyle &style)
 
     // Set the global font scale.
     ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+}
+
+void Ned::handleScrollEvent(double xoffset, double yoffset)
+{
+    // Convert raw input to target velocity
+    // Use larger values for more pronounced effect
+    const float velocityScale = 15.0f;
+
+    // Add to the target velocity (where we want to go)
+    targetScrollVelocity.x += static_cast<float>(xoffset) * velocityScale;
+    targetScrollVelocity.y += static_cast<float>(yoffset) * velocityScale;
+
+    // Optional: Cap maximum velocity
+    const float maxVelocity = 50.0f;
+    if (targetScrollVelocity.x > maxVelocity)
+        targetScrollVelocity.x = maxVelocity;
+    if (targetScrollVelocity.x < -maxVelocity)
+        targetScrollVelocity.x = -maxVelocity;
+    if (targetScrollVelocity.y > maxVelocity)
+        targetScrollVelocity.y = maxVelocity;
+    if (targetScrollVelocity.y < -maxVelocity)
+        targetScrollVelocity.y = -maxVelocity;
+}
+
+void Ned::handleScrollInput()
+{
+    ImGuiIO &io = ImGui::GetIO();
+    float dt = io.DeltaTime;
+
+    // Spring physics parameters with enhanced smoothing
+    const float stiffness = 3.0f; // Reduced for smoother response (was 8.0f)
+    const float damping = 8.0f;   // Reduced for more gentle deceleration (was 12.0f)
+
+    // Friction to gradually bring target velocity to zero
+    const float friction = 5.0f; // Reduced for longer-lasting momentum (was 8.0f)
+    targetScrollVelocity.x *= exp(-friction * dt);
+    targetScrollVelocity.y *= exp(-friction * dt);
+
+    // Calculate spring force (difference between current and target velocity)
+    ImVec2 springForce;
+    springForce.x = stiffness * (targetScrollVelocity.x - currentScrollVelocity.x);
+    springForce.y = stiffness * (targetScrollVelocity.y - currentScrollVelocity.y);
+
+    // Apply spring force to current velocity
+    currentScrollVelocity.x += springForce.x * dt;
+    currentScrollVelocity.y += springForce.y * dt;
+
+    // Apply damping to current velocity
+    currentScrollVelocity.x *= exp(-damping * dt);
+    currentScrollVelocity.y *= exp(-damping * dt);
+
+    // Set ImGui scroll values based on current velocity
+    // Use smaller multiplier for more controlled scrolling speed
+    const float outputMultiplier = 0.0004f; // Reduced by half for slower scrolling
+    io.MouseWheel = currentScrollVelocity.y * outputMultiplier;
+    io.MouseWheelH = currentScrollVelocity.x * outputMultiplier;
 }

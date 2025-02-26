@@ -30,6 +30,15 @@ struct CursorVisibility
     bool vertical;
     bool horizontal;
 };
+struct ScrollAnimationState
+{
+    bool active_x = false;
+    bool active_y = false;
+    float target_x = 0.0f;
+    float target_y = 0.0f;
+    float current_velocity_x = 0.0f;
+    float current_velocity_y = 0.0f;
+};
 
 // Editor state management
 struct EditorState
@@ -51,7 +60,9 @@ struct EditorState
     // Caching for expensive measurements
     std::string cached_text;                                                // NEW: copy of the text to detect modifications
     std::unordered_map<int, std::vector<float>> cachedLineCumulativeWidths; // NEW: for each line index, stores cumulative widths of each
-                                                                            // character
+
+    // scrol animation state
+    ScrollAnimationState scroll_animation; // character
 
     // Visual settings, input state, etc.
     bool rainbow_cursor;
@@ -87,6 +98,9 @@ class Editor
     void cancelHighlighting();
     void forceColorUpdate();
 
+    // for automatic scrolls when cursor go out of range...
+    void updateScrollAnimation(EditorState &state, float &current_scroll_x, float &current_scroll_y, float dt);
+
     // Scroll management
     void requestScroll(float x, float y)
     {
@@ -97,8 +111,7 @@ class Editor
 
     bool handleScrollRequest(float &outScrollX, float &outScrollY)
     {
-        if (hasScrollRequest)
-        {
+        if (hasScrollRequest) {
             outScrollX = requestedScrollX;
             outScrollY = requestedScrollY;
             hasScrollRequest = false;

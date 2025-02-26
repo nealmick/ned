@@ -89,8 +89,7 @@ class FileExplorer
     ImTextureID getIcon(const std::string &iconName) const
     {
         auto it = fileTypeIcons.find(iconName);
-        if (it != fileTypeIcons.end())
-        {
+        if (it != fileTypeIcons.end()) {
             return it->second;
         }
         return fileTypeIcons.at("default");
