@@ -4,11 +4,11 @@
 */
 
 #include "editor.h"
-#include "files.h"
-#include "util/bookmarks.h"
-#include "util/file_finder.h"
-#include "util/line_jump.h"
-#include "util/settings.h"
+#include "../files/file_finder.h"
+#include "../files/files.h"
+#include "../util/settings.h"
+#include "bookmarks.h"
+#include "line_jump.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,7 +19,7 @@ EditorState editor_state;
 
 bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state)
 {
-    // Validate and resize colors if neededw.
+    // Validate and resize colors if needed.
     validateAndResizeColors(text, colors);
     bool text_changed = false;
     CursorVisibility ensure_cursor_visible = {false, false};
@@ -57,10 +57,11 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     // Adjust scrolling to ensure the cursor is visible.
     adjustScrollForCursorVisibility(text_pos, text, editor_state, line_height, size.y, size.x, current_scroll_y, current_scroll_x, ensure_cursor_visible);
 
+    updateScrollAnimation(editor_state, current_scroll_x, current_scroll_y, ImGui::GetIO().DeltaTime);
+
     // Apply the calculated scroll positions.
     ImGui::SetScrollY(current_scroll_y);
     ImGui::SetScrollX(current_scroll_x);
-
     // Render the main editor content (text and cursor).
     renderEditorContent(text, colors, editor_state, line_height, text_pos);
 
@@ -75,8 +76,7 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
 
 bool Editor::validateAndResizeColors(std::string &text, std::vector<ImVec4> &colors)
 {
-    if (colors.size() != text.size())
-    {
+    if (colors.size() != text.size()) {
         std::cout << "Warning: colors vector size (" << colors.size() << ") does not match text size (" << text.size() << "). Resizing." << std::endl;
         colors.resize(text.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         return true;
@@ -121,10 +121,8 @@ void Editor::beginTextEditorChild(const char *label, float remaining_width, floa
     ImGui::BeginChild(label, ImVec2(remaining_width, ImGui::GetContentRegionAvail().y), false, ImGuiWindowFlags_HorizontalScrollbar);
 
     // Set keyboard focus to this child window if appropriate.
-    if (!gBookmarks.isWindowOpen() && !editor_state.blockInput)
-    {
-        if (ImGui::IsWindowAppearing() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive()))
-        {
+    if (!gBookmarks.isWindowOpen() && !editor_state.blockInput) {
+        if (ImGui::IsWindowAppearing() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive())) {
             ImGui::SetKeyboardFocusHere();
         }
     }
@@ -137,17 +135,21 @@ void Editor::beginTextEditorChild(const char *label, float remaining_width, floa
 
 void Editor::processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos)
 {
-    if (!editor_state.blockInput)
-    {
+    if (!editor_state.blockInput) {
         handleEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible);
-    }
-    else
-    {
+    } else {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
-    if (editor_state.cursor_pos != initial_cursor_pos)
-    {
+
+    // Handle frame counter for ensuring cursor visibility
+    if (editor_state.ensure_cursor_visible_frames > 0) {
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible_frames--;
+    }
+
+    if (editor_state.cursor_pos != initial_cursor_pos) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
@@ -155,66 +157,93 @@ void Editor::processTextEditorInput(std::string &text, EditorState &editor_state
 
 void Editor::processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x, EditorState &editor_state)
 {
-    if (ImGui::IsWindowHovered() && !editor_state.blockInput)
-    {
+    if (ImGui::IsWindowHovered() && !editor_state.blockInput) {
         float wheel_y = ImGui::GetIO().MouseWheel;
         float wheel_x = ImGui::GetIO().MouseWheelH;
-        if (wheel_y != 0)
-        {
-            current_scroll_y -= wheel_y * line_height * 3;
+
+        // Reduce the multiplier from 3 to 1.5 for a slower vertical scroll
+        if (wheel_y != 0) {
+            current_scroll_y -= wheel_y * line_height * 1.0f;
             current_scroll_y = std::max(0.0f, std::min(current_scroll_y, ImGui::GetScrollMaxY()));
         }
-        if (wheel_x != 0)
-        {
-            current_scroll_x -= wheel_x * ImGui::GetFontSize() * 3;
+
+        // Also reduce the horizontal scroll speed multiplier
+        if (wheel_x != 0) {
+            current_scroll_x -= wheel_x * ImGui::GetFontSize() * 1.0f;
             current_scroll_x = std::max(0.0f, std::min(current_scroll_x, ImGui::GetScrollMaxX()));
         }
     }
 }
 
-void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &editor_state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
+void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
 {
-    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal || editor_state.ensure_cursor_visible_frames > 0)
-    {
-        ScrollChange scroll_change = ensureCursorVisible(text_pos, text, editor_state, line_height, window_height, window_width);
-        if (scroll_change.vertical)
-        {
-            current_scroll_y = editor_state.scroll_pos.y;
-        }
-        if (scroll_change.horizontal)
-        {
-            current_scroll_x = editor_state.scroll_pos.x;
-        }
-        editor_state.ensure_cursor_visible_frames--;
+    // First check if there's a direct scroll request
+    float requested_x, requested_y;
+    if (handleScrollRequest(requested_x, requested_y)) {
+        // Set animation targets for direct requests
+        state.scroll_animation.active_x = true;
+        state.scroll_animation.target_x = requested_x;
+        state.scroll_animation.active_y = true;
+        state.scroll_animation.target_y = requested_y;
+
+        // Store the targets in state variables too
+        state.scroll_x = requested_x;
+        state.scroll_pos.y = requested_y;
+
+        // Reset visibility flags
+        ensure_cursor_visible.vertical = false;
+        ensure_cursor_visible.horizontal = false;
+
+        // Debug print to verify targets are set
+        // std::cout << "Direct scroll: target_x=" << requested_x << ", target_y=" << requested_y << std::endl;
+        return;
     }
-    if (handleScrollRequest(current_scroll_x, current_scroll_y))
-    {
-        editor_state.ensure_cursor_visible_frames = -1;
+
+    // Original logic...
+    if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal) {
+        // Call ensureCursorVisible to calculate scroll adjustments
+        ScrollChange scroll_change = ensureCursorVisible(text_pos, text, state, line_height, window_height, window_width);
+
+        // If scroll changes are needed, set animation targets
+        if (scroll_change.horizontal) {
+            state.scroll_animation.active_x = true;
+            state.scroll_animation.target_x = state.scroll_x;
+            // Debug print
+            // std::cout << "Horizontal scroll target: " << state.scroll_x << std::endl;
+        }
+
+        if (scroll_change.vertical) {
+            state.scroll_animation.active_y = true;
+            state.scroll_animation.target_y = state.scroll_pos.y;
+            // Debug print
+            // std::cout << "Vertical scroll target: " << state.scroll_pos.y << std::endl;
+        }
+
+        // Reset the visibility flags
+        ensure_cursor_visible.vertical = false;
+        ensure_cursor_visible.horizontal = false;
     }
 }
-
-// Cursor rendering: Compute the cursor position on a per‑line basis by extracting
-// the substring from the start of the line to the cursor position. This uses the same
-// CalcTextSize call that our batching code uses, so the measurements are consistent.
 void Editor::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos)
 {
-    // Render the text (with selection) using our batched function.
+    // Render the text (with selection) using our character-by-character function
     renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 
-    // Compute the cursor's line by finding which line the cursor is on.
+    // Compute the cursor's line by finding which line the cursor is on
     int cursor_line = getLineFromPos(editor_state.line_starts, editor_state.cursor_pos);
+
+    // Calculate cursor x position character-by-character
+    float cursor_x = text_pos.x;
     int line_start = editor_state.line_starts[cursor_line];
-    // Get the substring for this line up to the cursor.
-    std::string lineText = text.substr(line_start, editor_state.cursor_pos - line_start);
-    float x_offset = ImGui::CalcTextSize(lineText.c_str()).x;
+    for (int i = line_start; i < editor_state.cursor_pos; i++) {
+        cursor_x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+    }
 
     ImVec2 cursor_screen_pos = text_pos;
-    // Set x to the start of the line plus the measured offset.
-    cursor_screen_pos.x = text_pos.x + x_offset;
-    // Set y based on the line number.
+    cursor_screen_pos.x = cursor_x;
     cursor_screen_pos.y = text_pos.y + cursor_line * line_height;
 
-    // Draw the cursor.
+    // Draw the cursor
     renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
@@ -232,48 +261,37 @@ void Editor::updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_po
     ImGui::EndGroup();
     ImGui::PopID();
 }
+
 void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts)
 {
     // Only update if the text has changed.
-    if (text == editor_state.cached_text)
-    {
+    if (text == editor_state.cached_text) {
         return;
     }
+
     // Update cached text and clear old caches.
     editor_state.cached_text = text;
     line_starts.clear();
     editor_state.line_widths.clear();
+
+    // Remove the cached cumulative widths completely
     editor_state.cachedLineCumulativeWidths.clear();
 
     // Compute line_starts.
     line_starts.reserve(text.size() / 40);
     line_starts.push_back(0);
     size_t pos = 0;
-    while ((pos = text.find('\n', pos)) != std::string::npos)
-    {
+    while ((pos = text.find('\n', pos)) != std::string::npos) {
         line_starts.push_back(pos + 1);
         ++pos;
     }
 
-    // Compute cached width for each line and cumulative widths.
-    for (size_t i = 0; i < line_starts.size(); ++i)
-    {
+    // Just compute the total width for each line (for layout calculations)
+    for (size_t i = 0; i < line_starts.size(); ++i) {
         int start = line_starts[i];
         int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
         float width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
         editor_state.line_widths.push_back(width);
-
-        // Compute cumulative widths for this line.
-        std::vector<float> cumWidths;
-        cumWidths.reserve(end - start);
-        float cumulative = 0.0f;
-        for (int j = start; j < end; j++)
-        {
-            float w = ImGui::CalcTextSize(&text[j], &text[j + 1]).x;
-            cumulative += w;
-            cumWidths.push_back(cumulative);
-        }
-        editor_state.cachedLineCumulativeWidths[i] = cumWidths;
     }
 }
 
@@ -293,8 +311,7 @@ void Editor::startSelection(EditorState &state)
 
 void Editor::updateSelection(EditorState &state)
 {
-    if (state.is_selecting)
-    {
+    if (state.is_selecting) {
         state.selection_end = state.cursor_pos;
     }
 }
@@ -314,8 +331,7 @@ float Editor::getCursorYPosition(const EditorState &state, float line_height)
 // Copy, cut, and paste functions
 void Editor::copySelectedText(const std::string &text, const EditorState &state)
 {
-    if (state.selection_start != state.selection_end)
-    {
+    if (state.selection_start != state.selection_end) {
         int start = gEditor.getSelectionStart(state);
         int end = gEditor.getSelectionEnd(state);
         std::string selected_text = text.substr(start, end - start);
@@ -326,62 +342,103 @@ void Editor::copySelectedText(const std::string &text, const EditorState &state)
 float Editor::calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos)
 {
     float x = text_pos.x;
-    for (int i = 0; i < cursor_pos; i++)
-    {
-        if (text[i] == '\n')
-        {
+    for (int i = 0; i < cursor_pos; i++) {
+        if (text[i] == '\n') {
             x = text_pos.x;
-        }
-        else
-        {
+        } else {
             x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
         }
     }
     return x;
 }
-
 ScrollChange Editor::ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width)
 {
-    float cursor_y = (gEditor.getLineFromPos(state.line_starts, state.cursor_pos) * line_height);
-    float cursor_x = gEditor.calculateCursorXPosition(text_pos, text, state.cursor_pos);
-    float scroll_y = ImGui::GetScrollY();
+    // Get current scroll offsets
     float scroll_x = ImGui::GetScrollX();
-    float visible_start_x = text_pos.x + scroll_x; // Use text_pos.x as the reference point
-    float visible_end_x = visible_start_x + window_width;
-    ScrollChange changed = {false, false};
+    float scroll_y = ImGui::GetScrollY();
 
-    // Vertical scrolling
-    if (cursor_y < scroll_y + line_height)
-    { // Start scrolling up one line earlier
-        state.scroll_pos.y = std::max(0.0f, cursor_y - line_height);
-        changed.vertical = true;
-    }
-    else if (cursor_y > scroll_y + window_height - line_height * 2)
-    { // Start scrolling down one line earlier
-        state.scroll_pos.y = cursor_y - window_height + line_height * 2;
-        changed.vertical = true;
+    // Calculate viewport dimensions
+    float scrollbar_width = ImGui::GetStyle().ScrollbarSize;
+    float additional_padding = 80.0f;
+    float viewport_width = window_width - scrollbar_width - additional_padding;
+    float viewport_height = window_height;
+
+    // Calculate cursor position
+    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
+    int cursor_line = getLineFromPos(state.line_starts, state.cursor_pos);
+    float abs_cursor_y = text_pos.y + cursor_line * line_height;
+
+    // Calculate cursor position relative to viewport
+    float visible_cursor_x = abs_cursor_x - text_pos.x - scroll_x;
+    float visible_cursor_y = abs_cursor_y - text_pos.y - scroll_y;
+
+    // Margins - space to keep between cursor and edges
+    float margin_x = ImGui::GetFontSize() * 3.0f;
+    float margin_y = line_height * 1.5f;
+
+    // Calculate distances from each edge (negative means cursor is outside)
+    float dist_left = visible_cursor_x;
+    float dist_right = viewport_width - visible_cursor_x;
+    float dist_top = visible_cursor_y;
+    float dist_bottom = viewport_height - visible_cursor_y - line_height;
+
+    bool scroll_x_changed = false;
+    bool scroll_y_changed = false;
+    float new_scroll_x = scroll_x;
+    float new_scroll_y = scroll_y;
+
+    // Check if cursor needs horizontal scrolling
+    if (dist_left < margin_x) {
+        // Cursor too close to or beyond left edge
+        new_scroll_x = scroll_x - (margin_x - dist_left);
+        new_scroll_x = std::max(0.0f, new_scroll_x);
+        scroll_x_changed = true;
+
+        // Debug: Uncomment to debug left edge scrolling
+        // std::cout << "Scroll left: dist=" << dist_left << ", margin=" << margin_x
+        //           << ", scroll from " << scroll_x << " to " << new_scroll_x << std::endl;
+    } else if (dist_right < margin_x) {
+        // Cursor too close to or beyond right edge
+        new_scroll_x = scroll_x + (margin_x - dist_right);
+        new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
+        scroll_x_changed = true;
+
+        // Debug: Uncomment to debug right edge scrolling
+        // std::cout << "Scroll right: dist=" << dist_right << ", margin=" << margin_x
+        //           << ", scroll from " << scroll_x << " to " << new_scroll_x << std::endl;
     }
 
-    // Horizontal scrolling
-    float buffer = ImGui::GetFontSize() * 5.0f; // Increased buffer
-    float target_scroll_x = scroll_x;
+    // Check if cursor needs vertical scrolling
+    if (dist_top < margin_y) {
+        // Cursor too close to or beyond top edge
+        new_scroll_y = scroll_y - (margin_y - dist_top);
+        new_scroll_y = std::max(0.0f, new_scroll_y);
+        scroll_y_changed = true;
 
-    if (cursor_x < visible_start_x + buffer)
-    {
-        // Scrolling left - immediately jump
-        state.scroll_x = cursor_x - text_pos.x - buffer * 2; // Double buffer on left
-        changed.horizontal = true;
-    }
-    else if (cursor_x > visible_end_x - buffer * 1.5f)
-    { // Start scrolling earlier
-        // Scrolling right - immediately jump
-        state.scroll_x = cursor_x - window_width + buffer * 2; // More space on right
-        changed.horizontal = true;
+        // Debug: Uncomment to debug top edge scrolling
+        // std::cout << "Scroll up: dist=" << dist_top << ", margin=" << margin_y
+        //           << ", scroll from " << scroll_y << " to " << new_scroll_y << std::endl;
+    } else if (dist_bottom < margin_y) {
+        // Cursor too close to or beyond bottom edge
+        new_scroll_y = scroll_y + (margin_y - dist_bottom);
+        new_scroll_y = std::min(new_scroll_y, ImGui::GetScrollMaxY());
+        scroll_y_changed = true;
+
+        // Debug: Uncomment to debug bottom edge scrolling
+        // std::cout << "Scroll down: dist=" << dist_bottom << ", margin=" << margin_y
+        //           << ", scroll from " << scroll_y << " to " << new_scroll_y << std::endl;
     }
 
-    // Ensure we don't scroll past the start of the text
-    state.scroll_x = std::max(0.0f, state.scroll_x);
-    return changed;
+    // Store target positions in state variables without directly applying scroll
+    if (scroll_x_changed) {
+        state.scroll_x = new_scroll_x;
+    }
+
+    if (scroll_y_changed) {
+        state.scroll_pos.y = new_scroll_y;
+    }
+
+    return {scroll_y_changed, scroll_x_changed};
 }
 
 void Editor::selectAllText(EditorState &state, const std::string &text)
@@ -395,8 +452,7 @@ void Editor::selectAllText(EditorState &state, const std::string &text)
 
 void Editor::cutSelectedText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
 {
-    if (state.selection_start != state.selection_end)
-    {
+    if (state.selection_start != state.selection_end) {
         int start = gEditor.getSelectionStart(state);
         int end = gEditor.getSelectionEnd(state);
         std::string selected_text = text.substr(start, end - start);
@@ -430,15 +486,12 @@ void Editor::cutWholeLine(std::string &text, std::vector<ImVec4> &colors, Editor
 void Editor::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
 {
     const char *clipboard_text = ImGui::GetClipboardText();
-    if (clipboard_text != nullptr)
-    {
+    if (clipboard_text != nullptr) {
         std::string paste_content = clipboard_text;
-        if (!paste_content.empty())
-        {
+        if (!paste_content.empty()) {
             int paste_start = state.cursor_pos;
             int paste_end = paste_start + paste_content.size();
-            if (state.selection_start != state.selection_end)
-            {
+            if (state.selection_start != state.selection_end) {
                 int start = gEditor.getSelectionStart(state);
                 int end = gEditor.getSelectionEnd(state);
                 text.replace(start, end - start, paste_content);
@@ -446,9 +499,7 @@ void Editor::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorSta
                 colors.insert(colors.begin() + start, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
                 paste_start = start;
                 paste_end = start + paste_content.size();
-            }
-            else
-            {
+            } else {
                 text.insert(state.cursor_pos, paste_content);
                 colors.insert(colors.begin() + state.cursor_pos, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             }
@@ -470,14 +521,11 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
     int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.line_starts, line_height);
 
     // When the left mouse button is clicked:
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-    {
-        if (ImGui::GetIO().KeyShift)
-        {
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (ImGui::GetIO().KeyShift) {
             // If shift is held and we're not already selecting, set the anchor to the current
             // cursor position.
-            if (!state.is_selecting)
-            {
+            if (!state.is_selecting) {
                 anchor_pos = state.cursor_pos;
                 state.selection_start = anchor_pos;
                 state.is_selecting = true;
@@ -485,9 +533,7 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
             // Update the selection end based on the new click.
             state.selection_end = char_index;
             state.cursor_pos = char_index;
-        }
-        else
-        {
+        } else {
             // On a regular click (without shift), reset the selection and update the anchor.
             state.cursor_pos = char_index;
             anchor_pos = char_index;
@@ -498,25 +544,19 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
         is_dragging = true;
     }
     // If the mouse is being dragged:
-    else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging)
-    {
-        if (ImGui::GetIO().KeyShift)
-        {
+    else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
+        if (ImGui::GetIO().KeyShift) {
             // If shift is held, use the existing anchor for updating selection.
-            if (anchor_pos == -1)
-            {
+            if (anchor_pos == -1) {
                 anchor_pos = state.cursor_pos;
                 state.selection_start = anchor_pos;
             }
             state.selection_end = char_index;
             state.cursor_pos = char_index;
-        }
-        else
-        {
+        } else {
             // Normal drag selection without shift: use the initial click as the anchor.
             state.is_selecting = true;
-            if (anchor_pos == -1)
-            {
+            if (anchor_pos == -1) {
                 anchor_pos = state.cursor_pos;
             }
             state.selection_start = anchor_pos;
@@ -525,24 +565,21 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
         }
     }
     // On mouse release, reset dragging state and clear the anchor.
-    else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-    {
+    else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         is_dragging = false;
         anchor_pos = -1;
     }
 }
 void Editor::cursorLeft(EditorState &state)
 {
-    if (state.cursor_pos > 0)
-    {
+    if (state.cursor_pos > 0) {
         state.cursor_pos--;
     }
 }
 
 void Editor::cursorRight(const std::string &text, EditorState &state)
 {
-    if (state.cursor_pos < text.size())
-    {
+    if (state.cursor_pos < text.size()) {
         state.cursor_pos++;
     }
 }
@@ -550,8 +587,7 @@ void Editor::cursorRight(const std::string &text, EditorState &state)
 void Editor::cursorUp(const std::string &text, EditorState &state, float line_height, float window_height)
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
-    if (current_line > 0)
-    {
+    if (current_line > 0) {
         int current_column = state.cursor_pos - state.line_starts[current_line];
         state.cursor_pos = std::min(state.line_starts[current_line - 1] + current_column, state.line_starts[current_line] - 1);
         state.scroll_pos.y = std::max(0.0f, state.scroll_pos.y - line_height);
@@ -561,8 +597,7 @@ void Editor::cursorUp(const std::string &text, EditorState &state, float line_he
 void Editor::cursorDown(const std::string &text, EditorState &state, float line_height, float window_height)
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
-    if (current_line < state.line_starts.size() - 1)
-    {
+    if (current_line < state.line_starts.size() - 1) {
         int current_column = state.cursor_pos - state.line_starts[current_line];
         state.cursor_pos = std::min(state.line_starts[current_line + 1] + current_column, static_cast<int>(text.size()));
         state.scroll_pos.y = state.scroll_pos.y + line_height;
@@ -597,38 +632,31 @@ void Editor::handleCursorMovement(const std::string &text, EditorState &state, c
     state.current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     // Start a new selection only if Shift is pressed and we're not already
     // selecting
-    if (shift_pressed && !state.is_selecting)
-    {
+    if (shift_pressed && !state.is_selecting) {
         state.is_selecting = true;
         state.selection_start = state.cursor_pos;
     }
 
     // Clear selection only if a movement key is pressed without Shift
-    if (!shift_pressed && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow) || ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow)))
-    {
+    if (!shift_pressed && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow) || ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow))) {
         state.is_selecting = false;
         state.selection_start = state.selection_end = state.cursor_pos;
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
         gEditor.cursorUp(text, state, line_height, window_height);
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
         gEditor.cursorDown(text, state, line_height, window_height);
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
         gEditor.cursorLeft(state);
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
         gEditor.cursorRight(text, state);
     }
 
-    if (state.is_selecting)
-    {
+    if (state.is_selecting) {
         state.selection_end = state.cursor_pos;
     }
 
@@ -636,21 +664,15 @@ void Editor::handleCursorMovement(const std::string &text, EditorState &state, c
     float cursor_y = text_pos.y + (gEditor.getLineFromPos(state.line_starts, state.cursor_pos) * line_height);
     float cursor_x = gEditor.calculateCursorXPosition(text_pos, text, state.cursor_pos);
 
-    if (cursor_y < visible_start_y)
-    {
+    if (cursor_y < visible_start_y) {
         state.scroll_pos.y = cursor_y - text_pos.y;
-    }
-    else if (cursor_y + line_height > visible_end_y)
-    {
+    } else if (cursor_y + line_height > visible_end_y) {
         state.scroll_pos.y = cursor_y + line_height - window_height;
     }
 
-    if (cursor_x < visible_start_x)
-    {
+    if (cursor_x < visible_start_x) {
         state.scroll_x = cursor_x - text_pos.x;
-    }
-    else if (cursor_x > visible_end_x)
-    {
+    } else if (cursor_x > visible_end_x) {
         state.scroll_x = cursor_x - window_width + ImGui::GetFontSize();
     }
 }
@@ -661,23 +683,18 @@ void Editor::handleCharacterInput(std::string &text, std::vector<ImVec4> &colors
     ImGuiIO &io = ImGui::GetIO();
     std::string input;
     input.reserve(io.InputQueueCharacters.Size);
-    for (int n = 0; n < io.InputQueueCharacters.Size; n++)
-    {
+    for (int n = 0; n < io.InputQueueCharacters.Size; n++) {
         char c = static_cast<char>(io.InputQueueCharacters[n]);
-        if (c != 0 && c >= 32)
-        {
+        if (c != 0 && c >= 32) {
             input += c;
         }
     }
-    if (!input.empty())
-    {
+    if (!input.empty()) {
         // Clear any existing selection
-        if (state.selection_start != state.selection_end)
-        {
+        if (state.selection_start != state.selection_end) {
             int start = gEditor.getSelectionStart(state);
             int end = gEditor.getSelectionEnd(state);
-            if (start < 0 || end > static_cast<int>(text.size()) || start > end)
-            {
+            if (start < 0 || end > static_cast<int>(text.size()) || start > end) {
                 std::cerr << "Error: Invalid selection range "
                              "in HandleCharacterInput"
                           << std::endl;
@@ -689,8 +706,7 @@ void Editor::handleCharacterInput(std::string &text, std::vector<ImVec4> &colors
         }
 
         // Insert new text
-        if (state.cursor_pos < 0 || state.cursor_pos > static_cast<int>(text.size()))
-        {
+        if (state.cursor_pos < 0 || state.cursor_pos > static_cast<int>(text.size())) {
             std::cerr << "Error: Invalid cursor position in "
                          "HandleCharacterInput"
                       << std::endl;
@@ -708,26 +724,22 @@ void Editor::handleCharacterInput(std::string &text, std::vector<ImVec4> &colors
         input_end = state.cursor_pos;
     }
 }
+
 void Editor::handleEnterKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
 {
 
-    if (gLineJump.hasJustJumped())
-    {
+    if (gLineJump.hasJustJumped()) {
         return;
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Enter))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         // Insert the newline character
         text.insert(state.cursor_pos, 1, '\n');
 
         // Safely insert the color
-        if (state.cursor_pos <= colors.size())
-        {
+        if (state.cursor_pos <= colors.size()) {
             colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        }
-        else
-        {
+        } else {
             std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
             colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
@@ -739,12 +751,11 @@ void Editor::handleEnterKey(std::string &text, std::vector<ImVec4> &colors, Edit
         input_end = state.cursor_pos;
     }
 }
+
 void Editor::handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_Delete))
-    {
-        if (state.selection_start != state.selection_end)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
+        if (state.selection_start != state.selection_end) {
             // There's a selection, delete it
             int start = gEditor.getSelectionStart(state);
             int end = gEditor.getSelectionEnd(state);
@@ -753,9 +764,7 @@ void Editor::handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, Edi
             state.cursor_pos = start;
             text_changed = true;
             input_end = start;
-        }
-        else if (state.cursor_pos < text.size())
-        {
+        } else if (state.cursor_pos < text.size()) {
             // No selection, delete the character at cursor position
             text.erase(state.cursor_pos, 1);
             colors.erase(colors.begin() + state.cursor_pos - 1);
@@ -772,10 +781,8 @@ void Editor::handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, Edi
 void Editor::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start)
 {
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
-    {
-        if (state.selection_start != state.selection_end)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
+        if (state.selection_start != state.selection_end) {
             // There's a selection, delete it
             int start = gEditor.getSelectionStart(state);
             int end = gEditor.getSelectionEnd(state);
@@ -784,9 +791,7 @@ void Editor::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, 
             state.cursor_pos = start;
             text_changed = true;
             input_start = start;
-        }
-        else if (state.cursor_pos > 0)
-        {
+        } else if (state.cursor_pos > 0) {
             // No selection, delete the character before cursor
             // position
             text.erase(state.cursor_pos - 1, 1);
@@ -801,35 +806,31 @@ void Editor::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, 
         state.is_selecting = false;
     }
 }
+
 void Editor::handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
 {
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Tab))
-    {
-        if (state.is_selecting)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
+        if (state.is_selecting) {
             // Handle multi-line indentation
             int start = std::min(state.selection_start, state.selection_end);
             int end = std::max(state.selection_start, state.selection_end);
 
             // Find the start of the first line
             int firstLineStart = start;
-            while (firstLineStart > 0 && text[firstLineStart - 1] != '\n')
-            {
+            while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
                 firstLineStart--;
             }
 
             // Find the end of the last line
             int lastLineEnd = end;
-            while (lastLineEnd < text.length() && text[lastLineEnd] != '\n')
-            {
+            while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
                 lastLineEnd++;
             }
 
             int tabsInserted = 0;
             int lineStart = firstLineStart;
-            while (lineStart < lastLineEnd)
-            {
+            while (lineStart < lastLineEnd) {
                 // Insert tab at the beginning of the line
                 text.insert(lineStart, 1, '\t');
                 colors.insert(colors.begin() + lineStart, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -848,9 +849,7 @@ void Editor::handleTabKey(std::string &text, std::vector<ImVec4> &colors, Editor
             state.selection_end += tabsInserted;
 
             input_end = lastLineEnd + tabsInserted;
-        }
-        else
-        {
+        } else {
             // Insert a single tab character at cursor position
             text.insert(state.cursor_pos, 1, '\t');
             colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -913,28 +912,23 @@ void Editor::moveWordBackward(const std::string &text, EditorState &state)
 void Editor::removeIndentation(std::string &text, EditorState &state)
 {
     int start, end;
-    if (state.is_selecting)
-    {
+    if (state.is_selecting) {
         start = std::min(state.selection_start, state.selection_end);
         end = std::max(state.selection_start, state.selection_end);
-    }
-    else
-    {
+    } else {
         // If no selection, work on the current line
         start = end = state.cursor_pos;
     }
 
     // Find the start of the first line
     int firstLineStart = start;
-    while (firstLineStart > 0 && text[firstLineStart - 1] != '\n')
-    {
+    while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
         firstLineStart--;
     }
 
     // Find the end of the last line
     int lastLineEnd = end;
-    while (lastLineEnd < text.length() && text[lastLineEnd] != '\n')
-    {
+    while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
         lastLineEnd++;
     }
 
@@ -947,16 +941,12 @@ void Editor::removeIndentation(std::string &text, EditorState &state)
 
     // Process each line
     size_t lineStart = firstLineStart;
-    while (lineStart <= lastLineEnd)
-    {
+    while (lineStart <= lastLineEnd) {
         // Check for spaces or tab at the beginning of the line
         int spacesToRemove = 0;
-        if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ")
-        {
+        if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ") {
             spacesToRemove = 4;
-        }
-        else if (lineStart < text.length() && text[lineStart] == '\t')
-        {
+        } else if (lineStart < text.length() && text[lineStart] == '\t') {
             spacesToRemove = 1;
         }
 
@@ -978,13 +968,10 @@ void Editor::removeIndentation(std::string &text, EditorState &state)
     // Update text and adjust cursor and selection
     text = std::move(newText);
     state.cursor_pos = std::max(state.cursor_pos - totalSpacesRemoved, firstLineStart);
-    if (state.is_selecting)
-    {
+    if (state.is_selecting) {
         state.selection_start = std::max(state.selection_start - totalSpacesRemoved, firstLineStart);
         state.selection_end = std::max(state.selection_end - totalSpacesRemoved, firstLineStart);
-    }
-    else
-    {
+    } else {
         state.selection_start = state.selection_end = state.cursor_pos;
     }
 
@@ -1008,8 +995,7 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     int input_end = state.cursor_pos;
 
     // Handle selection deletion only for Enter key
-    if (state.selection_start != state.selection_end && ImGui::IsKeyPressed(ImGuiKey_Enter))
-    {
+    if (state.selection_start != state.selection_end && ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         int start = gEditor.getSelectionStart(state);
         int end = gEditor.getSelectionEnd(state);
         text.erase(start, end - start);
@@ -1026,8 +1012,7 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     gEditor.handleDeleteKey(text, colors, state, text_changed, input_end);
     gEditor.handleTabKey(text, colors, state, text_changed, input_end);
 
-    if (text_changed)
-    {
+    if (text_changed) {
         // Get the start of the line where the change began
         int line_start = state.line_starts[gEditor.getLineFromPos(state.line_starts, input_start)];
 
@@ -1046,85 +1031,60 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     }
 }
 
-// Batched text rendering: We group characters per batch and compute the batch width
-// using a single CalcTextSize call so that kerning is applied consistently.
 void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
 {
     ImVec2 text_pos = pos;
     int sel_start = getSelectionStart(state);
     int sel_end = getSelectionEnd(state);
 
-    // Calculate visible range.
+    // Calculate visible range
     float scroll_y = ImGui::GetScrollY();
     float window_height = ImGui::GetWindowHeight();
     int start_line = static_cast<int>(scroll_y / line_height);
     int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
 
     int current_line = 0;
-    size_t i = 0;
-    while (i < text.size())
-    {
-        // Safety check.
-        if (i >= colors.size())
-        {
+    for (size_t i = 0; i < text.size(); i++) {
+        // Safety check
+        if (i >= colors.size()) {
             std::cerr << "Error: Color index out of bounds in renderTextWithSelection" << std::endl;
             break;
         }
 
-        // Handle newline: update line count and reset x.
-        if (text[i] == '\n')
-        {
+        // Handle newline: update line count and reset x
+        if (text[i] == '\n') {
             current_line++;
             if (current_line > end_line)
                 break;
             text_pos.x = pos.x;
             text_pos.y += line_height;
-            i++;
             continue;
         }
 
-        // Skip lines above visible area.
-        if (current_line < start_line)
-        {
+        // Skip lines above visible area
+        if (current_line < start_line) {
             while (i < text.size() && text[i] != '\n')
                 i++;
+            i--; // Adjust for the outer loop's increment
             continue;
         }
         if (current_line > end_line)
             break;
 
-        // Batch by style only (do not break the batch at selection boundaries)
-        ImVec4 batchColor = colors[i];
-        size_t batchStart = i;
-        while (i < text.size() && text[i] != '\n' && i < colors.size() && colors[i].x == batchColor.x && colors[i].y == batchColor.y && colors[i].z == batchColor.z && colors[i].w == batchColor.w)
-        {
-            i++;
+        // Check if this character is selected
+        bool is_selected = (i >= sel_start && i < sel_end);
+        if (is_selected) {
+            // Draw selection highlight
+            float char_width = ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+            ImVec2 sel_start_pos = text_pos;
+            ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + char_width, sel_start_pos.y + line_height);
+            drawList->AddRectFilled(sel_start_pos, sel_end_pos, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
         }
-        std::string batchText = text.substr(batchStart, i - batchStart);
-        float batchWidth = ImGui::CalcTextSize(batchText.c_str()).x;
 
-        // Now, if any part of this batch is selected, draw a highlight rectangle only over that
-        // region. Compute the overlapping indices:
-        int batchStartInt = static_cast<int>(batchStart);
-        int batchEndInt = static_cast<int>(i);
-        int highlightStartIdx = std::max(sel_start, batchStartInt);
-        int highlightEndIdx = std::min(sel_end, batchEndInt);
-        if (highlightStartIdx < highlightEndIdx)
-        {
-            // Compute the x-offset within the batch where highlighting should start.
-            std::string preHighlight = text.substr(batchStartInt, highlightStartIdx - batchStartInt);
-            float offsetX = ImGui::CalcTextSize(preHighlight.c_str()).x;
-            // Compute the width of the highlighted part.
-            std::string highlightText = text.substr(highlightStartIdx, highlightEndIdx - highlightStartIdx);
-            float highlightWidth = ImGui::CalcTextSize(highlightText.c_str()).x;
-            ImVec2 hlStart = text_pos;
-            hlStart.x += offsetX;
-            ImVec2 hlEnd = ImVec2(hlStart.x + highlightWidth, text_pos.y + line_height);
-            drawList->AddRectFilled(hlStart, hlEnd, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
-        }
-        // Draw the batch text.
-        drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(batchColor), batchText.c_str());
-        text_pos.x += batchWidth;
+        // Draw individual character
+        char buf[2] = {text[i], '\0'};
+        drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(colors[i]), buf);
+        text_pos.x += ImGui::CalcTextSize(buf).x;
     }
 }
 
@@ -1134,13 +1094,10 @@ void Editor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos
     ImU32 cursor_color;
     bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
 
-    if (rainbow_mode)
-    {
+    if (rainbow_mode) {
         ImVec4 rainbow = GetRainbowColor(blink_time * 2.0f); // Rainbow frequency
         cursor_color = ImGui::ColorConvertFloat4ToU32(rainbow);
-    }
-    else
-    {
+    } else {
         cursor_color = IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
     }
 
@@ -1166,8 +1123,7 @@ int Editor::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_
     // of the substring [line_start, line_start+i].
     std::vector<float> insertionPositions(n + 1, 0.0f);
     insertionPositions[0] = 0.0f;
-    for (int i = 1; i <= n; i++)
-    {
+    for (int i = 1; i <= n; i++) {
         insertionPositions[i] = ImGui::CalcTextSize(&text[line_start], &text[line_start + i]).x;
     }
 
@@ -1177,11 +1133,9 @@ int Editor::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_
     // Find the insertion index (0...n) whose position is closest to click_x.
     int bestIndex = 0;
     float bestDist = std::abs(click_x - insertionPositions[0]);
-    for (int i = 1; i <= n; i++)
-    {
+    for (int i = 1; i <= n; i++) {
         float d = std::abs(click_x - insertionPositions[i]);
-        if (d < bestDist)
-        {
+        if (d < bestDist) {
             bestDist = d;
             bestIndex = i;
         }
@@ -1203,13 +1157,11 @@ void Editor::renderLineNumbers(const ImVec2 &pos, float line_number_width, float
     // Pre-calculate rainbow color
     ImU32 rainbow_color = current_line_color;
     bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
-    if (rainbow_mode)
-    {
+    if (rainbow_mode) {
         // Update color less frequently
         static float last_update_time = 0.0f;
         static ImU32 last_rainbow_color = current_line_color;
-        if (blink_time - last_update_time > 0.05f)
-        { // Update every 50ms
+        if (blink_time - last_update_time > 0.05f) { // Update every 50ms
             ImVec4 rainbow = GetRainbowColor(blink_time * 2.0f);
             last_rainbow_color = ImGui::ColorConvertFloat4ToU32(rainbow);
             last_update_time = blink_time;
@@ -1221,22 +1173,16 @@ void Editor::renderLineNumbers(const ImVec2 &pos, float line_number_width, float
     int selection_end = std::max(editor_state.selection_start, editor_state.selection_end);
     int selection_start_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_start) - editor_state.line_starts.begin();
     int selection_end_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_end) - editor_state.line_starts.begin();
-    for (int i = start_line; i < end_line; i++)
-    {
+    for (int i = start_line; i < end_line; i++) {
         float y_pos = pos.y + (i * line_height) - scroll_y;
         snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
         ImU32 line_number_color;
-        if (i >= selection_start_line && i < selection_end_line && editor_state.is_selecting)
-        {
+        if (i >= selection_start_line && i < selection_end_line && editor_state.is_selecting) {
             line_number_color = selected_line_color; // Use neon pink for selected
                                                      // lines
-        }
-        else if (i == editor_state.current_line)
-        {
+        } else if (i == editor_state.current_line) {
             line_number_color = rainbow_mode ? rainbow_color : current_line_color;
-        }
-        else
-        {
+        } else {
             line_number_color = default_line_number_color;
         }
         // Calculate the position for right-aligned text
@@ -1245,21 +1191,21 @@ void Editor::renderLineNumbers(const ImVec2 &pos, float line_number_width, float
         draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color, line_number_buffer);
     }
 }
+
 float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts)
 {
     // Assume updateLineStarts has been called so that editor_state.line_widths is up to date.
     float max_width = 0.0f;
-    for (float width : editor_state.line_widths)
-    {
+    for (float width : editor_state.line_widths) {
         max_width = std::max(max_width, width);
     }
     return max_width;
 }
+
 bool Editor::processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
 {
     // If Shift+Tab is pressed, remove indentation and exit early.
-    if (ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_Tab, false))
-    {
+    if (ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {
         removeIndentation(text, state);
         text_changed = true;
         ensure_cursor_visible.horizontal = true;
@@ -1272,16 +1218,13 @@ bool Editor::processIndentRemoval(std::string &text, EditorState &state, bool &t
 
 void Editor::processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_Equal))
-    { // '+' key
+    if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
         float currentSize = gSettings.getFontSize();
         gSettings.setFontSize(currentSize + 2.0f);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
         std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
-    { // '-' key
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Minus)) { // '-' key
         float currentSize = gSettings.getFontSize();
         gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
         ensure_cursor_visible.vertical = true;
@@ -1292,8 +1235,7 @@ void Editor::processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible)
 
 void Editor::processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_A))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_A)) {
         selectAllText(state, text);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
@@ -1303,19 +1245,15 @@ void Editor::processSelectAll(std::string &text, EditorState &state, CursorVisib
 
 void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_Z))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
         std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl << ", Shift: " << shift_pressed << std::endl;
         int oldCursorPos = state.cursor_pos;
         int oldLine = getLineFromPos(state.line_starts, oldCursorPos);
         int oldColumn = oldCursorPos - state.line_starts[oldLine];
-        if (shift_pressed)
-        {
+        if (shift_pressed) {
             std::cout << "Attempting Redo" << std::endl;
             gFileExplorer.handleRedo();
-        }
-        else
-        {
+        } else {
             std::cout << "Attempting Undo" << std::endl;
             gFileExplorer.handleUndo();
         }
@@ -1338,14 +1276,10 @@ void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, Edi
 
 void Editor::processWordMovement(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_W))
-    {
-        if (shift_pressed)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_W)) {
+        if (shift_pressed) {
             moveWordBackward(text, state);
-        }
-        else
-        {
+        } else {
             moveWordForward(text, state);
         }
         ensure_cursor_visible.horizontal = true;
@@ -1355,41 +1289,27 @@ void Editor::processWordMovement(std::string &text, EditorState &state, CursorVi
 
 void Editor::processCursorJump(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
         int current_line = getLineFromPos(state.line_starts, state.cursor_pos);
         state.cursor_pos = state.line_starts[current_line] + 1;
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl/Cmd+Left: Cursor moved to " << state.cursor_pos << std::endl;
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
-    {
+    } else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
         int current_line = getLineFromPos(state.line_starts, state.cursor_pos);
         int next_line = current_line + 1;
-        if (next_line < state.line_starts.size())
-        {
+        if (next_line < state.line_starts.size()) {
             state.cursor_pos = state.line_starts[next_line] - 2; // Position before the newline
-        }
-        else
-        {
+        } else {
             state.cursor_pos = text.size();
         }
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl+Right: Cursor moved to " << state.cursor_pos << std::endl;
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
-    {
+    } else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
         moveCursorVertically(text, state, -5);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl+Up: Cursor moved 5 lines up to " << state.cursor_pos << std::endl;
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-    {
+    } else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
         moveCursorVertically(text, state, 5);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl+Down: Cursor moved 5 lines down to " << state.cursor_pos << std::endl;
     }
 }
 
@@ -1397,18 +1317,14 @@ void Editor::processMouseWheelScrolling(float line_height, EditorState &state)
 {
     float wheel_y = ImGui::GetIO().MouseWheel;
     float wheel_x = ImGui::GetIO().MouseWheelH;
-    if (wheel_y != 0 || wheel_x != 0)
-    {
-        if (ImGui::GetIO().KeyShift)
-        { // Horizontal scrolling with Shift+Scroll
-            float scroll_amount = wheel_y * ImGui::GetFontSize() * 3;
+    if (wheel_y != 0 || wheel_x != 0) {
+        if (ImGui::GetIO().KeyShift) { // Horizontal scrolling with Shift+Scroll
+            float scroll_amount = wheel_y * ImGui::GetFontSize() * 1;
             float new_scroll_x = ImGui::GetScrollX() - scroll_amount;
             new_scroll_x = std::max(0.0f, std::min(new_scroll_x, ImGui::GetScrollMaxX()));
             ImGui::SetScrollX(new_scroll_x);
             state.scroll_pos.x = new_scroll_x;
-        }
-        else
-        { // Vertical scrolling
+        } else { // Vertical scrolling
             float new_scroll_y = ImGui::GetScrollY() - wheel_y * line_height * 3;
             new_scroll_y = std::max(0.0f, std::min(new_scroll_y, ImGui::GetScrollMaxY()));
             ImGui::SetScrollY(new_scroll_y);
@@ -1419,12 +1335,10 @@ void Editor::processMouseWheelScrolling(float line_height, EditorState &state)
 
 void Editor::processClipboardShortcuts(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_C, false))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         copySelectedText(text, state);
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_X, false))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_X, false)) {
         if (state.selection_start != state.selection_end)
             cutSelectedText(text, colors, state, text_changed);
         else
@@ -1432,8 +1346,7 @@ void Editor::processClipboardShortcuts(std::string &text, std::vector<ImVec4> &c
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_V, false))
-    {
+    if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
         pasteText(text, colors, state, text_changed);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
@@ -1446,22 +1359,19 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
     // block input if searching for file...
-    if (gFileFinder.isWindowOpen())
-    {
+    if (gFileFinder.isWindowOpen()) {
         return;
     }
     // Process bookmarks first
     gBookmarks.handleBookmarkInput(gFileExplorer, state);
 
-    if (ImGui::IsWindowFocused() && !state.blockInput)
-    {
+    if (ImGui::IsWindowFocused() && !state.blockInput) {
         // Process Shift+Tab for indentation removal. If handled, exit
         // early.
         if (processIndentRemoval(text, state, text_changed, ensure_cursor_visible))
             return;
 
-        if (ctrl_pressed)
-        {
+        if (ctrl_pressed) {
             processFontSizeAdjustment(ensure_cursor_visible);
             processSelectAll(text, state, ensure_cursor_visible);
             processUndoRedo(text, colors, state, text_changed, ensure_cursor_visible, shift_pressed);
@@ -1470,8 +1380,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
         }
     }
 
-    if (ImGui::IsWindowHovered())
-    {
+    if (ImGui::IsWindowHovered()) {
         handleMouseInput(text, state, text_start_pos, line_height);
         processMouseWheelScrolling(line_height, state);
     }
@@ -1489,8 +1398,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
         processClipboardShortcuts(text, colors, state, text_changed, ensure_cursor_visible);
 
     // Ensure cursor is visible if text has changed
-    if (text_changed)
-    {
+    if (text_changed) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
@@ -1499,8 +1407,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
 void Editor::cancelHighlighting()
 {
     cancelHighlightFlag = true;
-    if (highlightFuture.valid())
-    {
+    if (highlightFuture.valid()) {
         highlightFuture.wait();
     }
     cancelHighlightFlag = false;
@@ -1516,30 +1423,25 @@ void Editor::forceColorUpdate()
 
 bool Editor::validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos)
 {
-    if (content.empty())
-    {
+    if (content.empty()) {
         std::cerr << "Error: Empty content in highlightContent" << std::endl;
         return false;
     }
-    if (colors.empty())
-    {
+    if (colors.empty()) {
         std::cerr << "Error: Empty colors vector in highlightContent" << std::endl;
         return false;
     }
-    if (content.size() != colors.size())
-    {
+    if (content.size() != colors.size()) {
         std::cerr << "Error: Mismatch between content and colors size "
                      "in highlightContent"
                   << std::endl;
         return false;
     }
-    if (start_pos < 0 || start_pos >= static_cast<int>(content.size()))
-    {
+    if (start_pos < 0 || start_pos >= static_cast<int>(content.size())) {
         std::cerr << "Error: Invalid start_pos in highlightContent" << std::endl;
         return false;
     }
-    if (end_pos < start_pos || end_pos > static_cast<int>(content.size()))
-    {
+    if (end_pos < start_pos || end_pos > static_cast<int>(content.size())) {
         std::cerr << "Error: Invalid end_pos in highlightContent" << std::endl;
         return false;
     }
@@ -1556,8 +1458,7 @@ void Editor::highlightContent(const std::string &content, std::vector<ImVec4> &c
 
     // For large files (>100KB), just use default color
     const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
-    if (content.size() > LARGE_FILE_THRESHOLD)
-    {
+    if (content.size() > LARGE_FILE_THRESHOLD) {
         // Pre-allocate colors vector to match content size
         colors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         return;
@@ -1581,55 +1482,38 @@ void Editor::highlightContent(const std::string &content, std::vector<ImVec4> &c
     std::string extension = fs::path(currentFile).extension().string();
 
     // Launch highlighting task - properly capture colors by reference
-    highlightFuture = std::async(std::launch::async,
-                                 [this, content_copy, &colors, colors_copy = std::move(colors_copy), currentFile, start_pos, end_pos, extension]() mutable
-                                 {
-                                     try
-                                     {
-                                         if (cancelHighlightFlag)
-                                         {
-                                             highlightingInProgress = false;
-                                             return;
-                                         }
+    highlightFuture = std::async(std::launch::async, [this, content_copy, &colors, colors_copy = std::move(colors_copy), currentFile, start_pos, end_pos, extension]() mutable {
+        try {
+            if (cancelHighlightFlag) {
+                highlightingInProgress = false;
+                return;
+            }
 
-                                         // Apply highlighting
-                                         if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
-                                         {
-                                             cppLexer.applyHighlighting(content_copy, colors_copy, 0);
-                                         }
-                                         else if (extension == ".py")
-                                         {
-                                             pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-                                         }
-                                         else if (extension == ".html")
-                                         {
-                                             htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
-                                         }
-                                         else if (extension == ".js" || extension == ".jsx")
-                                         {
-                                             jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-                                         }
-                                         else
-                                         {
-                                             std::fill(colors_copy.begin() + start_pos, colors_copy.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                                         }
+            // Apply highlighting
+            if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
+                cppLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".py") {
+                pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".html") {
+                htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".js" || extension == ".jsx") {
+                jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else {
+                std::fill(colors_copy.begin() + start_pos, colors_copy.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            }
 
-                                         if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile())
-                                         {
-                                             std::lock_guard<std::mutex> colorsLock(colorsMutex);
-                                             // Note: colors is captured by reference now
-                                             if (colors.size() == colors_copy.size())
-                                             {
-                                                 colors = std::move(colors_copy);
-                                             }
-                                         }
-                                     }
-                                     catch (const std::exception &e)
-                                     {
-                                         std::cerr << "Error in highlighting: " << e.what() << std::endl;
-                                     }
-                                     highlightingInProgress = false;
-                                 });
+            if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile()) {
+                std::lock_guard<std::mutex> colorsLock(colorsMutex);
+                // Note: colors is captured by reference now
+                if (colors.size() == colors_copy.size()) {
+                    colors = std::move(colors_copy);
+                }
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Error in highlighting: " << e.what() << std::endl;
+        }
+        highlightingInProgress = false;
+    });
 }
 
 void Editor::setTheme(const std::string &themeName) { loadTheme(themeName); }
@@ -1637,20 +1521,80 @@ void Editor::setTheme(const std::string &themeName) { loadTheme(themeName); }
 void Editor::loadTheme(const std::string &themeName)
 {
     auto &settings = gSettings.getSettings();
-    if (settings.contains("themes") && settings["themes"].contains(themeName))
-    {
+    if (settings.contains("themes") && settings["themes"].contains(themeName)) {
         auto &theme = settings["themes"][themeName];
-        for (const auto &[key, value] : theme.items())
-        {
+        for (const auto &[key, value] : theme.items()) {
             themeColors[key] = ImVec4(value[0], value[1], value[2], value[3]);
         }
-    }
-    else
-    {
+    } else {
         // Set default colors if theme not found
         themeColors["keyword"] = ImVec4(0.0f, 0.4f, 1.0f, 1.0f);
         themeColors["string"] = ImVec4(0.87f, 0.87f, 0.0f, 1.0f);
         themeColors["number"] = ImVec4(0.0f, 0.8f, 0.8f, 1.0f);
         themeColors["comment"] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
+    }
+}
+
+void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, float &current_scroll_y, float dt)
+{
+    // Animation should complete in ~0.1 seconds
+    const float animation_speed = 15.0f; // Move 15% of remaining distance per frame
+    const float min_step = 1.0f;         // Minimum pixels to move per frame
+    const float threshold = 0.5f;        // Snap threshold
+
+    // Handle horizontal animation
+    if (state.scroll_animation.active_x) {
+        float target_x = state.scroll_animation.target_x;
+        float delta_x = target_x - current_scroll_x;
+
+        // If we're close enough, snap to target
+        if (std::abs(delta_x) < threshold) {
+            current_scroll_x = target_x;
+            state.scroll_animation.active_x = false;
+        } else {
+            // Move a percentage of the remaining distance
+            float step = delta_x * animation_speed * dt;
+
+            // Ensure minimum step size for consistent motion
+            if (std::abs(step) < min_step) {
+                step = min_step * (delta_x > 0 ? 1.0f : -1.0f);
+            }
+
+            // If we would overshoot, just snap to target
+            if ((delta_x > 0 && step > delta_x) || (delta_x < 0 && step < delta_x)) {
+                current_scroll_x = target_x;
+                state.scroll_animation.active_x = false;
+            } else {
+                current_scroll_x += step;
+            }
+        }
+    }
+
+    // Handle vertical animation
+    if (state.scroll_animation.active_y) {
+        float target_y = state.scroll_animation.target_y;
+        float delta_y = target_y - current_scroll_y;
+
+        // If we're close enough, snap to target
+        if (std::abs(delta_y) < threshold) {
+            current_scroll_y = target_y;
+            state.scroll_animation.active_y = false;
+        } else {
+            // Move a percentage of the remaining distance
+            float step = delta_y * animation_speed * dt;
+
+            // Ensure minimum step size for consistent motion
+            if (std::abs(step) < min_step) {
+                step = min_step * (delta_y > 0 ? 1.0f : -1.0f);
+            }
+
+            // If we would overshoot, just snap to target
+            if ((delta_y > 0 && step > delta_y) || (delta_y < 0 && step < delta_y)) {
+                current_scroll_y = target_y;
+                state.scroll_animation.active_y = false;
+            } else {
+                current_scroll_y += step;
+            }
+        }
     }
 }

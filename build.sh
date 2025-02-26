@@ -66,7 +66,7 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
-echo -e "${GREEN}🚀  Launching NED  ✅${NC}"
+echo -e "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./ned
 
 echo -e "${GREEN}✅ All Done!${NC}"

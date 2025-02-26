@@ -2,8 +2,8 @@
     util/file_finder.cpp
     Implementation of the file finder utility.
 */
-#include "util/file_finder.h"
-#include "close_popper.h"
+#include "file_finder.h"
+#include "../util/close_popper.h"
 
 FileFinder gFileFinder;
 
@@ -17,10 +17,8 @@ void FileFinder::refreshFileList()
     if (projectDir.empty())
         return;
 
-    for (const auto &entry : fs::recursive_directory_iterator(projectDir))
-    {
-        if (entry.is_regular_file())
-        {
+    for (const auto &entry : fs::recursive_directory_iterator(projectDir)) {
+        if (entry.is_regular_file()) {
             fs::path fullPath = entry.path();
             fs::path relativePath = fs::relative(fullPath, projectDir);
 
@@ -42,25 +40,21 @@ void FileFinder::updateFilteredList()
     std::string searchTerm(searchBuffer);
     std::transform(searchTerm.begin(), searchTerm.end(), searchTerm.begin(), ::tolower);
 
-    if (searchTerm != previousSearch)
-    {
+    if (searchTerm != previousSearch) {
         selectedIndex = 0;
         previousSearch = searchTerm;
     }
 
     filteredList.clear();
     // For each file, filter based on the relative path (from the project folder)
-    for (const auto &file : fileList)
-    {
+    for (const auto &file : fileList) {
         std::string relativeLower = file.relativePath;
         std::transform(relativeLower.begin(), relativeLower.end(), relativeLower.begin(), ::tolower);
 
         // Only add if the relative path contains the search term
-        if (relativeLower.find(searchTerm) != std::string::npos)
-        {
+        if (relativeLower.find(searchTerm) != std::string::npos) {
             // If the search term doesn't include a dot, skip files whose filename begins with '.'
-            if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() && file.filenameLower[0] == '.')
-            {
+            if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() && file.filenameLower[0] == '.') {
                 continue;
             }
             filteredList.push_back(file);
@@ -73,14 +67,12 @@ void FileFinder::updateFilteredList()
 
 void FileFinder::handleSelectionChange()
 {
-    if (!filteredList.empty() && selectedIndex >= 0 && selectedIndex < static_cast<int>(filteredList.size()))
-    {
+    if (!filteredList.empty() && selectedIndex >= 0 && selectedIndex < static_cast<int>(filteredList.size())) {
         const std::string &selectedFile = filteredList[selectedIndex].fullPath;
 
         // Only load if it's not the initial selection and the file isn't already loaded
         // AND we've had some user interaction (arrow keys or search)
-        if (!isInitialSelection && selectedFile != currentlyLoadedFile)
-        {
+        if (!isInitialSelection && selectedFile != currentlyLoadedFile) {
             currentlyLoadedFile = selectedFile;
             gFileExplorer.loadFileContent(selectedFile);
         }
@@ -91,8 +83,7 @@ void FileFinder::toggleWindow()
     showFFWindow = !showFFWindow;
     ClosePopper::closeAllExcept(ClosePopper::Type::FileFinder);
 
-    if (showFFWindow)
-    {
+    if (showFFWindow) {
         originalFile = gFileExplorer.getCurrentFile();
         currentlyLoadedFile = originalFile; // Initialize with original file
         memset(searchBuffer, 0, sizeof(searchBuffer));
@@ -101,9 +92,7 @@ void FileFinder::toggleWindow()
         isInitialSelection = true;
         refreshFileList();
         std::cout << "\033[36mFileFinder:\033[0m Window opened" << std::endl;
-    }
-    else
-    {
+    } else {
         std::cout << "\033[36mFileFinder:\033[0m Window closed" << std::endl;
     }
 }
@@ -131,8 +120,7 @@ void FileFinder::renderHeader()
     ImGui::Spacing();
 
     // Ensure keyboard focus is set on first render
-    if (!wasKeyboardFocusSet)
-    {
+    if (!wasKeyboardFocusSet) {
         ImGui::SetKeyboardFocusHere();
         wasKeyboardFocusSet = true;
     }
@@ -180,8 +168,7 @@ void FileFinder::renderFileList()
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent hover
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));  // Transparent active
 
-    for (int i = startIdx; i < endIdx; ++i)
-    {
+    for (int i = startIdx; i < endIdx; ++i) {
         bool is_selected = (i == selectedIndex);
         const FileEntry &entry = filteredList[i];
         ImGui::PushID(i);
@@ -209,16 +196,13 @@ void FileFinder::renderWindow()
 {
     // Toggle with Ctrl+P
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_P))
-    {
+    if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_P)) {
         toggleWindow();
         return;
     }
-    if (showFFWindow && ImGui::IsKeyPressed(ImGuiKey_Escape))
-    {
+    if (showFFWindow && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         // Restore the original file before closing
-        if (!originalFile.empty())
-        {
+        if (!originalFile.empty()) {
             gFileExplorer.loadFileContent(originalFile);
         }
         toggleWindow();
@@ -231,19 +215,15 @@ void FileFinder::renderWindow()
     // Render header (window setup and title)
     renderHeader();
 
-    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
-    {
-        if (selectedIndex > 0)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+        if (selectedIndex > 0) {
             isInitialSelection = false; // User made an intentional selection
             selectedIndex--;
             handleSelectionChange(); // Load file when moving up
         }
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-    {
-        if (selectedIndex < static_cast<int>(filteredList.size()) - 1)
-        {
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+        if (selectedIndex < static_cast<int>(filteredList.size()) - 1) {
             isInitialSelection = false; // User made an intentional selection
             selectedIndex++;
             handleSelectionChange(); // Load file when moving down
@@ -252,8 +232,7 @@ void FileFinder::renderWindow()
 
     // Render search input; if Enter is pressed, load the selected file.
     bool enterPressed = renderSearchInput();
-    if (enterPressed)
-    {
+    if (enterPressed) {
         toggleWindow(); // Just close the finder
         ImGui::End();
         ImGui::PopStyleColor(3);
@@ -267,8 +246,7 @@ void FileFinder::renderWindow()
 
     // If the search term changed (meaning we have new filtered results)
     // or if we're navigating with arrow keys, handle the selection
-    if (oldSearchTerm != previousSearch)
-    {
+    if (oldSearchTerm != previousSearch) {
         isInitialSelection = false; // No longer initial when search changes
         handleSelectionChange();
     }
