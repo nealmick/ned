@@ -10,8 +10,8 @@
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <string>
-
 #include "editor/editor.h"
+#include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader.h"
 
@@ -28,8 +28,6 @@ class Ned
     bool initialize();
     void run();
     void cleanup();
-    void disableSmoothScrolling(bool disable) { smoothScrollingDisabled = disable; }
-    bool isSmoothScrollingDisabled() const { return smoothScrollingDisabled; }
 
   private:
     // Core structures
@@ -109,5 +107,4 @@ class Ned
     // Add a new function to handle scroll input
     void handleScrollEvent(double xoffset, double yoffset);
     void handleScrollInput();
-    bool smoothScrollingDisabled = false;
 };
