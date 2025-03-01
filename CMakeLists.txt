@@ -84,12 +84,13 @@ add_executable(ned
 
     # Editor files
     editor/editor.cpp
-    editor/line_jump.cpp
+    editor/editor_line_jump.cpp
     
     # Files
     files/files.cpp
     files/file_tree.cpp
     files/file_finder.cpp
+    files/file_content_search.cpp
     
     # ImGui files
     lib/imgui/imgui.cpp

@@ -4,11 +4,13 @@
 */
 
 #include "editor.h"
+
+#include "editor_bookmarks.h"
+#include "editor_line_jump.h"
+
 #include "../files/file_finder.h"
 #include "../files/files.h"
 #include "../util/settings.h"
-#include "bookmarks.h"
-#include "line_jump.h"
 
 #include <algorithm>
 #include <cmath>
@@ -225,6 +227,9 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::
 }
 void Editor::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos)
 {
+    gLineJump.handleLineJumpInput(editor_state);
+    gLineJump.renderLineJumpWindow(editor_state);
+
     // Render the text (with selection) using our character-by-character function
     renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 

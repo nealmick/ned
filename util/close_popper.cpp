@@ -5,8 +5,8 @@
     both linejump and bookmarks popup to close.
 */
 #include "close_popper.h"
-#include "../editor/bookmarks.h"
-#include "../editor/line_jump.h"
+#include "../editor/editor_bookmarks.h"
+#include "../editor/editor_line_jump.h"
 #include "../files/file_finder.h"
 #include "settings.h"
 

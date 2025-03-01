@@ -4,11 +4,14 @@
 */
 
 #pragma once
-#include "../editor/editor.h"
-#include "file_tree.h"
 #include "imgui.h"
-#include "undo_redo_manager.h"
 #include <GLFW/glfw3.h>
+
+#include "../editor/editor.h"
+#include "file_content_search.h"
+#include "file_tree.h"
+#include "file_undo_redo.h"
+
 #include <filesystem>
 #include <map>
 #include <string>
@@ -27,9 +30,6 @@ class FileExplorer
     std::string currentOpenFile;
     std::string previousOpenFile;
     std::string currentFile;
-    bool findBoxActive = false;
-    std::string findText = "";
-    size_t lastFoundPos = std::string::npos;
     ImVec4 openedFileColor = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
     bool showWelcomeScreen = true;
 
@@ -54,11 +54,6 @@ class FileExplorer
     void handleUndo();
     void handleRedo();
     void addUndoState(int changeStart, int changeEnd);
-
-    // Search functionality
-    void findNext(bool ignoreCase = false);
-    void findPrevious(bool ignoreCase = false);
-    std::string toLower(const std::string &s);
 
     // UI functions
     void openFolderDialog();
@@ -118,11 +113,7 @@ class FileExplorer
     void rehighlightChangedRegion(int changeStart, int changeEnd);
 
     // Find box helpers
-    void handleFindBoxActivation();
-    void renderFindBox();
-    void handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox);
     void renderEditor(bool &text_changed);
-    bool findBoxShouldFocus = false;
 };
 
 extern Editor gEditor;

@@ -9,7 +9,6 @@ FileTree gFileTree;
 
 FileTree::FileTree() {}
 
-
 void FileTree::displayFileTree(FileNode &node)
 {
     static int current_depth = 0;
@@ -247,4 +246,3 @@ ImTextureID FileTree::getFolderIcon(bool isOpen)
     }
     return icon ? icon : gFileExplorer.getIcon("default");
 }
-
