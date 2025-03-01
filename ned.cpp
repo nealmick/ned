@@ -249,7 +249,7 @@ void Ned::handleBackgroundUpdates(double currentTime)
     }
 
     if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL) {
-        gFileExplorer.refreshFileTree();
+        gFileTree.refreshFileTree(); // Changed from gFileExplorer to gFileTree
         timing.lastFileTreeRefresh = currentTime;
     }
 }
@@ -357,12 +357,13 @@ void Ned::renderFileExplorer(float explorerWidth)
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
-        gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
+        gFileTree.displayFileTree(gFileTree.getRootNode()); // Changed to use gFileTree
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(2);
 }
+
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
     ImGui::BeginGroup();
@@ -551,16 +552,17 @@ void Ned::handleFileDialog()
     if (gFileExplorer.showFileDialog()) {
         gFileExplorer.openFolderDialog();
         if (!gFileExplorer.getSelectedFolder().empty()) {
-            auto &rootNode = gFileExplorer.getRootNode();
+            auto &rootNode = gFileTree.getRootNode(); // Changed to use gFileTree
             rootNode.name = fs::path(gFileExplorer.getSelectedFolder()).filename().string();
             rootNode.fullPath = gFileExplorer.getSelectedFolder();
             rootNode.isDirectory = true;
             rootNode.children.clear();
-            gFileExplorer.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode);
+            gFileTree.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode); // Changed to use gFileTree
             gFileExplorer.setShowWelcomeScreen(false);
         }
     }
 }
+
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);

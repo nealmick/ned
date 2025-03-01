@@ -69,10 +69,12 @@ target_include_directories(util PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
     ${CMAKE_BINARY_DIR}  # This is where config.h gets generated
 )
+
 target_link_libraries(util PUBLIC
     ${OPENGL_LIBRARIES}
     glfw
 )
+
 # Main executable
 add_executable(ned
     main.cpp
@@ -86,6 +88,7 @@ add_executable(ned
     
     # Files
     files/files.cpp
+    files/file_tree.cpp
     files/file_finder.cpp
     
     # ImGui files
