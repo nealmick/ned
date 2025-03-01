@@ -10,6 +10,7 @@
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <string>
+
 #include "editor/editor.h"
 #include "files/file_tree.h"
 #include "files/files.h"

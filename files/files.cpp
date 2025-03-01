@@ -9,7 +9,7 @@
 #include <nfd.h>
 #include <sstream>
 
-#include "../editor/line_jump.h"
+#include "../editor/editor_line_jump.h"
 #include "../util/close_popper.h"
 #include "../util/icon_definitions.h"
 #include "../util/settings.h"
@@ -301,106 +301,6 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
         handleLoadError();
     }
 }
-void FileExplorer::findNext(bool ignoreCase)
-{
-    if (findText.empty())
-        return;
-
-    size_t startPos;
-    if (lastFoundPos == std::string::npos) {
-        startPos = editor_state.cursor_pos;
-    } else {
-        startPos = lastFoundPos + 1;
-    }
-
-    if (startPos >= fileContent.length())
-        startPos = 0; // Wrap around if at end
-
-    size_t foundPos;
-    if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
-        std::string findTextLower = toLower(findText);
-        foundPos = fileContentLower.find(findTextLower, startPos);
-    } else {
-        foundPos = fileContent.find(findText, startPos);
-    }
-
-    std::cout << "Searching for '" << findText << "' starting from position " << startPos;
-    if (ignoreCase)
-        std::cout << " (case-insensitive)";
-    std::cout << std::endl;
-
-    if (foundPos == std::string::npos) {
-        // Wrap around to the beginning
-        if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
-            std::string findTextLower = toLower(findText);
-            foundPos = fileContentLower.find(findTextLower);
-        } else {
-            foundPos = fileContent.find(findText);
-        }
-        std::cout << "Wrapped search to beginning" << std::endl;
-    }
-
-    if (foundPos != std::string::npos) {
-        lastFoundPos = foundPos;
-        editor_state.cursor_pos = foundPos;
-        editor_state.selection_start = foundPos;
-        editor_state.selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
-    } else {
-        std::cout << "Not found" << std::endl;
-    }
-}
-
-void FileExplorer::findPrevious(bool ignoreCase)
-{
-    if (findText.empty())
-        return;
-
-    size_t startPos;
-    if (lastFoundPos == std::string::npos) {
-        startPos = editor_state.cursor_pos;
-    } else {
-        startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
-    }
-
-    size_t foundPos;
-    if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
-        std::string findTextLower = toLower(findText);
-        foundPos = fileContentLower.rfind(findTextLower, startPos);
-    } else {
-        foundPos = fileContent.rfind(findText, startPos);
-    }
-
-    std::cout << "Searching backwards for '" << findText << "' starting from position " << startPos;
-    if (ignoreCase)
-        std::cout << " (case-insensitive)";
-    std::cout << std::endl;
-
-    if (foundPos == std::string::npos) {
-        // Wrap around to the end
-        if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
-            std::string findTextLower = toLower(findText);
-            foundPos = fileContentLower.rfind(findTextLower);
-        } else {
-            foundPos = fileContent.rfind(findText);
-        }
-        std::cout << "Wrapped search to end" << std::endl;
-    }
-
-    if (foundPos != std::string::npos) {
-        lastFoundPos = foundPos;
-        editor_state.cursor_pos = foundPos;
-        editor_state.selection_start = foundPos;
-        editor_state.selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
-    } else {
-        std::cout << "Not found" << std::endl;
-    }
-}
 
 void FileExplorer::addUndoState(int changeStart, int changeEnd)
 {
@@ -408,127 +308,24 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
         currentUndoManager->addState(fileContent, changeStart, changeEnd);
     }
 }
+
 void FileExplorer::renderFileContent()
 {
-    gLineJump.handleLineJumpInput(editor_state);
-    gLineJump.renderLineJumpWindow(editor_state);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-    handleFindBoxActivation();
+    gFileContentSearch.setContent(fileContent);
+    gFileContentSearch.setEditorState(editor_state);
+    gFileContentSearch.handleFindBoxActivation();
 
-    if (editor_state.activateFindBox) {
-        renderFindBox();
+    if (gFileContentSearch.isFindBoxActive()) {
+        gFileContentSearch.renderFindBox();
     }
 
     bool text_changed;
     renderEditor(text_changed);
 
     ImGui::PopStyleVar();
-}
-
-void FileExplorer::handleFindBoxActivation()
-{
-    ImGuiIO &io = ImGui::GetIO();
-    // If Cmd+F is pressed, activate the find box (do not toggle off here)
-    if ((io.KeyCtrl || io.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_F)) {
-        ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
-        editor_state.activateFindBox = true;
-        editor_state.blockInput = true;
-        findText = "";
-        findBoxShouldFocus = true; // force focus on activation
-    }
-    // If Escape is pressed, deactivate the find box.
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state.activateFindBox = false;
-        editor_state.blockInput = false;
-    }
-}
-
-std::string FileExplorer::toLower(const std::string &s)
-{
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) { return std::tolower(c); });
-    return result;
-}
-
-void FileExplorer::renderFindBox()
-{
-    // Only render if the find box is active.
-    if (!editor_state.activateFindBox)
-        return;
-
-    // Reserve ~70% of available width for the input field.
-    float availWidth = ImGui::GetContentRegionAvail().x;
-    float inputWidth = availWidth * 0.7f;
-    ImGui::SetNextItemWidth(inputWidth);
-
-    // Render the input field in its own group.
-    ImGui::BeginGroup();
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // dark gray background
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  // light gray border
-
-    static char inputBuffer[256] = "";
-    // Force focus on the input field on activation.
-    if (findBoxShouldFocus) {
-        ImGui::SetKeyboardFocusHere();
-        findBoxShouldFocus = false;
-    }
-    ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-    if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags)) {
-        findText = inputBuffer;
-        lastFoundPos = std::string::npos;
-    }
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-    ImGui::EndGroup();
-
-    // Add horizontal spacing between the input field and the checkbox.
-    ImGui::SameLine();
-    ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
-    ImGui::SameLine();
-
-    // Render the checkbox on the same line.
-    // Set the checkbox's background and border to be different.
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    // Set the checkbox background to match the input field and use a lighter grey for the border.
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    static bool ignoreCaseCheckbox = false;
-    ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-
-    // Call the keyboard shortcut handler (which uses the checkbox state).
-    handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
-}
-
-void FileExplorer::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
-        if (io.KeyShift) {
-            std::cout << "\033[35mFiles:\033[0m  Searching previous";
-            if (ignoreCaseCheckbox)
-                std::cout << " (case-insensitive)";
-            std::cout << std::endl;
-            findPrevious(ignoreCaseCheckbox);
-        } else {
-            std::cout << "\033[35mFiles:\033[0m  Searching next";
-            if (ignoreCaseCheckbox)
-                std::cout << " (case-insensitive)";
-            std::cout << std::endl;
-            findNext(ignoreCaseCheckbox);
-        }
-    }
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state.activateFindBox = false;
-        editor_state.blockInput = false;
-    }
 }
 
 void FileExplorer::renderEditor(bool &text_changed)
@@ -592,6 +389,7 @@ void FileExplorer::handleRedo()
         applyContentChange(state, true); // Pre-allocate memory for redo
     }
 }
+
 void FileExplorer::saveCurrentFile()
 {
     if (!currentFile.empty() && _unsavedChanges) {

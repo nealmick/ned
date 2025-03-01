@@ -3,11 +3,13 @@
     Description: Main application class implementation for NED text editor.
 */
 
-#include "ned.h"
-#include "editor/bookmarks.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+#include "ned.h"
+
+#include "editor/editor_bookmarks.h"
 #include "util/debug_console.h"
 #include "util/settings.h"
 #include "util/terminal.h"
