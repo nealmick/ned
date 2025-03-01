@@ -294,7 +294,7 @@ void Ned::setupImGuiFrame()
     ImGui_ImplGlfw_NewFrame();
 
     // Apply smooth scrolling right before ImGui's NewFrame
-    handleScrollInput();
+    // handleScrollInput();
 
     ImGui::NewFrame();
 }
