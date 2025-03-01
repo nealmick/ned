@@ -69,4 +69,4 @@ echo -e "${NC}"
 echo -e "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./ned
 
-echo -e "${GREEN}✅ All Done!${NC}"
+echo -e "${GREEN}✅ Process terminated!${NC}"

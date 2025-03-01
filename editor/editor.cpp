@@ -174,9 +174,14 @@ void Editor::processMouseWheelForEditor(float line_height, float &current_scroll
         }
     }
 }
-
 void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
 {
+    // IMPORTANT: Update scroll positions from ImGui to capture manual scrolling
+    current_scroll_y = ImGui::GetScrollY();
+    current_scroll_x = ImGui::GetScrollX();
+    state.scroll_pos.y = current_scroll_y;
+    state.scroll_x = current_scroll_x;
+
     // First check if there's a direct scroll request
     float requested_x, requested_y;
     if (handleScrollRequest(requested_x, requested_y)) {
@@ -194,12 +199,10 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::
         ensure_cursor_visible.vertical = false;
         ensure_cursor_visible.horizontal = false;
 
-        // Debug print to verify targets are set
-        // std::cout << "Direct scroll: target_x=" << requested_x << ", target_y=" << requested_y << std::endl;
         return;
     }
 
-    // Original logic...
+    // Only try to ensure cursor visibility if not manually scrolled too far
     if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal) {
         // Call ensureCursorVisible to calculate scroll adjustments
         ScrollChange scroll_change = ensureCursorVisible(text_pos, text, state, line_height, window_height, window_width);
@@ -208,15 +211,11 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::
         if (scroll_change.horizontal) {
             state.scroll_animation.active_x = true;
             state.scroll_animation.target_x = state.scroll_x;
-            // Debug print
-            // std::cout << "Horizontal scroll target: " << state.scroll_x << std::endl;
         }
 
         if (scroll_change.vertical) {
             state.scroll_animation.active_y = true;
             state.scroll_animation.target_y = state.scroll_pos.y;
-            // Debug print
-            // std::cout << "Vertical scroll target: " << state.scroll_pos.y << std::endl;
         }
 
         // Reset the visibility flags
@@ -540,6 +539,8 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
             state.selection_start = char_index;
             state.selection_end = char_index;
             state.is_selecting = false;
+            int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
         }
         is_dragging = true;
     }
@@ -570,10 +571,15 @@ void Editor::handleMouseInput(const std::string &text, EditorState &state, const
         anchor_pos = -1;
     }
 }
+
 void Editor::cursorLeft(EditorState &state)
 {
     if (state.cursor_pos > 0) {
         state.cursor_pos--;
+
+        // Update preferred column when moving horizontally
+        int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
     }
 }
 
@@ -581,6 +587,10 @@ void Editor::cursorRight(const std::string &text, EditorState &state)
 {
     if (state.cursor_pos < text.size()) {
         state.cursor_pos++;
+
+        // Update preferred column when moving horizontally
+        int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
     }
 }
 
@@ -588,8 +598,19 @@ void Editor::cursorUp(const std::string &text, EditorState &state, float line_he
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     if (current_line > 0) {
-        int current_column = state.cursor_pos - state.line_starts[current_line];
-        state.cursor_pos = std::min(state.line_starts[current_line - 1] + current_column, state.line_starts[current_line] - 1);
+        // Calculate current column only if preferred_column hasn't been set yet
+        if (state.preferred_column == 0) {
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+        }
+
+        // Use the preferred column instead of current column
+        int target_line = current_line - 1;
+        int new_line_start = state.line_starts[target_line];
+        int new_line_end = state.line_starts[current_line] - 1;
+
+        // Try to place cursor at preferred column, but don't exceed line length
+        state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
+
         state.scroll_pos.y = std::max(0.0f, state.scroll_pos.y - line_height);
     }
 }
@@ -598,8 +619,19 @@ void Editor::cursorDown(const std::string &text, EditorState &state, float line_
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     if (current_line < state.line_starts.size() - 1) {
-        int current_column = state.cursor_pos - state.line_starts[current_line];
-        state.cursor_pos = std::min(state.line_starts[current_line + 1] + current_column, static_cast<int>(text.size()));
+        // Calculate current column only if preferred_column hasn't been set yet
+        if (state.preferred_column == 0) {
+            state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+        }
+
+        // Use the preferred column instead of current column
+        int target_line = current_line + 1;
+        int new_line_start = state.line_starts[target_line];
+        int new_line_end = (target_line + 1 < state.line_starts.size()) ? state.line_starts[target_line + 1] - 1 : text.size();
+
+        // Try to place cursor at preferred column, but don't exceed line length
+        state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
+
         state.scroll_pos.y = state.scroll_pos.y + line_height;
     }
 }
@@ -609,16 +641,17 @@ void Editor::moveCursorVertically(std::string &text, EditorState &state, int lin
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
     int target_line = std::max(0, std::min(static_cast<int>(state.line_starts.size()) - 1, current_line + line_delta));
 
-    // Calculate the current column (horizontal position)
-    int current_column = state.cursor_pos - state.line_starts[current_line];
+    // Calculate current column only if preferred_column hasn't been set yet
+    if (state.preferred_column == 0) {
+        state.preferred_column = state.cursor_pos - state.line_starts[current_line];
+    }
 
-    // Set the new cursor position
+    // Set the new cursor position using preferred column
     int new_line_start = state.line_starts[target_line];
     int new_line_end = (target_line + 1 < state.line_starts.size()) ? state.line_starts[target_line + 1] - 1 : text.size();
 
-    // Try to maintain the same column, but don't go past the end of the new
-    // line
-    state.cursor_pos = std::min(new_line_start + current_column, new_line_end);
+    // Try to maintain the preferred column position, but don't go past the end of the line
+    state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
 }
 
 void Editor::handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width)
@@ -1551,6 +1584,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
         if (std::abs(delta_x) < threshold) {
             current_scroll_x = target_x;
             state.scroll_animation.active_x = false;
+            std::cout << "active_x false close enough to snap" << std::endl;
+
         } else {
             // Move a percentage of the remaining distance
             float step = delta_x * animation_speed * dt;
@@ -1564,6 +1599,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
             if ((delta_x > 0 && step > delta_x) || (delta_x < 0 && step < delta_x)) {
                 current_scroll_x = target_x;
                 state.scroll_animation.active_x = false;
+                std::cout << "active_x false overshot target" << std::endl;
+
             } else {
                 current_scroll_x += step;
             }
@@ -1579,6 +1616,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
         if (std::abs(delta_y) < threshold) {
             current_scroll_y = target_y;
             state.scroll_animation.active_y = false;
+            std::cout << "active_y false close enough to snap" << std::endl;
+
         } else {
             // Move a percentage of the remaining distance
             float step = delta_y * animation_speed * dt;
@@ -1592,6 +1631,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
             if ((delta_y > 0 && step > delta_y) || (delta_y < 0 && step < delta_y)) {
                 current_scroll_y = target_y;
                 state.scroll_animation.active_y = false;
+                std::cout << "active_y false overshot target" << std::endl;
+
             } else {
                 current_scroll_y += step;
             }
