@@ -174,9 +174,14 @@ void Editor::processMouseWheelForEditor(float line_height, float &current_scroll
         }
     }
 }
-
 void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
 {
+    // IMPORTANT: Update scroll positions from ImGui to capture manual scrolling
+    current_scroll_y = ImGui::GetScrollY();
+    current_scroll_x = ImGui::GetScrollX();
+    state.scroll_pos.y = current_scroll_y;
+    state.scroll_x = current_scroll_x;
+
     // First check if there's a direct scroll request
     float requested_x, requested_y;
     if (handleScrollRequest(requested_x, requested_y)) {
@@ -194,12 +199,10 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::
         ensure_cursor_visible.vertical = false;
         ensure_cursor_visible.horizontal = false;
 
-        // Debug print to verify targets are set
-        // std::cout << "Direct scroll: target_x=" << requested_x << ", target_y=" << requested_y << std::endl;
         return;
     }
 
-    // Original logic...
+    // Only try to ensure cursor visibility if not manually scrolled too far
     if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal) {
         // Call ensureCursorVisible to calculate scroll adjustments
         ScrollChange scroll_change = ensureCursorVisible(text_pos, text, state, line_height, window_height, window_width);
@@ -208,15 +211,11 @@ void Editor::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::
         if (scroll_change.horizontal) {
             state.scroll_animation.active_x = true;
             state.scroll_animation.target_x = state.scroll_x;
-            // Debug print
-            // std::cout << "Horizontal scroll target: " << state.scroll_x << std::endl;
         }
 
         if (scroll_change.vertical) {
             state.scroll_animation.active_y = true;
             state.scroll_animation.target_y = state.scroll_pos.y;
-            // Debug print
-            // std::cout << "Vertical scroll target: " << state.scroll_pos.y << std::endl;
         }
 
         // Reset the visibility flags
@@ -1585,6 +1584,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
         if (std::abs(delta_x) < threshold) {
             current_scroll_x = target_x;
             state.scroll_animation.active_x = false;
+            std::cout << "active_x false close enough to snap" << std::endl;
+
         } else {
             // Move a percentage of the remaining distance
             float step = delta_x * animation_speed * dt;
@@ -1598,6 +1599,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
             if ((delta_x > 0 && step > delta_x) || (delta_x < 0 && step < delta_x)) {
                 current_scroll_x = target_x;
                 state.scroll_animation.active_x = false;
+                std::cout << "active_x false overshot target" << std::endl;
+
             } else {
                 current_scroll_x += step;
             }
@@ -1613,6 +1616,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
         if (std::abs(delta_y) < threshold) {
             current_scroll_y = target_y;
             state.scroll_animation.active_y = false;
+            std::cout << "active_y false close enough to snap" << std::endl;
+
         } else {
             // Move a percentage of the remaining distance
             float step = delta_y * animation_speed * dt;
@@ -1626,6 +1631,8 @@ void Editor::updateScrollAnimation(EditorState &state, float &current_scroll_x, 
             if ((delta_y > 0 && step > delta_y) || (delta_y < 0 && step < delta_y)) {
                 current_scroll_y = target_y;
                 state.scroll_animation.active_y = false;
+                std::cout << "active_y false overshot target" << std::endl;
+
             } else {
                 current_scroll_y += step;
             }
