@@ -10,6 +10,9 @@
 #include "../imgui/imgui.h"
 #include "../util/close_popper.h"
 #include "editor.h"
+#include "editor_scroll.h"
+#include "editor_types.h"
+
 #include <string>
 
 class LineJump
@@ -168,7 +171,7 @@ class LineJump
         target_scroll = std::max(0.0f, target_scroll);
 
         // REQUEST scroll through the Editor class instead of setting directly
-        gEditor.requestScroll(0, target_scroll);
+        gEditorScroll.requestScroll(0, target_scroll);
 
         // Set these flags to ensure the cursor will be made visible
         state.ensure_cursor_visible_frames = 5; // Ensure visibility for several frames
