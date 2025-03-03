@@ -1,4 +1,5 @@
 #include "file_tree.h"
+#include "../editor/editor_utils.h"
 #include "../files/files.h"
 #include "../util/settings.h"
 #include <GLFW/glfw3.h>
@@ -37,8 +38,10 @@ void FileTree::renderNodeText(const std::string &name, bool isCurrentFile)
     }
 
     if (gSettings.getRainbowMode()) {
-        ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
-        ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
+        // Get synchronized rainbow color - no need to pass blink_time
+        ImVec4 rainbowColor = EditorUtils::GetRainbowColor();
+        // Use the rainbow color for the text
+        ImGui::PushStyleColor(ImGuiCol_Text, rainbowColor);
         ImGui::Text("%s", name.c_str());
         ImGui::PopStyleColor();
     } else {
@@ -47,7 +50,6 @@ void FileTree::renderNodeText(const std::string &name, bool isCurrentFile)
         ImGui::PopStyleColor();
     }
 }
-
 void FileTree::displayDirectoryNode(const FileNode &node, const TreeDisplayMetrics &metrics, int &depth)
 {
     float multiplier = 1.1f;
