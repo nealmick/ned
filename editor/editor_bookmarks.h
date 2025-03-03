@@ -10,6 +10,9 @@
 
 #pragma once
 #include "editor.h"
+#include "editor_scroll.h"
+#include "editor_types.h"
+
 #include "imgui.h"
 #include <array>
 #include <string>
@@ -57,17 +60,17 @@ class Bookmarks
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
             if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
                 // Create callback to set scroll after file loads
-                auto setScroll = [this, slot]() { gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY); };
+                auto setScroll = [this, slot]() { gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY); };
 
                 fileExplorer.loadFileContent(bookmarks[slot].filePath, setScroll);
             } else {
                 // Same file, request scroll immediately
-                gEditor.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+                gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
             }
 
             editorState.cursor_pos = bookmarks[slot].cursorPosition;
             editorState.current_line = bookmarks[slot].lineNumber;
-            editorState.ensure_cursor_visible_frames = -1;
+            gEditorScroll.setEnsureCursorVisibleFrames(-1); // Use EditorScroll method instead
             return true;
         }
         return false;

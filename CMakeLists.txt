@@ -69,10 +69,12 @@ target_include_directories(util PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
     ${CMAKE_BINARY_DIR}  # This is where config.h gets generated
 )
+
 target_link_libraries(util PUBLIC
     ${OPENGL_LIBRARIES}
     glfw
 )
+
 # Main executable
 add_executable(ned
     main.cpp
@@ -82,11 +84,25 @@ add_executable(ned
 
     # Editor files
     editor/editor.cpp
-    editor/line_jump.cpp
-    
+    editor/editor_line_jump.cpp
+    editor/editor_scroll.cpp
+    editor/editor_cursor.cpp
+    editor/editor_copy_paste.cpp
+    editor/editor_indentation.cpp
+    editor/editor_line_numbers.cpp
+    editor/editor_highlight.cpp
+    editor/editor_mouse.cpp
+    editor/editor_keyboard.cpp
+
+    editor/editor_types.h
+    editor/editor_utils.h
+
+
     # Files
     files/files.cpp
+    files/file_tree.cpp
     files/file_finder.cpp
+    files/file_content_search.cpp
     
     # ImGui files
     lib/imgui/imgui.cpp

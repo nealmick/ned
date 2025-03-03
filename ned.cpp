@@ -3,11 +3,14 @@
     Description: Main application class implementation for NED text editor.
 */
 
-#include "ned.h"
-#include "editor/bookmarks.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+#include "ned.h"
+
+#include "editor/editor_bookmarks.h"
+#include "editor/editor_highlight.h"
 #include "util/debug_console.h"
 #include "util/settings.h"
 #include "util/terminal.h"
@@ -76,7 +79,7 @@ bool Ned::initialize()
 bool Ned::initializeGraphics()
 {
     if (!glfwInit()) {
-        std::cerr << "🔴 Failed to initialize GLFW" << std::endl;
+        std::cerr << "Failed to initialize GLFW" << std::endl;
         return false;
     }
 
@@ -89,7 +92,7 @@ bool Ned::initializeGraphics()
 
     window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
     if (!window) {
-        std::cerr << "🔴 Failed to create GLFW window" << std::endl;
+        std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return false;
     }
@@ -129,7 +132,7 @@ void Ned::initializeResources()
 {
     gDebugConsole.toggleVisibility();
     gSettings.loadSettings();
-    gEditor.setTheme(gSettings.getCurrentTheme());
+    gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
     // Apply settings to the ImGui style.
     ApplySettings(ImGui::GetStyle());
@@ -159,7 +162,7 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
     std::string fontPath = "fonts/" + fontName + ".ttf";
 
     if (!std::filesystem::exists(fontPath)) {
-        std::cerr << "🔴 Font file does not exist: " << fontPath << std::endl;
+        std::cerr << "Font file does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
@@ -190,7 +193,7 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
     io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
 
     if (!font) {
-        std::cerr << "🔴 Failed to load font: " << fontName << std::endl;
+        std::cerr << "Failed to load font: " << fontName << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
@@ -201,7 +204,7 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 void Ned::run()
 {
     if (!initialized) {
-        std::cerr << "🔴 Cannot run: Not initialized" << std::endl;
+        std::cerr << "Cannot run: Not initialized" << std::endl;
         return;
     }
 
@@ -249,7 +252,7 @@ void Ned::handleBackgroundUpdates(double currentTime)
     }
 
     if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL) {
-        gFileExplorer.refreshFileTree();
+        gFileTree.refreshFileTree(); // Changed from gFileExplorer to gFileTree
         timing.lastFileTreeRefresh = currentTime;
     }
 }
@@ -315,7 +318,7 @@ void Ned::handleKeyboardShortcuts()
 
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
         showSidebar = !showSidebar; // Toggle sidebar visibility
-        std::cout << "\033[32mNed:\033[0m Toggled sidebar visibility" << std::endl;
+        std::cout << "Toggled sidebar visibility" << std::endl;
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_T, false)) {
         gTerminal.toggleVisibility();
@@ -325,12 +328,10 @@ void Ned::handleKeyboardShortcuts()
         }
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
-        std::cout << "\033[95mSettings:\033[0m Popup window toggled" << std::endl;
         gFileExplorer.setShowWelcomeScreen(false);
         gSettings.toggleSettingsWindow();
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
-        std::cout << "\033[32mNed:\033[0m Ctrl+/ pressed - Resetting to welcome screen" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(!gFileExplorer.getShowWelcomeScreen());
         if (gTerminal.isTerminalVisible()) {
@@ -339,7 +340,7 @@ void Ned::handleKeyboardShortcuts()
         gFileExplorer.saveCurrentFile();
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
-        std::cout << "\033[32mNed:\033[0m Ctrl+O pressed - triggering file dialog" << std::endl;
+        std::cout << "triggering file dialog" << std::endl;
         ClosePopper::closeAll();
         gFileExplorer.setShowWelcomeScreen(false);
         gFileExplorer.saveCurrentFile();
@@ -357,12 +358,13 @@ void Ned::renderFileExplorer(float explorerWidth)
     ImGui::Text("File Explorer");
     ImGui::Separator();
     if (!gFileExplorer.getSelectedFolder().empty()) {
-        gFileExplorer.displayFileTree(gFileExplorer.getRootNode());
+        gFileTree.displayFileTree(gFileTree.getRootNode()); // Changed to use gFileTree
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(2);
 }
+
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
     ImGui::BeginGroup();
@@ -551,16 +553,17 @@ void Ned::handleFileDialog()
     if (gFileExplorer.showFileDialog()) {
         gFileExplorer.openFolderDialog();
         if (!gFileExplorer.getSelectedFolder().empty()) {
-            auto &rootNode = gFileExplorer.getRootNode();
+            auto &rootNode = gFileTree.getRootNode(); // Changed to use gFileTree
             rootNode.name = fs::path(gFileExplorer.getSelectedFolder()).filename().string();
             rootNode.fullPath = gFileExplorer.getSelectedFolder();
             rootNode.isDirectory = true;
             rootNode.children.clear();
-            gFileExplorer.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode);
+            gFileTree.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode); // Changed to use gFileTree
             gFileExplorer.setShowWelcomeScreen(false);
         }
     }
 }
+
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -603,7 +606,7 @@ void Ned::handleSettingsChanges()
         shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
         if (gSettings.hasThemeChanged()) {
-            gEditor.setTheme(gSettings.getCurrentTheme());
+            gEditorHighlight.setTheme(gSettings.getCurrentTheme());
             gFileExplorer.refreshSyntaxHighlighting();
             gSettings.resetThemeChanged();
         }

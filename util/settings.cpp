@@ -8,6 +8,7 @@
 
 #include "settings.h"
 #include "../editor/editor.h"
+#include "../editor/editor_highlight.h"
 #include "../files/files.h"
 #include "config.h"
 #include "imgui.h"
@@ -221,7 +222,7 @@ void Settings::renderSettingsWindow()
             themeColors[colorKey] = {color.x, color.y, color.z, color.w};
             themeChanged = true;
             settingsChanged = true;
-            gEditor.forceColorUpdate();
+            gEditorHighlight.forceColorUpdate();
         }
     };
 

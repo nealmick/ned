@@ -9,7 +9,8 @@
 #include <nfd.h>
 #include <sstream>
 
-#include "../editor/line_jump.h"
+#include "../editor/editor_highlight.h"
+#include "../editor/editor_line_jump.h"
 #include "../util/close_popper.h"
 #include "../util/icon_definitions.h"
 #include "../util/settings.h"
@@ -116,259 +117,6 @@ void FileExplorer::createDefaultIcon()
     fileTypeIcons["default"] = reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
 }
 
-void FileExplorer::preserveOpenStates(const FileNode &oldNode, FileNode &newNode)
-{
-    for (auto &newChild : newNode.children) {
-        auto it = std::find_if(oldNode.children.begin(), oldNode.children.end(), [&newChild](const FileNode &oldChild) { return oldChild.fullPath == newChild.fullPath; });
-        if (it != oldNode.children.end()) {
-            newChild.isOpen = it->isOpen;
-            if (newChild.isDirectory && newChild.isOpen) {
-                preserveOpenStates(*it, newChild);
-            }
-        }
-    }
-}
-
-void FileExplorer::refreshFileTree()
-{
-    // Get the current time
-    double currentTime = glfwGetTime();
-
-    // Check if enough time has passed since the last refresh
-    if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL) {
-        return;
-    }
-
-    // Update the last refresh time
-    lastFileTreeRefreshTime = currentTime;
-
-    if (!selectedFolder.empty()) {
-        // Store the old root node to preserve states
-        FileNode oldRoot = rootNode;
-
-        // Reset root node but preserve its open state
-        rootNode.name = fs::path(selectedFolder).filename().string();
-        rootNode.fullPath = selectedFolder;
-        rootNode.isDirectory = true;
-        rootNode.isOpen = true; // Root should stay open
-
-        // Build the new tree
-        buildFileTree(selectedFolder, rootNode);
-
-        // Restore open states from old tree
-        preserveOpenStates(oldRoot, rootNode);
-    }
-}
-
-void FileExplorer::buildFileTree(const fs::path &path, FileNode &node)
-{
-    // Don't clear children if they already exist and the node is open
-    if (!node.isOpen && !node.children.empty()) {
-        return;
-    }
-
-    std::vector<FileNode> newChildren;
-    try {
-        for (const auto &entry : fs::directory_iterator(path)) {
-            FileNode child;
-            child.name = entry.path().filename().string();
-            child.fullPath = entry.path().string();
-            child.isDirectory = entry.is_directory();
-
-            // Find existing child to preserve its state
-            auto existingChild = std::find_if(node.children.begin(), node.children.end(), [&child](const FileNode &existing) { return existing.fullPath == child.fullPath; });
-
-            if (existingChild != node.children.end()) {
-                // Preserve the existing child's state and children
-                child.isOpen = existingChild->isOpen;
-                child.children = std::move(existingChild->children);
-            }
-
-            // If it's a directory and it's open, build its tree
-            if (child.isDirectory && child.isOpen) {
-                buildFileTree(child.fullPath, child);
-            }
-
-            newChildren.push_back(std::move(child));
-        }
-    } catch (const fs::filesystem_error &e) {
-        std::cerr << "Error accessing directory " << path << ": " << e.what() << std::endl;
-    }
-
-    // Sort directories first, then files by name
-    std::sort(newChildren.begin(), newChildren.end(), [](const FileNode &a, const FileNode &b) {
-        if (a.isDirectory != b.isDirectory) {
-            return a.isDirectory > b.isDirectory;
-        }
-        return a.name < b.name;
-    });
-
-    node.children = std::move(newChildren);
-}
-
-FileExplorer::TreeDisplayMetrics FileExplorer::calculateDisplayMetrics()
-{
-    TreeDisplayMetrics metrics;
-    metrics.currentFontSize = gSettings.getFontSize();
-    metrics.folderIconSize = metrics.currentFontSize * 0.8f;
-    metrics.fileIconSize = metrics.currentFontSize * 1.2f; // Restore original value
-    metrics.itemHeight = ImGui::GetFrameHeight();
-    metrics.indentWidth = 28.0f;
-    metrics.cursorPos = ImGui::GetCursorPos();
-    return metrics;
-}
-
-void FileExplorer::pushTreeStyles()
-{
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, TreeStyleSettings::FRAME_ROUNDING);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, TreeStyleSettings::FRAME_PADDING);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, TreeStyleSettings::ITEM_SPACING);
-}
-
-ImTextureID FileExplorer::getFolderIcon(bool isOpen)
-{
-    ImTextureID icon = isOpen ? fileTypeIcons["folder-open"] : fileTypeIcons["folder"];
-    if (!icon) {
-        icon = fileTypeIcons["folder"];
-    }
-    return icon ? icon : fileTypeIcons["default"];
-}
-
-void FileExplorer::renderNodeText(const std::string &name, bool isCurrentFile)
-{
-    if (!isCurrentFile) {
-        ImGui::Text("%s", name.c_str());
-        return;
-    }
-
-    if (gSettings.getRainbowMode()) {
-        ImVec4 fileColor = GetRainbowColor(ImGui::GetTime() * 2.0f);
-        ImGui::PushStyleColor(ImGuiCol_Text, fileColor);
-        ImGui::Text("%s", name.c_str());
-        ImGui::PopStyleColor();
-    } else {
-        ImGui::PushStyleColor(ImGuiCol_Text, TreeStyleSettings::INACTIVE_TEXT);
-        ImGui::Text("%s", name.c_str());
-        ImGui::PopStyleColor();
-    }
-}
-
-void FileExplorer::displayDirectoryNode(const FileNode &node, const FileExplorer::TreeDisplayMetrics &metrics, int &depth)
-{
-    // Use a consistent multiplier like the file nodes
-    float multiplier = 1.1f;
-    float iconSize = metrics.folderIconSize * multiplier;
-    ImVec2 iconDimensions(iconSize, iconSize);
-    ImTextureID folderIcon = getFolderIcon(node.isOpen);
-
-    // Setup folder button - use the same styling as file nodes
-    ImGui::PushStyleColor(ImGuiCol_Button, TreeStyleSettings::TRANSPARENT_BG);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0)); // Match file node padding
-
-    bool isOpen = ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
-
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor(2);
-
-    // Calculate the center point of the line - same as files
-    float lineCenterY = metrics.cursorPos.y + (metrics.itemHeight / 2.0f);
-
-    // Position the icon so its center aligns with the line center
-    float iconTopY = lineCenterY - (iconDimensions.y / 2.0f);
-
-    // Draw folder icon with proper vertical centering
-    ImGui::SetCursorPosX(metrics.cursorPos.x + depth * metrics.indentWidth + TreeStyleSettings::HORIZONTAL_PADDING);
-    ImGui::SetCursorPosY(iconTopY);
-    ImGui::Image(folderIcon, iconDimensions);
-
-    // Calculate text vertical position to align with line center
-    float textHeight = ImGui::GetTextLineHeight();
-    float textTopY = lineCenterY - (textHeight / 2.0f);
-
-    // Draw folder name with the same alignment logic as files
-    ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x + TreeStyleSettings::HORIZONTAL_PADDING + TreeStyleSettings::TEXT_PADDING);
-    ImGui::SetCursorPosY(textTopY);
-    ImGui::Text("%s", node.name.c_str());
-
-    // Handle open/close and recursion
-    if (isOpen) {
-        const_cast<FileNode &>(node).isOpen = !node.isOpen;
-        if (node.isOpen) {
-            buildFileTree(node.fullPath, const_cast<FileNode &>(node));
-        }
-    }
-
-    if (node.isOpen) {
-        depth++;
-        for (const auto &child : node.children) {
-            displayFileTree(const_cast<FileNode &>(child));
-        }
-        depth--;
-    }
-}
-
-void FileExplorer::displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth)
-{
-    // Use a smaller multiplier for compact icons
-    float multiplier = 1.1f;
-    float iconSize = metrics.fileIconSize * multiplier;
-    ImVec2 iconDimensions(iconSize, iconSize);
-    ImTextureID fileIcon = getIconForFile(node.name);
-
-    // Setup file button
-    ImGui::PushStyleColor(ImGuiCol_Button, TreeStyleSettings::TRANSPARENT_BG);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-    bool clicked = ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor(2);
-
-    // Calculate the center point of the line
-    float lineCenterY = metrics.cursorPos.y + (metrics.itemHeight / 2.0f);
-
-    // Position the icon so its center aligns with the line center
-    float iconTopY = lineCenterY - (iconDimensions.y / 2.0f);
-
-    // Draw file icon with proper vertical centering
-    ImGui::SetCursorPosX(metrics.cursorPos.x + depth * metrics.indentWidth + TreeStyleSettings::LEFT_MARGIN);
-    ImGui::SetCursorPosY(iconTopY);
-    ImGui::Image(fileIcon, iconDimensions);
-
-    // Calculate text vertical position to align with line center
-    float textHeight = ImGui::GetTextLineHeight();
-    float textTopY = lineCenterY - (textHeight / 2.0f);
-
-    // Draw filename with proper vertical alignment
-    ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x + TreeStyleSettings::LEFT_MARGIN + 10);
-    ImGui::SetCursorPosY(textTopY);
-    renderNodeText(node.name, node.fullPath == currentOpenFile);
-
-    if (clicked) {
-        loadFileContent(node.fullPath);
-    }
-}
-
-void FileExplorer::displayFileTree(FileNode &node)
-{
-    static int current_depth = 0;
-    TreeDisplayMetrics metrics = calculateDisplayMetrics();
-
-    pushTreeStyles();
-    ImGui::PushID(node.fullPath.c_str());
-
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + current_depth * metrics.indentWidth);
-
-    if (node.isDirectory) {
-        displayDirectoryNode(node, metrics, current_depth);
-    } else {
-        displayFileNode(node, metrics, current_depth);
-    }
-
-    ImGui::PopID();
-    ImGui::PopStyleVar(3);
-}
-
 void FileExplorer::openFolderDialog()
 {
     std::cout << "\033[35mFiles:\033[0m Opening folder dialog" << std::endl;
@@ -376,6 +124,7 @@ void FileExplorer::openFolderDialog()
     nfdresult_t result = NFD_PickFolder(NULL, &outPath);
     if (result == NFD_OKAY) {
         selectedFolder = outPath;
+        gFileTree.setSelectedFolder(outPath); // Update FileTree with the selected folder
         std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
         free(outPath);
         _showFileDialog = false;
@@ -392,7 +141,7 @@ void FileExplorer::refreshSyntaxHighlighting()
 {
     if (!currentFile.empty()) {
         std::string extension = fs::path(currentFile).extension().string();
-        gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
     }
 }
 
@@ -400,7 +149,7 @@ void FileExplorer::resetEditorState()
 {
     editor_state.cursor_pos = 0;
     editor_state.current_line = 0;
-    gEditor.cancelHighlighting();
+    gEditorHighlight.cancelHighlighting();
 }
 
 void FileExplorer::updateFilePathStates(const std::string &path)
@@ -415,17 +164,17 @@ void FileExplorer::updateFilePathStates(const std::string &path)
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
-    std::cout << "\033[35mFiles:\033[0m Reading file: " << path << std::endl;
+    std::cout << "Reading file: " << path << std::endl;
 
     try {
         // First check if the path exists and is a regular file
         if (!std::filesystem::exists(path)) {
-            std::cout << "\033[35mFiles:\033[0m File does not exist: " << path << std::endl;
+            std::cout << "File does not exist: " << path << std::endl;
             return false;
         }
 
         if (!std::filesystem::is_regular_file(path)) {
-            std::cout << "\033[35mFiles:\033[0m Not a regular file: " << path << std::endl;
+            std::cout << "Not a regular file: " << path << std::endl;
             return false;
         }
 
@@ -433,7 +182,7 @@ bool FileExplorer::readFileContent(const std::string &path)
         std::error_code ec;
         uintmax_t fileSize = std::filesystem::file_size(path, ec);
         if (ec) {
-            std::cout << "\033[35mFiles:\033[0m Error getting file size: " << ec.message() << std::endl;
+            std::cout << "Error getting file size: " << ec.message() << std::endl;
             return false;
         }
 
@@ -442,7 +191,7 @@ bool FileExplorer::readFileContent(const std::string &path)
         // Open file in binary mode
         std::ifstream file(path, std::ios::binary);
         if (!file) {
-            std::cout << "\033[35mFiles:\033[0m Failed to open file" << std::endl;
+            std::cout << "Failed to open file" << std::endl;
             return false;
         }
 
@@ -452,7 +201,7 @@ bool FileExplorer::readFileContent(const std::string &path)
         file.read(buffer.data(), readSize);
 
         if (file.bad()) {
-            std::cout << "\033[35mFiles:\033[0m Error reading file content" << std::endl;
+            std::cout << "Error reading file content" << std::endl;
             return false;
         }
 
@@ -469,7 +218,7 @@ bool FileExplorer::readFileContent(const std::string &path)
         }
 
         if (nullCount > checkSize / 10) {
-            std::cout << "\033[35mFiles:\033[0m File appears to be binary" << std::endl;
+            std::cout << "File appears to be binary" << std::endl;
             fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
             return false;
         }
@@ -481,10 +230,10 @@ bool FileExplorer::readFileContent(const std::string &path)
         }
 
         fileContent = std::move(content);
-        std::cout << "\033[35mFiles:\033[0m Successfully read file" << (isTruncated ? " (truncated)" : "") << ", content length: " << fileContent.length() << std::endl;
+        std::cout << "Successfully read file" << (isTruncated ? " (truncated)" : "") << ", content length: " << fileContent.length() << std::endl;
         return true;
     } catch (const std::exception &e) {
-        std::cout << "\033[35mFiles:\033[0m Error reading file: " << e.what() << std::endl;
+        std::cout << "Error reading file: " << e.what() << std::endl;
         fileContent = "Error: " + std::string(e.what());
         return false;
     }
@@ -496,7 +245,7 @@ void FileExplorer::updateFileColorBuffer()
     fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
     if (fileContent.size() != fileColors.size()) {
-        std::cerr << "\033[35mFiles:\033[0m Error: Color buffer size mismatch" << std::endl;
+        std::cerr << "Error: Color buffer size mismatch" << std::endl;
         throw std::runtime_error("Color buffer size mismatch");
     }
 }
@@ -506,7 +255,7 @@ void FileExplorer::setupUndoManager(const std::string &path)
     auto it = fileUndoManagers.find(path);
     if (it == fileUndoManagers.end()) {
         it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-        std::cout << "\033[35mFiles:\033[0m Created new UndoRedoManager for " << path << std::endl;
+        std::cout << "Created new UndoRedoManager for " << path << std::endl;
     }
     currentUndoManager = &(it->second);
     currentUndoManager->addState(fileContent, 0, fileContent.size());
@@ -515,7 +264,7 @@ void FileExplorer::setupUndoManager(const std::string &path)
 void FileExplorer::initializeSyntaxHighlighting(const std::string &path)
 {
     std::string extension = fs::path(path).extension().string();
-    gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+    gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
 }
 
 void FileExplorer::handleLoadError()
@@ -547,110 +296,10 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
             afterLoadCallback();
         }
 
-        std::cout << "\033[35mFiles:\033[0m Loaded file: " << path << std::endl;
+        std::cout << "Loaded file: " << path << std::endl;
     } catch (const std::exception &e) {
-        std::cerr << "\033[35mFiles:\033[0m Error loading file: " << e.what() << std::endl;
+        std::cerr << "Error loading file: " << e.what() << std::endl;
         handleLoadError();
-    }
-}
-void FileExplorer::findNext(bool ignoreCase)
-{
-    if (findText.empty())
-        return;
-
-    size_t startPos;
-    if (lastFoundPos == std::string::npos) {
-        startPos = editor_state.cursor_pos;
-    } else {
-        startPos = lastFoundPos + 1;
-    }
-
-    if (startPos >= fileContent.length())
-        startPos = 0; // Wrap around if at end
-
-    size_t foundPos;
-    if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
-        std::string findTextLower = toLower(findText);
-        foundPos = fileContentLower.find(findTextLower, startPos);
-    } else {
-        foundPos = fileContent.find(findText, startPos);
-    }
-
-    std::cout << "\033[35mFiles:\033[0m  Searching for '" << findText << "' starting from position " << startPos;
-    if (ignoreCase)
-        std::cout << " (case-insensitive)";
-    std::cout << std::endl;
-
-    if (foundPos == std::string::npos) {
-        // Wrap around to the beginning
-        if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
-            std::string findTextLower = toLower(findText);
-            foundPos = fileContentLower.find(findTextLower);
-        } else {
-            foundPos = fileContent.find(findText);
-        }
-        std::cout << "\033[35mFiles:\033[0m  Wrapped search to beginning" << std::endl;
-    }
-
-    if (foundPos != std::string::npos) {
-        lastFoundPos = foundPos;
-        editor_state.cursor_pos = foundPos;
-        editor_state.selection_start = foundPos;
-        editor_state.selection_end = foundPos + findText.length();
-        std::cout << "\033[35mFiles:\033[0m Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
-    } else {
-        std::cout << "\033[35mFiles:\033[0m  Not found" << std::endl;
-    }
-}
-
-void FileExplorer::findPrevious(bool ignoreCase)
-{
-    if (findText.empty())
-        return;
-
-    size_t startPos;
-    if (lastFoundPos == std::string::npos) {
-        startPos = editor_state.cursor_pos;
-    } else {
-        startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
-    }
-
-    size_t foundPos;
-    if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
-        std::string findTextLower = toLower(findText);
-        foundPos = fileContentLower.rfind(findTextLower, startPos);
-    } else {
-        foundPos = fileContent.rfind(findText, startPos);
-    }
-
-    std::cout << "\033[35mFiles:\033[0m  Searching backwards for '" << findText << "' starting from position " << startPos;
-    if (ignoreCase)
-        std::cout << " (case-insensitive)";
-    std::cout << std::endl;
-
-    if (foundPos == std::string::npos) {
-        // Wrap around to the end
-        if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
-            std::string findTextLower = toLower(findText);
-            foundPos = fileContentLower.rfind(findTextLower);
-        } else {
-            foundPos = fileContent.rfind(findText);
-        }
-        std::cout << "\033[35mFiles:\033[0m  Wrapped search to end" << std::endl;
-    }
-
-    if (foundPos != std::string::npos) {
-        lastFoundPos = foundPos;
-        editor_state.cursor_pos = foundPos;
-        editor_state.selection_start = foundPos;
-        editor_state.selection_end = foundPos + findText.length();
-        std::cout << "\033[35mFiles:\033[0m  Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_pos << std::endl;
-    } else {
-        std::cout << "\033[35mFiles:\033[0m Not found" << std::endl;
     }
 }
 
@@ -660,17 +309,18 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
         currentUndoManager->addState(fileContent, changeStart, changeEnd);
     }
 }
+
 void FileExplorer::renderFileContent()
 {
-    gLineJump.handleLineJumpInput(editor_state);
-    gLineJump.renderLineJumpWindow(editor_state);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-    handleFindBoxActivation();
+    gFileContentSearch.setContent(fileContent);
+    gFileContentSearch.setEditorState(editor_state);
+    gFileContentSearch.handleFindBoxActivation();
 
-    if (editor_state.activateFindBox) {
-        renderFindBox();
+    if (gFileContentSearch.isFindBoxActive()) {
+        gFileContentSearch.renderFindBox();
     }
 
     bool text_changed;
@@ -679,117 +329,12 @@ void FileExplorer::renderFileContent()
     ImGui::PopStyleVar();
 }
 
-void FileExplorer::handleFindBoxActivation()
-{
-    ImGuiIO &io = ImGui::GetIO();
-    // If Cmd+F is pressed, activate the find box (do not toggle off here)
-    if ((io.KeyCtrl || io.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_F)) {
-        ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
-        editor_state.activateFindBox = true;
-        editor_state.blockInput = true;
-        findText = "";
-        findBoxShouldFocus = true; // force focus on activation
-    }
-    // If Escape is pressed, deactivate the find box.
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state.activateFindBox = false;
-        editor_state.blockInput = false;
-    }
-}
-
-std::string FileExplorer::toLower(const std::string &s)
-{
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) { return std::tolower(c); });
-    return result;
-}
-
-void FileExplorer::renderFindBox()
-{
-    // Only render if the find box is active.
-    if (!editor_state.activateFindBox)
-        return;
-
-    // Reserve ~70% of available width for the input field.
-    float availWidth = ImGui::GetContentRegionAvail().x;
-    float inputWidth = availWidth * 0.7f;
-    ImGui::SetNextItemWidth(inputWidth);
-
-    // Render the input field in its own group.
-    ImGui::BeginGroup();
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f)); // dark gray background
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  // light gray border
-
-    static char inputBuffer[256] = "";
-    // Force focus on the input field on activation.
-    if (findBoxShouldFocus) {
-        ImGui::SetKeyboardFocusHere();
-        findBoxShouldFocus = false;
-    }
-    ImGuiInputTextFlags flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-    if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags)) {
-        findText = inputBuffer;
-        lastFoundPos = std::string::npos;
-    }
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-    ImGui::EndGroup();
-
-    // Add horizontal spacing between the input field and the checkbox.
-    ImGui::SameLine();
-    ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
-    ImGui::SameLine();
-
-    // Render the checkbox on the same line.
-    // Set the checkbox's background and border to be different.
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    // Set the checkbox background to match the input field and use a lighter grey for the border.
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    static bool ignoreCaseCheckbox = false;
-    ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-
-    // Call the keyboard shortcut handler (which uses the checkbox state).
-    handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
-}
-
-void FileExplorer::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) {
-        if (io.KeyShift) {
-            std::cout << "\033[35mFiles:\033[0m  Searching previous";
-            if (ignoreCaseCheckbox)
-                std::cout << " (case-insensitive)";
-            std::cout << std::endl;
-            findPrevious(ignoreCaseCheckbox);
-        } else {
-            std::cout << "\033[35mFiles:\033[0m  Searching next";
-            if (ignoreCaseCheckbox)
-                std::cout << " (case-insensitive)";
-            std::cout << std::endl;
-            findNext(ignoreCaseCheckbox);
-        }
-    }
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state.activateFindBox = false;
-        editor_state.blockInput = false;
-    }
-}
-
 void FileExplorer::renderEditor(bool &text_changed)
 {
     text_changed = gEditor.textEditor("##editor", fileContent, fileColors, editor_state);
 
     if (text_changed && !editor_state.activateFindBox) {
         setUnsavedChanges(true);
-        std::cout << "\033[35mFiles:\033[0m  Text changed, added undo/redo state" << std::endl;
     }
 }
 
@@ -809,7 +354,7 @@ void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd)
     int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
 
     std::string extension = fs::path(currentFile).extension().string();
-    gEditor.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
+    gEditorHighlight.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
 }
 
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
@@ -845,12 +390,13 @@ void FileExplorer::handleRedo()
         applyContentChange(state, true); // Pre-allocate memory for redo
     }
 }
+
 void FileExplorer::saveCurrentFile()
 {
     if (!currentFile.empty() && _unsavedChanges) {
         // Check if we're dealing with a truncated file
         if (fileContent.find("[File truncated - showing first") != std::string::npos) {
-            std::cerr << "\033[35mFiles:\033[0m Cannot save truncated file content" << std::endl;
+            std::cerr << "Cannot save truncated file content" << std::endl;
             // TODO: Show warning to user that they can't save changes to truncated files
             return;
         }
@@ -860,9 +406,9 @@ void FileExplorer::saveCurrentFile()
             file << fileContent;
             file.close();
             _unsavedChanges = false;
-            std::cout << "\033[35mFiles:\033[0m File saved: " << currentFile << std::endl;
+            std::cout << "File saved: " << currentFile << std::endl;
         } else {
-            std::cerr << "\033[35mFiles:\033[0m Unable to save file: " << currentFile << std::endl;
+            std::cerr << "Unable to save file: " << currentFile << std::endl;
         }
     }
 }

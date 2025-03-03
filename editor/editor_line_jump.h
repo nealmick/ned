@@ -10,6 +10,9 @@
 #include "../imgui/imgui.h"
 #include "../util/close_popper.h"
 #include "editor.h"
+#include "editor_scroll.h"
+#include "editor_types.h"
+
 #include <string>
 
 class LineJump
@@ -167,17 +170,14 @@ class LineJump
         // Ensure we don't scroll past the boundaries
         target_scroll = std::max(0.0f, target_scroll);
 
-        // REQUEST scroll through the Editor class instead of setting directly
-        gEditor.requestScroll(0, target_scroll);
+        // REQUEST scroll through EditorScroll
+        gEditorScroll.requestScroll(0, target_scroll);
 
         // Set these flags to ensure the cursor will be made visible
-        state.ensure_cursor_visible_frames = 5; // Ensure visibility for several frames
+        gEditorScroll.setEnsureCursorVisibleFrames(5); // Ensure visibility for several frames
 
         // Force a direct scroll application in ImGui before the next frame
         ImGui::SetScrollY(target_scroll);
-        state.scroll_pos.y = target_scroll;
-
-        std::cout << "Jumping to line " << (lineNumber + 1) << " (target scroll pos: " << target_scroll << ", window height: " << window_height << ", line height: " << line_height << ", middle pixel: " << middle_pixel << ", vertical offset: " << vertical_offset << ")" << std::endl;
 
         justJumped = true;
     }
