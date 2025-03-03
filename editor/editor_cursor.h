@@ -41,9 +41,11 @@ class EditorCursor
     void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
 
   private:
-    // Helper method to calculate the line number from cursor position
-    // This avoids circular dependency with Editor class
-    int getLineFromPosition(const std::vector<int> &line_starts, int pos);
+    // Calculate visual column position considering tabs
+    int calculateVisualColumn(const std::string &text, int line_start, int cursor_pos);
+
+    // Find character position from visual column
+    int findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column);
 };
 
 // Global instance
