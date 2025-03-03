@@ -90,6 +90,7 @@ add_executable(ned
     editor/editor_copy_paste.cpp 
     editor/editor_indentation.cpp 
     editor/editor_line_numbers.cpp 
+    editor/editor_mouse.cpp 
 
     editor/editor_types.h
     editor/editor_utils.h
