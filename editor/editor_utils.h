@@ -34,5 +34,4 @@ inline int GetLineFromPosition(const std::vector<int> &line_starts, int pos)
     return std::distance(line_starts.begin(), it) - 1;
 }
 
-// Other shared utility functions can go here...
 } // namespace EditorUtils
