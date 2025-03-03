@@ -5,8 +5,10 @@
 
 #include "editor.h"
 #include "editor_bookmarks.h"
+#include "editor_copy_paste.h"
 #include "editor_cursor.h"
 #include "editor_line_jump.h"
+#include "editor_line_numbers.h"
 #include "editor_types.h"
 #include "editor_utils.h"
 
@@ -74,8 +76,27 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     gFileFinder.renderWindow();
 
     // Update final scroll values and render the line numbers.
-    updateFinalScrollAndRenderLineNumbers(line_numbers_pos, line_number_width, editor_top_margin, size, editor_state, line_height, total_height);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height + editor_top_margin);
 
+    // Get scroll positions from ImGui
+    float scrollY = ImGui::GetScrollY();
+    float scrollX = ImGui::GetScrollX();
+
+    // Update EditorScroll with the final ImGui scroll values
+    gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
+    gEditorScroll.setScrollX(scrollX);
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar(4);
+    ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
+
+    // Use the new EditorLineNumbers class instead
+    gEditorLineNumbers.renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
+
+    ImGui::PopClipRect();
+    ImGui::EndGroup();
+    ImGui::PopID();
     return text_changed;
 }
 
@@ -99,18 +120,7 @@ void Editor::setupEditorWindow(const char *label, ImVec2 &size, float &line_numb
     ImGui::PushID(label);
 }
 
-ImVec2 Editor::renderLineNumbersPanel(float line_number_width, float editor_top_margin)
-{
-    ImGui::BeginGroup();
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
-    ImGui::BeginChild("LineNumbers", ImVec2(line_number_width, ImGui::GetContentRegionAvail().y), false, ImGuiWindowFlags_NoScrollbar);
-    ImVec2 line_numbers_pos = ImGui::GetCursorScreenPos();
-    line_numbers_pos.y += editor_top_margin;
-    ImGui::EndChild();
-    ImGui::PopStyleVar();
-    ImGui::SameLine();
-    return line_numbers_pos;
-}
+ImVec2 Editor::renderLineNumbersPanel(float line_number_width, float editor_top_margin) { return gEditorLineNumbers.createLineNumbersPanel(line_number_width, editor_top_margin); }
 
 void Editor::beginTextEditorChild(const char *label, float remaining_width, float content_width, float content_height, float &current_scroll_y, float &current_scroll_x, ImVec2 &text_pos, float editor_top_margin, float text_left_margin, EditorState &editor_state)
 {
@@ -187,31 +197,6 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
     gEditorCursor.renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
-void Editor::updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_pos, float line_number_width, float editor_top_margin, const ImVec2 &size, EditorState &editor_state, float line_height, float total_height)
-{
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height + editor_top_margin);
-
-    // Get scroll positions from ImGui
-    float scrollY = ImGui::GetScrollY();
-    float scrollX = ImGui::GetScrollX();
-
-    // Update EditorScroll with the final ImGui scroll values
-    gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
-    gEditorScroll.setScrollX(scrollX);
-
-    ImGui::EndChild();
-    ImGui::PopStyleColor(4);
-    ImGui::PopStyleVar(4);
-    ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
-
-    // Use gEditorScroll for the scroll position
-    renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
-
-    ImGui::PopClipRect();
-    ImGui::EndGroup();
-    ImGui::PopID();
-}
-
 void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts)
 {
     // Only update if the text has changed.
@@ -272,17 +257,6 @@ int Editor::getSelectionStart(const EditorState &state) { return std::min(state.
 
 int Editor::getSelectionEnd(const EditorState &state) { return std::max(state.selection_start, state.selection_end); }
 
-// Copy, cut, and paste functions
-void Editor::copySelectedText(const std::string &text, const EditorState &state)
-{
-    if (state.selection_start != state.selection_end) {
-        int start = gEditor.getSelectionStart(state);
-        int end = gEditor.getSelectionEnd(state);
-        std::string selected_text = text.substr(start, end - start);
-        ImGui::SetClipboardText(selected_text.c_str());
-    }
-}
-
 void Editor::selectAllText(EditorState &state, const std::string &text)
 {
     const size_t MAX_SELECTION_SIZE = 100000; // Adjust this value as needed
@@ -292,68 +266,6 @@ void Editor::selectAllText(EditorState &state, const std::string &text)
     state.selection_end = state.cursor_pos;
 }
 
-void Editor::cutSelectedText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
-{
-    if (state.selection_start != state.selection_end) {
-        int start = gEditor.getSelectionStart(state);
-        int end = gEditor.getSelectionEnd(state);
-        std::string selected_text = text.substr(start, end - start);
-        ImGui::SetClipboardText(selected_text.c_str());
-        text.erase(start, end - start);
-        colors.erase(colors.begin() + start, colors.begin() + end);
-        state.cursor_pos = start;
-        state.selection_start = state.selection_end = start;
-        text_changed = true;
-    }
-}
-
-void Editor::cutWholeLine(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
-{
-
-    int line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
-    int line_start = state.line_starts[line];
-    int line_end = (line + 1 < state.line_starts.size()) ? state.line_starts[line + 1] : text.size();
-
-    std::string line_text = text.substr(line_start, line_end - line_start);
-    ImGui::SetClipboardText(line_text.c_str());
-
-    text.erase(line_start, line_end - line_start);
-    colors.erase(colors.begin() + line_start, colors.begin() + line_end);
-
-    state.cursor_pos = line > 0 ? state.line_starts[line] : 0;
-    text_changed = true;
-    gEditor.updateLineStarts(text, state.line_starts);
-}
-
-void Editor::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
-{
-    const char *clipboard_text = ImGui::GetClipboardText();
-    if (clipboard_text != nullptr) {
-        std::string paste_content = clipboard_text;
-        if (!paste_content.empty()) {
-            int paste_start = state.cursor_pos;
-            int paste_end = paste_start + paste_content.size();
-            if (state.selection_start != state.selection_end) {
-                int start = gEditor.getSelectionStart(state);
-                int end = gEditor.getSelectionEnd(state);
-                text.replace(start, end - start, paste_content);
-                colors.erase(colors.begin() + start, colors.begin() + end);
-                colors.insert(colors.begin() + start, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                paste_start = start;
-                paste_end = start + paste_content.size();
-            } else {
-                text.insert(state.cursor_pos, paste_content);
-                colors.insert(colors.begin() + state.cursor_pos, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            }
-            state.cursor_pos = paste_end;
-            state.selection_start = state.selection_end = state.cursor_pos;
-            text_changed = true;
-
-            // Trigger syntax highlighting for the pasted content
-            gEditor.highlightContent(text, colors, paste_start, paste_end);
-        }
-    }
-}
 void Editor::handleMouseInput(const std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height)
 {
     static bool is_dragging = false;
@@ -545,147 +457,6 @@ void Editor::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, 
     }
 }
 
-void Editor::handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
-{
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-        if (state.is_selecting) {
-            // Handle multi-line indentation
-            int start = std::min(state.selection_start, state.selection_end);
-            int end = std::max(state.selection_start, state.selection_end);
-
-            // Find the start of the first line
-            int firstLineStart = start;
-            while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
-                firstLineStart--;
-            }
-
-            // Find the end of the last line
-            int lastLineEnd = end;
-            while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
-                lastLineEnd++;
-            }
-
-            int tabsInserted = 0;
-            int lineStart = firstLineStart;
-            while (lineStart < lastLineEnd) {
-                // Insert tab at the beginning of the line
-                text.insert(lineStart, 1, '\t');
-                colors.insert(colors.begin() + lineStart, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-                tabsInserted++;
-
-                // Move to the next line
-                lineStart = text.find('\n', lineStart) + 1;
-                if (lineStart == 0)
-                    break; // If we've reached the end of
-                           // the text
-            }
-
-            // Adjust cursor and selection positions
-            state.cursor_pos += (state.cursor_pos >= start) ? tabsInserted : 0;
-            state.selection_start += (state.selection_start > start) ? tabsInserted : 0;
-            state.selection_end += tabsInserted;
-
-            input_end = lastLineEnd + tabsInserted;
-        } else {
-            // Insert a single tab character at cursor position
-            text.insert(state.cursor_pos, 1, '\t');
-            colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            state.cursor_pos++;
-            state.selection_start = state.selection_end = state.cursor_pos;
-            input_end = state.cursor_pos;
-        }
-
-        // Mark text as changed and update
-        text_changed = true;
-        gEditor.updateLineStarts(text, state.line_starts);
-        gFileExplorer.setUnsavedChanges(true);
-
-        // Trigger syntax highlighting for the affected area
-        gEditor.highlightContent(text, colors, std::min(state.selection_start, state.selection_end), std::max(state.selection_end, input_end));
-    }
-}
-
-void Editor::removeIndentation(std::string &text, EditorState &state)
-{
-    int start, end;
-    if (state.is_selecting) {
-        start = std::min(state.selection_start, state.selection_end);
-        end = std::max(state.selection_start, state.selection_end);
-    } else {
-        // If no selection, work on the current line
-        start = end = state.cursor_pos;
-    }
-
-    // Find the start of the first line
-    int firstLineStart = start;
-    while (firstLineStart > 0 && text[firstLineStart - 1] != '\n') {
-        firstLineStart--;
-    }
-
-    // Find the end of the last line
-    int lastLineEnd = end;
-    while (lastLineEnd < text.length() && text[lastLineEnd] != '\n') {
-        lastLineEnd++;
-    }
-
-    int totalSpacesRemoved = 0;
-    std::string newText;
-    newText.reserve(text.length());
-
-    // Copy text before the affected lines
-    newText.append(text.substr(0, firstLineStart));
-
-    // Process each line
-    size_t lineStart = firstLineStart;
-    while (lineStart <= lastLineEnd) {
-        // Check for spaces or tab at the beginning of the line
-        int spacesToRemove = 0;
-        if (lineStart + 4 <= text.length() && text.substr(lineStart, 4) == "    ") {
-            spacesToRemove = 4;
-        } else if (lineStart < text.length() && text[lineStart] == '\t') {
-            spacesToRemove = 1;
-        }
-
-        // Append the line without leading indentation
-        size_t lineEnd = text.find('\n', lineStart);
-        if (lineEnd == std::string::npos || lineEnd > lastLineEnd)
-            lineEnd = lastLineEnd;
-        newText.append(text.substr(lineStart + spacesToRemove, lineEnd - lineStart - spacesToRemove));
-        if (lineEnd < lastLineEnd)
-            newText.push_back('\n');
-
-        totalSpacesRemoved += spacesToRemove;
-        lineStart = lineEnd + 1;
-    }
-
-    // Copy text after the affected lines
-    newText.append(text.substr(lastLineEnd));
-
-    // Update text and adjust cursor and selection
-    text = std::move(newText);
-    state.cursor_pos = std::max(state.cursor_pos - totalSpacesRemoved, firstLineStart);
-    if (state.is_selecting) {
-        state.selection_start = std::max(state.selection_start - totalSpacesRemoved, firstLineStart);
-        state.selection_end = std::max(state.selection_end - totalSpacesRemoved, firstLineStart);
-    } else {
-        state.selection_start = state.selection_end = state.cursor_pos;
-    }
-
-    // Update colors vector
-    auto &colors = gFileExplorer.getFileColors();
-    colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
-    colors.insert(colors.begin() + firstLineStart, lastLineEnd - firstLineStart - totalSpacesRemoved, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
-    // Update line starts
-    gEditor.updateLineStarts(text, state.line_starts);
-
-    // Mark text as changed
-    gFileExplorer.setUnsavedChanges(true);
-
-    // Trigger syntax highlighting for the affected area
-    gEditor.highlightContent(text, colors, firstLineStart, lastLineEnd - totalSpacesRemoved);
-}
-
 void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
 {
     int input_start = state.cursor_pos;
@@ -707,7 +478,7 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
     gEditor.handleEnterKey(text, colors, state, text_changed, input_end);
     gEditor.handleBackspaceKey(text, colors, state, text_changed, input_start);
     gEditor.handleDeleteKey(text, colors, state, text_changed, input_end);
-    gEditor.handleTabKey(text, colors, state, text_changed, input_end);
+    gEditorIndentation.handleTabKey(text, colors, state, text_changed, input_end);
 
     if (text_changed) {
         // Get the start of the line where the change began
@@ -826,53 +597,6 @@ int Editor::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_
     return line_start + bestIndex;
 }
 
-void Editor::renderLineNumbers(const ImVec2 &pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState &editor_state, float blink_time)
-{
-    static char line_number_buffer[16];
-    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-    const ImU32 default_line_number_color = IM_COL32(128, 128, 128, 255);
-    const ImU32 current_line_color = IM_COL32(255, 255, 255, 255);
-    const ImU32 selected_line_color = IM_COL32(0, 40, 255, 200); // Neon pink color
-    int start_line = static_cast<int>(scroll_y / line_height);
-    int end_line = std::min(num_lines, static_cast<int>((scroll_y + window_height) / line_height) + 1);
-    // Pre-calculate rainbow color
-    ImU32 rainbow_color = current_line_color;
-    bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
-    if (rainbow_mode) {
-        // Update color less frequently
-        static float last_update_time = 0.0f;
-        static ImU32 last_rainbow_color = current_line_color;
-        if (blink_time - last_update_time > 0.05f) {         // Update every 50ms
-            ImVec4 rainbow = EditorUtils::GetRainbowColor(); // Use the synchronized version
-            last_rainbow_color = ImGui::ColorConvertFloat4ToU32(rainbow);
-            last_update_time = blink_time;
-        }
-        rainbow_color = last_rainbow_color;
-    }
-    // Determine the selected lines, accounting for selection direction
-    int selection_start = std::min(editor_state.selection_start, editor_state.selection_end);
-    int selection_end = std::max(editor_state.selection_start, editor_state.selection_end);
-    int selection_start_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_start) - editor_state.line_starts.begin();
-    int selection_end_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_end) - editor_state.line_starts.begin();
-    for (int i = start_line; i < end_line; i++) {
-        float y_pos = pos.y + (i * line_height) - scroll_y;
-        snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
-        ImU32 line_number_color;
-        if (i >= selection_start_line && i < selection_end_line && editor_state.is_selecting) {
-            line_number_color = selected_line_color; // Use neon pink for selected
-                                                     // lines
-        } else if (i == editor_state.current_line) {
-            line_number_color = rainbow_mode ? rainbow_color : current_line_color;
-        } else {
-            line_number_color = default_line_number_color;
-        }
-        // Calculate the position for right-aligned text
-        float text_width = ImGui::CalcTextSize(line_number_buffer).x;
-        float x_pos = pos.x + line_number_width - text_width - 8.0f; // 4.0f is a small right margin
-        draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color, line_number_buffer);
-    }
-}
-
 float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts)
 {
     // Assume updateLineStarts has been called so that editor_state.line_widths is up to date.
@@ -881,20 +605,6 @@ float Editor::calculateTextWidth(const std::string &text, const std::vector<int>
         max_width = std::max(max_width, width);
     }
     return max_width;
-}
-
-bool Editor::processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
-{
-    // If Shift+Tab is pressed, remove indentation and exit early.
-    if (ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {
-        removeIndentation(text, state);
-        text_changed = true;
-        ensure_cursor_visible.horizontal = true;
-        ensure_cursor_visible.vertical = true;
-        ImGui::SetKeyboardFocusHere(-1); // Prevent default tab behavior
-        return true;
-    }
-    return false;
 }
 
 void Editor::processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible)
@@ -954,27 +664,6 @@ void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, Edi
         gFileExplorer.currentUndoManager->printStacks();
     }
 }
-
-void Editor::processClipboardShortcuts(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-        copySelectedText(text, state);
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_X, false)) {
-        if (state.selection_start != state.selection_end)
-            cutSelectedText(text, colors, state, text_changed);
-        else
-            cutWholeLine(text, colors, state, text_changed);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
-        pasteText(text, colors, state, text_changed);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-}
-
 void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible)
 {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
@@ -990,7 +679,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     if (ImGui::IsWindowFocused() && !state.blockInput) {
         // Process Shift+Tab for indentation removal. If handled, exit
         // early.
-        if (processIndentRemoval(text, state, text_changed, ensure_cursor_visible))
+        if (gEditorIndentation.processIndentRemoval(text, state, text_changed, ensure_cursor_visible))
             return;
 
         if (ctrl_pressed) {
@@ -1021,7 +710,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     handleTextInput(text, colors, state, text_changed);
 
     if (ImGui::IsWindowFocused() && ctrl_pressed)
-        processClipboardShortcuts(text, colors, state, text_changed, ensure_cursor_visible);
+        gEditorCopyPaste.processClipboardShortcuts(text, colors, state, text_changed, ensure_cursor_visible);
 
     // Ensure cursor is visible if text has changed
     if (text_changed) {
