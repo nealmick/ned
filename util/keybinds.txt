@@ -1,3 +1,6 @@
+This page is currently not updated there may missing or incorrect info.
+
+
 Key Bindings info page.
 CTRL and CMD are used interchangably depending on mac/windows keyboard layout
 

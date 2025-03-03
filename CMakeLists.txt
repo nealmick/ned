@@ -79,7 +79,6 @@ target_link_libraries(util PUBLIC
 add_executable(ned
     main.cpp
     ned.cpp
-    globals.cpp 
     shaders/shader.cpp
 
     # Editor files
