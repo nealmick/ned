@@ -1,6 +1,7 @@
 #include "editor_indentation.h"
 #include "../files/files.h"
 #include "editor.h"
+#include "editor_highlight.h"
 #include <algorithm>
 #include <iostream>
 
@@ -95,7 +96,7 @@ void EditorIndentation::finishIndentationChange(std::string &text, std::vector<I
     gFileExplorer.setUnsavedChanges(true);
 
     // Trigger syntax highlighting for the affected area
-    gEditor.highlightContent(text, colors, std::min(state.selection_start, state.selection_end), std::max(state.selection_end, input_end));
+    gEditorHighlight.highlightContent(text, colors, std::min(state.selection_start, state.selection_end), std::max(state.selection_end, input_end));
 }
 
 bool EditorIndentation::processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
@@ -209,5 +210,5 @@ void EditorIndentation::updateColorsAfterIndentRemoval(std::string &text, Editor
     gFileExplorer.setUnsavedChanges(true);
 
     // Trigger syntax highlighting for the affected area
-    gEditor.highlightContent(text, colors, firstLineStart, lastLineEnd - totalSpacesRemoved);
+    gEditorHighlight.highlightContent(text, colors, firstLineStart, lastLineEnd - totalSpacesRemoved);
 }

@@ -1,5 +1,6 @@
 #include "editor_copy_paste.h"
 #include "editor.h"
+#include "editor_highlight.h"
 #include <algorithm>
 
 // Global instance
@@ -96,7 +97,7 @@ void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, 
             text_changed = true;
 
             // Trigger syntax highlighting for the pasted content
-            gEditor.highlightContent(text, colors, paste_start, paste_end);
+            gEditorHighlight.highlightContent(text, colors, paste_start, paste_end);
         }
     }
 }

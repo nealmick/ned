@@ -86,11 +86,13 @@ add_executable(ned
     editor/editor.cpp
     editor/editor_line_jump.cpp
     editor/editor_scroll.cpp
-    editor/editor_cursor.cpp 
-    editor/editor_copy_paste.cpp 
-    editor/editor_indentation.cpp 
-    editor/editor_line_numbers.cpp 
-    editor/editor_mouse.cpp 
+    editor/editor_cursor.cpp
+    editor/editor_copy_paste.cpp
+    editor/editor_indentation.cpp
+    editor/editor_line_numbers.cpp
+    editor/editor_highlight.cpp
+    editor/editor_mouse.cpp
+    editor/editor_keyboard.cpp
 
     editor/editor_types.h
     editor/editor_utils.h

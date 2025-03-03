@@ -9,6 +9,7 @@
 #include <nfd.h>
 #include <sstream>
 
+#include "../editor/editor_highlight.h"
 #include "../editor/editor_line_jump.h"
 #include "../util/close_popper.h"
 #include "../util/icon_definitions.h"
@@ -140,7 +141,7 @@ void FileExplorer::refreshSyntaxHighlighting()
 {
     if (!currentFile.empty()) {
         std::string extension = fs::path(currentFile).extension().string();
-        gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
     }
 }
 
@@ -148,7 +149,7 @@ void FileExplorer::resetEditorState()
 {
     editor_state.cursor_pos = 0;
     editor_state.current_line = 0;
-    gEditor.cancelHighlighting();
+    gEditorHighlight.cancelHighlighting();
 }
 
 void FileExplorer::updateFilePathStates(const std::string &path)
@@ -263,7 +264,7 @@ void FileExplorer::setupUndoManager(const std::string &path)
 void FileExplorer::initializeSyntaxHighlighting(const std::string &path)
 {
     std::string extension = fs::path(path).extension().string();
-    gEditor.highlightContent(fileContent, fileColors, 0, fileContent.size());
+    gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
 }
 
 void FileExplorer::handleLoadError()
@@ -353,7 +354,7 @@ void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd)
     int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
 
     std::string extension = fs::path(currentFile).extension().string();
-    gEditor.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
+    gEditorHighlight.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
 }
 
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)

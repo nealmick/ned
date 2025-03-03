@@ -7,6 +7,8 @@
 #include "editor_bookmarks.h"
 #include "editor_copy_paste.h"
 #include "editor_cursor.h"
+#include "editor_highlight.h"
+#include "editor_keyboard.h"
 #include "editor_line_jump.h"
 #include "editor_line_numbers.h"
 #include "editor_mouse.h"
@@ -267,136 +269,6 @@ void Editor::selectAllText(EditorState &state, const std::string &text)
     state.selection_end = state.cursor_pos;
 }
 
-// Text input handling
-void Editor::handleCharacterInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start, int &input_end)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    std::string input;
-    input.reserve(io.InputQueueCharacters.Size);
-    for (int n = 0; n < io.InputQueueCharacters.Size; n++) {
-        char c = static_cast<char>(io.InputQueueCharacters[n]);
-        if (c != 0 && c >= 32) {
-            input += c;
-        }
-    }
-    if (!input.empty()) {
-        // Clear any existing selection
-        if (state.selection_start != state.selection_end) {
-            int start = gEditor.getSelectionStart(state);
-            int end = gEditor.getSelectionEnd(state);
-            if (start < 0 || end > static_cast<int>(text.size()) || start > end) {
-                std::cerr << "Error: Invalid selection range "
-                             "in HandleCharacterInput"
-                          << std::endl;
-                return;
-            }
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
-            state.cursor_pos = start;
-        }
-
-        // Insert new text
-        if (state.cursor_pos < 0 || state.cursor_pos > static_cast<int>(text.size())) {
-            std::cerr << "Error: Invalid cursor position in "
-                         "HandleCharacterInput"
-                      << std::endl;
-            return;
-        }
-        text.insert(state.cursor_pos, input);
-        colors.insert(colors.begin() + state.cursor_pos, input.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        state.cursor_pos += input.size();
-
-        // Reset selection state
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-
-        text_changed = true;
-        input_end = state.cursor_pos;
-    }
-}
-
-void Editor::handleEnterKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
-{
-
-    if (gLineJump.hasJustJumped()) {
-        return;
-    }
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-        // Insert the newline character
-        text.insert(state.cursor_pos, 1, '\n');
-
-        // Safely insert the color
-        if (state.cursor_pos <= colors.size()) {
-            colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        } else {
-            std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
-            colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        }
-
-        state.cursor_pos++;
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-        text_changed = true;
-        input_end = state.cursor_pos;
-    }
-}
-
-void Editor::handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
-        if (state.selection_start != state.selection_end) {
-            // There's a selection, delete it
-            int start = gEditor.getSelectionStart(state);
-            int end = gEditor.getSelectionEnd(state);
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end - 1);
-            state.cursor_pos = start;
-            text_changed = true;
-            input_end = start;
-        } else if (state.cursor_pos < text.size()) {
-            // No selection, delete the character at cursor position
-            text.erase(state.cursor_pos, 1);
-            colors.erase(colors.begin() + state.cursor_pos - 1);
-            text_changed = true;
-            input_end = state.cursor_pos + 1;
-        }
-
-        // Clear selection after deletion
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-    }
-}
-
-void Editor::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start)
-{
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
-        if (state.selection_start != state.selection_end) {
-            // There's a selection, delete it
-            int start = gEditor.getSelectionStart(state);
-            int end = gEditor.getSelectionEnd(state);
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
-            state.cursor_pos = start;
-            text_changed = true;
-            input_start = start;
-        } else if (state.cursor_pos > 0) {
-            // No selection, delete the character before cursor
-            // position
-            text.erase(state.cursor_pos - 1, 1);
-            colors.erase(colors.begin() + state.cursor_pos - 1);
-            state.cursor_pos--;
-            text_changed = true;
-            input_start = state.cursor_pos;
-        }
-
-        // Clear selection after deletion
-        state.selection_start = state.selection_end = state.cursor_pos;
-        state.is_selecting = false;
-    }
-}
-
 void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
 {
     int input_start = state.cursor_pos;
@@ -414,10 +286,10 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
         input_start = input_end = start;
     }
 
-    gEditor.handleCharacterInput(text, colors, state, text_changed, input_start, input_end);
-    gEditor.handleEnterKey(text, colors, state, text_changed, input_end);
-    gEditor.handleBackspaceKey(text, colors, state, text_changed, input_start);
-    gEditor.handleDeleteKey(text, colors, state, text_changed, input_end);
+    gEditorKeyboard.handleCharacterInput(text, colors, state, text_changed, input_start, input_end);
+    gEditorKeyboard.handleEnterKey(text, colors, state, text_changed, input_end);
+    gEditorKeyboard.handleBackspaceKey(text, colors, state, text_changed, input_start);
+    gEditorKeyboard.handleDeleteKey(text, colors, state, text_changed, input_end);
     gEditorIndentation.handleTabKey(text, colors, state, text_changed, input_end);
 
     if (text_changed) {
@@ -429,7 +301,7 @@ void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, Edi
         int line_end = input_end < text.size() ? state.line_starts[gEditor.getLineFromPos(state.line_starts, input_end)] : text.size();
 
         // Update syntax highlighting only for the affected lines
-        gEditor.highlightContent(text, colors, line_start, line_end);
+        gEditorHighlight.highlightContent(text, colors, line_start, line_end);
 
         // Update line starts
         gEditor.updateLineStarts(text, state.line_starts);
@@ -615,137 +487,5 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     if (text_changed) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-    }
-}
-
-void Editor::cancelHighlighting()
-{
-    cancelHighlightFlag = true;
-    if (highlightFuture.valid()) {
-        highlightFuture.wait();
-    }
-    cancelHighlightFlag = false;
-}
-
-void Editor::forceColorUpdate()
-{
-    pythonLexer.forceColorUpdate();
-    cppLexer.forceColorUpdate();
-    htmlLexer.forceColorUpdate();
-    jsxLexer.forceColorUpdate();
-}
-
-bool Editor::validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos)
-{
-    if (content.empty()) {
-        std::cerr << "Error: Empty content in highlightContent" << std::endl;
-        return false;
-    }
-    if (colors.empty()) {
-        std::cerr << "Error: Empty colors vector in highlightContent" << std::endl;
-        return false;
-    }
-    if (content.size() != colors.size()) {
-        std::cerr << "Error: Mismatch between content and colors size "
-                     "in highlightContent"
-                  << std::endl;
-        return false;
-    }
-    if (start_pos < 0 || start_pos >= static_cast<int>(content.size())) {
-        std::cerr << "Error: Invalid start_pos in highlightContent" << std::endl;
-        return false;
-    }
-    if (end_pos < start_pos || end_pos > static_cast<int>(content.size())) {
-        std::cerr << "Error: Invalid end_pos in highlightContent" << std::endl;
-        return false;
-    }
-    return true;
-}
-
-void Editor::highlightContent(const std::string &content, std::vector<ImVec4> &colors, int start_pos, int end_pos)
-{
-    std::lock_guard<std::mutex> lock(highlight_mutex);
-    std::cout << "\033[36mEditor:\033[0m   Highlight Content. content size: " << content.size() << std::endl;
-
-    // Cancel any ongoing highlighting first
-    cancelHighlighting();
-
-    // For large files (>100KB), just use default color
-    const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
-    if (content.size() > LARGE_FILE_THRESHOLD) {
-        // Pre-allocate colors vector to match content size
-        colors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        return;
-    }
-
-    // Validate inputs
-    if (!validateHighlightContentParams(content, colors, start_pos, end_pos))
-        return;
-
-    // Pre-allocate vectors to avoid reallocation during async operation
-    std::string content_copy = content;
-    std::vector<ImVec4> colors_copy;
-    colors_copy.reserve(content.size()); // Reserve space before copying
-    colors_copy = colors;
-
-    std::string currentFile = gFileExplorer.getCurrentFile();
-
-    highlightingInProgress = true;
-    cancelHighlightFlag = false;
-
-    std::string extension = fs::path(currentFile).extension().string();
-
-    // Launch highlighting task - properly capture colors by reference
-    highlightFuture = std::async(std::launch::async, [this, content_copy, &colors, colors_copy = std::move(colors_copy), currentFile, start_pos, end_pos, extension]() mutable {
-        try {
-            if (cancelHighlightFlag) {
-                highlightingInProgress = false;
-                return;
-            }
-
-            // Apply highlighting
-            if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
-                cppLexer.applyHighlighting(content_copy, colors_copy, 0);
-            } else if (extension == ".py") {
-                pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-            } else if (extension == ".html") {
-                htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
-            } else if (extension == ".js" || extension == ".jsx") {
-                jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-            } else {
-                std::fill(colors_copy.begin() + start_pos, colors_copy.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            }
-
-            if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile()) {
-                std::lock_guard<std::mutex> colorsLock(colorsMutex);
-                // Note: colors is captured by reference now
-                if (colors.size() == colors_copy.size()) {
-                    colors = std::move(colors_copy);
-                }
-            }
-        } catch (const std::exception &e) {
-            std::cerr << "Error in highlighting: " << e.what() << std::endl;
-        }
-        highlightingInProgress = false;
-    });
-}
-
-void Editor::setTheme(const std::string &themeName) { loadTheme(themeName); }
-
-void Editor::loadTheme(const std::string &themeName)
-{
-    auto &settings = gSettings.getSettings();
-    if (settings.contains("themes") && settings["themes"].contains(themeName)) {
-        auto &theme = settings["themes"][themeName];
-        for (const auto &[key, value] : theme.items()) {
-            themeColors[key] = ImVec4(value[0], value[1], value[2], value[3]);
-        }
-    } else {
-        // Set default colors if theme not found
-        themeColors["keyword"] = ImVec4(0.0f, 0.4f, 1.0f, 1.0f);
-        themeColors["function"] = ImVec4(0.0f, 0.4f, 1.0f, 1.0f);
-        themeColors["string"] = ImVec4(0.87f, 0.87f, 0.0f, 1.0f);
-        themeColors["number"] = ImVec4(0.0f, 0.8f, 0.8f, 1.0f);
-        themeColors["comment"] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
     }
 }
