@@ -10,6 +10,7 @@
 #include "ned.h"
 
 #include "editor/editor_bookmarks.h"
+#include "editor/editor_highlight.h"
 #include "util/debug_console.h"
 #include "util/settings.h"
 #include "util/terminal.h"
@@ -131,7 +132,7 @@ void Ned::initializeResources()
 {
     gDebugConsole.toggleVisibility();
     gSettings.loadSettings();
-    gEditor.setTheme(gSettings.getCurrentTheme());
+    gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
     // Apply settings to the ImGui style.
     ApplySettings(ImGui::GetStyle());
@@ -605,7 +606,7 @@ void Ned::handleSettingsChanges()
         shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
         if (gSettings.hasThemeChanged()) {
-            gEditor.setTheme(gSettings.getCurrentTheme());
+            gEditorHighlight.setTheme(gSettings.getCurrentTheme());
             gFileExplorer.refreshSyntaxHighlighting();
             gSettings.resetThemeChanged();
         }
