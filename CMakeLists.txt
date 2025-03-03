@@ -86,9 +86,12 @@ add_executable(ned
     editor/editor.cpp
     editor/editor_line_jump.cpp
     editor/editor_scroll.cpp
-    editor/editor_types.h 
+    editor/editor_cursor.cpp 
 
-    
+    editor/editor_types.h
+    editor/editor_utils.h
+
+
     # Files
     files/files.cpp
     files/file_tree.cpp

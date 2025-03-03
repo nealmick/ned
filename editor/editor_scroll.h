@@ -1,8 +1,7 @@
 #pragma once
-#include "imgui.h"
 #include "editor_types.h"
+#include "imgui.h"
 #include <string>
-
 
 struct ScrollChange
 {
@@ -25,7 +24,6 @@ struct CursorVisibility
     bool vertical;
     bool horizontal;
 };
-
 
 // Forward declarations
 class Editor;
