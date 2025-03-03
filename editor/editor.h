@@ -8,6 +8,7 @@
 
 #include "editor_indentation.h"
 #include "editor_line_numbers.h"
+#include "editor_mouse.h"
 #include "editor_scroll.h"
 #include "editor_types.h"
 #include "editor_utils.h"
@@ -42,8 +43,6 @@ class Editor
     void cancelHighlighting();
     void forceColorUpdate();
 
-    int getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height);
-
     void handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible);
 
     void updateLineStarts(const std::string &text, std::vector<int> &line_starts);
@@ -66,7 +65,6 @@ class Editor
     void selectAllText(EditorState &state, const std::string &text);
 
     // Input handling
-    void handleMouseInput(const std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height);
     void handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
 
     // Rendering
