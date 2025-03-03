@@ -7,7 +7,14 @@
 // Global instance
 EditorScroll gEditorScroll;
 
-EditorScroll::EditorScroll() : requestedScrollX(0), requestedScrollY(0), hasScrollRequest(false) {}
+EditorScroll::EditorScroll() : scrollPos(0, 0), scrollX(0.0f), ensureCursorVisibleFrames(0), requestedScrollX(0), requestedScrollY(0), hasScrollRequest(false), pendingBookmarkScroll(false), pendingScrollX(0.0f), pendingScrollY(0.0f) {}
+
+// Private helper that doesn't reference Editor directly to avoid circular dependency
+int EditorScroll::getLineFromPosition(const std::vector<int> &line_starts, int pos)
+{
+    auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
+    return std::distance(line_starts.begin(), it) - 1;
+}
 
 void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scroll_x, float &current_scroll_y, float dt)
 {
@@ -17,15 +24,14 @@ void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scro
     const float threshold = 0.5f;        // Snap threshold
 
     // Handle horizontal animation
-    if (state.scroll_animation.active_x) {
-        float target_x = state.scroll_animation.target_x;
+    if (scrollAnimation.active_x) {
+        float target_x = scrollAnimation.target_x;
         float delta_x = target_x - current_scroll_x;
 
         // If we're close enough, snap to target
         if (std::abs(delta_x) < threshold) {
             current_scroll_x = target_x;
-            state.scroll_animation.active_x = false;
-
+            scrollAnimation.active_x = false;
         } else {
             // Move a percentage of the remaining distance
             float step = delta_x * animation_speed * dt;
@@ -38,8 +44,7 @@ void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scro
             // If we would overshoot, just snap to target
             if ((delta_x > 0 && step > delta_x) || (delta_x < 0 && step < delta_x)) {
                 current_scroll_x = target_x;
-                state.scroll_animation.active_x = false;
-
+                scrollAnimation.active_x = false;
             } else {
                 current_scroll_x += step;
             }
@@ -47,14 +52,14 @@ void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scro
     }
 
     // Handle vertical animation
-    if (state.scroll_animation.active_y) {
-        float target_y = state.scroll_animation.target_y;
+    if (scrollAnimation.active_y) {
+        float target_y = scrollAnimation.target_y;
         float delta_y = target_y - current_scroll_y;
 
         // If we're close enough, snap to target
         if (std::abs(delta_y) < threshold) {
             current_scroll_y = target_y;
-            state.scroll_animation.active_y = false;
+            scrollAnimation.active_y = false;
         } else {
             // Move a percentage of the remaining distance
             float step = delta_y * animation_speed * dt;
@@ -66,13 +71,16 @@ void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scro
             // If we would overshoot, just snap to target
             if ((delta_y > 0 && step > delta_y) || (delta_y < 0 && step < delta_y)) {
                 current_scroll_y = target_y;
-                state.scroll_animation.active_y = false;
-
+                scrollAnimation.active_y = false;
             } else {
                 current_scroll_y += step;
             }
         }
     }
+
+    // Store updated scroll positions
+    scrollX = current_scroll_x;
+    scrollPos.y = current_scroll_y;
 }
 
 void EditorScroll::processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x, EditorState &editor_state)
@@ -85,12 +93,14 @@ void EditorScroll::processMouseWheelForEditor(float line_height, float &current_
         if (wheel_y != 0) {
             current_scroll_y -= wheel_y * line_height * 1.0f;
             current_scroll_y = std::max(0.0f, std::min(current_scroll_y, ImGui::GetScrollMaxY()));
+            scrollPos.y = current_scroll_y;
         }
 
         // Also reduce the horizontal scroll speed multiplier
         if (wheel_x != 0) {
             current_scroll_x -= wheel_x * ImGui::GetFontSize() * 1.0f;
             current_scroll_x = std::max(0.0f, std::min(current_scroll_x, ImGui::GetScrollMaxX()));
+            scrollX = current_scroll_x;
         }
     }
 }
@@ -105,12 +115,12 @@ void EditorScroll::processMouseWheelScrolling(float line_height, EditorState &st
             float new_scroll_x = ImGui::GetScrollX() - scroll_amount;
             new_scroll_x = std::max(0.0f, std::min(new_scroll_x, ImGui::GetScrollMaxX()));
             ImGui::SetScrollX(new_scroll_x);
-            state.scroll_pos.x = new_scroll_x;
+            scrollX = new_scroll_x;
         } else { // Vertical scrolling
             float new_scroll_y = ImGui::GetScrollY() - wheel_y * line_height * 3;
             new_scroll_y = std::max(0.0f, std::min(new_scroll_y, ImGui::GetScrollMaxY()));
             ImGui::SetScrollY(new_scroll_y);
-            state.scroll_pos.y = new_scroll_y;
+            scrollPos.y = new_scroll_y;
         }
     }
 }
@@ -142,7 +152,8 @@ ScrollChange EditorScroll::ensureCursorVisible(const ImVec2 &text_pos, const std
 
     // Calculate cursor position
     float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
-    int cursor_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
+    // Use our own getLineFromPosition to avoid circular dependency
+    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
     float abs_cursor_y = text_pos.y + cursor_line * line_height;
 
     // Calculate cursor position relative to viewport
@@ -190,13 +201,13 @@ ScrollChange EditorScroll::ensureCursorVisible(const ImVec2 &text_pos, const std
         scroll_y_changed = true;
     }
 
-    // Store target positions in state variables without directly applying scroll
+    // Store target positions in our scroll state variables
     if (scroll_x_changed) {
-        state.scroll_x = new_scroll_x;
+        scrollX = new_scroll_x;
     }
 
     if (scroll_y_changed) {
-        state.scroll_pos.y = new_scroll_y;
+        scrollPos.y = new_scroll_y;
     }
 
     return {scroll_y_changed, scroll_x_changed};
@@ -207,21 +218,23 @@ void EditorScroll::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const
     // IMPORTANT: Update scroll positions from ImGui to capture manual scrolling
     current_scroll_y = ImGui::GetScrollY();
     current_scroll_x = ImGui::GetScrollX();
-    state.scroll_pos.y = current_scroll_y;
-    state.scroll_x = current_scroll_x;
+
+    // Update our internal state
+    scrollPos.y = current_scroll_y;
+    scrollX = current_scroll_x;
 
     // First check if there's a direct scroll request
     float requested_x, requested_y;
     if (handleScrollRequest(requested_x, requested_y)) {
         // Set animation targets for direct requests
-        state.scroll_animation.active_x = true;
-        state.scroll_animation.target_x = requested_x;
-        state.scroll_animation.active_y = true;
-        state.scroll_animation.target_y = requested_y;
+        scrollAnimation.active_x = true;
+        scrollAnimation.target_x = requested_x;
+        scrollAnimation.active_y = true;
+        scrollAnimation.target_y = requested_y;
 
         // Store the targets in state variables too
-        state.scroll_x = requested_x;
-        state.scroll_pos.y = requested_y;
+        scrollX = requested_x;
+        scrollPos.y = requested_y;
 
         // Reset visibility flags
         ensure_cursor_visible.vertical = false;
@@ -237,17 +250,96 @@ void EditorScroll::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const
 
         // If scroll changes are needed, set animation targets
         if (scroll_change.horizontal) {
-            state.scroll_animation.active_x = true;
-            state.scroll_animation.target_x = state.scroll_x;
+            scrollAnimation.active_x = true;
+            scrollAnimation.target_x = scrollX;
         }
 
         if (scroll_change.vertical) {
-            state.scroll_animation.active_y = true;
-            state.scroll_animation.target_y = state.scroll_pos.y;
+            scrollAnimation.active_y = true;
+            scrollAnimation.target_y = scrollPos.y;
         }
 
         // Reset the visibility flags
         ensure_cursor_visible.vertical = false;
         ensure_cursor_visible.horizontal = false;
     }
+}
+
+void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width)
+{
+    // Get current viewport bounds
+    float visible_start_y = ImGui::GetScrollY();
+    float visible_end_y = visible_start_y + window_height;
+    float visible_start_x = ImGui::GetScrollX();
+    float visible_end_x = visible_start_x + window_width;
+
+    // Get cursor position
+    // Use our own method for getting line from position
+    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
+    float cursor_y = text_pos.y + (cursor_line * line_height);
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
+
+    // Handle vertical scrolling
+    if (cursor_y < visible_start_y) {
+        scrollPos.y = cursor_y - text_pos.y;
+    } else if (cursor_y + line_height > visible_end_y) {
+        scrollPos.y = cursor_y + line_height - window_height;
+    }
+
+    // Handle horizontal scrolling
+    if (cursor_x < visible_start_x) {
+        scrollX = cursor_x - text_pos.x;
+    } else if (cursor_x > visible_end_x) {
+        scrollX = cursor_x - window_width + ImGui::GetFontSize();
+    }
+}
+
+void EditorScroll::scrollToLine(EditorState &state, int lineNumber, float line_height)
+{
+    if (lineNumber < 0 || lineNumber >= state.line_starts.size()) {
+        return; // Invalid line number
+    }
+
+    // Calculate the Y position for this line
+    float lineY = lineNumber * line_height;
+
+    // Use requestScroll to trigger smooth scroll animation
+    requestScroll(scrollX, lineY);
+}
+
+void EditorScroll::scrollToCharacter(EditorState &state, int charIndex, const ImVec2 &text_pos, const std::string &text, float line_height)
+{
+    if (charIndex < 0 || charIndex >= text.size()) {
+        return; // Invalid character index
+    }
+
+    // Find the line for this character
+    int line = getLineFromPosition(state.line_starts, charIndex);
+
+    // Calculate position
+    float charX = calculateCursorXPosition(text_pos, text, charIndex);
+    float lineY = text_pos.y + line * line_height - text_pos.y; // Relative to top
+
+    // Use requestScroll to trigger smooth scroll animation
+    requestScroll(charX - text_pos.x, lineY);
+}
+
+void EditorScroll::centerOnCursor(EditorState &state, const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width)
+{
+    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
+
+    // Calculate the cursor position
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos) - text_pos.x;
+    float cursor_y = cursor_line * line_height;
+
+    // Calculate centered scroll positions
+    float centered_x = cursor_x - window_width / 2;
+    float centered_y = cursor_y - window_height / 2;
+
+    // Ensure we don't scroll out of bounds
+    centered_x = std::max(0.0f, std::min(centered_x, ImGui::GetScrollMaxX()));
+    centered_y = std::max(0.0f, std::min(centered_y, ImGui::GetScrollMaxY()));
+
+    // Request smooth scroll to center position
+    requestScroll(centered_x, centered_y);
 }
