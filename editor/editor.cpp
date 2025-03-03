@@ -20,6 +20,7 @@ EditorState editor_state;
 
 bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state)
 {
+
     // Validate and resize colors if needed.
     validateAndResizeColors(text, colors);
     bool text_changed = false;
@@ -127,8 +128,15 @@ void Editor::beginTextEditorChild(const char *label, float remaining_width, floa
             ImGui::SetKeyboardFocusHere();
         }
     }
+
+    // Get current scroll positions from ImGui
     current_scroll_y = ImGui::GetScrollY();
     current_scroll_x = ImGui::GetScrollX();
+
+    // Update EditorScroll with the latest scroll values
+    gEditorScroll.setScrollPosition(ImVec2(current_scroll_x, current_scroll_y));
+    gEditorScroll.setScrollX(current_scroll_x);
+
     text_pos = ImGui::GetCursorScreenPos();
     text_pos.y += editor_top_margin;
     text_pos.x += text_left_margin;
@@ -143,11 +151,10 @@ void Editor::processTextEditorInput(std::string &text, EditorState &editor_state
         ensure_cursor_visible.horizontal = true;
     }
 
-    // Handle frame counter for ensuring cursor visibility
-    if (editor_state.ensure_cursor_visible_frames > 0) {
+    if (gEditorScroll.getEnsureCursorVisibleFrames() > 0) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-        editor_state.ensure_cursor_visible_frames--;
+        gEditorScroll.decrementEnsureCursorVisibleFrames();
     }
 
     if (editor_state.cursor_pos != initial_cursor_pos) {
@@ -185,13 +192,23 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
 void Editor::updateFinalScrollAndRenderLineNumbers(const ImVec2 &line_numbers_pos, float line_number_width, float editor_top_margin, const ImVec2 &size, EditorState &editor_state, float line_height, float total_height)
 {
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height + editor_top_margin);
-    editor_state.scroll_pos.y = ImGui::GetScrollY();
-    editor_state.scroll_x = ImGui::GetScrollX();
+
+    // Get scroll positions from ImGui
+    float scrollY = ImGui::GetScrollY();
+    float scrollX = ImGui::GetScrollX();
+
+    // Update EditorScroll with the final ImGui scroll values
+    gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
+    gEditorScroll.setScrollX(scrollX);
+
     ImGui::EndChild();
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(4);
     ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
-    renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), editor_state.scroll_pos.y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
+
+    // Use gEditorScroll for the scroll position
+    renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
+
     ImGui::PopClipRect();
     ImGui::EndGroup();
     ImGui::PopID();
@@ -440,7 +457,6 @@ void Editor::cursorRight(const std::string &text, EditorState &state)
         state.preferred_column = state.cursor_pos - state.line_starts[current_line];
     }
 }
-
 void Editor::cursorUp(const std::string &text, EditorState &state, float line_height, float window_height)
 {
     int current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
@@ -458,7 +474,9 @@ void Editor::cursorUp(const std::string &text, EditorState &state, float line_he
         // Try to place cursor at preferred column, but don't exceed line length
         state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
 
-        state.scroll_pos.y = std::max(0.0f, state.scroll_pos.y - line_height);
+        // Update scroll position through EditorScroll
+        ImVec2 currentPos = gEditorScroll.getScrollPosition();
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, std::max(0.0f, currentPos.y - line_height)));
     }
 }
 
@@ -479,7 +497,9 @@ void Editor::cursorDown(const std::string &text, EditorState &state, float line_
         // Try to place cursor at preferred column, but don't exceed line length
         state.cursor_pos = std::min(new_line_start + state.preferred_column, new_line_end);
 
-        state.scroll_pos.y = state.scroll_pos.y + line_height;
+        // Update scroll position through EditorScroll
+        ImVec2 currentPos = gEditorScroll.getScrollPosition();
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, currentPos.y + line_height));
     }
 }
 
@@ -503,15 +523,10 @@ void Editor::moveCursorVertically(std::string &text, EditorState &state, int lin
 
 void Editor::handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width)
 {
-    float visible_start_y = ImGui::GetScrollY();
-    float visible_end_y = visible_start_y + window_height;
-    float visible_start_x = ImGui::GetScrollX();
-    float visible_end_x = visible_start_x + window_width;
-
     bool shift_pressed = ImGui::GetIO().KeyShift;
     state.current_line = gEditor.getLineFromPos(state.line_starts, state.cursor_pos);
-    // Start a new selection only if Shift is pressed and we're not already
-    // selecting
+
+    // Start a new selection only if Shift is pressed and we're not already selecting
     if (shift_pressed && !state.is_selecting) {
         state.is_selecting = true;
         state.selection_start = state.cursor_pos;
@@ -540,21 +555,8 @@ void Editor::handleCursorMovement(const std::string &text, EditorState &state, c
         state.selection_end = state.cursor_pos;
     }
 
-    // Ensure cursor stays in view after movement
-    float cursor_y = text_pos.y + (gEditor.getLineFromPos(state.line_starts, state.cursor_pos) * line_height);
-    float cursor_x = gEditor.calculateCursorXPosition(text_pos, text, state.cursor_pos);
-
-    if (cursor_y < visible_start_y) {
-        state.scroll_pos.y = cursor_y - text_pos.y;
-    } else if (cursor_y + line_height > visible_end_y) {
-        state.scroll_pos.y = cursor_y + line_height - window_height;
-    }
-
-    if (cursor_x < visible_start_x) {
-        state.scroll_x = cursor_x - text_pos.x;
-    } else if (cursor_x > visible_end_x) {
-        state.scroll_x = cursor_x - window_width + ImGui::GetFontSize();
-    }
+    // Use the EditorScroll class to handle scroll adjustments
+    gEditorScroll.handleCursorMovementScroll(text_pos, text, state, line_height, window_height, window_width);
 }
 
 // Text input handling
@@ -917,8 +919,8 @@ void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, co
     int sel_start = getSelectionStart(state);
     int sel_end = getSelectionEnd(state);
 
-    // Calculate visible range
-    float scroll_y = ImGui::GetScrollY();
+    // Calculate visible range - use gEditorScroll instead of direct access
+    float scroll_y = gEditorScroll.getScrollPosition().y;
     float window_height = ImGui::GetWindowHeight();
     int start_line = static_cast<int>(scroll_y / line_height);
     int end_line = start_line + static_cast<int>(window_height / line_height) + 1;
@@ -1389,6 +1391,7 @@ void Editor::loadTheme(const std::string &themeName)
     } else {
         // Set default colors if theme not found
         themeColors["keyword"] = ImVec4(0.0f, 0.4f, 1.0f, 1.0f);
+        themeColors["function"] = ImVec4(0.0f, 0.4f, 1.0f, 1.0f);
         themeColors["string"] = ImVec4(0.87f, 0.87f, 0.0f, 1.0f);
         themeColors["number"] = ImVec4(0.0f, 0.8f, 0.8f, 1.0f);
         themeColors["comment"] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);

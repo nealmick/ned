@@ -70,7 +70,7 @@ class Bookmarks
 
             editorState.cursor_pos = bookmarks[slot].cursorPosition;
             editorState.current_line = bookmarks[slot].lineNumber;
-            editorState.ensure_cursor_visible_frames = -1;
+            gEditorScroll.setEnsureCursorVisibleFrames(-1); // Use EditorScroll method instead
             return true;
         }
         return false;
