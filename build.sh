@@ -83,7 +83,23 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
+# Create the symbolic link for LSP support
+echo -e "${BLUE}🔗 Setting up LSP support...${NC}"
+cd ..
+if [ -f "$BUILD_DIR/compile_commands.json" ]; then
+    # Remove existing symlink if it exists
+    if [ -L "compile_commands.json" ]; then
+        rm compile_commands.json
+    fi
+    # Create new symlink
+    ln -s "$BUILD_DIR/compile_commands.json" .
+    echo -e "${GREEN}✅ LSP configuration successful!${NC}"
+else
+    echo -e "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
+fi
+
+
 echo -e "${GREEN}✅  Launching NED  🚀 ${NC}"
-./ned
+./$BUILD_DIR/ned
 
 echo -e "${GREEN}✅ Process terminated!${NC}"

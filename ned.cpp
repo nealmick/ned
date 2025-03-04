@@ -153,6 +153,7 @@ float Ned::clamp(float value, float min, float max)
         return max;
     return value;
 }
+
 ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 {
     // This is a good candidate for moving to a separate FontManager class in the future

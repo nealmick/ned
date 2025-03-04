@@ -1,3 +1,7 @@
+# LSP specific files
+compile_commands.json
+.cache/
+
 # macOS system files
 .DS_Store
 .AppleDouble
