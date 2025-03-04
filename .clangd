@@ -1,6 +1,6 @@
 CompilationDatabase: .
 Diagnostics:
-  UnusedIncludes: Strict
+  UnusedIncludes: None  # Changed from 'Strict' to avoid too many warnings
   ClangTidy:
     Remove: "*"  # Remove all clang-tidy checks
 InlayHints:
