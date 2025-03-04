@@ -68,7 +68,6 @@ class Ned
     float explorerWidth;
     float editorWidth;
     bool initialized;
-
     // Constants
     static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
     static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
