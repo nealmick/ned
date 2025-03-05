@@ -20,8 +20,10 @@
 #include <iostream>
 #include <thread>
 
-extern bool shader_toggle;
-extern bool showSidebar;
+// global scope
+Bookmarks gBookmarks;
+bool shader_toggle = false;
+bool showSidebar = true;
 
 Ned::Ned() : window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true), explorerWidth(0.0f), editorWidth(0.0f), initialized(false) {}
 
@@ -62,10 +64,6 @@ bool Ned::initialize()
 
     // Set up the scroll callback for smooth scrolling
     glfwSetWindowUserPointer(window, this);
-    glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
-        Ned *ned = static_cast<Ned *>(glfwGetWindowUserPointer(window));
-        ned->handleScrollEvent(xoffset, yoffset);
-    });
 
     initializeImGui();
     initializeResources();
@@ -155,6 +153,7 @@ float Ned::clamp(float value, float min, float max)
         return max;
     return value;
 }
+
 ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 {
     // This is a good candidate for moving to a separate FontManager class in the future
@@ -295,9 +294,6 @@ void Ned::setupImGuiFrame()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
-
-    // Apply smooth scrolling right before ImGui's NewFrame
-    // handleScrollInput();
 
     ImGui::NewFrame();
 }
@@ -674,60 +670,4 @@ void ApplySettings(ImGuiStyle &style)
 
     // Set the global font scale.
     ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
-}
-
-void Ned::handleScrollEvent(double xoffset, double yoffset)
-{
-    // Convert raw input to target velocity
-    // Use larger values for more pronounced effect
-    const float velocityScale = 15.0f;
-
-    // Add to the target velocity (where we want to go)
-    targetScrollVelocity.x += static_cast<float>(xoffset) * velocityScale;
-    targetScrollVelocity.y += static_cast<float>(yoffset) * velocityScale;
-
-    // Optional: Cap maximum velocity
-    const float maxVelocity = 50.0f;
-    if (targetScrollVelocity.x > maxVelocity)
-        targetScrollVelocity.x = maxVelocity;
-    if (targetScrollVelocity.x < -maxVelocity)
-        targetScrollVelocity.x = -maxVelocity;
-    if (targetScrollVelocity.y > maxVelocity)
-        targetScrollVelocity.y = maxVelocity;
-    if (targetScrollVelocity.y < -maxVelocity)
-        targetScrollVelocity.y = -maxVelocity;
-}
-
-void Ned::handleScrollInput()
-{
-    ImGuiIO &io = ImGui::GetIO();
-    float dt = io.DeltaTime;
-
-    // Spring physics parameters with enhanced smoothing
-    const float stiffness = 6.0f; // Reduced for smoother response (was 8.0f)
-    const float damping = 10.0f;  // Reduced for more gentle deceleration (was 12.0f)
-
-    // Friction to gradually bring target velocity to zero
-    const float friction = 5.0f; // Reduced for longer-lasting momentum (was 8.0f)
-    targetScrollVelocity.x *= exp(-friction * dt);
-    targetScrollVelocity.y *= exp(-friction * dt);
-
-    // Calculate spring force (difference between current and target velocity)
-    ImVec2 springForce;
-    springForce.x = stiffness * (targetScrollVelocity.x - currentScrollVelocity.x);
-    springForce.y = stiffness * (targetScrollVelocity.y - currentScrollVelocity.y);
-
-    // Apply spring force to current velocity
-    currentScrollVelocity.x += springForce.x * dt;
-    currentScrollVelocity.y += springForce.y * dt;
-
-    // Apply damping to current velocity
-    currentScrollVelocity.x *= exp(-damping * dt);
-    currentScrollVelocity.y *= exp(-damping * dt);
-
-    // Set ImGui scroll values based on current velocity
-    // Use smaller multiplier for more controlled scrolling speed
-    const float outputMultiplier = 0.0001f; // Reduced by half for slower scrolling
-    io.MouseWheel = currentScrollVelocity.y * outputMultiplier;
-    io.MouseWheelH = currentScrollVelocity.x * outputMultiplier;
 }

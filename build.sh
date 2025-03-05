@@ -7,6 +7,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+
+
 BUILD_DIR=".build"
 
 # Handle clean flag
@@ -26,7 +28,22 @@ cat << "EOF"
  |_| \_|______|_____/                    
 EOF
 echo -e "${NC}"
-./format.sh
+
+echo -e "${BLUE}📝 Starting code formatting...${NC}"
+
+# Count and format files
+count=$(find . \
+   \( -name "*.cpp" -o -name "*.h" \) \
+   -not -path "./lib/*" \
+   -not -path "./fonts/*" \
+   -not -path "./icons/*" \
+   -not -path "./.build/*" \
+   -not -path "./build/*" \
+   -exec clang-format -i {} \; \
+   -exec echo "." \; | wc -l)
+
+echo -e "${GREEN}✨ Formatted ${count} files ${NC}"
+
 # Build steps
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
@@ -66,7 +83,23 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
+# Create the symbolic link for LSP support
+echo -e "${BLUE}🔗 Setting up LSP support...${NC}"
+cd ..
+if [ -f "$BUILD_DIR/compile_commands.json" ]; then
+    # Remove existing symlink if it exists
+    if [ -L "compile_commands.json" ]; then
+        rm compile_commands.json
+    fi
+    # Create new symlink
+    ln -s "$BUILD_DIR/compile_commands.json" .
+    echo -e "${GREEN}✅ LSP configuration successful!${NC}"
+else
+    echo -e "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
+fi
+
+
 echo -e "${GREEN}✅  Launching NED  🚀 ${NC}"
-./ned
+./$BUILD_DIR/ned
 
 echo -e "${GREEN}✅ Process terminated!${NC}"

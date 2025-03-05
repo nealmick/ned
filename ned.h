@@ -12,6 +12,7 @@
 #include <string>
 
 #include "editor/editor.h"
+#include "editor/editor_bookmarks.h"
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader.h"
@@ -20,6 +21,7 @@
 struct GLFWwindow;
 class ImFont;
 
+// main application class
 class Ned
 {
   public:
@@ -66,7 +68,6 @@ class Ned
     float explorerWidth;
     float editorWidth;
     bool initialized;
-
     // Constants
     static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
     static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
@@ -100,12 +101,9 @@ class Ned
     // Utility functions
     ImFont *loadFont(const std::string &fontName, float fontSize);
     static float clamp(float value, float min, float max);
-
-    // Smooth scrolling variables
-    ImVec2 targetScrollVelocity = ImVec2(0.0f, 0.0f);  // Where we want to go
-    ImVec2 currentScrollVelocity = ImVec2(0.0f, 0.0f); // Where we are now
-
-    // Add a new function to handle scroll input
-    void handleScrollEvent(double xoffset, double yoffset);
-    void handleScrollInput();
 };
+
+// Global scope
+extern Bookmarks gBookmarks;
+extern bool shader_toggle;
+extern bool showSidebar;

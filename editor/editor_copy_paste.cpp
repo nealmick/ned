@@ -49,7 +49,7 @@ void EditorCopyPaste::cutSelectedText(std::string &text, std::vector<ImVec4> &co
         ImGui::SetClipboardText(selected_text.c_str());
         text.erase(start, end - start);
         colors.erase(colors.begin() + start, colors.begin() + end);
-        state.cursor_pos = start;
+        state.cursor_column = start;
         state.selection_start = state.selection_end = start;
         text_changed = true;
     }
@@ -57,9 +57,9 @@ void EditorCopyPaste::cutSelectedText(std::string &text, std::vector<ImVec4> &co
 
 void EditorCopyPaste::cutWholeLine(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
 {
-    int line = EditorUtils::GetLineFromPosition(state.line_starts, state.cursor_pos);
-    int line_start = state.line_starts[line];
-    int line_end = (line + 1 < state.line_starts.size()) ? state.line_starts[line + 1] : text.size();
+    int line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int line_start = state.editor_content_lines[line];
+    int line_end = (line + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[line + 1] : text.size();
 
     std::string line_text = text.substr(line_start, line_end - line_start);
     ImGui::SetClipboardText(line_text.c_str());
@@ -67,9 +67,9 @@ void EditorCopyPaste::cutWholeLine(std::string &text, std::vector<ImVec4> &color
     text.erase(line_start, line_end - line_start);
     colors.erase(colors.begin() + line_start, colors.begin() + line_end);
 
-    state.cursor_pos = line > 0 ? state.line_starts[line] : 0;
+    state.cursor_column = line > 0 ? state.editor_content_lines[line] : 0;
     text_changed = true;
-    gEditor.updateLineStarts(text, state.line_starts);
+    gEditor.updateLineStarts(text, state.editor_content_lines);
 }
 
 void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
@@ -78,7 +78,7 @@ void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, 
     if (clipboard_text != nullptr) {
         std::string paste_content = clipboard_text;
         if (!paste_content.empty()) {
-            int paste_start = state.cursor_pos;
+            int paste_start = state.cursor_column;
             int paste_end = paste_start + paste_content.size();
             if (state.selection_start != state.selection_end) {
                 int start = getSelectionStart(state);
@@ -89,11 +89,11 @@ void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, 
                 paste_start = start;
                 paste_end = start + paste_content.size();
             } else {
-                text.insert(state.cursor_pos, paste_content);
-                colors.insert(colors.begin() + state.cursor_pos, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                text.insert(state.cursor_column, paste_content);
+                colors.insert(colors.begin() + state.cursor_column, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             }
-            state.cursor_pos = paste_end;
-            state.selection_start = state.selection_end = state.cursor_pos;
+            state.cursor_column = paste_end;
+            state.selection_start = state.selection_end = state.cursor_column;
             text_changed = true;
 
             // Trigger syntax highlighting for the pasted content

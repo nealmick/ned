@@ -1,6 +1,6 @@
 /*
     File: editor.cpp
-    Description: Main editor logic for displaying file content, handling keybinds and more...
+    Description: Main editor coordinator that manages the text editing interface.
 */
 
 #include "editor.h"
@@ -12,7 +12,7 @@
 #include "editor_line_jump.h"
 #include "editor_line_numbers.h"
 #include "editor_mouse.h"
-#include "editor_types.h"
+#include "editor_selection.h"
 #include "editor_utils.h"
 
 #include "../files/file_finder.h"
@@ -26,9 +26,12 @@
 Editor gEditor;
 EditorState editor_state;
 
+//==============================================================================
+// Main Editor Function
+//==============================================================================
+
 bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state)
 {
-
     // Validate and resize colors if needed.
     validateAndResizeColors(text, colors);
     bool text_changed = false;
@@ -46,17 +49,18 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
 
     // Calculate dimensions for the main text editor child.
     float remaining_width = size.x - line_number_width;
-    float content_width = calculateTextWidth(text, editor_state.line_starts) + ImGui::GetFontSize() * 10.0f;
-    float content_height = editor_state.line_starts.size() * line_height;
+    float content_width = calculateTextWidth(text, editor_state.editor_content_lines) + ImGui::GetFontSize() * 10.0f;
+    float content_height = editor_state.editor_content_lines.size() * line_height;
     float current_scroll_y, current_scroll_x;
     ImVec2 text_pos;
+
     beginTextEditorChild(label, remaining_width, content_width, content_height, current_scroll_y, current_scroll_x, text_pos, editor_top_margin, text_left_margin, editor_state);
 
     // Update line starts and store initial state.
-    updateLineStarts(text, editor_state.line_starts);
-    float total_height = line_height * editor_state.line_starts.size();
+    updateLineStarts(text, editor_state.editor_content_lines);
+    float total_height = line_height * editor_state.editor_content_lines.size();
     ImVec2 text_start_pos = text_pos;
-    int initial_cursor_pos = editor_state.cursor_pos;
+    int initial_cursor_pos = editor_state.cursor_column;
 
     // Process editor input.
     processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
@@ -72,6 +76,7 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     // Apply the calculated scroll positions.
     ImGui::SetScrollY(current_scroll_y);
     ImGui::SetScrollX(current_scroll_x);
+
     // Render the main editor content (text and cursor).
     renderEditorContent(text, colors, editor_state, line_height, text_pos);
 
@@ -94,14 +99,68 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     ImGui::PopStyleVar(4);
     ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
 
-    // Use the new EditorLineNumbers class instead
-    gEditorLineNumbers.renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.line_starts.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
+    // Use the EditorLineNumbers class for line number rendering
+    gEditorLineNumbers.renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.editor_content_lines.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
 
     ImGui::PopClipRect();
     ImGui::EndGroup();
     ImGui::PopID();
     return text_changed;
 }
+
+//==============================================================================
+// Text Content Analysis
+//==============================================================================
+
+void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts)
+{
+    // Only update if the text has changed.
+    if (text == editor_state.cached_text) {
+        return;
+    }
+
+    // Update cached text and clear old caches.
+    editor_state.cached_text = text;
+    line_starts.clear();
+    editor_state.line_widths.clear();
+
+    // Compute line_starts.
+    line_starts.reserve(text.size() / 40);
+    line_starts.push_back(0);
+    size_t pos = 0;
+    while ((pos = text.find('\n', pos)) != std::string::npos) {
+        line_starts.push_back(pos + 1);
+        ++pos;
+    }
+
+    // Just compute the total width for each line (for layout calculations)
+    for (size_t i = 0; i < line_starts.size(); ++i) {
+        int start = line_starts[i];
+        int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
+        float width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
+        editor_state.line_widths.push_back(width);
+    }
+}
+
+int Editor::getLineFromPos(const std::vector<int> &line_starts, int pos)
+{
+    auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
+    return std::distance(line_starts.begin(), it) - 1;
+}
+
+float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts)
+{
+    // Assume updateLineStarts has been called so that editor_state.line_widths is up to date.
+    float max_width = 0.0f;
+    for (float width : editor_state.line_widths) {
+        max_width = std::max(max_width, width);
+    }
+    return max_width;
+}
+
+//==============================================================================
+// Main Render Pipeline
+//==============================================================================
 
 bool Editor::validateAndResizeColors(std::string &text, std::vector<ImVec4> &colors)
 {
@@ -139,7 +198,7 @@ void Editor::beginTextEditorChild(const char *label, float remaining_width, floa
     ImGui::BeginChild(label, ImVec2(remaining_width, ImGui::GetContentRegionAvail().y), false, ImGuiWindowFlags_HorizontalScrollbar);
 
     // Set keyboard focus to this child window if appropriate.
-    if (!gBookmarks.isWindowOpen() && !editor_state.blockInput) {
+    if (!gBookmarks.isWindowOpen() && !editor_state.block_input) {
         if (ImGui::IsWindowAppearing() || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive())) {
             ImGui::SetKeyboardFocusHere();
         }
@@ -158,26 +217,6 @@ void Editor::beginTextEditorChild(const char *label, float remaining_width, floa
     text_pos.x += text_left_margin;
 }
 
-void Editor::processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos)
-{
-    if (!editor_state.blockInput) {
-        handleEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible);
-    } else {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-
-    if (gEditorScroll.getEnsureCursorVisibleFrames() > 0) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-        gEditorScroll.decrementEnsureCursorVisibleFrames();
-    }
-
-    if (editor_state.cursor_pos != initial_cursor_pos) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-}
 void Editor::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos)
 {
     gLineJump.handleLineJumpInput(editor_state);
@@ -187,10 +226,10 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
     renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 
     // Compute the cursor's line by finding which line the cursor is on
-    int cursor_line = getLineFromPos(editor_state.line_starts, editor_state.cursor_pos);
+    int cursor_line = getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_column);
 
     // Calculate cursor x position character-by-character using EditorCursor
-    float cursor_x = gEditorCursor.calculateCursorXPosition(text_pos, text, editor_state.cursor_pos);
+    float cursor_x = gEditorCursor.calculateCursorXPosition(text_pos, text, editor_state.cursor_column);
 
     ImVec2 cursor_screen_pos = text_pos;
     cursor_screen_pos.x = cursor_x;
@@ -200,122 +239,11 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
     gEditorCursor.renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
-void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts)
-{
-    // Only update if the text has changed.
-    if (text == editor_state.cached_text) {
-        return;
-    }
-
-    // Update cached text and clear old caches.
-    editor_state.cached_text = text;
-    line_starts.clear();
-    editor_state.line_widths.clear();
-
-    // Remove the cached cumulative widths completely
-    editor_state.cachedLineCumulativeWidths.clear();
-
-    // Compute line_starts.
-    line_starts.reserve(text.size() / 40);
-    line_starts.push_back(0);
-    size_t pos = 0;
-    while ((pos = text.find('\n', pos)) != std::string::npos) {
-        line_starts.push_back(pos + 1);
-        ++pos;
-    }
-
-    // Just compute the total width for each line (for layout calculations)
-    for (size_t i = 0; i < line_starts.size(); ++i) {
-        int start = line_starts[i];
-        int end = (i + 1 < line_starts.size()) ? line_starts[i + 1] - 1 : text.size();
-        float width = ImGui::CalcTextSize(text.c_str() + start, text.c_str() + end).x;
-        editor_state.line_widths.push_back(width);
-    }
-}
-
-int Editor::getLineFromPos(const std::vector<int> &line_starts, int pos)
-{
-    auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
-    return std::distance(line_starts.begin(), it) - 1;
-}
-
-// Selection and cursor movement functions
-void Editor::startSelection(EditorState &state)
-{
-    state.is_selecting = true;
-    state.selection_start = state.cursor_pos;
-    state.selection_end = state.cursor_pos;
-}
-
-void Editor::updateSelection(EditorState &state)
-{
-    if (state.is_selecting) {
-        state.selection_end = state.cursor_pos;
-    }
-}
-
-void Editor::endSelection(EditorState &state) { state.is_selecting = false; }
-
-int Editor::getSelectionStart(const EditorState &state) { return std::min(state.selection_start, state.selection_end); }
-
-int Editor::getSelectionEnd(const EditorState &state) { return std::max(state.selection_start, state.selection_end); }
-
-void Editor::selectAllText(EditorState &state, const std::string &text)
-{
-    const size_t MAX_SELECTION_SIZE = 100000; // Adjust this value as needed
-    state.is_selecting = true;
-    state.selection_start = 0;
-    state.cursor_pos = std::min(text.size(), MAX_SELECTION_SIZE);
-    state.selection_end = state.cursor_pos;
-}
-
-void Editor::handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
-{
-    int input_start = state.cursor_pos;
-    int input_end = state.cursor_pos;
-
-    // Handle selection deletion only for Enter key
-    if (state.selection_start != state.selection_end && ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-        int start = gEditor.getSelectionStart(state);
-        int end = gEditor.getSelectionEnd(state);
-        text.erase(start, end - start);
-        colors.erase(colors.begin() + start, colors.begin() + end);
-        state.cursor_pos = start;
-        state.selection_start = state.selection_end = start;
-        text_changed = true;
-        input_start = input_end = start;
-    }
-
-    gEditorKeyboard.handleCharacterInput(text, colors, state, text_changed, input_start, input_end);
-    gEditorKeyboard.handleEnterKey(text, colors, state, text_changed, input_end);
-    gEditorKeyboard.handleBackspaceKey(text, colors, state, text_changed, input_start);
-    gEditorKeyboard.handleDeleteKey(text, colors, state, text_changed, input_end);
-    gEditorIndentation.handleTabKey(text, colors, state, text_changed, input_end);
-
-    if (text_changed) {
-        // Get the start of the line where the change began
-        int line_start = state.line_starts[gEditor.getLineFromPos(state.line_starts, input_start)];
-
-        // Get the end of the line where the change ended (or the end of
-        // the text if it's the last line)
-        int line_end = input_end < text.size() ? state.line_starts[gEditor.getLineFromPos(state.line_starts, input_end)] : text.size();
-
-        // Update syntax highlighting only for the affected lines
-        gEditorHighlight.highlightContent(text, colors, line_start, line_end);
-
-        // Update line starts
-        gEditor.updateLineStarts(text, state.line_starts);
-
-        // Add undo state with change range
-        gFileExplorer.addUndoState(line_start, line_end);
-    }
-}
-
 void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
 {
     ImVec2 text_pos = pos;
-    int sel_start = getSelectionStart(state);
-    int sel_end = getSelectionEnd(state);
+    int sel_start = gEditorSelection.getSelectionStart(state);
+    int sel_end = gEditorSelection.getSelectionEnd(state);
 
     // Calculate visible range - use gEditorScroll instead of direct access
     float scroll_y = gEditorScroll.getScrollPosition().y;
@@ -368,73 +296,31 @@ void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, co
     }
 }
 
-float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts)
-{
-    // Assume updateLineStarts has been called so that editor_state.line_widths is up to date.
-    float max_width = 0.0f;
-    for (float width : editor_state.line_widths) {
-        max_width = std::max(max_width, width);
-    }
-    return max_width;
-}
+//==============================================================================
+// Input Handling
+//==============================================================================
 
-void Editor::processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible)
+void Editor::processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
-        float currentSize = gSettings.getFontSize();
-        gSettings.setFontSize(currentSize + 2.0f);
+    if (!editor_state.block_input) {
+        handleEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible);
+    } else {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
-    } else if (ImGui::IsKeyPressed(ImGuiKey_Minus)) { // '-' key
-        float currentSize = gSettings.getFontSize();
-        gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
+    }
+
+    if (gEditorScroll.getEnsureCursorVisibleFrames() > 0) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
-        std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
+        gEditorScroll.decrementEnsureCursorVisibleFrames();
+    }
+
+    if (editor_state.cursor_column != initial_cursor_pos) {
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
     }
 }
 
-void Editor::processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_A)) {
-        selectAllText(state, text);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl+A: Selected all text" << std::endl;
-    }
-}
-
-void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
-        std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl << ", Shift: " << shift_pressed << std::endl;
-        int oldCursorPos = state.cursor_pos;
-        int oldLine = getLineFromPos(state.line_starts, oldCursorPos);
-        int oldColumn = oldCursorPos - state.line_starts[oldLine];
-        if (shift_pressed) {
-            std::cout << "Attempting Redo" << std::endl;
-            gFileExplorer.handleRedo();
-        } else {
-            std::cout << "Attempting Undo" << std::endl;
-            gFileExplorer.handleUndo();
-        }
-        // Update text and colors
-        text = gFileExplorer.getFileContent();
-        colors = gFileExplorer.getFileColors();
-        updateLineStarts(text, state.line_starts);
-        int newLine = std::min(oldLine, static_cast<int>(state.line_starts.size()) - 1);
-        int lineStart = state.line_starts[newLine];
-        int lineEnd = (newLine + 1 < state.line_starts.size()) ? state.line_starts[newLine + 1] - 1 : text.size();
-        int lineLength = lineEnd - lineStart;
-        state.cursor_pos = lineStart + std::min(oldColumn, lineLength);
-        state.selection_start = state.selection_end = state.cursor_pos;
-        text_changed = true;
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-        gFileExplorer.currentUndoManager->printStacks();
-    }
-}
 void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible)
 {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
@@ -444,17 +330,17 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     if (gFileFinder.isWindowOpen()) {
         return;
     }
+
     // Process bookmarks first
     gBookmarks.handleBookmarkInput(gFileExplorer, state);
 
-    if (ImGui::IsWindowFocused() && !state.blockInput) {
-        // Process Shift+Tab for indentation removal. If handled, exit
-        // early.
+    if (ImGui::IsWindowFocused() && !state.block_input) {
+        // Process Shift+Tab for indentation removal. If handled, exit early.
         if (gEditorIndentation.processIndentRemoval(text, state, text_changed, ensure_cursor_visible))
             return;
 
         if (ctrl_pressed) {
-            processFontSizeAdjustment(ensure_cursor_visible);
+            gEditorKeyboard.processFontSizeAdjustment(ensure_cursor_visible);
             processSelectAll(text, state, ensure_cursor_visible);
             processUndoRedo(text, colors, state, text_changed, ensure_cursor_visible, shift_pressed);
             gEditorCursor.processWordMovement(text, state, ensure_cursor_visible, shift_pressed);
@@ -478,7 +364,8 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     float window_width = ImGui::GetWindowWidth();
     gEditorCursor.handleCursorMovement(text, state, text_start_pos, line_height, window_height, window_width);
 
-    handleTextInput(text, colors, state, text_changed);
+    // Call the refactored method in EditorKeyboard
+    gEditorKeyboard.handleTextInput(text, colors, state, text_changed);
 
     if (ImGui::IsWindowFocused() && ctrl_pressed)
         gEditorCopyPaste.processClipboardShortcuts(text, colors, state, text_changed, ensure_cursor_visible);
@@ -487,5 +374,56 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
     if (text_changed) {
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
+    }
+}
+
+//==============================================================================
+// Editor Commands
+//==============================================================================
+
+void Editor::processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
+{
+    if (ImGui::IsKeyPressed(ImGuiKey_A)) {
+        gEditorSelection.selectAllText(state, text);
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
+        std::cout << "Ctrl+A: Selected all text" << std::endl;
+    }
+}
+
+void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
+{
+    if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
+        std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl << ", Shift: " << shift_pressed << std::endl;
+
+        int oldCursorPos = state.cursor_column;
+        int oldLine = getLineFromPos(state.editor_content_lines, oldCursorPos);
+        int oldColumn = oldCursorPos - state.editor_content_lines[oldLine];
+
+        if (shift_pressed) {
+            std::cout << "Attempting Redo" << std::endl;
+            gFileExplorer.handleRedo();
+        } else {
+            std::cout << "Attempting Undo" << std::endl;
+            gFileExplorer.handleUndo();
+        }
+
+        // Update text and colors
+        text = gFileExplorer.getFileContent();
+        colors = gFileExplorer.getFileColors();
+        updateLineStarts(text, state.editor_content_lines);
+
+        int newLine = std::min(oldLine, static_cast<int>(state.editor_content_lines.size()) - 1);
+        int lineStart = state.editor_content_lines[newLine];
+        int lineEnd = (newLine + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[newLine + 1] - 1 : text.size();
+        int lineLength = lineEnd - lineStart;
+
+        state.cursor_column = lineStart + std::min(oldColumn, lineLength);
+        state.selection_start = state.selection_end = state.cursor_column;
+        text_changed = true;
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
+
+        gFileExplorer.currentUndoManager->printStacks();
     }
 }

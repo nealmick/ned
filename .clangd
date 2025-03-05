@@ -1,0 +1,13 @@
+CompilationDatabase: .
+Diagnostics:
+  UnusedIncludes: None  # Changed from 'Strict' to avoid too many warnings
+  ClangTidy:
+    Remove: "*"  # Remove all clang-tidy checks
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+Hover:
+  ShowAKA: Yes
+Index:
+  Background: Build

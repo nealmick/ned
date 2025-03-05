@@ -85,7 +85,7 @@ void EditorScroll::updateScrollAnimation(EditorState &state, float &current_scro
 
 void EditorScroll::processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x, EditorState &editor_state)
 {
-    if (ImGui::IsWindowHovered() && !editor_state.blockInput) {
+    if (ImGui::IsWindowHovered() && !editor_state.block_input) {
         float wheel_y = ImGui::GetIO().MouseWheel;
         float wheel_x = ImGui::GetIO().MouseWheelH;
 
@@ -151,9 +151,9 @@ ScrollChange EditorScroll::ensureCursorVisible(const ImVec2 &text_pos, const std
     float viewport_height = window_height;
 
     // Calculate cursor position
-    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
+    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column);
     // Use our own getLineFromPosition to avoid circular dependency
-    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
     float abs_cursor_y = text_pos.y + cursor_line * line_height;
 
     // Calculate cursor position relative to viewport
@@ -275,9 +275,9 @@ void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std:
 
     // Get cursor position
     // Use our own method for getting line from position
-    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
     float cursor_y = text_pos.y + (cursor_line * line_height);
-    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos);
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column);
 
     // Handle vertical scrolling
     if (cursor_y < visible_start_y) {
@@ -296,7 +296,7 @@ void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std:
 
 void EditorScroll::scrollToLine(EditorState &state, int lineNumber, float line_height)
 {
-    if (lineNumber < 0 || lineNumber >= state.line_starts.size()) {
+    if (lineNumber < 0 || lineNumber >= state.editor_content_lines.size()) {
         return; // Invalid line number
     }
 
@@ -314,7 +314,7 @@ void EditorScroll::scrollToCharacter(EditorState &state, int charIndex, const Im
     }
 
     // Find the line for this character
-    int line = getLineFromPosition(state.line_starts, charIndex);
+    int line = getLineFromPosition(state.editor_content_lines, charIndex);
 
     // Calculate position
     float charX = calculateCursorXPosition(text_pos, text, charIndex);
@@ -326,10 +326,10 @@ void EditorScroll::scrollToCharacter(EditorState &state, int charIndex, const Im
 
 void EditorScroll::centerOnCursor(EditorState &state, const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width)
 {
-    int cursor_line = getLineFromPosition(state.line_starts, state.cursor_pos);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
 
     // Calculate the cursor position
-    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_pos) - text_pos.x;
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column) - text_pos.x;
     float cursor_y = cursor_line * line_height;
 
     // Calculate centered scroll positions

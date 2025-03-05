@@ -36,7 +36,7 @@ void EditorLineNumbers::renderLineNumbers(const ImVec2 &pos, float line_number_w
         snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
 
         // Determine color based on selection and current line
-        ImU32 line_number_color = determineLineNumberColor(i, editor_state.current_line, selection_start_line, selection_end_line, editor_state.is_selecting, rainbow_mode, rainbow_color);
+        ImU32 line_number_color = determineLineNumberColor(i, editor_state.cursor_row, selection_start_line, selection_end_line, editor_state.selection_active, rainbow_mode, rainbow_color);
 
         // Calculate position for right-aligned text
         float text_width = ImGui::CalcTextSize(line_number_buffer).x;
@@ -104,7 +104,7 @@ void EditorLineNumbers::calculateSelectionLines(const EditorState &editor_state,
     int selection_end = std::max(editor_state.selection_start, editor_state.selection_end);
 
     // Convert character positions to line indices
-    selection_start_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_start) - editor_state.line_starts.begin();
+    selection_start_line = std::lower_bound(editor_state.editor_content_lines.begin(), editor_state.editor_content_lines.end(), selection_start) - editor_state.editor_content_lines.begin();
 
-    selection_end_line = std::lower_bound(editor_state.line_starts.begin(), editor_state.line_starts.end(), selection_end) - editor_state.line_starts.begin();
+    selection_end_line = std::lower_bound(editor_state.editor_content_lines.begin(), editor_state.editor_content_lines.end(), selection_end) - editor_state.editor_content_lines.begin();
 }
