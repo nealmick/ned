@@ -107,6 +107,7 @@ add_executable(ned
     editor/editor_highlight.cpp
     editor/editor_mouse.cpp
     editor/editor_keyboard.cpp
+    editor/editor_selection.cpp
 
     editor/editor_types.h
     editor/editor_utils.h

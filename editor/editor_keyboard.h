@@ -1,4 +1,5 @@
 #pragma once
+#include "editor_cursor.h"
 #include "editor_types.h"
 #include "imgui.h"
 #include <string>
@@ -19,6 +20,9 @@ class EditorKeyboard
     void handleEnterKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
     void handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
     void handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_start);
+
+    void handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
+    void processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible);
 };
 
 // Global instance

@@ -42,7 +42,7 @@ class LineJump
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 ImGui::SetKeyboardFocusHere();
             }
-            state.blockInput = showLineJumpWindow;
+            state.block_input = showLineJumpWindow;
         }
     }
 
@@ -52,7 +52,7 @@ class LineJump
             return;
 
         ImGui::GetIO().WantTextInput = true;
-        state.blockInput = true;
+        state.block_input = true;
 
         // Push custom styles for the window
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);  // Add rounded corners
@@ -107,7 +107,7 @@ class LineJump
                 int lineNumber = std::atoi(lineNumberBuffer);
                 jumpToLine(lineNumber - 1, state);
                 showLineJumpWindow = false;
-                state.blockInput = false;
+                state.block_input = false;
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 justJumped = true;
                 ImGui::GetIO().ClearInputCharacters();
@@ -120,7 +120,7 @@ class LineJump
 
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
                 showLineJumpWindow = false;
-                state.blockInput = false;
+                state.block_input = false;
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
             }
 
@@ -138,16 +138,16 @@ class LineJump
     {
         if (lineNumber < 0)
             lineNumber = 0;
-        if (lineNumber >= static_cast<int>(state.line_starts.size())) {
-            lineNumber = static_cast<int>(state.line_starts.size()) - 1;
+        if (lineNumber >= static_cast<int>(state.editor_content_lines.size())) {
+            lineNumber = static_cast<int>(state.editor_content_lines.size()) - 1;
         }
 
         // Set cursor to the beginning of the requested line
-        state.cursor_pos = state.line_starts[lineNumber];
-        state.selection_start = state.cursor_pos;
-        state.selection_end = state.cursor_pos;
-        state.current_line = lineNumber;
-        state.is_selecting = false;
+        state.cursor_column = state.editor_content_lines[lineNumber];
+        state.selection_start = state.cursor_column;
+        state.selection_end = state.cursor_column;
+        state.cursor_row = lineNumber;
+        state.selection_active = false;
 
         // Calculate the target scroll position
         float line_height = ImGui::GetTextLineHeight();

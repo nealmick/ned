@@ -20,7 +20,7 @@ class FileContentSearch
     // Getters/Setters
     void setContent(const std::string &content) { fileContent = content; }
     void setEditorState(EditorState &state) { editor_state = &state; }
-    bool isFindBoxActive() const { return editor_state ? editor_state->activateFindBox : false; }
+    bool isFindBoxActive() const { return editor_state ? editor_state->active_find_box : false; }
 
   private:
     // Core members

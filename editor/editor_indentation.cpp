@@ -33,7 +33,7 @@ int EditorIndentation::findLineEnd(const std::string &text, int position, size_t
 void EditorIndentation::handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
 {
     if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-        if (state.is_selecting) {
+        if (state.selection_active) {
             handleMultiLineIndentation(text, colors, state, input_end);
         } else {
             handleSingleLineIndentation(text, colors, state, input_end);
@@ -71,7 +71,7 @@ void EditorIndentation::handleMultiLineIndentation(std::string &text, std::vecto
     }
 
     // Adjust cursor and selection positions
-    state.cursor_pos += (state.cursor_pos >= start) ? tabsInserted : 0;
+    state.cursor_column += (state.cursor_column >= start) ? tabsInserted : 0;
     state.selection_start += (state.selection_start > start) ? tabsInserted : 0;
     state.selection_end += tabsInserted;
 
@@ -81,18 +81,18 @@ void EditorIndentation::handleMultiLineIndentation(std::string &text, std::vecto
 void EditorIndentation::handleSingleLineIndentation(std::string &text, std::vector<ImVec4> &colors, EditorState &state, int &input_end)
 {
     // Insert a single tab character at cursor position
-    text.insert(state.cursor_pos, 1, '\t');
-    colors.insert(colors.begin() + state.cursor_pos, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    state.cursor_pos++;
-    state.selection_start = state.selection_end = state.cursor_pos;
-    input_end = state.cursor_pos;
+    text.insert(state.cursor_column, 1, '\t');
+    colors.insert(colors.begin() + state.cursor_column, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    state.cursor_column++;
+    state.selection_start = state.selection_end = state.cursor_column;
+    input_end = state.cursor_column;
 }
 
 void EditorIndentation::finishIndentationChange(std::string &text, std::vector<ImVec4> &colors, EditorState &state, int &input_end, bool &text_changed)
 {
     // Mark text as changed and update
     text_changed = true;
-    gEditor.updateLineStarts(text, state.line_starts);
+    gEditor.updateLineStarts(text, state.editor_content_lines);
     gFileExplorer.setUnsavedChanges(true);
 
     // Trigger syntax highlighting for the affected area
@@ -117,12 +117,12 @@ void EditorIndentation::removeIndentation(std::string &text, EditorState &state)
 {
     // Determine the range to process
     int start, end;
-    if (state.is_selecting) {
+    if (state.selection_active) {
         start = getSelectionStart(state);
         end = getSelectionEnd(state);
     } else {
         // If no selection, work on the current line
-        start = end = state.cursor_pos;
+        start = end = state.cursor_column;
     }
 
     // Find the start of the first line
@@ -185,14 +185,14 @@ void EditorIndentation::updateStateAfterIndentRemoval(std::string &text, EditorS
     text = std::move(newText);
 
     // Adjust cursor position
-    state.cursor_pos = std::max(state.cursor_pos - totalSpacesRemoved, firstLineStart);
+    state.cursor_column = std::max(state.cursor_column - totalSpacesRemoved, firstLineStart);
 
     // Adjust selection if one exists
-    if (state.is_selecting) {
+    if (state.selection_active) {
         state.selection_start = std::max(state.selection_start - totalSpacesRemoved, firstLineStart);
         state.selection_end = std::max(state.selection_end - totalSpacesRemoved, firstLineStart);
     } else {
-        state.selection_start = state.selection_end = state.cursor_pos;
+        state.selection_start = state.selection_end = state.cursor_column;
     }
 }
 
@@ -204,7 +204,7 @@ void EditorIndentation::updateColorsAfterIndentRemoval(std::string &text, Editor
     colors.insert(colors.begin() + firstLineStart, lastLineEnd - firstLineStart - totalSpacesRemoved, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
 
     // Update line starts
-    gEditor.updateLineStarts(text, state.line_starts);
+    gEditor.updateLineStarts(text, state.editor_content_lines);
 
     // Mark text as changed
     gFileExplorer.setUnsavedChanges(true);
