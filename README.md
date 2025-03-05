@@ -31,7 +31,7 @@ git submodule init
 git submodule update
 
 #Mac OS
-brew install cmake glfw glew pkg-config
+brew install clang-format cmake llvm glfw glew pkg-config
 
 #Ubuntu may require patching certain logic, for the best experience use mac
 sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential
@@ -39,7 +39,6 @@ sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-es
 
 Building the Project
 ```sh
-
 ./build.sh
 
 ```
