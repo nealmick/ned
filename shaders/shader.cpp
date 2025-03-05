@@ -134,6 +134,7 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 
     return true;
 }
+
 void Shader::useShader()
 {
     glUseProgram(shaderProgram);
