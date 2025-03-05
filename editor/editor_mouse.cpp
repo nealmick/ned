@@ -11,11 +11,11 @@ EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1) {}
 void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height)
 {
     ImVec2 mouse_pos = ImGui::GetMousePos();
-    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.line_starts, line_height);
+    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.editor_content_lines, line_height);
 
     // Handle click
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        handleMouseClick(state, char_index, state.line_starts);
+        handleMouseClick(state, char_index, state.editor_content_lines);
     }
     // Handle drag
     else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
@@ -32,23 +32,23 @@ void EditorMouse::handleMouseClick(EditorState &state, int char_index, const std
     if (ImGui::GetIO().KeyShift) {
         // If shift is held and we're not already selecting, set the anchor to the current
         // cursor position.
-        if (!state.is_selecting) {
-            anchor_pos = state.cursor_pos;
+        if (!state.selection_active) {
+            anchor_pos = state.cursor_column;
             state.selection_start = anchor_pos;
-            state.is_selecting = true;
+            state.selection_active = true;
         }
         // Update the selection end based on the new click.
         state.selection_end = char_index;
-        state.cursor_pos = char_index;
+        state.cursor_column = char_index;
     } else {
         // On a regular click (without shift), reset the selection and update the anchor.
-        state.cursor_pos = char_index;
+        state.cursor_column = char_index;
         anchor_pos = char_index;
         state.selection_start = char_index;
         state.selection_end = char_index;
-        state.is_selecting = false;
-        int current_line = gEditor.getLineFromPos(line_starts, state.cursor_pos);
-        state.preferred_column = state.cursor_pos - line_starts[current_line];
+        state.selection_active = false;
+        int current_line = gEditor.getLineFromPos(line_starts, state.cursor_column);
+        state.cursor_column_prefered = state.cursor_column - line_starts[current_line];
     }
     is_dragging = true;
 }
@@ -58,20 +58,20 @@ void EditorMouse::handleMouseDrag(EditorState &state, int char_index)
     if (ImGui::GetIO().KeyShift) {
         // If shift is held, use the existing anchor for updating selection.
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_pos;
+            anchor_pos = state.cursor_column;
             state.selection_start = anchor_pos;
         }
         state.selection_end = char_index;
-        state.cursor_pos = char_index;
+        state.cursor_column = char_index;
     } else {
         // Normal drag selection without shift: use the initial click as the anchor.
-        state.is_selecting = true;
+        state.selection_active = true;
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_pos;
+            anchor_pos = state.cursor_column;
         }
         state.selection_start = anchor_pos;
         state.selection_end = char_index;
-        state.cursor_pos = char_index;
+        state.cursor_column = char_index;
     }
 }
 

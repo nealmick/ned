@@ -21,7 +21,7 @@ void FileContentSearch::findNext(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_pos;
+        startPos = editor_state->cursor_column;
     } else {
         startPos = lastFoundPos + 1;
     }
@@ -57,10 +57,10 @@ void FileContentSearch::findNext(bool ignoreCase)
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_pos = foundPos;
+        editor_state->cursor_column = foundPos;
         editor_state->selection_start = foundPos;
         editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_pos << std::endl;
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_column << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }
@@ -73,7 +73,7 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_pos;
+        startPos = editor_state->cursor_column;
     } else {
         startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
     }
@@ -106,10 +106,10 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_pos = foundPos;
+        editor_state->cursor_column = foundPos;
         editor_state->selection_start = foundPos;
         editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_pos << std::endl;
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_column << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }
@@ -121,22 +121,22 @@ void FileContentSearch::handleFindBoxActivation()
     // If Cmd+F is pressed, activate the find box (do not toggle off here)
     if ((io.KeyCtrl || io.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_F)) {
         ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
-        editor_state->activateFindBox = true;
-        editor_state->blockInput = true;
+        editor_state->active_find_box = true;
+        editor_state->block_input = true;
         findText = "";
         findBoxShouldFocus = true; // force focus on activation
     }
     // If Escape is pressed, deactivate the find box.
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state->activateFindBox = false;
-        editor_state->blockInput = false;
+        editor_state->active_find_box = false;
+        editor_state->block_input = false;
     }
 }
 
 void FileContentSearch::renderFindBox()
 {
     // Only render if the find box is active.
-    if (!editor_state->activateFindBox)
+    if (!editor_state->active_find_box)
         return;
 
     // Reserve ~70% of available width for the input field.
@@ -205,7 +205,7 @@ void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state->activateFindBox = false;
-        editor_state->blockInput = false;
+        editor_state->active_find_box = false;
+        editor_state->block_input = false;
     }
 }

@@ -147,8 +147,8 @@ void FileExplorer::refreshSyntaxHighlighting()
 
 void FileExplorer::resetEditorState()
 {
-    editor_state.cursor_pos = 0;
-    editor_state.current_line = 0;
+    editor_state.cursor_column = 0;
+    editor_state.cursor_row = 0;
     gEditorHighlight.cancelHighlighting();
 }
 
@@ -333,7 +333,7 @@ void FileExplorer::renderEditor(bool &text_changed)
 {
     text_changed = gEditor.textEditor("##editor", fileContent, fileColors, editor_state);
 
-    if (text_changed && !editor_state.activateFindBox) {
+    if (text_changed && !editor_state.active_find_box) {
         setUnsavedChanges(true);
     }
 }
