@@ -13,9 +13,24 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 
 # Explicitly set GLEW paths
-set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
-set(GLEW_LIBRARY_DIRS "/usr/local/Cellar/glew/2.2.0_1/lib")
-set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
+# Find GLEW properly
+if(APPLE)
+  # Check if we're on Apple Silicon (M-series) or Intel
+  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(${ARCH} STREQUAL "arm64")
+    # M-series Mac
+    set(GLEW_INCLUDE_DIRS "/opt/homebrew/Cellar/glew/2.2.0_1/include")
+    set(GLEW_LIBRARIES "/opt/homebrew/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
+  else()
+    # Intel Mac
+    set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
+    set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
+  endif()
+else()
+  # For non-Apple systems, use find_package
+  find_package(GLEW REQUIRED)
+endif()
+
 
 if(APPLE)
     add_definitions(-DGL_SILENCE_DEPRECATION)
