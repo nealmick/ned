@@ -29,8 +29,6 @@ jobs:
     - name: Package
       run: |
         ./pack.sh
-        # Add code signing
-        codesign --force --deep --sign - Ned.app
         mv Ned.dmg Ned-macOS-$(git rev-parse --short HEAD).dmg
         
     - name: Upload DMG
