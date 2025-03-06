@@ -156,12 +156,16 @@ float Ned::clamp(float value, float min, float max)
 
 ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 {
-    // This is a good candidate for moving to a separate FontManager class in the future
     ImGuiIO &io = ImGui::GetIO();
-    std::string fontPath = "fonts/" + fontName + ".ttf";
+
+    // Build the path from .app/Contents/Resources/fonts/
+    std::string resourcePath = Settings::getAppResourcesPath();
+    std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
+    // Always print the path, before existence check
+    std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size " << fontSize << std::endl;
 
     if (!std::filesystem::exists(fontPath)) {
-        std::cerr << "Font file does not exist: " << fontPath << std::endl;
+        std::cerr << "[Ned::loadFont] Font does not exist: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
@@ -178,25 +182,36 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
         0xE000, 0xE0FF, // Private Use Area
         0,
     };
-
     ImFontConfig config_main;
     config_main.MergeMode = false;
     config_main.GlyphRanges = ranges;
 
+    // Clear existing fonts if you want a single font each time, or
+    // if you want to stack multiple fonts, you might skip clearing.
+    io.Fonts->Clear();
+
     ImFont *font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config_main, ranges);
 
-    // Merge DejaVu Sans for Braille
+    // Merge DejaVu Sans for Braille, etc. if you want
     ImFontConfig config_braille;
     config_braille.MergeMode = true;
     static const ImWchar braille_ranges[] = {0x2800, 0x28FF, 0};
-    io.Fonts->AddFontFromFileTTF("fonts/DejaVuSans.ttf", fontSize, &config_braille, braille_ranges);
+    std::string dejaVuPath = resourcePath + "/fonts/DejaVuSans.ttf";
+    if (std::filesystem::exists(dejaVuPath)) {
+        io.Fonts->AddFontFromFileTTF(dejaVuPath.c_str(), fontSize, &config_braille, braille_ranges);
+    }
 
     if (!font) {
-        std::cerr << "Failed to load font: " << fontName << std::endl;
+        std::cerr << "[Ned::loadFont] Failed to load font: " << fontPath << std::endl;
         return io.Fonts->AddFontDefault();
     }
 
-    std::cout << "\033[32mNed:\033[0m Successfully loaded font: " << fontName << std::endl;
+    // After adding new fonts, re-create the OpenGL font texture
+    ImGui_ImplOpenGL3_DestroyFontsTexture();
+    ImGui_ImplOpenGL3_CreateFontsTexture();
+
+    std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath << " at size " << fontSize << std::endl;
+
     return font;
 }
 
