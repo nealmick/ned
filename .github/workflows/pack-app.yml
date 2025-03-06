@@ -13,26 +13,27 @@ jobs:
       CI: true
     
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
         
-    - name: Install dependencies
-      run: |
-        brew update
-        brew install clang-format cmake llvm glfw glew pkg-config
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install clang-format cmake llvm glfw glew pkg-config
     
-    - name: Build
-      run: |
-        ./build.sh
+      - name: Build
+        run: |
+          ./build.sh
         
-    - name: Package
-      run: |
-        ./pack.sh
-        mv Ned.dmg Ned-macOS-$(git rev-parse --short HEAD).dmg
+      - name: Package
+        run: |
+          ./pack.sh
+          # Rename or move the zip if desired, for example:
+          mv Ned.zip Ned-macOS-$(git rev-parse --short HEAD).zip
         
-    - name: Upload DMG
-      uses: actions/upload-artifact@v4
-      with:
-        name: Ned-macOS
-        path: Ned-macOS-*.dmg
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-macOS
+          path: Ned-macOS-*.zip

@@ -29,6 +29,7 @@ CONTENTS="$APP_BUNDLE/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 FRAMEWORKS="$CONTENTS/Frameworks"
+
 # Create directory structure
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES"
@@ -40,8 +41,6 @@ cp -r fonts "$RESOURCES/"
 cp -r icons "$RESOURCES/"
 cp -r shaders "$RESOURCES/"
 cp .ned.json "$RESOURCES/"
-
-
 
 echo "Adding app icon..."
 cp -r icons/ned.icns "$RESOURCES/ned.icns"
@@ -77,7 +76,6 @@ EOF
 # Copy required libraries - with error handling
 echo "Copying libraries..."
 
-# Function to safely copy libraries with error handling
 copy_lib() {
     local source="$1"
     local dest="$2"
@@ -87,14 +85,13 @@ copy_lib() {
         echo "✅ Copied: $source"
     else
         echo "⚠️  Warning: Could not find $source"
-        # Try alternative locations
-        local lib_name=$(basename "$source")
+        local lib_name
+        lib_name=$(basename "$source")
         local alt_paths=(
             "$HOMEBREW_PREFIX/lib/$lib_name"
             "/usr/local/lib/$lib_name"
             "/usr/lib/$lib_name"
         )
-        
         for alt_path in "${alt_paths[@]}"; do
             if [ -f "$alt_path" ]; then
                 cp "$alt_path" "$dest"
@@ -115,24 +112,26 @@ GLFW_LIB="$HOMEBREW_PREFIX/Cellar/glfw/3.3.9/lib/libglfw.3.dylib"
 copy_lib "$GLFW_LIB" "$FRAMEWORKS/"
 
 echo "Fixing library paths..."
-# Use install_name_tool to update dynamic library paths in the executable
 install_name_tool -change "@rpath/libGLEW.dylib" "@executable_path/../Frameworks/libGLEW.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
 install_name_tool -change "@rpath/libglfw.3.dylib" "@executable_path/../Frameworks/libglfw.3.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
 
-#sign app
+# Sign the libs
 echo "Signing libraries..."
 for lib in "$FRAMEWORKS"/*.dylib; do
     codesign --force --sign - "$lib"
 done
 
+# Sign the main executable
 echo "Signing executable..."
 codesign --force --sign - "$MACOS/$APP_NAME"
 
+# Sign the entire .app
 echo "Signing app bundle..."
 codesign --force --deep --sign - "$APP_BUNDLE"
 
-# Create DMG
-echo "Creating DMG..."
-hdiutil create -volname "$APP_NAME" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$APP_NAME.dmg"
+# Instead of creating a DMG, create a ZIP
+echo "Creating ZIP archive of the .app..."
+ZIP_NAME="$APP_NAME.zip"
+zip -r "$ZIP_NAME" "$APP_BUNDLE"
 
-echo -e "${GREEN}✅ Package created: $APP_NAME.dmg${NC}"
+echo -e "${GREEN}✅ Package created: $ZIP_NAME${NC}"
