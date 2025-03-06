@@ -1,3 +1,10 @@
+# macOS app bundle and installer
+*.app
+*.dmg
+Ned.app
+Ned.dmg
+
+
 # LSP specific files
 compile_commands.json
 .cache/

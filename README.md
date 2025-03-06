@@ -30,10 +30,10 @@ cd ned
 git submodule init
 git submodule update
 
-#Mac OS
+#Mac OS Intel and ARM
 brew install clang-format cmake llvm glfw glew pkg-config
 
-#Ubuntu may require patching certain logic, for the best experience use mac
+#Ubuntu may require patching logic
 sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential
 ```
 
