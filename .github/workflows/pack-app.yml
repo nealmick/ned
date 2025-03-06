@@ -19,7 +19,6 @@ jobs:
         
       - name: Install dependencies
         run: |
-          brew update
           brew install clang-format cmake llvm glfw glew pkg-config
     
       - name: Build

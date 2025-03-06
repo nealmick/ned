@@ -31,54 +31,49 @@ Settings gSettings;
  * getAppResourcesPath()
  * e.g. /Applications/Ned.app/Contents/Resources
  ******************************************************************************/
-
 std::string Settings::getAppResourcesPath()
 {
     char exePath[MAXPATHLEN];
     uint32_t size = sizeof(exePath);
 
+    // 1) Get the path to this .app’s actual executable
     if (_NSGetExecutablePath(exePath, &size) == 0) {
-        // Resolve any symlinks/translocation
+        // 2) Resolve symlinks/translocation
         char resolvedPath[MAXPATHLEN];
         if (realpath(exePath, resolvedPath) != nullptr) {
             // e.g. resolvedPath = "/Users/you/Downloads/Ned.app/Contents/MacOS/Ned"
             std::string p = resolvedPath;
 
-            // Move up one dir from "MacOS" to "Contents"
-            p = dirname((char *)p.c_str());
-            // Now p = "/Users/you/Downloads/Ned.app/Contents"
+            // *** Call dirname() twice to move from:
+            //     "/Users/you/Downloads/Ned.app/Contents/MacOS/Ned"
+            //  -> "/Users/you/Downloads/Ned.app/Contents/MacOS"
+            //  -> "/Users/you/Downloads/Ned.app/Contents"
+            p = dirname((char *)p.c_str()); // remove "/Ned"
+            p = dirname((char *)p.c_str()); // remove "/MacOS"
 
-            // Potential resources path
+            // Now p == "/Users/you/Downloads/Ned.app/Contents"
+
             std::string resourcesPath = p + "/Resources";
-
-            // If that folder exists, we assume we’re inside an .app
             if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath)) {
                 std::cout << "[Settings::getAppResourcesPath] Found .app Resources at: " << resourcesPath << std::endl;
                 return resourcesPath;
             } else {
-                // Fallback: we might be running from a local dev build
-                // Return just the directory that holds the executable
-                std::cout << "[Settings::getAppResourcesPath] No /Resources folder; "
-                             "using executable dir instead: "
-                          << p << std::endl;
+                // If no Resources folder, fallback to p
+                std::cout << "[Settings::getAppResourcesPath] No /Resources folder at " << resourcesPath << "; using " << p << std::endl;
                 return p;
             }
         } else {
-            std::cerr << "[Settings::getAppResourcesPath] realpath() failed; using exePath.\n";
+            std::cerr << "[Settings::getAppResourcesPath] realpath() failed, using exePath.\n";
+            // fallback to single or double dirname calls as well
             std::string p = exePath;
             p = dirname((char *)p.c_str());
-            // Potential resources
-            std::string resourcesPath = p + "/Resources";
-
-            if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath)) {
-                return resourcesPath;
-            }
-            // If no luck, just return the exe dir
+            p = dirname((char *)p.c_str());
+            p += "/Resources";
             return p;
         }
     }
 
-    // If _NSGetExecutablePath failed, final fallback is "."
+    // Fallback if _NSGetExecutablePath failed
     std::cerr << "[Settings::getAppResourcesPath] _NSGetExecutablePath failed.\n";
     return ".";
 }
