@@ -58,4 +58,3 @@ class Editor
     void processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
     void processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
 };
-
