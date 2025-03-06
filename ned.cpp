@@ -1,6 +1,6 @@
 /*
-    File: ned.cpp
-    Description: Main application class implementation for NED text editor.
+File: ned.cpp
+Description: Main application class implementation for NED text editor.
 */
 
 #include "imgui.h"
