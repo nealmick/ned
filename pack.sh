@@ -29,7 +29,6 @@ CONTENTS="$APP_BUNDLE/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 FRAMEWORKS="$CONTENTS/Frameworks"
-
 # Create directory structure
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES"
@@ -40,6 +39,9 @@ cp .build/ned "$MACOS/$APP_NAME"
 cp -r fonts "$RESOURCES/"
 cp -r icons "$RESOURCES/"
 cp -r shaders "$RESOURCES/"
+cp .ned.json "$RESOURCES/"
+
+
 
 echo "Adding app icon..."
 cp -r icons/ned.icns "$RESOURCES/ned.icns"

@@ -1,52 +1,131 @@
-/*
-    util/settings.cpp
-    This utility handles various settings such as font size and background color.
-    The settings state is saved to the build folder as .ned.json
-    This utility also draws a pop up window for adjusting settings, open with cmd ,(comma)
-    The settings json file can edited manually, once saved the changes take effect.
-*/
+/******************************************************************************
+ * settings.cpp
+ *
+ * Handles various settings such as font size, background color, etc.
+ *
+ * 1) On first launch, copies a default .ned.json from the app bundle's
+ *    Resources folder into ~/ned/.ned.json (if no user file exists).
+ * 2) Then always loads/saves user settings from ~/ned/.ned.json.
+ * 3) If anything is missing in the JSON, sets a safe default in code.
+ * 4) Renders a settings window (opened with Cmd+,) to edit these preferences.
+ ******************************************************************************/
 
 #include "settings.h"
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
 #include "config.h"
+
 #include "imgui.h"
 #include <GLFW/glfw3.h>
+
+#include <libgen.h>      // For dirname
+#include <mach-o/dyld.h> // For _NSGetExecutablePath
+#include <sys/param.h>   // For MAXPATHLEN
+
+#include <cstdlib> // for getenv
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
 
+namespace fs = std::filesystem;
 Settings gSettings;
 
+/******************************************************************************
+ * Helper: getAppResourcesPath()
+ * Returns the absolute path to the Resources folder of the running .app.
+ * Example result: /Applications/Ned.app/Contents/Resources
+ ******************************************************************************/
+static std::string getAppResourcesPath()
+{
+    char exePath[MAXPATHLEN];
+    uint32_t size = sizeof(exePath);
+    if (_NSGetExecutablePath(exePath, &size) == 0) {
+        // exePath = .../Ned.app/Contents/MacOS/Ned
+        // We want to go: .../Ned.app/Contents/Resources
+        std::string p = exePath;
+        // Move up from "MacOS" to "Contents"
+        p = dirname((char *)p.c_str());
+        // Now p = .../Ned.app/Contents
+
+        p += "/Resources";
+        return p;
+    }
+    // Fallback if something fails
+    return ".";
+}
+
+/******************************************************************************
+ * Helper: getUserSettingsPath()
+ * Returns a user-writable path for .ned.json, e.g. ~/ned/.ned.json
+ ******************************************************************************/
+static std::string getUserSettingsPath()
+{
+    const char *home = getenv("HOME");
+    if (!home) {
+        // If HOME is somehow missing, fallback to current directory
+        return ".ned.json";
+    }
+    // Example: /Users/username/ned/.ned.json
+    return std::string(home) + "/ned/.ned.json";
+}
+
+/******************************************************************************
+ * Settings constructor
+ ******************************************************************************/
 Settings::Settings() : splitPos(0.3f) {}
+
+/******************************************************************************
+ * loadSettings()
+ * 1) If user file doesn't exist, copy from app-bundle default .ned.json
+ * 2) Load user file into 'settings' json object
+ * 3) Fill in any missing defaults
+ ******************************************************************************/
 void Settings::loadSettings()
 {
-    settingsPath = std::string(SOURCE_DIR) + "/.ned.json";
-    // std::cout << "\033[95mSettings:\033[0m Attempting to load settings from: " << settingsPath << std::endl;
+    // Where we want to store & load user settings
+    std::string userSettingsPath = getUserSettingsPath();
 
+    // If user file doesn't exist, copy from the .app/Resources/.ned.json
+    if (!fs::exists(userSettingsPath)) {
+        fs::create_directories(fs::path(userSettingsPath).parent_path());
+        std::string bundleDefaults = getAppResourcesPath() + "/.ned.json";
+        if (fs::exists(bundleDefaults)) {
+            fs::copy_file(bundleDefaults, userSettingsPath, fs::copy_options::overwrite_existing);
+            std::cout << "[Settings] Copied default .ned.json -> " << userSettingsPath << std::endl;
+        } else {
+            std::cout << "[Settings] No default .ned.json found in app bundle. "
+                         "Using empty defaults.\n";
+        }
+    }
+
+    // Actually load from userSettingsPath
+    settingsPath = userSettingsPath;
     std::ifstream settingsFile(settingsPath);
     if (settingsFile.is_open()) {
         try {
             settingsFile >> settings;
-            std::cout << "\033[95mSettings:\033[0m Json preferences loaded successfully" << std::endl;
+            std::cout << "[Settings] Loaded from: " << settingsPath << std::endl;
         } catch (json::parse_error &e) {
-            std::cerr << "\033[95mSettings:\033[0m Error parsing settings file: " << e.what() << std::endl;
+            std::cerr << "[Settings] Parse error: " << e.what() << std::endl;
             settings = json::object(); // Reset to empty object
         }
     } else {
-        std::cout << "\033[95mSettings:\033[0m json file not found, using defaults" << std::endl;
-        settings = json::object(); // Create an empty JSON object
+        std::cout << "[Settings] Could not open user settings file. "
+                     "Using empty defaults.\n";
+        settings = json::object();
     }
+
+    // Fill in any missing keys with code defaults:
     if (!settings.contains("font")) {
         settings["font"] = "default";
     }
-    // Set default values if not present
     if (!settings.contains("backgroundColor")) {
         settings["backgroundColor"] = {0.45f, 0.55f, 0.60f, 1.00f};
     }
     if (!settings.contains("fontSize")) {
-        currentFontSize = settings["fontSize"].get<float>();
+        settings["fontSize"] = 16.0f; // safe default
     }
     if (!settings.contains("splitPos")) {
         settings["splitPos"] = 0.3f;
@@ -64,17 +143,22 @@ void Settings::loadSettings()
         settings["themes"] = {{"default", {{"function", {1.0f, 1.0f, 1.0f, 1.0f}}, {"text", {1.0f, 1.0f, 1.0f, 1.0f}}, {"background", {0.2f, 0.2f, 0.2f, 1.0f}}, {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}}, {"string", {0.87f, 0.87f, 0.0f, 1.0f}}, {"number", {0.0f, 0.8f, 0.8f, 1.0f}}, {"comment", {0.5f, 0.5f, 0.5f, 1.0f}}, {"heading", {0.9f, 0.5f, 0.2f, 1.0f}}, {"bold", {1.0f, 0.7f, 0.7f, 1.0f}}, {"italic", {0.7f, 1.0f, 0.7f, 1.0f}}, {"link", {0.4f, 0.4f, 1.0f, 1.0f}}, {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}}, {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}}, {"tag", {0.3f, 0.7f, 0.9f, 1.0f}}, {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}}, {"selector", {0.9f, 0.4f, 0.6f, 1.0f}}, {"property", {0.6f, 0.9f, 0.4f, 1.0f}}, {"value", {0.4f, 0.6f, 0.9f, 1.0f}}, {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
     }
 
+    // Pull out a few keys into your members
+    currentFontSize = settings["fontSize"].get<float>();
     splitPos = settings["splitPos"].get<float>();
-    // Only update lastSettingsModification if the file exists
+
+    // Track last modification time
     if (fs::exists(settingsPath)) {
         lastSettingsModification = fs::last_write_time(settingsPath);
     } else {
         lastSettingsModification = fs::file_time_type::min();
     }
-
-    // std::cout << "Settings: Current preferences : " << settings.dump(4) << std::endl;
 }
 
+/******************************************************************************
+ * saveSettings()
+ * Write current 'settings' JSON to userSettingsPath
+ ******************************************************************************/
 void Settings::saveSettings()
 {
     std::ofstream settingsFile(settingsPath);
@@ -82,48 +166,57 @@ void Settings::saveSettings()
         settingsFile << std::setw(4) << settings << std::endl;
     }
 }
+
+/******************************************************************************
+ * checkSettingsFile()
+ * If user manually edits ~/ned/.ned.json, detect changes & reload
+ ******************************************************************************/
 void Settings::checkSettingsFile()
 {
-
     if (!fs::exists(settingsPath)) {
-        std::cout << "Settings file does not exist, skipping check" << std::endl;
+        std::cout << "[Settings] File does not exist, skipping check" << std::endl;
         return;
     }
 
     auto currentModification = fs::last_write_time(settingsPath);
-
     if (currentModification > lastSettingsModification) {
-        std::cout << "Settings file has been modified, reloading" << std::endl;
+        std::cout << "[Settings] .ned.json was modified externally, reloading" << std::endl;
         json oldSettings = settings;
         loadSettings();
         lastSettingsModification = currentModification;
 
-        // Rest of the existing check logic remains the same
+        // Check if certain keys changed so we can trigger appropriate flags
         if (oldSettings["backgroundColor"] != settings["backgroundColor"] || oldSettings["fontSize"] != settings["fontSize"] || oldSettings["splitPos"] != settings["splitPos"] || oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"] || oldSettings["rainbow"] != settings["rainbow"] || oldSettings["shader_toggle"] != settings["shader_toggle"] || oldSettings["font"] != settings["font"]) {
             settingsChanged = true;
-
-            // Check if theme or themes have changed
+            // Check if theme changed
             if (oldSettings["theme"] != settings["theme"] || oldSettings["themes"] != settings["themes"]) {
                 themeChanged = true;
             }
-
-            // Check if font has changed
+            // Check if font changed
             if (oldSettings["font"] != settings["font"]) {
                 fontChanged = true;
             }
         }
     }
 }
+
+/******************************************************************************
+ * renderSettingsWindow()
+ * The ImGui-based GUI for editing settings.
+ * The user can open/close it with Cmd+, etc.
+ ******************************************************************************/
 void Settings::renderSettingsWindow()
 {
     if (!showSettingsWindow)
         return;
+
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
-    // Center the window - make height auto-adjustable
-    ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always); // Fixed height
-    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.50f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_Modal;
-    // Push custom styles for the window
+
+    // Push custom styles
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
@@ -132,12 +225,11 @@ void Settings::renderSettingsWindow()
 
     ImGui::Begin("Settings", nullptr, windowFlags);
 
-    // Add focus detection
+    // Handle focus detection
     static bool wasFocused = false;
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
     if (wasFocused && !isFocused) {
-        std::cout << "Settings window lost focus!" << std::endl;
         std::cout << "Settings window lost focus!" << std::endl;
         showSettingsWindow = false;
         saveSettings();
@@ -146,13 +238,13 @@ void Settings::renderSettingsWindow()
     }
     wasFocused = isFocused;
 
-    // Check for clicks outside window
+    // Detect clicks outside this window
     if (ImGui::IsMouseClicked(0)) {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 windowPos = ImGui::GetWindowPos();
         ImVec2 windowSize = ImGui::GetWindowSize();
 
-        bool isOutside = mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y);
+        bool isOutside = (mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y));
 
         if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
             showSettingsWindow = false;
@@ -160,9 +252,8 @@ void Settings::renderSettingsWindow()
         }
     }
 
-    // Start header group with proper spacing
+    // Start header group
     ImGui::BeginGroup();
-
     float textHeight = ImGui::GetTextLineHeight();
     ImGui::TextUnformatted("Settings");
 
@@ -174,10 +265,10 @@ void Settings::renderSettingsWindow()
         showSettingsWindow = false;
         saveSettings();
     }
-
     bool isHovered = ImGui::IsItemHovered();
     ImGui::SetCursorPos(cursor_pos);
 
+    // e.g. gFileExplorer.getIcon("close");
     ImTextureID closeIcon = gFileExplorer.getIcon("close");
     ImGui::Image(closeIcon, ImVec2(closeIconSize, closeIconSize), ImVec2(0, 0), ImVec2(1, 1), isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 
@@ -185,16 +276,17 @@ void Settings::renderSettingsWindow()
     ImGui::Separator();
     ImGui::Spacing();
 
-    static float tempFontSize = currentFontSize; // Use currentFontSize instead of reading from settings
-
+    // Show a slider for font size
+    static float tempFontSize = currentFontSize;
     if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f")) {
-        settings["fontSize"] = tempFontSize; // Update settings but don't change display yet
+        // Update settings but don't change display immediately
+        settings["fontSize"] = tempFontSize;
     }
-
     if (ImGui::IsItemDeactivatedAfterEdit()) {
-        setFontSize(tempFontSize); // This will update currentFontSize and trigger changes
+        setFontSize(tempFontSize);
         saveSettings();
     }
+
     ImGui::Spacing();
 
     // Background Color
@@ -207,11 +299,10 @@ void Settings::renderSettingsWindow()
         saveSettings();
     }
 
-    // Text Color
+    // Theme colors
     std::string currentTheme = getCurrentTheme();
     auto &themeColors = settings["themes"][currentTheme];
 
-    // Create helper lambda for color editing
     auto editThemeColor = [&](const char *label, const char *colorKey) {
         auto &colorArray = themeColors[colorKey];
         ImVec4 color(colorArray[0].get<float>(), colorArray[1].get<float>(), colorArray[2].get<float>(), colorArray[3].get<float>());
@@ -243,7 +334,7 @@ void Settings::renderSettingsWindow()
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Rainbow Mode Toggle
+    // Rainbow
     bool rainbowMode = settings["rainbow"].get<bool>();
     if (ImGui::Checkbox("Rainbow Mode", &rainbowMode)) {
         settings["rainbow"] = rainbowMode;
@@ -251,8 +342,9 @@ void Settings::renderSettingsWindow()
         saveSettings();
     }
     ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor and line numbers)");
-    ImGui::Spacing();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor & line numbers)");
+
+    // Shader
     bool shaderEnabled = settings["shader_toggle"].get<bool>();
     if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled)) {
         settings["shader_toggle"] = shaderEnabled;
@@ -260,11 +352,12 @@ void Settings::renderSettingsWindow()
         saveSettings();
     }
     ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(CRT and visual effects)");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(CRT & visual effects)");
 
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");
 
+    // ESC key closes the window
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSettingsWindow = false;
         saveSettings();
@@ -272,7 +365,7 @@ void Settings::renderSettingsWindow()
 
     ImGui::End();
 
-    // Pop all styles
+    // Pop style
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(3);
 }
