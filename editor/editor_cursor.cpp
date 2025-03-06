@@ -163,6 +163,7 @@ void EditorCursor::moveCursorVertically(std::string &text, EditorState &state, i
     // Find position in new line that corresponds to our visual column
     state.cursor_column = findPositionFromVisualColumn(text, new_line_start, new_line_end, state.cursor_column_prefered);
 }
+
 void EditorCursor::moveWordForward(const std::string &text, EditorState &state)
 {
     size_t pos = state.cursor_column;
