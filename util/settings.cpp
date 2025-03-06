@@ -1,13 +1,10 @@
 /******************************************************************************
  * settings.cpp
  *
- * Handles various settings such as font size, background color, etc.
- *
- * 1) On first launch, copies a default .ned.json from the app bundle's
- *    Resources folder into ~/ned/.ned.json (if no user file exists).
- * 2) Then always loads/saves user settings from ~/ned/.ned.json.
- * 3) If anything is missing in the JSON, sets a safe default in code.
- * 4) Renders a settings window (opened with Cmd+,) to edit these preferences.
+ *  - Now getAppResourcesPath() and getUserSettingsPath() are public static
+ *    methods of the Settings class, so that Ned::loadFont() or other code
+ *    can call Settings::getAppResourcesPath().
+ *  - loadSettings() logic for copying .ned.json from Resources -> ~/ned/.
  ******************************************************************************/
 
 #include "settings.h"
@@ -15,40 +12,34 @@
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
 #include "config.h"
-
 #include "imgui.h"
 #include <GLFW/glfw3.h>
-
-#include <libgen.h>      // For dirname
-#include <mach-o/dyld.h> // For _NSGetExecutablePath
-#include <sys/param.h>   // For MAXPATHLEN
 
 #include <cstdlib> // for getenv
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <libgen.h>      // For dirname
+#include <mach-o/dyld.h> // For _NSGetExecutablePath
+#include <sys/param.h>   // For MAXPATHLEN
 #include <unistd.h>
 
 namespace fs = std::filesystem;
 Settings gSettings;
 
 /******************************************************************************
- * Helper: getAppResourcesPath()
- * Returns the absolute path to the Resources folder of the running .app.
- * Example result: /Applications/Ned.app/Contents/Resources
+ * getAppResourcesPath()
+ * e.g. /Applications/Ned.app/Contents/Resources
  ******************************************************************************/
-static std::string getAppResourcesPath()
+std::string Settings::getAppResourcesPath()
 {
     char exePath[MAXPATHLEN];
     uint32_t size = sizeof(exePath);
     if (_NSGetExecutablePath(exePath, &size) == 0) {
         // exePath = .../Ned.app/Contents/MacOS/Ned
-        // We want to go: .../Ned.app/Contents/Resources
+        // We want to go up from "MacOS" to "Contents", then /Resources
         std::string p = exePath;
-        // Move up from "MacOS" to "Contents"
-        p = dirname((char *)p.c_str());
-        // Now p = .../Ned.app/Contents
-
+        p = dirname((char *)p.c_str()); // Now p = .../Ned.app/Contents
         p += "/Resources";
         return p;
     }
@@ -57,46 +48,45 @@ static std::string getAppResourcesPath()
 }
 
 /******************************************************************************
- * Helper: getUserSettingsPath()
- * Returns a user-writable path for .ned.json, e.g. ~/ned/.ned.json
+ * getUserSettingsPath()
+ * e.g. /Users/username/ned/.ned.json
  ******************************************************************************/
-static std::string getUserSettingsPath()
+std::string Settings::getUserSettingsPath()
 {
     const char *home = getenv("HOME");
     if (!home) {
-        // If HOME is somehow missing, fallback to current directory
+        // If HOME is missing, fallback to current directory
         return ".ned.json";
     }
-    // Example: /Users/username/ned/.ned.json
     return std::string(home) + "/ned/.ned.json";
 }
 
 /******************************************************************************
- * Settings constructor
+ * Constructor
  ******************************************************************************/
 Settings::Settings() : splitPos(0.3f) {}
 
 /******************************************************************************
  * loadSettings()
- * 1) If user file doesn't exist, copy from app-bundle default .ned.json
- * 2) Load user file into 'settings' json object
- * 3) Fill in any missing defaults
+ * 1) If user file doesn't exist, copy from .app/Resources/.ned.json
+ * 2) Load user file
+ * 3) Fill defaults for missing keys
  ******************************************************************************/
 void Settings::loadSettings()
 {
-    // Where we want to store & load user settings
+    // 1) Where to store & load user settings
     std::string userSettingsPath = getUserSettingsPath();
 
-    // If user file doesn't exist, copy from the .app/Resources/.ned.json
+    // 2) If user file doesn't exist, copy from the .app resources
     if (!fs::exists(userSettingsPath)) {
         fs::create_directories(fs::path(userSettingsPath).parent_path());
+
         std::string bundleDefaults = getAppResourcesPath() + "/.ned.json";
         if (fs::exists(bundleDefaults)) {
             fs::copy_file(bundleDefaults, userSettingsPath, fs::copy_options::overwrite_existing);
             std::cout << "[Settings] Copied default .ned.json -> " << userSettingsPath << std::endl;
         } else {
-            std::cout << "[Settings] No default .ned.json found in app bundle. "
-                         "Using empty defaults.\n";
+            std::cout << "[Settings] No default .ned.json found in app bundle. Using empty defaults.\n";
         }
     }
 
