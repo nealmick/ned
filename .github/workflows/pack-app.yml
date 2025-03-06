@@ -1,0 +1,66 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build-intel:
+    runs-on: macos-latest  # This is Intel-based macOS
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install clang-format cmake llvm glfw glew pkg-config
+
+    - name: Build
+      run: |
+        ./build.sh
+        
+    - name: Package
+      run: |
+        ./pack.sh
+        mv Ned.dmg Ned-Intel-$(git rev-parse --short HEAD).dmg
+        
+    - name: Upload DMG
+      uses: actions/upload-artifact@v3
+      with:
+        name: Ned-Intel-macOS
+        path: Ned.dmg
+
+  build-apple-silicon:
+    runs-on: macos-14  # This is Apple Silicon (M1/M2/M3)
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install clang-format cmake llvm glfw glew pkg-config
+
+    - name: Build
+      run: |
+        ./build.sh
+            
+    - name: Package
+      run: |
+        ./pack.sh
+         mv Ned.dmg Ned-AppleSilicon-$(git rev-parse --short HEAD).dmg
+
+        
+    - name: Upload DMG
+      uses: actions/upload-artifact@v3
+      with:
+        name: Ned-Apple-Silicon-macOS
+        path: Ned.dmg

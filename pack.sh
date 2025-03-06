@@ -1,93 +1,124 @@
 #!/bin/bash
-
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Detect architecture and set proper paths
+if [[ $(uname -m) == 'arm64' ]]; then
+    # Apple Silicon
+    HOMEBREW_PREFIX="/opt/homebrew"
+else
+    # Intel
+    HOMEBREW_PREFIX="/usr/local"
+fi
+
 echo -e "${BLUE}📦 Creating macOS app bundle...${NC}"
 
-# Check if app is built
+# Ensure the app exists
 if [ ! -f ".build/ned" ]; then
-    echo -e "${RED}Error: Build the app first with ./build.sh${NC}"
+    echo -e "${RED}❌ Application not found. Run build.sh first.${NC}"
     exit 1
 fi
 
-# Create app structure
-rm -rf Ned.app
-mkdir -p Ned.app/Contents/{MacOS,Resources,Frameworks}
+# App bundle structure
+APP_NAME="Ned"
+APP_BUNDLE="$APP_NAME.app"
+CONTENTS="$APP_BUNDLE/Contents"
+MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
+FRAMEWORKS="$CONTENTS/Frameworks"
 
-# Copy executable
-cp .build/ned Ned.app/Contents/MacOS/
+# Create directory structure
+mkdir -p "$MACOS"
+mkdir -p "$RESOURCES"
+mkdir -p "$FRAMEWORKS"
 
-# Copy resources - preserve directory structure!
-echo -e "${BLUE}Copying resources...${NC}"
-cp -R fonts Ned.app/Contents/Resources/
-cp -R icons Ned.app/Contents/Resources/
-cp -R shaders Ned.app/Contents/Resources/
+echo "Copying resources..."
+cp .build/ned "$MACOS/$APP_NAME"
+cp -r fonts "$RESOURCES/"
+cp -r icons "$RESOURCES/"
+cp -r shaders "$RESOURCES/"
 
-# Also copy these resources to where the app will look for them
-mkdir -p Ned.app/Contents/MacOS/fonts
-mkdir -p Ned.app/Contents/MacOS/icons
-mkdir -p Ned.app/Contents/MacOS/shaders
-cp -R fonts/* Ned.app/Contents/MacOS/fonts/
-cp -R icons/* Ned.app/Contents/MacOS/icons/
-cp -R shaders/* Ned.app/Contents/MacOS/shaders/
+echo "Adding app icon..."
+cp -r icons/ned.icns "$RESOURCES/ned.icns"
 
-# Handle app icon specifically
-if [ -f "icons/ned.icns" ]; then
-    echo -e "${BLUE}Adding app icon...${NC}"
-    cp icons/ned.icns Ned.app/Contents/Resources/
-else
-    echo -e "${YELLOW}Warning: icons/ned.icns not found. Using default icon.${NC}"
-fi
-
-# Get the GLEW library path from CMakeLists.txt
-GLEW_PATH=$(grep -o "/.*libGLEW.*dylib" CMakeLists.txt | head -1)
-cp "$GLEW_PATH" Ned.app/Contents/Frameworks/
-
-# Find GLFW library
-GLFW_PATH=$(find /opt/homebrew /usr/local -name "libglfw*.dylib" | head -1)
-cp "$GLFW_PATH" Ned.app/Contents/Frameworks/
-
-# Create a minimal Info.plist
-cat > Ned.app/Contents/Info.plist << EOF
+# Create Info.plist
+cat > "$CONTENTS/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>ned</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.yourname.ned</string>
-    <key>CFBundleName</key>
-    <string>Ned</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
+    <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
     <string>ned.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.nealaggarwal.ned</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$APP_NAME</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
 </dict>
 </plist>
 EOF
 
-# Fix library paths in the executable
-GLEW_NAME=$(basename "$GLEW_PATH")
-GLFW_NAME=$(basename "$GLFW_PATH")
+# Copy required libraries - with error handling
+echo "Copying libraries..."
 
-echo -e "${BLUE}Fixing library paths...${NC}"
-install_name_tool -change "$GLEW_PATH" "@executable_path/../Frameworks/$GLEW_NAME" Ned.app/Contents/MacOS/ned
-install_name_tool -change "$GLFW_PATH" "@executable_path/../Frameworks/$GLFW_NAME" Ned.app/Contents/MacOS/ned
+# Function to safely copy libraries with error handling
+copy_lib() {
+    local source="$1"
+    local dest="$2"
+    
+    if [ -f "$source" ]; then
+        cp "$source" "$dest"
+        echo "✅ Copied: $source"
+    else
+        echo "⚠️  Warning: Could not find $source"
+        # Try alternative locations
+        local lib_name=$(basename "$source")
+        local alt_paths=(
+            "$HOMEBREW_PREFIX/lib/$lib_name"
+            "/usr/local/lib/$lib_name"
+            "/usr/lib/$lib_name"
+        )
+        
+        for alt_path in "${alt_paths[@]}"; do
+            if [ -f "$alt_path" ]; then
+                cp "$alt_path" "$dest"
+                echo "✅ Found alternative: $alt_path"
+                return 0
+            fi
+        done
+        echo "❌ Could not find $lib_name in any standard location"
+    fi
+}
 
-# Clear application icon cache
-touch Ned.app
+# GLEW Library
+GLEW_LIB="$HOMEBREW_PREFIX/Cellar/glew/2.2.0_1/lib/libGLEW.dylib"
+copy_lib "$GLEW_LIB" "$FRAMEWORKS/"
+
+# GLFW Library
+GLFW_LIB="$HOMEBREW_PREFIX/Cellar/glfw/3.3.9/lib/libglfw.3.dylib"
+copy_lib "$GLFW_LIB" "$FRAMEWORKS/"
+
+echo "Fixing library paths..."
+# Use install_name_tool to update dynamic library paths in the executable
+install_name_tool -change "@rpath/libGLEW.dylib" "@executable_path/../Frameworks/libGLEW.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
+install_name_tool -change "@rpath/libglfw.3.dylib" "@executable_path/../Frameworks/libglfw.3.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
 
 # Create DMG
-echo -e "${BLUE}Creating DMG...${NC}"
-hdiutil create -volname "Ned" -srcfolder Ned.app -ov -format UDZO Ned.dmg
+echo "Creating DMG..."
+hdiutil create -volname "$APP_NAME" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$APP_NAME.dmg"
 
-echo -e "${GREEN}✅ Package created: Ned.dmg${NC}"
+echo -e "${GREEN}✅ Package created: $APP_NAME.dmg${NC}"
