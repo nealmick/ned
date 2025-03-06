@@ -4,10 +4,13 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
+
 jobs:
-  build-mac-intel:
-    runs-on: macos-latest  # This is Intel-based macOS
+  build-mac:
+    runs-on: macos-latest
+    env:
+      CI: true
     
     steps:
     - uses: actions/checkout@v4
@@ -18,44 +21,20 @@ jobs:
       run: |
         brew update
         brew install clang-format cmake llvm glfw glew pkg-config
-    - name: Build
-      run: |
-        ./build.sh
-        
-    - name: Package
-      run: |
-        ./pack.sh
-        mv Ned.dmg Ned-Intel-$(git rev-parse --short HEAD).dmg
-        
-    - name: Upload DMG
-      uses: actions/upload-artifact@v4
-      with:
-        name: Ned-Intel-macOS
-        path: Ned-Intel-*.dmg
-  
-  build-mac-apple-silicon:
-    runs-on: macos-14  # This is Apple Silicon (M1/M2/M3)
     
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        
-    - name: Install dependencies
-      run: |
-        brew update
-        brew install clang-format cmake llvm glfw glew pkg-config
     - name: Build
       run: |
         ./build.sh
-            
+        
     - name: Package
       run: |
         ./pack.sh
-        mv Ned.dmg Ned-AppleSilicon-$(git rev-parse --short HEAD).dmg
+        # Add code signing
+        codesign --force --deep --sign - Ned.app
+        mv Ned.dmg Ned-macOS-$(git rev-parse --short HEAD).dmg
         
     - name: Upload DMG
       uses: actions/upload-artifact@v4
       with:
-        name: Ned-Apple-Silicon-macOS
-        path: Ned-AppleSilicon-*.dmg
+        name: Ned-macOS
+        path: Ned-macOS-*.dmg
