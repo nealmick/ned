@@ -195,3 +195,13 @@ void EditorKeyboard::processFontSizeAdjustment(CursorVisibility &ensure_cursor_v
         std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
     }
 }
+
+void EditorKeyboard::processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
+{
+    if (ImGui::IsKeyPressed(ImGuiKey_A)) {
+        gEditorSelection.selectAllText(state, text);
+        ensure_cursor_visible.vertical = true;
+        ensure_cursor_visible.horizontal = true;
+        std::cout << "Ctrl+A: Selected all text" << std::endl;
+    }
+}
