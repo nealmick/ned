@@ -1,6 +1,7 @@
 # macOS app bundle and installer
 *.app
 *.dmg
+*.zip
 Ned.app
 Ned.dmg
 

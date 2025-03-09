@@ -23,6 +23,7 @@ class EditorKeyboard
 
     void handleTextInput(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
     void processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible);
+    void processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
 };
 
 // Global instance

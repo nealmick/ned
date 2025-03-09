@@ -55,6 +55,5 @@ class Editor
     void processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos);
 
     // Editor commands
-    void processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
     void processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
 };

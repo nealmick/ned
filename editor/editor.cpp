@@ -341,7 +341,7 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
 
         if (ctrl_pressed) {
             gEditorKeyboard.processFontSizeAdjustment(ensure_cursor_visible);
-            processSelectAll(text, state, ensure_cursor_visible);
+            gEditorKeyboard.processSelectAll(text, state, ensure_cursor_visible);
             processUndoRedo(text, colors, state, text_changed, ensure_cursor_visible, shift_pressed);
             gEditorCursor.processWordMovement(text, state, ensure_cursor_visible, shift_pressed);
             gEditorCursor.processCursorJump(text, state, ensure_cursor_visible);
@@ -380,16 +380,6 @@ void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVe
 //==============================================================================
 // Editor Commands
 //==============================================================================
-
-void Editor::processSelectAll(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_A)) {
-        gEditorSelection.selectAllText(state, text);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-        std::cout << "Ctrl+A: Selected all text" << std::endl;
-    }
-}
 
 void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
 {
