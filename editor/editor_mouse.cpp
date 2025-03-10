@@ -89,27 +89,43 @@ int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &c
     // Get start/end indices for that line in the text.
     int line_start = line_starts[clicked_line];
     int line_end = (clicked_line + 1 < line_starts.size()) ? line_starts[clicked_line + 1] : text.size();
+
+    // Adjust line_end to exclude newline character if present
+    if (line_end > line_start && line_end <= text.size() && text[line_end - 1] == '\n') {
+        line_end--;
+    }
+
     int n = line_end - line_start; // number of characters in the line
 
     // If the line is empty, return its start.
     if (n <= 0)
         return line_start;
 
-    // Build an array of "insertion positions" (i.e. the x-coordinate for placing the cursor)
-    // For i=0, the insertion position is at 0 (the very start), and for i>0 it is the width
-    // of the substring [line_start, line_start+i].
-    std::vector<float> insertionPositions(n + 1, 0.0f);
-    insertionPositions[0] = 0.0f;
-    for (int i = 1; i <= n; i++) {
-        insertionPositions[i] = ImGui::CalcTextSize(&text[line_start], &text[line_start + i]).x;
-    }
-
     // Compute the click's x-coordinate relative to the beginning of the text.
     float click_x = click_pos.x - text_start_pos.x;
+
+    // For more accuracy, calculate character widths individually to avoid accumulating errors
+    // This is especially important for longer lines where small errors add up
+    std::vector<float> charWidths(n + 1, 0.0f);
+    std::vector<float> insertionPositions(n + 1, 0.0f);
+
+    insertionPositions[0] = 0.0f;
+
+    // Calculate the width of each character individually
+    for (int i = 0; i < n; i++) {
+        char buf[2] = {text[line_start + i], '\0'};
+        charWidths[i] = ImGui::CalcTextSize(buf).x;
+    }
+
+    // Calculate cumulative positions
+    for (int i = 1; i <= n; i++) {
+        insertionPositions[i] = insertionPositions[i - 1] + charWidths[i - 1];
+    }
 
     // Find the insertion index (0...n) whose position is closest to click_x.
     int bestIndex = 0;
     float bestDist = std::abs(click_x - insertionPositions[0]);
+
     for (int i = 1; i <= n; i++) {
         float d = std::abs(click_x - insertionPositions[i]);
         if (d < bestDist) {
