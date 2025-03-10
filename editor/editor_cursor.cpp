@@ -26,6 +26,9 @@ void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_scre
     draw_list->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + line_height - 1), cursor_color);
 }
 
+// Cursor time management
+void EditorCursor::updateBlinkTime(EditorState &state, float deltaTime) { state.cursor_blink_time += deltaTime; }
+
 // Implementation of helper functions
 int EditorCursor::calculateVisualColumn(const std::string &text, int line_start, int cursor_pos)
 {

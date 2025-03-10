@@ -569,7 +569,8 @@ void Ned::handleFileDialog()
             rootNode.fullPath = gFileExplorer.getSelectedFolder();
             rootNode.isDirectory = true;
             rootNode.children.clear();
-            gFileTree.buildFileTree(gFileExplorer.getSelectedFolder(), rootNode); // Changed to use gFileTree
+            gFileTree.buildFileTree(gFileExplorer.getSelectedFolder(),
+                                    rootNode); // Changed to use gFileTree
             gFileExplorer.setShowWelcomeScreen(false);
         }
     }

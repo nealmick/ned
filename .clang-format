@@ -23,7 +23,7 @@ BinPackArguments: false
 
 # Encourage fewer line breaks for function parameters
 PenaltyBreakBeforeFirstCallParameter: 200
-PenaltyExcessCharacter: 10000
+PenaltyExcessCharacter: 100000
 
 # Let short functions stay on one line if they fit
 AllowShortFunctionsOnASingleLine: All
