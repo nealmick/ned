@@ -63,7 +63,7 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     int initial_cursor_pos = editor_state.cursor_column;
 
     // Process editor input.
-    processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
+    gEditorKeyboard.processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
 
     // Process mouse wheel scrolling.
     gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x, editor_state);
@@ -223,7 +223,7 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
     gLineJump.renderLineJumpWindow(editor_state);
 
     // Render the text (with selection) using our character-by-character function
-    renderTextWithSelection(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
+    renderText(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 
     // Compute the cursor's line by finding which line the cursor is on
     int cursor_line = getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_column);
@@ -239,7 +239,7 @@ void Editor::renderEditorContent(const std::string &text, const std::vector<ImVe
     gEditorCursor.renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
-void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
+void Editor::renderText(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
 {
     ImVec2 text_pos = pos;
     int sel_start = gEditorSelection.getSelectionStart(state);
@@ -293,127 +293,5 @@ void Editor::renderTextWithSelection(ImDrawList *drawList, const ImVec2 &pos, co
         char buf[2] = {text[i], '\0'};
         drawList->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(colors[i]), buf);
         text_pos.x += ImGui::CalcTextSize(buf).x;
-    }
-}
-
-//==============================================================================
-// Input Handling
-//==============================================================================
-
-void Editor::processTextEditorInput(std::string &text, EditorState &editor_state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos)
-{
-    if (!editor_state.block_input) {
-        handleEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible);
-    } else {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-
-    if (gEditorScroll.getEnsureCursorVisibleFrames() > 0) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-        gEditorScroll.decrementEnsureCursorVisibleFrames();
-    }
-
-    if (editor_state.cursor_column != initial_cursor_pos) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-}
-
-void Editor::handleEditorInput(std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible)
-{
-    bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-    bool shift_pressed = ImGui::GetIO().KeyShift;
-
-    // block input if searching for file...
-    if (gFileFinder.isWindowOpen()) {
-        return;
-    }
-
-    // Process bookmarks first
-    gBookmarks.handleBookmarkInput(gFileExplorer, state);
-
-    if (ImGui::IsWindowFocused() && !state.block_input) {
-        // Process Shift+Tab for indentation removal. If handled, exit early.
-        if (gEditorIndentation.processIndentRemoval(text, state, text_changed, ensure_cursor_visible))
-            return;
-
-        if (ctrl_pressed) {
-            gEditorKeyboard.processFontSizeAdjustment(ensure_cursor_visible);
-            gEditorKeyboard.processSelectAll(text, state, ensure_cursor_visible);
-            processUndoRedo(text, colors, state, text_changed, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processWordMovement(text, state, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processCursorJump(text, state, ensure_cursor_visible);
-        }
-    }
-
-    if (ImGui::IsWindowHovered()) {
-        gEditorMouse.handleMouseInput(text, state, text_start_pos, line_height);
-        gEditorScroll.processMouseWheelScrolling(line_height, state);
-    }
-
-    // Additional arrow key presses outside the ctrl block
-    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-        ensure_cursor_visible.vertical = true;
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow))
-        ensure_cursor_visible.horizontal = true;
-
-    // Pass the correct variables to handleCursorMovement
-    float window_height = ImGui::GetWindowHeight();
-    float window_width = ImGui::GetWindowWidth();
-    gEditorCursor.handleCursorMovement(text, state, text_start_pos, line_height, window_height, window_width);
-
-    // Call the refactored method in EditorKeyboard
-    gEditorKeyboard.handleTextInput(text, colors, state, text_changed);
-
-    if (ImGui::IsWindowFocused() && ctrl_pressed)
-        gEditorCopyPaste.processClipboardShortcuts(text, colors, state, text_changed, ensure_cursor_visible);
-
-    // Ensure cursor is visible if text has changed
-    if (text_changed) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-    }
-}
-
-//==============================================================================
-// Editor Commands
-//==============================================================================
-
-void Editor::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
-{
-    if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
-        std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl << ", Shift: " << shift_pressed << std::endl;
-
-        int oldCursorPos = state.cursor_column;
-        int oldLine = getLineFromPos(state.editor_content_lines, oldCursorPos);
-        int oldColumn = oldCursorPos - state.editor_content_lines[oldLine];
-
-        if (shift_pressed) {
-            std::cout << "Attempting Redo" << std::endl;
-            gFileExplorer.handleRedo();
-        } else {
-            std::cout << "Attempting Undo" << std::endl;
-            gFileExplorer.handleUndo();
-        }
-
-        // Update text and colors
-        text = gFileExplorer.getFileContent();
-        colors = gFileExplorer.getFileColors();
-        updateLineStarts(text, state.editor_content_lines);
-
-        int newLine = std::min(oldLine, static_cast<int>(state.editor_content_lines.size()) - 1);
-        int lineStart = state.editor_content_lines[newLine];
-        int lineEnd = (newLine + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[newLine + 1] - 1 : text.size();
-        int lineLength = lineEnd - lineStart;
-
-        state.cursor_column = lineStart + std::min(oldColumn, lineLength);
-        state.selection_start = state.selection_end = state.cursor_column;
-        text_changed = true;
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
-
-        gFileExplorer.currentUndoManager->printStacks();
     }
 }
