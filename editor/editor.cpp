@@ -99,6 +99,9 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
     // Process keyboard input (text editing, cursor movement, etc.)
     gEditorKeyboard.processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
 
+    // Handle context menu (right-click menu)
+    gEditorMouse.handleContextMenu(text, colors, editor_state, text_changed);
+
     // Handle mouse wheel scrolling
     gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x, editor_state);
 
