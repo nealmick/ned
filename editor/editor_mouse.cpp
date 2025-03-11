@@ -1,19 +1,21 @@
 #include "editor_mouse.h"
+#include "../files/files.h"
 #include "editor.h"
+#include "editor_copy_paste.h"
 #include <algorithm>
 #include <iostream>
 
 // Global instance
 EditorMouse gEditorMouse;
 
-EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1) {}
+EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false) {}
 
 void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height)
 {
     ImVec2 mouse_pos = ImGui::GetMousePos();
     int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.editor_content_lines, line_height);
 
-    // Handle click
+    // Handle left click
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         handleMouseClick(state, char_index, state.editor_content_lines);
     }
@@ -24,6 +26,18 @@ void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, 
     // Handle release
     else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         handleMouseRelease();
+    }
+
+    // Handle right click for context menu
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        // Store the position where the context menu should appear
+        context_menu_pos = ImGui::GetMousePos();
+        show_context_menu = true;
+
+        // If no active selection, set cursor at the clicked position
+        if (!state.selection_active) {
+            state.cursor_column = char_index;
+        }
     }
 }
 
@@ -81,6 +95,143 @@ void EditorMouse::handleMouseRelease()
     anchor_pos = -1;
 }
 
+void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
+{
+    // For debugging
+    static bool popupWasOpen = false;
+    bool popupIsOpen = ImGui::IsPopupOpen("##EditorContextMenu");
+
+    // Detect state changes for tracking
+    if (popupIsOpen && !popupWasOpen) {
+        std::cout << "Popup was just opened" << std::endl;
+    }
+    if (!popupIsOpen && popupWasOpen) {
+        std::cout << "Popup was just closed" << std::endl;
+        show_context_menu = false; // Sync our state when ImGui closes the popup
+    }
+    popupWasOpen = popupIsOpen;
+
+    // Check if right click just happened to open menu
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        context_menu_pos = ImGui::GetMousePos();
+        show_context_menu = true;
+        ImGui::OpenPopup("##EditorContextMenu");
+    }
+
+    // Set position of popup if we're showing it
+    if (show_context_menu) {
+        ImGui::SetNextWindowPos(context_menu_pos);
+        // Make the menu wider to prevent text cramping and allow room for shortcuts
+        ImGui::SetNextWindowSize(ImVec2(220, 0), ImGuiCond_Always); // Width of 220, auto height
+    }
+
+    // Apply styling - improved with rounded corners and better padding
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);       // Round the menu items
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 10.0f);      // Specific rounding for popups
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 1.0f);     // Thin border for the popup
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6)); // Reduced vertical spacing
+
+    // Colors for the popup
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+
+    // Set hover color to match your selection highlight
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.3f)); // Pink hover
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));        // Pink selection
+
+    // Begin the popup with flags to prevent it from closing on outside clicks
+    if (ImGui::BeginPopup("##EditorContextMenu", ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar)) {
+        // We're inside the popup so we must be showing it
+        show_context_menu = true;
+
+        // Manual click outside detection
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup)) {
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Check for escape key to close
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Menu title - without extra spacing after
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Menu");
+        ImGui::Separator();
+
+        // Simple function to draw a menu item with a shortcut in a fixed-width manner
+        auto MenuItemWithAlignedShortcut = [](const char *label, const char *shortcut, bool *selected, bool enabled) -> bool {
+            float contentWidth = ImGui::GetContentRegionAvail().x;
+            float labelWidth = ImGui::CalcTextSize(label).x;
+            float shortcutWidth = ImGui::CalcTextSize(shortcut).x;
+
+            // Create the basic menu item
+            bool activated = ImGui::MenuItem(label, nullptr, selected, enabled);
+
+            // Draw the shortcut aligned to the right
+            if (shortcut && shortcut[0]) {
+                ImGui::SameLine(contentWidth - shortcutWidth);
+                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "%s", shortcut);
+            }
+
+            return activated;
+        };
+
+        // Cut action
+        if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, state.selection_active)) {
+            gEditorCopyPaste.cutSelectedText(text, colors, state, text_changed);
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Copy action
+        if (MenuItemWithAlignedShortcut("Copy", "Ctrl+C", nullptr, state.selection_active)) {
+            gEditorCopyPaste.copySelectedText(text, state);
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Paste action
+        if (MenuItemWithAlignedShortcut("Paste", "Ctrl+V", nullptr, true)) {
+            gEditorCopyPaste.pasteText(text, colors, state, text_changed);
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Add a subtle separator for better organization
+        ImGui::Separator();
+
+        // Save file action
+        if (MenuItemWithAlignedShortcut("Save", "Ctrl+S", nullptr, true)) {
+            gFileExplorer.saveCurrentFile();
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        // Another subtle separator
+        ImGui::Separator();
+
+        // Select All
+        if (MenuItemWithAlignedShortcut("Select All", "Ctrl+A", nullptr, true)) {
+            state.selection_active = true;
+            state.selection_start = 0;
+            state.selection_end = text.size();
+            state.cursor_column = text.size();
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    // Pop styling
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(6);
+}
 int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height)
 {
     // Determine which line was clicked (clamped to valid indices)
