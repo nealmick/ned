@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include "../editor/editor.h"
+#include "../editor/editor_lsp.h"
 #include "file_content_search.h"
 #include "file_tree.h"
 #include "file_undo_redo.h"
@@ -78,7 +79,12 @@ class FileExplorer
     void setShowWelcomeScreen(bool show) { showWelcomeScreen = show; }
     bool getShowWelcomeScreen() const { return showWelcomeScreen; }
 
+    void initializeLSP(const std::string &workspacePath);
+    void notifyLSPFileOpen(const std::string &filePath);
+
   private:
+    bool lspInitialized = false;
+
     std::string selectedFolder;
     bool _showFileDialog = false;
     bool _unsavedChanges = false;

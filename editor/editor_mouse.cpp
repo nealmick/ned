@@ -224,6 +224,23 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
+        ImGui::Separator();
+
+        // Go to Definition
+        if (MenuItemWithAlignedShortcut("Go to Definition", "F12", nullptr, true)) {
+            // Get current line number from state
+            int current_line = gEditor.getLineFromPos(state.editor_content_lines, state.cursor_column);
+
+            // Get character offset in current line
+            int line_start = state.editor_content_lines[current_line];
+            int char_offset = state.cursor_column - line_start;
+
+            // Call LSP goto definition
+            gEditorLSP.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);
+
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
 
         ImGui::EndPopup();
     }
@@ -232,6 +249,7 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
     ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(6);
 }
+
 int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height)
 {
     // Determine which line was clicked (clamped to valid indices)

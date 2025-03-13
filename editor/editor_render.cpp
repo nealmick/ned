@@ -12,6 +12,7 @@
 #include "editor_highlight.h"
 #include "editor_line_jump.h"
 #include "editor_line_numbers.h"
+#include "editor_lsp.h"
 #include "editor_scroll.h"
 #include "editor_selection.h"
 #include "editor_utils.h"
@@ -42,6 +43,10 @@ void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &col
     // Update scroll manager with final positions
     gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
     gEditorScroll.setScrollX(scrollX);
+
+    if (gEditorLSP.hasDefinitionOptions()) {
+        gEditorLSP.renderDefinitionOptions(editor_state);
+    }
 
     // End the editor child window
     ImGui::EndChild();

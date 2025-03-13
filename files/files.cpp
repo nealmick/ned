@@ -126,6 +126,10 @@ void FileExplorer::openFolderDialog()
         selectedFolder = outPath;
         gFileTree.setSelectedFolder(outPath); // Update FileTree with the selected folder
         std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
+
+        // Initialize LSP with the selected workspace
+        initializeLSP(outPath);
+
         free(outPath);
         _showFileDialog = false;
         setShowWelcomeScreen(false); // Hide welcome screen when folder selected
@@ -292,6 +296,9 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
         setupUndoManager(path);
         initializeSyntaxHighlighting(path);
 
+        // Notify LSP about the newly opened file
+        notifyLSPFileOpen(path);
+
         if (afterLoadCallback) {
             afterLoadCallback();
         }
@@ -335,6 +342,8 @@ void FileExplorer::renderEditor(bool &text_changed)
 
     if (text_changed && !editor_state.active_find_box) {
         setUnsavedChanges(true);
+        static int version = 1;
+        gEditorLSP.didChange(currentFile, fileContent, ++version);
     }
 }
 
@@ -410,5 +419,26 @@ void FileExplorer::saveCurrentFile()
         } else {
             std::cerr << "Unable to save file: " << currentFile << std::endl;
         }
+    }
+}
+
+void FileExplorer::initializeLSP(const std::string &workspacePath)
+{
+    if (!lspInitialized) {
+        std::cout << "\033[35mLSP:\033[0m Initializing LSP with workspace: " << workspacePath << std::endl;
+        if (gEditorLSP.initialize(workspacePath)) {
+            lspInitialized = true;
+            std::cout << "\033[32mLSP:\033[0m Successfully initialized LSP" << std::endl;
+        } else {
+            std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP" << std::endl;
+        }
+    }
+}
+
+void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
+{
+    if (lspInitialized) {
+        std::cout << "\033[35mLSP:\033[0m Notifying file open: " << filePath << std::endl;
+        gEditorLSP.didOpen(filePath, fileContent);
     }
 }
