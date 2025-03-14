@@ -128,10 +128,10 @@ void EditorRender::renderEditorContent(const std::string &text, const std::vecto
     renderText(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
 
     // Compute the cursor's line by finding which line the cursor is on
-    int cursor_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_column);
+    int cursor_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_index);
 
     // Calculate cursor x position character-by-character using EditorCursor
-    float cursor_x = gEditorCursor.calculateCursorXPosition(text_pos, text, editor_state.cursor_column);
+    float cursor_x = gEditorCursor.calculateCursorXPosition(text_pos, text, editor_state.cursor_index);
 
     ImVec2 cursor_screen_pos = text_pos;
     cursor_screen_pos.x = cursor_x;

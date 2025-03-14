@@ -13,14 +13,14 @@ EditorSelection gEditorSelection;
 void EditorSelection::startSelection(EditorState &state)
 {
     state.selection_active = true;
-    state.selection_start = state.cursor_column;
-    state.selection_end = state.cursor_column;
+    state.selection_start = state.cursor_index;
+    state.selection_end = state.cursor_index;
 }
 
 void EditorSelection::updateSelection(EditorState &state)
 {
     if (state.selection_active) {
-        state.selection_end = state.cursor_column;
+        state.selection_end = state.cursor_index;
     }
 }
 
@@ -35,8 +35,8 @@ void EditorSelection::selectAllText(EditorState &state, const std::string &text)
     const size_t MAX_SELECTION_SIZE = 100000; // Limit for very large files
     state.selection_active = true;
     state.selection_start = 0;
-    state.cursor_column = std::min(text.size(), MAX_SELECTION_SIZE);
-    state.selection_end = state.cursor_column;
+    state.cursor_index = std::min(text.size(), MAX_SELECTION_SIZE);
+    state.selection_end = state.cursor_index;
     state.full_text_selected = true;
 }
 

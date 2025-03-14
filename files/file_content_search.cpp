@@ -21,7 +21,7 @@ void FileContentSearch::findNext(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_column;
+        startPos = editor_state->cursor_index;
     } else {
         startPos = lastFoundPos + 1;
     }
@@ -57,10 +57,10 @@ void FileContentSearch::findNext(bool ignoreCase)
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_column = foundPos;
+        editor_state->cursor_index = foundPos;
         editor_state->selection_start = foundPos;
         editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_column << std::endl;
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_index << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }
@@ -73,7 +73,7 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_column;
+        startPos = editor_state->cursor_index;
     } else {
         startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
     }
@@ -106,10 +106,10 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_column = foundPos;
+        editor_state->cursor_index = foundPos;
         editor_state->selection_start = foundPos;
         editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_column << std::endl;
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_index << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }

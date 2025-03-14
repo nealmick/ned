@@ -36,7 +36,7 @@ void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, 
 
         // If no active selection, set cursor at the clicked position
         if (!state.selection_active) {
-            state.cursor_column = char_index;
+            state.cursor_index = char_index;
         }
     }
 }
@@ -47,22 +47,22 @@ void EditorMouse::handleMouseClick(EditorState &state, int char_index, const std
         // If shift is held and we're not already selecting, set the anchor to the current
         // cursor position.
         if (!state.selection_active) {
-            anchor_pos = state.cursor_column;
+            anchor_pos = state.cursor_index;
             state.selection_start = anchor_pos;
             state.selection_active = true;
         }
         // Update the selection end based on the new click.
         state.selection_end = char_index;
-        state.cursor_column = char_index;
+        state.cursor_index = char_index;
     } else {
         // On a regular click (without shift), reset the selection and update the anchor.
-        state.cursor_column = char_index;
+        state.cursor_index = char_index;
         anchor_pos = char_index;
         state.selection_start = char_index;
         state.selection_end = char_index;
         state.selection_active = false;
-        int current_line = gEditor.getLineFromPos(line_starts, state.cursor_column);
-        state.cursor_column_prefered = state.cursor_column - line_starts[current_line];
+        int current_line = gEditor.getLineFromPos(line_starts, state.cursor_index);
+        state.cursor_column_prefered = state.cursor_index - line_starts[current_line];
     }
     is_dragging = true;
 }
@@ -72,20 +72,20 @@ void EditorMouse::handleMouseDrag(EditorState &state, int char_index)
     if (ImGui::GetIO().KeyShift) {
         // If shift is held, use the existing anchor for updating selection.
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_column;
+            anchor_pos = state.cursor_index;
             state.selection_start = anchor_pos;
         }
         state.selection_end = char_index;
-        state.cursor_column = char_index;
+        state.cursor_index = char_index;
     } else {
         // Normal drag selection without shift: use the initial click as the anchor.
         state.selection_active = true;
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_column;
+            anchor_pos = state.cursor_index;
         }
         state.selection_start = anchor_pos;
         state.selection_end = char_index;
-        state.cursor_column = char_index;
+        state.cursor_index = char_index;
     }
 }
 
@@ -220,7 +220,7 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
             state.selection_active = true;
             state.selection_start = 0;
             state.selection_end = text.size();
-            state.cursor_column = text.size();
+            state.cursor_index = text.size();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
@@ -229,11 +229,11 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
         // Go to Definition
         if (MenuItemWithAlignedShortcut("Go to Definition", "F12", nullptr, true)) {
             // Get current line number from state
-            int current_line = gEditor.getLineFromPos(state.editor_content_lines, state.cursor_column);
+            int current_line = gEditor.getLineFromPos(state.editor_content_lines, state.cursor_index);
 
             // Get character offset in current line
             int line_start = state.editor_content_lines[current_line];
-            int char_offset = state.cursor_column - line_start;
+            int char_offset = state.cursor_index - line_start;
 
             // Call LSP goto definition
             gEditorLSP.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);

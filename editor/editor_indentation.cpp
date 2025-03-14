@@ -71,7 +71,7 @@ void EditorIndentation::handleMultiLineIndentation(std::string &text, std::vecto
     }
 
     // Adjust cursor and selection positions
-    state.cursor_column += (state.cursor_column >= start) ? tabsInserted : 0;
+    state.cursor_index += (state.cursor_index >= start) ? tabsInserted : 0;
     state.selection_start += (state.selection_start > start) ? tabsInserted : 0;
     state.selection_end += tabsInserted;
 
@@ -81,11 +81,11 @@ void EditorIndentation::handleMultiLineIndentation(std::string &text, std::vecto
 void EditorIndentation::handleSingleLineIndentation(std::string &text, std::vector<ImVec4> &colors, EditorState &state, int &input_end)
 {
     // Insert a single tab character at cursor position
-    text.insert(state.cursor_column, 1, '\t');
-    colors.insert(colors.begin() + state.cursor_column, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    state.cursor_column++;
-    state.selection_start = state.selection_end = state.cursor_column;
-    input_end = state.cursor_column;
+    text.insert(state.cursor_index, 1, '\t');
+    colors.insert(colors.begin() + state.cursor_index, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    state.cursor_index++;
+    state.selection_start = state.selection_end = state.cursor_index;
+    input_end = state.cursor_index;
 }
 
 void EditorIndentation::finishIndentationChange(std::string &text, std::vector<ImVec4> &colors, EditorState &state, int &input_end, bool &text_changed)
@@ -122,7 +122,7 @@ void EditorIndentation::removeIndentation(std::string &text, EditorState &state)
         end = getSelectionEnd(state);
     } else {
         // If no selection, work on the current line
-        start = end = state.cursor_column;
+        start = end = state.cursor_index;
     }
 
     // Find the start of the first line
@@ -185,14 +185,14 @@ void EditorIndentation::updateStateAfterIndentRemoval(std::string &text, EditorS
     text = std::move(newText);
 
     // Adjust cursor position
-    state.cursor_column = std::max(state.cursor_column - totalSpacesRemoved, firstLineStart);
+    state.cursor_index = std::max(state.cursor_index - totalSpacesRemoved, firstLineStart);
 
     // Adjust selection if one exists
     if (state.selection_active) {
         state.selection_start = std::max(state.selection_start - totalSpacesRemoved, firstLineStart);
         state.selection_end = std::max(state.selection_end - totalSpacesRemoved, firstLineStart);
     } else {
-        state.selection_start = state.selection_end = state.cursor_column;
+        state.selection_start = state.selection_end = state.cursor_index;
     }
 }
 

@@ -35,10 +35,6 @@
 Editor gEditor;
 EditorState editor_state;
 
-//==============================================================================
-// Main Editor Function
-//==============================================================================
-
 bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state)
 {
     // Initialize variables
@@ -60,9 +56,6 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     return text_changed;
 }
 
-//==============================================================================
-// Text Editor Helper Functions
-//==============================================================================
 
 void Editor::setupEditorDisplay(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state, ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y)
 {
@@ -94,7 +87,7 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
 {
     bool text_changed = false;
     ImVec2 text_start_pos = text_pos;
-    int initial_cursor_pos = editor_state.cursor_column;
+    int initial_cursor_pos = editor_state.cursor_index;
 
     // Process keyboard input (text editing, cursor movement, etc.)
     gEditorKeyboard.processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
@@ -118,17 +111,6 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
     return text_changed;
 }
 
-//==============================================================================
-// Text Content Analysis
-//==============================================================================
-
-/*
- * Updates the line_starts vector with the character positions where each line begins.
- * Also computes and caches the width of each line for layout calculations.
- *
- * @param text         The text content to analyze
- * @param line_starts  Vector to populate with line start positions
- */
 void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_starts)
 {
     // Skip update if text hasn't changed since last analysis
@@ -161,27 +143,13 @@ void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_st
     }
 }
 
-/*
- * Gets the line number for a given character position in the text.
- *
- * @param line_starts  Vector of character positions where lines start
- * @param pos          Character position to find the line for
- * @return             The line number (0-based) containing the character position
- */
+
 int Editor::getLineFromPos(const std::vector<int> &line_starts, int pos)
 {
     auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
     return std::distance(line_starts.begin(), it) - 1;
 }
 
-/*
- * Calculates the maximum width of all lines in the text.
- * Used to determine the horizontal scroll range.
- *
- * @param text         The text content
- * @param line_starts  Vector of character positions where lines start
- * @return             The maximum line width in pixels
- */
 float Editor::calculateTextWidth(const std::string &text, const std::vector<int> &line_starts)
 {
     // Find the maximum line width from the cached line widths

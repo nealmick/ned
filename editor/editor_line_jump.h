@@ -143,10 +143,10 @@ class LineJump
         }
 
         // Set cursor to the beginning of the requested line
-        state.cursor_column = state.editor_content_lines[lineNumber];
-        state.selection_start = state.cursor_column;
-        state.selection_end = state.cursor_column;
-        state.cursor_row = lineNumber;
+        state.cursor_index = state.editor_content_lines[lineNumber];
+        state.selection_start = state.cursor_index;
+        state.selection_end = state.cursor_index;
+        std::cout << "seting line number in linejump " << lineNumber << std::endl;
         state.selection_active = false;
 
         // Calculate the target scroll position

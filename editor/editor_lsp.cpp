@@ -5,6 +5,7 @@
 #include "files.h"
 #include <cstdio>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
@@ -513,11 +514,25 @@ void EditorLSP::renderDefinitionOptions(EditorState &state)
             const auto &selected = definitionLocations[selectedDefinitionIndex];
             std::cout << "Selected definition at " << selected.uri << " line " << (selected.startLine + 1) << " char " << (selected.startChar + 1) << std::endl;
 
-            // Load the file first
-            gFileExplorer.loadFileContent(selected.uri);
+            if (selected.uri != gFileExplorer.getCurrentFile()) {
+                // Empty callback just like bookmarks
+                auto emptyCallback = []() {};
+                gFileExplorer.loadFileContent(selected.uri, emptyCallback);
+            }
 
-            // Then jump to the line
-            gLineJump.jumpToLine(selected.startLine, state);
+            // Calculate cursor position AFTER file load just like bookmarks does
+            int index = 0;
+            int currentLine = 0;
+            while (currentLine < selected.startLine && index < gFileExplorer.fileContent.length()) {
+                if (gFileExplorer.fileContent[index] == '\n') {
+                    currentLine++;
+                }
+                index++;
+            }
+            index += selected.startChar;
+
+            editor_state.cursor_index = index;
+            gEditorScroll.setEnsureCursorVisibleFrames(-1);
 
             showDefinitionOptions = false;
             state.block_input = false;

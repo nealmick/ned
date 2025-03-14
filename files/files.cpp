@@ -151,8 +151,7 @@ void FileExplorer::refreshSyntaxHighlighting()
 
 void FileExplorer::resetEditorState()
 {
-    editor_state.cursor_column = 0;
-    editor_state.cursor_row = 0;
+    editor_state.cursor_index = 0;
     gEditorHighlight.cancelHighlighting();
 }
 
@@ -342,8 +341,6 @@ void FileExplorer::renderEditor(bool &text_changed)
 
     if (text_changed && !editor_state.active_find_box) {
         setUnsavedChanges(true);
-        static int version = 1;
-        gEditorLSP.didChange(currentFile, fileContent, ++version);
     }
 }
 

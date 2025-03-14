@@ -151,9 +151,9 @@ ScrollChange EditorScroll::ensureCursorVisible(const ImVec2 &text_pos, const std
     float viewport_height = window_height;
 
     // Calculate cursor position
-    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column);
+    float abs_cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_index);
     // Use our own getLineFromPosition to avoid circular dependency
-    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_index);
     float abs_cursor_y = text_pos.y + cursor_line * line_height;
 
     // Calculate cursor position relative to viewport
@@ -275,9 +275,9 @@ void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std:
 
     // Get cursor position
     // Use our own method for getting line from position
-    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_index);
     float cursor_y = text_pos.y + (cursor_line * line_height);
-    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column);
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_index);
 
     // Handle vertical scrolling
     if (cursor_y < visible_start_y) {
@@ -326,10 +326,10 @@ void EditorScroll::scrollToCharacter(EditorState &state, int charIndex, const Im
 
 void EditorScroll::centerOnCursor(EditorState &state, const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width)
 {
-    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int cursor_line = getLineFromPosition(state.editor_content_lines, state.cursor_index);
 
     // Calculate the cursor position
-    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_column) - text_pos.x;
+    float cursor_x = calculateCursorXPosition(text_pos, text, state.cursor_index) - text_pos.x;
     float cursor_y = cursor_line * line_height;
 
     // Calculate centered scroll positions

@@ -7,8 +7,7 @@
 struct EditorState
 {
     // Cursor State
-    int cursor_column; // Horizontal Character
-    int cursor_row;    // Vertical Line
+    int cursor_index; // content index of curent cursor
     /*
      * cursor_column_prefered
      * Remembers horizontal position if line is shorter than preferred.
@@ -47,5 +46,5 @@ struct EditorState
     bool block_input;        // Turn off all editor inputs
     float cursor_blink_time; // Used for cursor timing and rainbow mode state
 
-    EditorState() : cursor_column_prefered(0), cursor_column(0), cursor_row(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
+    EditorState() : cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
 };

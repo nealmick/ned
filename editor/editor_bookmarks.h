@@ -68,8 +68,8 @@ class Bookmarks
                 gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
             }
 
-            editorState.cursor_column = bookmarks[slot].cursorPosition;
-            editorState.cursor_row = bookmarks[slot].lineNumber;
+            editorState.cursor_index = bookmarks[slot].cursorPosition; // use content string index...
+            // editorState.cursor_row = bookmarks[slot].lineNumber;
             gEditorScroll.setEnsureCursorVisibleFrames(-1); // Use EditorScroll method instead
             return true;
         }
@@ -94,8 +94,9 @@ class Bookmarks
         for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
             if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
                 if (shift_pressed || alt_pressed) {
-                    setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_column, editorState.cursor_row);
-                    std::cout << "Bookmark " << (i + 1) << " set at line " << editorState.cursor_row << std::endl;
+                    int lineNumber = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+                    setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_index, lineNumber);
+                    std::cout << "Bookmark " << (i + 1) << " set at line " << lineNumber << std::endl;
                 } else {
                     if (jumpToBookmark(i, fileExplorer, editorState)) {
                         std::cout << "Jumped to bookmark " << (i + 1) << std::endl;

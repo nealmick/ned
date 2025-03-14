@@ -81,6 +81,7 @@ class FileExplorer
 
     void initializeLSP(const std::string &workspacePath);
     void notifyLSPFileOpen(const std::string &filePath);
+    std::string fileContent;
 
   private:
     bool lspInitialized = false;
@@ -88,7 +89,6 @@ class FileExplorer
     std::string selectedFolder;
     bool _showFileDialog = false;
     bool _unsavedChanges = false;
-    std::string fileContent;
     std::vector<ImVec4> fileColors;
     std::map<std::string, ImTextureID> fileTypeIcons;
 

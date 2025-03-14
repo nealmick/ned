@@ -27,6 +27,9 @@ void EditorLineNumbers::renderLineNumbers(const ImVec2 &pos, float line_number_w
     int selection_end_line = 0;
     calculateSelectionLines(editor_state, selection_start_line, selection_end_line);
 
+    // Get current line from cursor position
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+
     // Render each visible line number
     for (int i = start_line; i < end_line; i++) {
         // Calculate vertical position
@@ -36,7 +39,7 @@ void EditorLineNumbers::renderLineNumbers(const ImVec2 &pos, float line_number_w
         snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
 
         // Determine color based on selection and current line
-        ImU32 line_number_color = determineLineNumberColor(i, editor_state.cursor_row, selection_start_line, selection_end_line, editor_state.selection_active, rainbow_mode, rainbow_color);
+        ImU32 line_number_color = determineLineNumberColor(i, current_line, selection_start_line, selection_end_line, editor_state.selection_active, rainbow_mode, rainbow_color);
 
         // Calculate position for right-aligned text
         float text_width = ImGui::CalcTextSize(line_number_buffer).x;
