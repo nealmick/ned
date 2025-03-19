@@ -1,6 +1,7 @@
 #pragma once
 #include "editor_types.h"
 #include "imgui.h"
+#include "lsp_manager.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,27 +21,23 @@ class EditorLSP
     EditorLSP();
     ~EditorLSP();
 
+    // Core LSP functionality
     bool initialize(const std::string &workspacePath);
     void didOpen(const std::string &filePath, const std::string &content);
     void didChange(const std::string &filePath, const std::string &newContent, int version);
     bool gotoDefinition(const std::string &filePath, int line, int character);
 
-    // New methods for definition options window
+    // Definition options window
     void renderDefinitionOptions(EditorState &state);
     bool hasDefinitionOptions() const;
 
   private:
     // Helper methods
     std::string escapeJSON(const std::string &s) const;
-    std::string getLanguageId(const std::string &filePath) const;
     int getNextRequestId() { return ++currentRequestId; }
     void parseDefinitionResponse(const std::string &response);
 
-    class LSPImpl;
-    std::unique_ptr<LSPImpl> impl;
-
-    bool isInitialized;
-    std::string lspPath;
+    // Request tracking
     int currentRequestId = 0;
 
     // Definition options state

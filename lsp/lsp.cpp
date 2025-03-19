@@ -1,132 +1,30 @@
-#include "editor_lsp.h"
-#include "editor.h"
-#include "editor_line_jump.h"
-#include "editor_types.h"
+#include "lsp.h"
+#include "../editor/editor.h"
+#include "../editor/editor_line_jump.h"
+#include "../editor/editor_types.h"
 #include "files.h"
 #include <cstdio>
 #include <iostream>
 #include <random>
 #include <sstream>
 #include <string>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <sys/select.h>
 
 // Global instance
 EditorLSP gEditorLSP;
 
-class EditorLSP::LSPImpl
-{
-  public:
-    LSPImpl() : input(nullptr), output(nullptr) {}
-    ~LSPImpl()
-    {
-        if (input)
-            pclose(input);
-        if (output)
-            pclose(output);
-    }
-
-    FILE *input;  // To LSP server
-    FILE *output; // From LSP server
-    int pid;      // LSP server process ID
-};
-
-EditorLSP::EditorLSP() : impl(new LSPImpl()), isInitialized(false)
-{
-    lspPath = "/usr/bin/clangd"; // Default MacOS Homebrew path
-}
+EditorLSP::EditorLSP() : currentRequestId(0), showDefinitionOptions(false), selectedDefinitionIndex(0) {}
 
 EditorLSP::~EditorLSP() = default;
 
 bool EditorLSP::initialize(const std::string &workspacePath)
 {
-    if (isInitialized) {
-        std::cout << "\033[35mLSP:\033[0m Already initialized" << std::endl;
-        return true;
-    }
+    std::cout << "\033[35mLSP:\033[0m Initializing with workspace path: " << workspacePath << std::endl;
 
-    try {
-        std::cout << "\033[35mLSP:\033[0m Starting LSP server with path: " << lspPath << std::endl;
-
-        // Create pipes for communication
-        int inPipe[2], outPipe[2];
-        if (pipe(inPipe) < 0 || pipe(outPipe) < 0) {
-            std::cerr << "\033[31mLSP:\033[0m Failed to create pipes" << std::endl;
-            return false;
-        }
-
-        // Fork process
-        pid_t pid = fork();
-        if (pid < 0) {
-            std::cerr << "\033[31mLSP:\033[0m Fork failed" << std::endl;
-            return false;
-        }
-
-        if (pid == 0) { // Child process
-            std::cout << "\033[35mLSP:\033[0m Starting clangd process" << std::endl;
-
-            dup2(outPipe[0], STDIN_FILENO);
-            dup2(inPipe[1], STDOUT_FILENO);
-
-            close(inPipe[0]);
-            close(inPipe[1]);
-            close(outPipe[0]);
-            close(outPipe[1]);
-
-            execl(lspPath.c_str(), "clangd", "--log=error", nullptr); // change to turn lsp logging on...
-
-            std::cerr << "\033[31mLSP:\033[0m Failed to start clangd" << std::endl;
-            exit(1);
-        }
-
-        // Parent process
-        close(inPipe[1]);
-        close(outPipe[0]);
-
-        impl->input = fdopen(outPipe[1], "w");
-        impl->output = fdopen(inPipe[0], "r");
-        impl->pid = pid;
-
-        if (!impl->input || !impl->output) {
-            std::cerr << "\033[31mLSP:\033[0m Failed to open pipes" << std::endl;
-            return false;
-        }
-
-        std::cout << "\033[35mLSP:\033[0m Sending initialize request for workspace: " << workspacePath << std::endl;
-
-        // Create the initialize request string
-        std::string initRequest = std::string(R"({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "processId": null,
-                "rootUri": "file://)") +
-                                  workspacePath + R"(",
-                "capabilities": {
-                    "textDocument": {
-                        "definition": {
-                            "dynamicRegistration": true
-                        }
-                    }
-                }
-            }
-        })";
-
-        fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", initRequest.length(), initRequest.c_str());
-        fflush(impl->input);
-
-        std::cout << "\033[32mLSP:\033[0m Initialize request sent successfully" << std::endl;
-
-        isInitialized = true;
-        return true;
-
-    } catch (const std::exception &e) {
-        std::cerr << "\033[31mLSP:\033[0m Initialization failed: " << e.what() << std::endl;
-        return false;
-    }
+    // Delegate to the LSP manager
+    return gLSPManager.initialize(workspacePath);
 }
+
 std::string EditorLSP::escapeJSON(const std::string &s) const
 {
     std::string out;
@@ -167,74 +65,24 @@ std::string EditorLSP::escapeJSON(const std::string &s) const
     return out;
 }
 
-void EditorLSP::didChange(const std::string &filePath, const std::string &newContent, int version)
-{
-    if (!isInitialized) {
-        std::cout << "\033[31mLSP:\033[0m Cannot send didChange - LSP not initialized" << std::endl;
-        return;
-    }
-
-    std::cout << "\033[35mLSP:\033[0m Sending didChange notification for file: " << filePath << std::endl;
-
-    std::string notification = std::string(R"({
-        "jsonrpc": "2.0",
-        "method": "textDocument/didChange",
-        "params": {
-            "textDocument": {
-                "uri": "file://)") +
-                               filePath + R"(",
-                "version": )" + std::to_string(version) +
-                               R"(
-            },
-            "contentChanges": [
-                {
-                    "text": ")" +
-                               escapeJSON(newContent) + R"("
-                }
-            ]
-        }
-    })";
-
-    fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", notification.length(), notification.c_str());
-    fflush(impl->input);
-
-    std::cout << "\033[32mLSP:\033[0m didChange notification sent successfully" << std::endl;
-}
-
-std::string EditorLSP::getLanguageId(const std::string &filePath) const
-{
-    // Get file extension
-    size_t dot_pos = filePath.find_last_of(".");
-    if (dot_pos == std::string::npos) {
-        return "plaintext";
-    }
-
-    std::string ext = filePath.substr(dot_pos + 1);
-
-    // Map common extensions to language IDs
-    if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" || ext == "hpp") {
-        return "cpp";
-    } else if (ext == "c") {
-        return "c";
-    } else if (ext == "py") {
-        return "python";
-    } else if (ext == "js") {
-        return "javascript";
-    } else if (ext == "ts") {
-        return "typescript";
-    } else if (ext == "rs") {
-        return "rust";
-    }
-    // Add more mappings as needed
-
-    return "plaintext";
-}
-
 void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
 {
-    if (!isInitialized) {
-        std::cout << "\033[31mLSP:\033[0m Cannot send didOpen - LSP not initialized" << std::endl;
+    // Select the appropriate adapter for this file
+    if (!gLSPManager.selectAdapterForFile(filePath)) {
+        std::cout << "\033[31mLSP:\033[0m No LSP adapter available for file: " << filePath << std::endl;
         return;
+    }
+
+    // If the selected adapter is not initialized, initialize it with the current file's directory
+    if (!gLSPManager.isInitialized()) {
+        // Extract workspace path from file path (use directory containing the file)
+        std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
+        std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: " << workspacePath << std::endl;
+
+        if (!gLSPManager.initialize(workspacePath)) {
+            std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for " << filePath << std::endl;
+            return;
+        }
     }
 
     std::cout << "\033[35mLSP:\033[0m Sending didOpen notification for file: " << filePath << std::endl;
@@ -247,7 +95,7 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
                 "uri": "file://)") +
                                filePath + R"(",
                 "languageId": ")" +
-                               getLanguageId(filePath) + R"(",
+                               gLSPManager.getLanguageId(filePath) + R"(",
                 "version": 1,
                 "text": ")" + escapeJSON(content) +
                                R"("
@@ -255,16 +103,19 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
         }
     })";
 
-    fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", notification.length(), notification.c_str());
-    fflush(impl->input);
-
+    gLSPManager.sendRequest(notification);
     std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;
 }
-
 bool EditorLSP::gotoDefinition(const std::string &filePath, int line, int character)
 {
-    if (!isInitialized) {
+    if (!gLSPManager.isInitialized()) {
         std::cout << "\033[31mLSP:\033[0m Not initialized" << std::endl;
+        return false;
+    }
+
+    // Select the appropriate adapter for this file
+    if (!gLSPManager.selectAdapterForFile(filePath)) {
+        std::cout << "\033[31mLSP:\033[0m No LSP adapter available for file: " << filePath << std::endl;
         return false;
     }
 
@@ -290,60 +141,95 @@ bool EditorLSP::gotoDefinition(const std::string &filePath, int line, int charac
         }
     })");
 
-    fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
-    fflush(impl->input);
+    // Send the request through the manager
+    if (!gLSPManager.sendRequest(request)) {
+        std::cout << "\033[31mLSP:\033[0m Failed to send request" << std::endl;
+        return false;
+    }
 
-    while (true) {
-        char header[1024];
-        if (!fgets(header, sizeof(header), impl->output)) {
-            std::cout << "\033[31mLSP:\033[0m Failed to read response header" << std::endl;
-            return false;
-        }
+    // Set a maximum number of attempts to avoid infinite loop
+    const int MAX_ATTEMPTS = 15; // Increased from 5
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        std::cout << "\033[35mLSP:\033[0m Waiting for definition response (attempt " << (attempt + 1) << ")" << std::endl;
 
-        int content_length = 0;
-        if (sscanf(header, "Content-Length: %d\r\n", &content_length) != 1) {
+        int contentLength = 0;
+        std::string response = gLSPManager.readResponse(&contentLength);
+
+        if (response.empty()) {
+            std::cout << "\033[31mLSP:\033[0m Empty response received" << std::endl;
+            if (attempt == MAX_ATTEMPTS - 1) {
+                return false;
+            }
             continue;
         }
 
-        fgets(header, sizeof(header), impl->output);
+        // Check if we received the correct response format
+        if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos) {
+            // We found a response matching our request ID
+            std::cout << "\033[32mLSP:\033[0m Found response for our request ID" << std::endl;
 
-        std::vector<char> buffer(content_length + 1);
-        size_t bytes_read = fread(buffer.data(), 1, content_length, impl->output);
-        buffer[bytes_read] = '\0';
+            // Handle the various possible result formats
 
-        std::string response(buffer.data());
+            // Format 1: Standard array of location objects
+            if (response.find("\"result\":[{") != std::string::npos) {
+                std::cout << "\033[32mLSP:\033[0m Found standard result array" << std::endl;
+                parseDefinitionResponse(response);
+                return true;
+            }
 
-        // Only parse responses that:
-        // 1. Match our request ID
-        // 2. Are definition responses (have result array)
-        if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos && response.find("\"result\":[{") != std::string::npos) {
+            // Format 2: Single location object (not in an array)
+            else if (response.find("\"result\":{") != std::string::npos) {
+                std::cout << "\033[32mLSP:\033[0m Found single result object" << std::endl;
+                // Modify response to make it look like an array for our parser
+                std::string modifiedResponse = response;
+                size_t pos = modifiedResponse.find("\"result\":{");
+                if (pos != std::string::npos) {
+                    modifiedResponse.insert(pos + 9, "[");
+                    // Find the end of the result object
+                    size_t endPos = modifiedResponse.find_last_of("}");
+                    if (endPos != std::string::npos) {
+                        modifiedResponse.insert(endPos + 1, "]");
+                    }
+                }
+                parseDefinitionResponse(modifiedResponse);
+                return true;
+            }
 
-            /*
-            std::cout << "\033[32mLSP:\033[0m Definition response:" << std::endl;
-            std::cout << "----------------------------------------" << std::endl;
-            std::cout << buffer.data() << std::endl;
-            std::cout << "----------------------------------------" << std::endl;
-            */
-            // Parse response and show options window
-            parseDefinitionResponse(response);
-            return true;
+            // Format 3: Empty array or null result (no definition found)
+            else if (response.find("\"result\":null") != std::string::npos || response.find("\"result\":[]") != std::string::npos) {
+                std::cout << "\033[33mLSP:\033[0m No definition found" << std::endl;
+                return false;
+            }
+
+            // Format 4: Error in response
+            else if (response.find("\"error\":") != std::string::npos) {
+                std::cout << "\033[31mLSP:\033[0m Error in response: " << response << std::endl;
+                return false;
+            }
+
+            // Unknown format, but we at least got a response to our request
+            else {
+                std::cout << "\033[33mLSP:\033[0m Got response to our request, but in unexpected format: " << response << std::endl;
+                return false;
+            }
         }
+
+        // If we didn't find the response we're looking for, try again
+        std::cout << "\033[33mLSP:\033[0m Received response but it's not what we're looking for. Continuing..." << std::endl;
     }
 
+    std::cout << "\033[31mLSP:\033[0m Exceeded maximum attempts waiting for response" << std::endl;
     return false;
 }
 
 void EditorLSP::parseDefinitionResponse(const std::string &response)
 {
-    // std::cout << "\033[35mLSP Parse:\033[0m Starting parse of definition response" << std::endl;
-
     // Clear previous locations
     definitionLocations.clear();
 
     // Find result array
     size_t resultPos = response.find("\"result\":[");
     if (resultPos == std::string::npos) {
-        // std::cout << "\033[31mLSP Parse:\033[0m No result array found in response" << std::endl;
         return;
     }
 
@@ -362,7 +248,6 @@ void EditorLSP::parseDefinitionResponse(const std::string &response)
             break;
 
         std::string uri = response.substr(uriStart + 8, uriEnd - (uriStart + 8));
-        // std::cout << "\033[35mLSP Parse:\033[0m Found URI: " << uri << std::endl;
 
         // Find the range object
         size_t rangePos = response.find("\"range\":", pos);
@@ -509,20 +394,21 @@ void EditorLSP::renderDefinitionOptions(EditorState &state)
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "up/down to select and enter to confirm");
 
-        // Handle Enter/Escape
+        // In the renderDefinitionOptions function, modify the Enter key handler:
         if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) {
             const auto &selected = definitionLocations[selectedDefinitionIndex];
             std::cout << "Selected definition at " << selected.uri << " line " << (selected.startLine + 1) << " char " << (selected.startChar + 1) << std::endl;
 
             if (selected.uri != gFileExplorer.getCurrentFile()) {
-                // Empty callback just like bookmarks
-                auto emptyCallback = []() {};
-                gFileExplorer.loadFileContent(selected.uri, emptyCallback);
+                // Load the file first
+                gFileExplorer.loadFileContent(selected.uri, nullptr);
             }
 
-            // Calculate cursor position AFTER file load just like bookmarks does
+            // Calculate cursor position using correct global editor state
             int index = 0;
             int currentLine = 0;
+            std::cout << "Calculating cursor position..." << std::endl;
+
             while (currentLine < selected.startLine && index < gFileExplorer.fileContent.length()) {
                 if (gFileExplorer.fileContent[index] == '\n') {
                     currentLine++;
@@ -530,10 +416,9 @@ void EditorLSP::renderDefinitionOptions(EditorState &state)
                 index++;
             }
             index += selected.startChar;
-
-            editor_state.cursor_index = index;
+            index = std::min(index, (int)gFileExplorer.fileContent.length());
+            state.cursor_index = index; //
             gEditorScroll.setEnsureCursorVisibleFrames(-1);
-
             showDefinitionOptions = false;
             state.block_input = false;
         } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {

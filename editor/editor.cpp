@@ -53,9 +53,10 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
     // PHASE 3: Render editor content and finalize frame
     gEditorRender.renderEditorFrame(text, colors, editor_state, text_pos, line_height, line_numbers_pos, line_number_width, size, total_height, editor_top_margin);
 
+    // std::cout << editor_state.cursor_index << std::endl;
+
     return text_changed;
 }
-
 
 void Editor::setupEditorDisplay(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state, ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y)
 {
@@ -142,7 +143,6 @@ void Editor::updateLineStarts(const std::string &text, std::vector<int> &line_st
         editor_state.line_widths.push_back(width);
     }
 }
-
 
 int Editor::getLineFromPos(const std::vector<int> &line_starts, int pos)
 {

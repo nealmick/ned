@@ -6,13 +6,13 @@
 
 #include "editor_render.h"
 #include "../files/file_finder.h"
+#include "../lsp/lsp.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_cursor.h"
 #include "editor_highlight.h"
 #include "editor_line_jump.h"
 #include "editor_line_numbers.h"
-#include "editor_lsp.h"
 #include "editor_scroll.h"
 #include "editor_selection.h"
 #include "editor_utils.h"
@@ -131,7 +131,7 @@ void EditorRender::renderEditorContent(const std::string &text, const std::vecto
     int cursor_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_index);
 
     // Calculate cursor x position character-by-character using EditorCursor
-    float cursor_x = gEditorCursor.calculateCursorXPosition(text_pos, text, editor_state.cursor_index);
+    float cursor_x = gEditorCursor.getCursorXPosition(text_pos, text, editor_state.cursor_index);
 
     ImVec2 cursor_screen_pos = text_pos;
     cursor_screen_pos.x = cursor_x;
