@@ -7,6 +7,7 @@
 #include "editor_render.h"
 #include "../files/file_finder.h"
 #include "../lsp/lsp.h"
+#include "../lsp/lsp_goto_def.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_cursor.h"
@@ -44,8 +45,8 @@ void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &col
     gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
     gEditorScroll.setScrollX(scrollX);
 
-    if (gEditorLSP.hasDefinitionOptions()) {
-        gEditorLSP.renderDefinitionOptions(editor_state);
+    if (gLSPGotoDef.hasDefinitionOptions()) {
+        gLSPGotoDef.renderDefinitionOptions(editor_state);
     }
 
     // End the editor child window

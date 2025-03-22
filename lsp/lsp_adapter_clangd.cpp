@@ -108,8 +108,18 @@ bool LSPAdapterClangd::initialize(const std::string &workspacePath)
 
         // Send the initialization request
         sendRequest(initRequest);
+        std::cout << "\033[35mClangd:\033[0m Waiting for initialization response" << std::endl;
+        std::string initResponse = readResponse();
+        std::cout << "\033[35mClangd:\033[0m Received initialization response: " << initResponse.substr(0, 100) << "..." << std::endl;
 
-        std::cout << "\033[32mClangd:\033[0m Initialize request sent successfully" << std::endl;
+        // Send the initialized notification
+        std::string initializedNotification = R"({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        })";
+        sendRequest(initializedNotification);
+        std::cout << "\033[32mClangd:\033[0m Sent initialized notification" << std::endl;
 
         initialized = true;
         return true;

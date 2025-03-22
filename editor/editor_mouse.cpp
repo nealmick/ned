@@ -1,5 +1,6 @@
 #include "editor_mouse.h"
 #include "../files/files.h"
+#include "../lsp/lsp_goto_def.h"
 #include "editor.h"
 #include "editor_copy_paste.h"
 #include <algorithm>
@@ -236,7 +237,7 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
             int char_offset = state.cursor_index - line_start;
 
             // Call LSP goto definition
-            gEditorLSP.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);
+            gLSPGotoDef.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);
 
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
