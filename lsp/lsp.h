@@ -38,7 +38,7 @@ class EditorLSP
     void parseDefinitionResponse(const std::string &response);
 
     // Request tracking
-    int currentRequestId = 0;
+    int currentRequestId = 1000;
 
     // Definition options state
     std::vector<DefinitionLocation> definitionLocations;

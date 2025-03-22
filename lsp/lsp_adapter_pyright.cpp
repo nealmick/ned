@@ -98,7 +98,7 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
             "params": {
                 "processId": null,
                 "rootUri": "file://)") +
-                                  workspacePath + R"(",
+                                  workspacePath + "/" + R"(",
                 "capabilities": {
                     "textDocument": {
                         "definition": {
@@ -192,29 +192,10 @@ bool LSPAdapterPyright::sendRequest(const std::string &request)
     fflush(impl->input);
     return true;
 }
-
 std::string LSPAdapterPyright::readResponse(int *contentLength)
 {
     if (!impl->output) {
         std::cerr << "\033[31mPyright:\033[0m Cannot read response - server not initialized" << std::endl;
-        return "";
-    }
-
-    // Setup for non-blocking read with timeout
-    int fd = fileno(impl->output);
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(fd, &readfds);
-
-    // Set timeout for 3 seconds
-    struct timeval timeout;
-    timeout.tv_sec = 3;
-    timeout.tv_usec = 0;
-
-    // Wait for data to be available
-    int ready = select(fd + 1, &readfds, NULL, NULL, &timeout);
-    if (ready <= 0) {
-        std::cerr << "\033[31mPyright:\033[0m Timeout or error waiting for response" << std::endl;
         return "";
     }
 
@@ -224,44 +205,39 @@ std::string LSPAdapterPyright::readResponse(int *contentLength)
         return "";
     }
 
+    // If header starts with { it's a JSON response, not a Content-Length header
+    if (header[0] == '{') {
+        std::cerr << "\033[31mPyright:\033[0m Invalid header format, but contains JSON: " << header << std::endl;
+
+        // Extract just the JSON part (before Content-Length if present)
+        std::string response = header;
+        size_t contentPos = response.find("Content-Length:");
+        if (contentPos != std::string::npos) {
+            response = response.substr(0, contentPos);
+        }
+
+        std::cout << "\033[32mPyright:\033[0m Extracted JSON: " << response << std::endl;
+        return response;
+    }
+
+    // Regular header processing
     int length = 0;
     if (sscanf(header, "Content-Length: %d\r\n", &length) != 1) {
         std::cerr << "\033[31mPyright:\033[0m Invalid header format: " << header << std::endl;
         return "";
     }
 
-    if (length <= 0 || length > 10000000) { // Sanity check for length
-        std::cerr << "\033[31mPyright:\033[0m Invalid content length: " << length << std::endl;
-        return "";
-    }
-
     // Skip the empty line after the header
     fgets(header, sizeof(header), impl->output);
 
-    // Read the response body with timeout
+    // Read the response body
     std::vector<char> buffer(length + 1);
-
-    FD_ZERO(&readfds);
-    FD_SET(fd, &readfds);
-    ready = select(fd + 1, &readfds, NULL, NULL, &timeout);
-    if (ready <= 0) {
-        std::cerr << "\033[31mPyright:\033[0m Timeout or error waiting for response body" << std::endl;
-        return "";
-    }
-
     size_t bytes_read = fread(buffer.data(), 1, length, impl->output);
     buffer[bytes_read] = '\0';
-
-    if (bytes_read < length) {
-        std::cerr << "\033[31mPyright:\033[0m Incomplete response: expected " << length << " bytes, got " << bytes_read << std::endl;
-    }
 
     if (contentLength) {
         *contentLength = length;
     }
-
-    // Print the response for debugging
-    std::cout << "\033[32mPyright Response:\033[0m " << buffer.data() << std::endl;
 
     return std::string(buffer.data(), bytes_read);
 }
