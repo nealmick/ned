@@ -35,30 +35,34 @@
 Editor gEditor;
 EditorState editor_state;
 
-bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state)
+bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors)
 {
     // Initialize variables
     bool text_changed = false;
+    
     CursorVisibility ensure_cursor_visible = {false, false};
+    
     ImVec2 size, text_pos, line_numbers_pos;
+    
     float line_height, line_number_width, total_height, editor_top_margin, text_left_margin;
+
     float current_scroll_x, current_scroll_y;
 
     // PHASE 1: Setup the editor display and windows
-    setupEditorDisplay(label, text, colors, editor_state, size, line_height, line_numbers_pos, text_pos, line_number_width, total_height, editor_top_margin, text_left_margin, current_scroll_x, current_scroll_y);
+    setupEditorDisplay(label, text, colors, size, line_height, line_numbers_pos, text_pos, line_number_width, total_height, editor_top_margin, text_left_margin, current_scroll_x, current_scroll_y);
 
     // PHASE 2: Process user input and handle scrolling
-    text_changed = processEditorInput(text, colors, editor_state, text_pos, line_height, size, current_scroll_x, current_scroll_y, ensure_cursor_visible);
+    text_changed = processEditorInput(text, colors, text_pos, line_height, size, current_scroll_x, current_scroll_y, ensure_cursor_visible);
 
     // PHASE 3: Render editor content and finalize frame
-    gEditorRender.renderEditorFrame(text, colors, editor_state, text_pos, line_height, line_numbers_pos, line_number_width, size, total_height, editor_top_margin);
+    gEditorRender.renderEditorFrame(text, colors, text_pos, line_height, line_numbers_pos, line_number_width, size, total_height, editor_top_margin);
 
     // std::cout << editor_state.cursor_index << std::endl;
 
     return text_changed;
 }
 
-void Editor::setupEditorDisplay(const char *label, std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state, ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y)
+void Editor::setupEditorDisplay(const char *label, std::string &text, std::vector<ImVec4> &colors, ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y)
 {
     // Validate input data and prepare state
     gEditorRender.validateAndResizeColors(text, colors);
@@ -84,7 +88,7 @@ void Editor::setupEditorDisplay(const char *label, std::string &text, std::vecto
     gEditorRender.beginTextEditorChild(label, remaining_width, content_width, content_height, current_scroll_y, current_scroll_x, text_pos, editor_top_margin, text_left_margin, editor_state);
 }
 
-bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state, ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible)
+bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible)
 {
     bool text_changed = false;
     ImVec2 text_start_pos = text_pos;
@@ -100,10 +104,10 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
     gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x, editor_state);
 
     // Ensure cursor visibility by adjusting scroll if needed
-    gEditorScroll.adjustScrollForCursorVisibility(text_pos, text, editor_state, line_height, size.y, size.x, current_scroll_y, current_scroll_x, ensure_cursor_visible);
+    gEditorScroll.adjustScrollForCursorVisibility(text_pos, text, line_height, size.y, size.x, current_scroll_y, current_scroll_x, ensure_cursor_visible);
 
     // Update scroll animation (smooth scrolling)
-    gEditorScroll.updateScrollAnimation(editor_state, current_scroll_x, current_scroll_y, ImGui::GetIO().DeltaTime);
+    gEditorScroll.updateScrollAnimation(current_scroll_x, current_scroll_y, ImGui::GetIO().DeltaTime);
 
     // Apply calculated scroll positions to ImGui
     ImGui::SetScrollY(current_scroll_y);

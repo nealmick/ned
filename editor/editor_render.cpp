@@ -26,7 +26,7 @@ EditorRender gEditorRender;
 // Main Render Pipeline
 //==============================================================================
 
-void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &colors, EditorState &editor_state, ImVec2 &text_pos, float line_height, ImVec2 &line_numbers_pos, float line_number_width, ImVec2 &size, float total_height, float editor_top_margin)
+void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &line_numbers_pos, float line_number_width, ImVec2 &size, float total_height, float editor_top_margin)
 {
     // Render main editor content (text, selection, cursor)
     gEditorRender.renderEditorContent(text, colors, editor_state, line_height, text_pos);

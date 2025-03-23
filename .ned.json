@@ -7,7 +7,7 @@
     ],
     "font": "SourceCodePro-Regular",
     "fontSize": 19.0,
-    "rainbow": false,
+    "rainbow": true,
     "shader_toggle": true,
     "splitPos": 0.27464789152145386,
     "theme": "default",
