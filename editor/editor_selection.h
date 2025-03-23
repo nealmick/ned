@@ -18,20 +18,20 @@ class EditorSelection
     ~EditorSelection() = default;
 
     // Core selection operations
-    void startSelection(EditorState &state);
-    void updateSelection(EditorState &state);
-    void endSelection(EditorState &state);
+    void startSelection();
+    void updateSelection();
+    void endSelection();
 
     // Selection utilities
-    int getSelectionStart(const EditorState &state);
-    int getSelectionEnd(const EditorState &state);
+    int getSelectionStart();
+    int getSelectionEnd();
 
     // Special selection operations
-    void selectAllText(EditorState &state, const std::string &text);
+    void selectAllText(const std::string &text);
 
     // Selection status checks
-    bool hasSelection(const EditorState &state);
-    int getSelectionLength(const EditorState &state);
+    bool hasSelection();
+    int getSelectionLength();
 };
 
 // Global instance

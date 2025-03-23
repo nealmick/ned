@@ -4,42 +4,43 @@
 */
 
 #include "editor_selection.h"
+#include "editor.h"
 #include <algorithm>
 #include <iostream>
 
 // Global instance
 EditorSelection gEditorSelection;
 
-void EditorSelection::startSelection(EditorState &state)
+void EditorSelection::startSelection()
 {
-    state.selection_active = true;
-    state.selection_start = state.cursor_index;
-    state.selection_end = state.cursor_index;
+    editor_state.selection_active = true;
+    editor_state.selection_start = editor_state.cursor_index;
+    editor_state.selection_end = editor_state.cursor_index;
 }
 
-void EditorSelection::updateSelection(EditorState &state)
+void EditorSelection::updateSelection()
 {
-    if (state.selection_active) {
-        state.selection_end = state.cursor_index;
+    if (editor_state.selection_active) {
+        editor_state.selection_end = editor_state.cursor_index;
     }
 }
 
-void EditorSelection::endSelection(EditorState &state) { state.selection_active = false; }
+void EditorSelection::endSelection() { editor_state.selection_active = false; }
 
-int EditorSelection::getSelectionStart(const EditorState &state) { return std::min(state.selection_start, state.selection_end); }
+int EditorSelection::getSelectionStart() { return std::min(editor_state.selection_start, editor_state.selection_end); }
 
-int EditorSelection::getSelectionEnd(const EditorState &state) { return std::max(state.selection_start, state.selection_end); }
+int EditorSelection::getSelectionEnd() { return std::max(editor_state.selection_start, editor_state.selection_end); }
 
-void EditorSelection::selectAllText(EditorState &state, const std::string &text)
+void EditorSelection::selectAllText(const std::string &text)
 {
     const size_t MAX_SELECTION_SIZE = 100000; // Limit for very large files
-    state.selection_active = true;
-    state.selection_start = 0;
-    state.cursor_index = std::min(text.size(), MAX_SELECTION_SIZE);
-    state.selection_end = state.cursor_index;
-    state.full_text_selected = true;
+    editor_state.selection_active = true;
+    editor_state.selection_start = 0;
+    editor_state.cursor_index = std::min(text.size(), MAX_SELECTION_SIZE);
+    editor_state.selection_end = editor_state.cursor_index;
+    editor_state.full_text_selected = true;
 }
 
-bool EditorSelection::hasSelection(const EditorState &state) { return state.selection_active && (state.selection_start != state.selection_end); }
+bool EditorSelection::hasSelection() { return editor_state.selection_active && (editor_state.selection_start != editor_state.selection_end); }
 
-int EditorSelection::getSelectionLength(const EditorState &state) { return getSelectionEnd(state) - getSelectionStart(state); }
+int EditorSelection::getSelectionLength() { return getSelectionEnd() - getSelectionStart(); }

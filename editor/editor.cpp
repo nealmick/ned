@@ -85,7 +85,7 @@ void Editor::setupEditorDisplay(const char *label, std::string &text, std::vecto
     float content_height = editor_state.editor_content_lines.size() * line_height;
 
     // Setup the main editor child window
-    gEditorRender.beginTextEditorChild(label, remaining_width, content_width, content_height, current_scroll_y, current_scroll_x, text_pos, editor_top_margin, text_left_margin, editor_state);
+    gEditorRender.beginTextEditorChild(label, remaining_width, content_width, content_height, current_scroll_y, current_scroll_x, text_pos, editor_top_margin, text_left_margin);
 }
 
 bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible)
@@ -95,10 +95,10 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
     int initial_cursor_pos = editor_state.cursor_index;
 
     // Process keyboard input (text editing, cursor movement, etc.)
-    gEditorKeyboard.processTextEditorInput(text, editor_state, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
+    gEditorKeyboard.processTextEditorInput(text, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible, initial_cursor_pos);
 
     // Handle context menu (right-click menu)
-    gEditorMouse.handleContextMenu(text, colors, editor_state, text_changed);
+    gEditorMouse.handleContextMenu(text, colors, text_changed);
 
     // Handle mouse wheel scrolling
     gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x);

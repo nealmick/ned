@@ -76,7 +76,7 @@ class Bookmarks
         return false;
     }
 
-    inline void handleBookmarkInput(FileExplorer &fileExplorer, EditorState &editorState)
+    inline void handleBookmarkInput(FileExplorer &fileExplorer)
     {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -95,10 +95,10 @@ class Bookmarks
             if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
                 if (shift_pressed || alt_pressed) {
                     int lineNumber = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
-                    setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_index, lineNumber);
+                    setBookmark(i, fileExplorer.getCurrentFile(), editor_state.cursor_index, lineNumber);
                     std::cout << "Bookmark " << (i + 1) << " set at line " << lineNumber << std::endl;
                 } else {
-                    if (jumpToBookmark(i, fileExplorer, editorState)) {
+                    if (jumpToBookmark(i, fileExplorer, editor_state)) {
                         std::cout << "Jumped to bookmark " << (i + 1) << std::endl;
                     } else {
                         std::cout << "Bookmark " << (i + 1) << " not set" << std::endl;

@@ -11,18 +11,18 @@ EditorMouse gEditorMouse;
 
 EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false) {}
 
-void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, const ImVec2 &text_start_pos, float line_height)
+void EditorMouse::handleMouseInput(const std::string &text, const ImVec2 &text_start_pos, float line_height)
 {
     ImVec2 mouse_pos = ImGui::GetMousePos();
-    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, state.editor_content_lines, line_height);
+    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, editor_state.editor_content_lines, line_height);
 
     // Handle left click
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        handleMouseClick(state, char_index, state.editor_content_lines);
+        handleMouseClick(char_index, editor_state.editor_content_lines);
     }
     // Handle drag
     else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
-        handleMouseDrag(state, char_index);
+        handleMouseDrag(char_index);
     }
     // Handle release
     else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
@@ -36,57 +36,57 @@ void EditorMouse::handleMouseInput(const std::string &text, EditorState &state, 
         show_context_menu = true;
 
         // If no active selection, set cursor at the clicked position
-        if (!state.selection_active) {
-            state.cursor_index = char_index;
+        if (!editor_state.selection_active) {
+            editor_state.cursor_index = char_index;
         }
     }
 }
 
-void EditorMouse::handleMouseClick(EditorState &state, int char_index, const std::vector<int> &line_starts)
+void EditorMouse::handleMouseClick(int char_index, const std::vector<int> &line_starts)
 {
     if (ImGui::GetIO().KeyShift) {
         // If shift is held and we're not already selecting, set the anchor to the current
         // cursor position.
-        if (!state.selection_active) {
-            anchor_pos = state.cursor_index;
-            state.selection_start = anchor_pos;
-            state.selection_active = true;
+        if (!editor_state.selection_active) {
+            anchor_pos = editor_state.cursor_index;
+            editor_state.selection_start = anchor_pos;
+            editor_state.selection_active = true;
         }
         // Update the selection end based on the new click.
-        state.selection_end = char_index;
-        state.cursor_index = char_index;
+        editor_state.selection_end = char_index;
+        editor_state.cursor_index = char_index;
     } else {
         // On a regular click (without shift), reset the selection and update the anchor.
-        state.cursor_index = char_index;
+        editor_state.cursor_index = char_index;
         anchor_pos = char_index;
-        state.selection_start = char_index;
-        state.selection_end = char_index;
-        state.selection_active = false;
-        int current_line = gEditor.getLineFromPos(line_starts, state.cursor_index);
-        state.cursor_column_prefered = state.cursor_index - line_starts[current_line];
+        editor_state.selection_start = char_index;
+        editor_state.selection_end = char_index;
+        editor_state.selection_active = false;
+        int current_line = gEditor.getLineFromPos(line_starts, editor_state.cursor_index);
+        editor_state.cursor_column_prefered = editor_state.cursor_index - line_starts[current_line];
     }
     is_dragging = true;
 }
 
-void EditorMouse::handleMouseDrag(EditorState &state, int char_index)
+void EditorMouse::handleMouseDrag(int char_index)
 {
     if (ImGui::GetIO().KeyShift) {
         // If shift is held, use the existing anchor for updating selection.
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_index;
-            state.selection_start = anchor_pos;
+            anchor_pos = editor_state.cursor_index;
+            editor_state.selection_start = anchor_pos;
         }
-        state.selection_end = char_index;
-        state.cursor_index = char_index;
+        editor_state.selection_end = char_index;
+        editor_state.cursor_index = char_index;
     } else {
         // Normal drag selection without shift: use the initial click as the anchor.
-        state.selection_active = true;
+        editor_state.selection_active = true;
         if (anchor_pos == -1) {
-            anchor_pos = state.cursor_index;
+            anchor_pos = editor_state.cursor_index;
         }
-        state.selection_start = anchor_pos;
-        state.selection_end = char_index;
-        state.cursor_index = char_index;
+        editor_state.selection_start = anchor_pos;
+        editor_state.selection_end = char_index;
+        editor_state.cursor_index = char_index;
     }
 }
 
@@ -96,7 +96,7 @@ void EditorMouse::handleMouseRelease()
     anchor_pos = -1;
 }
 
-void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
+void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colors, bool &text_changed)
 {
     // For debugging
     static bool popupWasOpen = false;
@@ -183,22 +183,22 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
         };
 
         // Cut action
-        if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, state.selection_active)) {
-            gEditorCopyPaste.cutSelectedText(text, colors, state, text_changed);
+        if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, editor_state.selection_active)) {
+            gEditorCopyPaste.cutSelectedText(text, colors, text_changed);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Copy action
-        if (MenuItemWithAlignedShortcut("Copy", "Ctrl+C", nullptr, state.selection_active)) {
-            gEditorCopyPaste.copySelectedText(text, state);
+        if (MenuItemWithAlignedShortcut("Copy", "Ctrl+C", nullptr, editor_state.selection_active)) {
+            gEditorCopyPaste.copySelectedText(text);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Paste action
         if (MenuItemWithAlignedShortcut("Paste", "Ctrl+V", nullptr, true)) {
-            gEditorCopyPaste.pasteText(text, colors, state, text_changed);
+            gEditorCopyPaste.pasteText(text, colors, text_changed);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
@@ -218,10 +218,10 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
 
         // Select All
         if (MenuItemWithAlignedShortcut("Select All", "Ctrl+A", nullptr, true)) {
-            state.selection_active = true;
-            state.selection_start = 0;
-            state.selection_end = text.size();
-            state.cursor_index = text.size();
+            editor_state.selection_active = true;
+            editor_state.selection_start = 0;
+            editor_state.selection_end = text.size();
+            editor_state.cursor_index = text.size();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
@@ -229,12 +229,12 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
 
         // Go to Definition
         if (MenuItemWithAlignedShortcut("Go to Definition", "F12", nullptr, true)) {
-            // Get current line number from state
-            int current_line = gEditor.getLineFromPos(state.editor_content_lines, state.cursor_index);
+            // Get current line number from editor_state
+            int current_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_index);
 
             // Get character offset in current line
-            int line_start = state.editor_content_lines[current_line];
-            int char_offset = state.cursor_index - line_start;
+            int line_start = editor_state.editor_content_lines[current_line];
+            int char_offset = editor_state.cursor_index - line_start;
 
             // Call LSP goto definition
             gLSPGotoDef.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);

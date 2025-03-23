@@ -29,7 +29,7 @@ EditorRender gEditorRender;
 void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &line_numbers_pos, float line_number_width, ImVec2 &size, float total_height, float editor_top_margin)
 {
     // Render main editor content (text, selection, cursor)
-    gEditorRender.renderEditorContent(text, colors, editor_state, line_height, text_pos);
+    gEditorRender.renderEditorContent(text, colors, line_height, text_pos);
 
     // Render File Finder window
     gFileFinder.renderWindow();
@@ -46,7 +46,7 @@ void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &col
     gEditorScroll.setScrollX(scrollX);
 
     if (gLSPGotoDef.hasDefinitionOptions()) {
-        gLSPGotoDef.renderDefinitionOptions(editor_state);
+        gLSPGotoDef.renderDefinitionOptions();
     }
 
     // End the editor child window
@@ -87,7 +87,7 @@ void EditorRender::setupEditorWindow(const char *label, ImVec2 &size, float &lin
 
 ImVec2 EditorRender::renderLineNumbersPanel(float line_number_width, float editor_top_margin) { return gEditorLineNumbers.createLineNumbersPanel(line_number_width, editor_top_margin); }
 
-void EditorRender::beginTextEditorChild(const char *label, float remaining_width, float content_width, float content_height, float &current_scroll_y, float &current_scroll_x, ImVec2 &text_pos, float editor_top_margin, float text_left_margin, EditorState &editor_state)
+void EditorRender::beginTextEditorChild(const char *label, float remaining_width, float content_width, float content_height, float &current_scroll_y, float &current_scroll_x, ImVec2 &text_pos, float editor_top_margin, float text_left_margin)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
@@ -120,13 +120,13 @@ void EditorRender::beginTextEditorChild(const char *label, float remaining_width
     text_pos.x += text_left_margin;
 }
 
-void EditorRender::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, EditorState &editor_state, float line_height, const ImVec2 &text_pos)
+void EditorRender::renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, float line_height, const ImVec2 &text_pos)
 {
-    gLineJump.handleLineJumpInput(editor_state);
-    gLineJump.renderLineJumpWindow(editor_state);
+    gLineJump.handleLineJumpInput();
+    gLineJump.renderLineJumpWindow();
 
     // Render the text (with selection) using our character-by-character function
-    renderText(ImGui::GetWindowDrawList(), text_pos, text, colors, editor_state, line_height);
+    renderText(ImGui::GetWindowDrawList(), text_pos, text, colors, line_height);
 
     // Compute the cursor's line by finding which line the cursor is on
     int cursor_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_index);
@@ -142,11 +142,11 @@ void EditorRender::renderEditorContent(const std::string &text, const std::vecto
     gEditorCursor.renderCursor(ImGui::GetWindowDrawList(), cursor_screen_pos, line_height, editor_state.cursor_blink_time);
 }
 
-void EditorRender::renderText(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, const EditorState &state, float line_height)
+void EditorRender::renderText(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, float line_height)
 {
     ImVec2 text_pos = pos;
-    int sel_start = gEditorSelection.getSelectionStart(state);
-    int sel_end = gEditorSelection.getSelectionEnd(state);
+    int sel_start = gEditorSelection.getSelectionStart();
+    int sel_end = gEditorSelection.getSelectionEnd();
 
     // Calculate visible range - use gEditorScroll instead of direct access
     float scroll_y = gEditorScroll.getScrollPosition().y;

@@ -25,7 +25,7 @@ class LSPGotoDef
     bool gotoDefinition(const std::string &filePath, int line, int character);
 
     // Definition options window
-    void renderDefinitionOptions(EditorState &state);
+    void renderDefinitionOptions();
     bool hasDefinitionOptions() const;
 
   private:

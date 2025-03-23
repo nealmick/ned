@@ -16,9 +16,9 @@ class EditorIndentation
     ~EditorIndentation() = default;
 
     // Main API functions
-    void handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end);
-    void removeIndentation(std::string &text, EditorState &state);
-    bool processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible);
+    void handleTabKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end);
+    void removeIndentation(std::string &text);
+    bool processIndentRemoval(std::string &text, bool &text_changed, CursorVisibility &ensure_cursor_visible);
 
   private:
     // Selection helper methods

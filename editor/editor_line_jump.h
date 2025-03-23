@@ -23,7 +23,7 @@ class LineJump
 
   public:
     bool showLineJumpWindow = false;
-    inline void handleLineJumpInput(EditorState &state)
+    inline void handleLineJumpInput()
     {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -42,17 +42,17 @@ class LineJump
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 ImGui::SetKeyboardFocusHere();
             }
-            state.block_input = showLineJumpWindow;
+            editor_state.block_input = showLineJumpWindow;
         }
     }
 
-    inline void renderLineJumpWindow(EditorState &state)
+    inline void renderLineJumpWindow()
     {
         if (!showLineJumpWindow)
             return;
 
         ImGui::GetIO().WantTextInput = true;
-        state.block_input = true;
+        editor_state.block_input = true;
 
         // Push custom styles for the window
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);  // Add rounded corners
@@ -105,9 +105,9 @@ class LineJump
 
             if (ImGui::InputText("##linejump", lineNumberBuffer, sizeof(lineNumberBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue)) {
                 int lineNumber = std::atoi(lineNumberBuffer);
-                jumpToLine(lineNumber - 1, state);
+                jumpToLine(lineNumber - 1);
                 showLineJumpWindow = false;
-                state.block_input = false;
+                editor_state.block_input = false;
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
                 justJumped = true;
                 ImGui::GetIO().ClearInputCharacters();
@@ -120,7 +120,7 @@ class LineJump
 
             if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
                 showLineJumpWindow = false;
-                state.block_input = false;
+                editor_state.block_input = false;
                 memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
             }
 
@@ -134,20 +134,20 @@ class LineJump
         ImGui::PopStyleVar(3); // Pop WindowRounding, WindowBorderSize, WindowPadding
     }
 
-    inline void jumpToLine(int lineNumber, EditorState &state)
+    inline void jumpToLine(int lineNumber)
     {
         if (lineNumber < 0)
             lineNumber = 0;
-        if (lineNumber >= static_cast<int>(state.editor_content_lines.size())) {
-            lineNumber = static_cast<int>(state.editor_content_lines.size()) - 1;
+        if (lineNumber >= static_cast<int>(editor_state.editor_content_lines.size())) {
+            lineNumber = static_cast<int>(editor_state.editor_content_lines.size()) - 1;
         }
 
         // Set cursor to the beginning of the requested line
-        state.cursor_index = state.editor_content_lines[lineNumber];
-        state.selection_start = state.cursor_index;
-        state.selection_end = state.cursor_index;
+        editor_state.cursor_index = editor_state.editor_content_lines[lineNumber];
+        editor_state.selection_start = editor_state.cursor_index;
+        editor_state.selection_end = editor_state.cursor_index;
         std::cout << "seting line number in linejump " << lineNumber << std::endl;
-        state.selection_active = false;
+        editor_state.selection_active = false;
 
         // Calculate the target scroll position
         float line_height = ImGui::GetTextLineHeight();

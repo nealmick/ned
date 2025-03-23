@@ -30,16 +30,16 @@ int EditorIndentation::findLineEnd(const std::string &text, int position, size_t
     return lineEnd;
 }
 
-void EditorIndentation::handleTabKey(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, int &input_end)
+void EditorIndentation::handleTabKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end)
 {
     if (ImGui::IsKeyPressed(ImGuiKey_Tab)) {
-        if (state.selection_active) {
-            handleMultiLineIndentation(text, colors, state, input_end);
+        if (editor_state.selection_active) {
+            handleMultiLineIndentation(text, colors, editor_state, input_end);
         } else {
-            handleSingleLineIndentation(text, colors, state, input_end);
+            handleSingleLineIndentation(text, colors, editor_state, input_end);
         }
 
-        finishIndentationChange(text, colors, state, input_end, text_changed);
+        finishIndentationChange(text, colors, editor_state, input_end, text_changed);
     }
 }
 
@@ -99,11 +99,11 @@ void EditorIndentation::finishIndentationChange(std::string &text, std::vector<I
     gEditorHighlight.highlightContent(text, colors, std::min(state.selection_start, state.selection_end), std::max(state.selection_end, input_end));
 }
 
-bool EditorIndentation::processIndentRemoval(std::string &text, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
+bool EditorIndentation::processIndentRemoval(std::string &text, bool &text_changed, CursorVisibility &ensure_cursor_visible)
 {
     // If Shift+Tab is pressed, remove indentation and exit early.
     if (ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {
-        removeIndentation(text, state);
+        removeIndentation(text);
         text_changed = true;
         ensure_cursor_visible.horizontal = true;
         ensure_cursor_visible.vertical = true;
@@ -113,16 +113,16 @@ bool EditorIndentation::processIndentRemoval(std::string &text, EditorState &sta
     return false;
 }
 
-void EditorIndentation::removeIndentation(std::string &text, EditorState &state)
+void EditorIndentation::removeIndentation(std::string &text)
 {
     // Determine the range to process
     int start, end;
-    if (state.selection_active) {
-        start = getSelectionStart(state);
-        end = getSelectionEnd(state);
+    if (editor_state.selection_active) {
+        start = getSelectionStart(editor_state);
+        end = getSelectionEnd(editor_state);
     } else {
         // If no selection, work on the current line
-        start = end = state.cursor_index;
+        start = end = editor_state.cursor_index;
     }
 
     // Find the start of the first line
@@ -153,10 +153,10 @@ void EditorIndentation::removeIndentation(std::string &text, EditorState &state)
     newText.append(text.substr(lastLineEnd));
 
     // Update text and adjust cursor and selection
-    updateStateAfterIndentRemoval(text, state, newText, firstLineStart, lastLineEnd, totalSpacesRemoved);
+    updateStateAfterIndentRemoval(text, editor_state, newText, firstLineStart, lastLineEnd, totalSpacesRemoved);
 
     // Update colors and trigger highlighting
-    updateColorsAfterIndentRemoval(text, state, firstLineStart, lastLineEnd, totalSpacesRemoved);
+    updateColorsAfterIndentRemoval(text, editor_state, firstLineStart, lastLineEnd, totalSpacesRemoved);
 }
 
 void EditorIndentation::processLineIndentRemoval(const std::string &text, std::string &newText, size_t lineStart, size_t lineEnd, size_t lastLineEnd, int &totalSpacesRemoved)

@@ -191,14 +191,14 @@ bool LSPGotoDef::hasDefinitionOptions() const
     return has_options;
 }
 
-void LSPGotoDef::renderDefinitionOptions(EditorState &state)
+void LSPGotoDef::renderDefinitionOptions()
 {
     if (!showDefinitionOptions || definitionLocations.empty()) {
-        state.block_input = false;
+        editor_state.block_input = false;
         return;
     }
 
-    state.block_input = true;
+    editor_state.block_input = true;
 
     // Calculate required height based on content
     float itemHeight = ImGui::GetTextLineHeightWithSpacing();
@@ -239,7 +239,7 @@ void LSPGotoDef::renderDefinitionOptions(EditorState &state)
         ImVec2 mousePos = ImGui::GetMousePos();
         if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) && (mousePos.x < windowPos.x || mousePos.x > windowPos.x + windowSize.x || mousePos.y < windowPos.y || mousePos.y > windowPos.y + windowSize.y)) {
             showDefinitionOptions = false;
-            state.block_input = false;
+            editor_state.block_input = false;
             ImGui::End();
             ImGui::PopStyleColor(6);
             ImGui::PopStyleVar(4);
@@ -310,13 +310,13 @@ void LSPGotoDef::renderDefinitionOptions(EditorState &state)
 
         index += selected.startChar;
         index = std::min(index, (int)gFileExplorer.fileContent.length());
-        state.cursor_index = index;
+        editor_state.cursor_index = index;
         gEditorScroll.setEnsureCursorVisibleFrames(-1);
         showDefinitionOptions = false;
-        state.block_input = false;
+        editor_state.block_input = false;
     } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showDefinitionOptions = false;
-        state.block_input = false;
+        editor_state.block_input = false;
     }
 
     ImGui::End();
