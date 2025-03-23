@@ -39,11 +39,11 @@ bool Editor::textEditor(const char *label, std::string &text, std::vector<ImVec4
 {
     // Initialize variables
     bool text_changed = false;
-    
+
     CursorVisibility ensure_cursor_visible = {false, false};
-    
+
     ImVec2 size, text_pos, line_numbers_pos;
-    
+
     float line_height, line_number_width, total_height, editor_top_margin, text_left_margin;
 
     float current_scroll_x, current_scroll_y;
@@ -67,7 +67,7 @@ void Editor::setupEditorDisplay(const char *label, std::string &text, std::vecto
     // Validate input data and prepare state
     gEditorRender.validateAndResizeColors(text, colors);
 
-    gEditorCursor.updateBlinkTime(editor_state, ImGui::GetIO().DeltaTime);
+    gEditorCursor.updateBlinkTime(ImGui::GetIO().DeltaTime);
 
     // Setup editor layout parameters
     gEditorRender.setupEditorWindow(label, size, line_number_width, line_height, editor_top_margin, text_left_margin);
@@ -101,7 +101,7 @@ bool Editor::processEditorInput(std::string &text, std::vector<ImVec4> &colors, 
     gEditorMouse.handleContextMenu(text, colors, editor_state, text_changed);
 
     // Handle mouse wheel scrolling
-    gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x, editor_state);
+    gEditorScroll.processMouseWheelForEditor(line_height, current_scroll_y, current_scroll_x);
 
     // Ensure cursor visibility by adjusting scroll if needed
     gEditorScroll.adjustScrollForCursorVisibility(text_pos, text, line_height, size.y, size.x, current_scroll_y, current_scroll_x, ensure_cursor_visible);

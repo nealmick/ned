@@ -25,31 +25,31 @@ class EditorCursor
     EditorCursor();
     ~EditorCursor() = default;
 
-    void cursorLeft(EditorState &state);
+    void cursorLeft();
 
-    void cursorRight(const std::string &text, EditorState &state);
+    void cursorRight(const std::string &text);
 
-    void cursorUp(const std::string &text, EditorState &state, float line_height, float window_height);
+    void cursorUp(const std::string &text, float line_height, float window_height);
 
-    void cursorDown(const std::string &text, EditorState &state, float line_height, float window_height);
+    void cursorDown(const std::string &text, float line_height, float window_height);
 
-    void moveCursorVertically(std::string &text, EditorState &state, int line_delta);
+    void moveCursorVertically(std::string &text, int line_delta);
 
-    void moveWordForward(const std::string &text, EditorState &state);
+    void moveWordForward(const std::string &text);
 
-    void moveWordBackward(const std::string &text, EditorState &state);
+    void moveWordBackward(const std::string &text);
 
-    void processWordMovement(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
+    void processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
 
-    void processCursorJump(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
+    void processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible);
 
-    void handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width);
+    void handleCursorMovement(const std::string &text, const ImVec2 &text_pos, float line_height, float window_height, float window_width);
 
-    float getCursorYPosition(const EditorState &state, float line_height);
+    float getCursorYPosition(float line_height);
 
     float getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
 
-    void updateBlinkTime(EditorState &state, float deltaTime);
+    void updateBlinkTime(float deltaTime);
 
     void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
 

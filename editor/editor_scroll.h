@@ -39,8 +39,8 @@ class EditorScroll
     void updateScrollAnimation(float &current_scroll_x, float &current_scroll_y, float dt);
 
     // Mouse wheel handling
-    void processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x, EditorState &editor_state);
-    void processMouseWheelScrolling(float line_height, EditorState &state);
+    void processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x);
+    void processMouseWheelScrolling(float line_height);
 
     // Cursor visibility functions
     ScrollChange ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
@@ -87,12 +87,12 @@ class EditorScroll
     void setAnimationState(const ScrollAnimationState &state) { scrollAnimation = state; }
 
     // Higher-level scrolling API methods
-    void scrollToLine(EditorState &state, int lineNumber, float line_height);
-    void scrollToCharacter(EditorState &state, int charIndex, const ImVec2 &text_pos, const std::string &text, float line_height);
-    void centerOnCursor(EditorState &state, const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
+    void scrollToLine(int lineNumber, float line_height);
+    void scrollToCharacter(int charIndex, const ImVec2 &text_pos, const std::string &text, float line_height);
+    void centerOnCursor(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
 
     // Cursor movement scroll handling
-    void handleCursorMovementScroll(const ImVec2 &text_pos, const std::string &text, EditorState &state, float line_height, float window_height, float window_width);
+    void handleCursorMovementScroll(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
 
   private:
     // Helpers

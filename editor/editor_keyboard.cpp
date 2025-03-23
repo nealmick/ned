@@ -259,14 +259,14 @@ void EditorKeyboard::handleEditorKeyboardInput(std::string &text, EditorState &s
             processFontSizeAdjustment(ensure_cursor_visible);
             processSelectAll(text, state, ensure_cursor_visible);
             gEditorKeyboard.processUndoRedo(text, colors, state, text_changed, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processWordMovement(text, state, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processCursorJump(text, state, ensure_cursor_visible);
+            gEditorCursor.processWordMovement(text, ensure_cursor_visible, shift_pressed);
+            gEditorCursor.processCursorJump(text, ensure_cursor_visible);
         }
     }
 
     if (ImGui::IsWindowHovered()) {
         gEditorMouse.handleMouseInput(text, state, text_start_pos, line_height);
-        gEditorScroll.processMouseWheelScrolling(line_height, state);
+        gEditorScroll.processMouseWheelScrolling(line_height);
     }
 
     // Handle arrow key visibility
@@ -275,7 +275,7 @@ void EditorKeyboard::handleEditorKeyboardInput(std::string &text, EditorState &s
     // Pass the correct variables to handleCursorMovement
     float window_height = ImGui::GetWindowHeight();
     float window_width = ImGui::GetWindowWidth();
-    gEditorCursor.handleCursorMovement(text, state, text_start_pos, line_height, window_height, window_width);
+    gEditorCursor.handleCursorMovement(text, text_start_pos, line_height, window_height, window_width);
 
     // Call the refactored method in EditorKeyboard
     handleTextInput(text, colors, state, text_changed);
