@@ -28,11 +28,11 @@ extern EditorState editor_state;
 class Editor
 {
   public:
-    bool textEditor(const char *label, std::string &text, std::vector<ImVec4> &colors);
+    bool textEditor();
 
-    void setupEditorDisplay(const char *label, std::string &text, std::vector<ImVec4> &colors, ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y);
+    void setupEditorDisplay(ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y);
 
-    bool processEditorInput(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible);
+    bool processEditorInput(ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible);
 
     void updateLineStarts(const std::string &text, std::vector<int> &line_starts);
 

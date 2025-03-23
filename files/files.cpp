@@ -142,7 +142,7 @@ void FileExplorer::refreshSyntaxHighlighting()
 {
     if (!currentFile.empty()) {
         std::string extension = fs::path(currentFile).extension().string();
-        gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
+        gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, 0, editor_state.fileContent.size());
     }
 }
 
@@ -219,7 +219,7 @@ bool FileExplorer::readFileContent(const std::string &path)
 
         if (nullCount > checkSize / 10) {
             std::cout << "File appears to be binary" << std::endl;
-            fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
+            editor_state.fileContent = "Error: File appears to be binary and cannot be displayed in editor.";
             return false;
         }
 
@@ -229,22 +229,22 @@ bool FileExplorer::readFileContent(const std::string &path)
             content += notice;
         }
 
-        fileContent = std::move(content);
-        std::cout << "Successfully read file" << (isTruncated ? " (truncated)" : "") << ", content length: " << fileContent.length() << std::endl;
+        editor_state.fileContent = std::move(content);
+        std::cout << "Successfully read file" << (isTruncated ? " (truncated)" : "") << ", content length: " << editor_state.fileContent.length() << std::endl;
         return true;
     } catch (const std::exception &e) {
         std::cout << "Error reading file: " << e.what() << std::endl;
-        fileContent = "Error: " + std::string(e.what());
+        editor_state.fileContent = "Error: " + std::string(e.what());
         return false;
     }
 }
 
 void FileExplorer::updateFileColorBuffer()
 {
-    fileColors.clear();
-    fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    editor_state.fileColors.clear();
+    editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    if (fileContent.size() != fileColors.size()) {
+    if (editor_state.fileContent.size() != editor_state.fileColors.size()) {
         std::cerr << "Error: Color buffer size mismatch" << std::endl;
         throw std::runtime_error("Color buffer size mismatch");
     }
@@ -258,26 +258,27 @@ void FileExplorer::setupUndoManager(const std::string &path)
         std::cout << "Created new UndoRedoManager for " << path << std::endl;
     }
     currentUndoManager = &(it->second);
-    currentUndoManager->addState(fileContent, 0, fileContent.size());
+    currentUndoManager->addState(editor_state.fileContent, 0, editor_state.fileContent.size());
 }
 
 void FileExplorer::initializeSyntaxHighlighting(const std::string &path)
 {
     std::string extension = fs::path(path).extension().string();
-    gEditorHighlight.highlightContent(fileContent, fileColors, 0, fileContent.size());
+    gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, 0, editor_state.fileContent.size());
 }
 
 void FileExplorer::handleLoadError()
 {
-    fileContent = "Error: Unable to open file.";
+    editor_state.fileContent = "Error: Unable to open file.";
     currentFile = "";
-    fileColors.clear();
+    editor_state.fileColors.clear();
     currentUndoManager = nullptr;
 }
 
 void FileExplorer::loadFileContent(const std::string &path, std::function<void()> afterLoadCallback)
 {
     saveCurrentFile(); // Save current before loading new
+    editor_state.cursor_index = 0;
 
     try {
         resetEditorState();
@@ -309,7 +310,7 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 void FileExplorer::addUndoState(int changeStart, int changeEnd)
 {
     if (currentUndoManager) {
-        currentUndoManager->addState(fileContent, changeStart, changeEnd);
+        currentUndoManager->addState(editor_state.fileContent, changeStart, changeEnd);
     }
 }
 
@@ -318,7 +319,7 @@ void FileExplorer::renderFileContent()
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-    gFileContentSearch.setContent(fileContent);
+    gFileContentSearch.setContent(editor_state.fileContent);
     gFileContentSearch.setEditorState(editor_state);
     gFileContentSearch.handleFindBoxActivation();
 
@@ -334,7 +335,7 @@ void FileExplorer::renderFileContent()
 
 void FileExplorer::renderEditor(bool &text_changed)
 {
-    text_changed = gEditor.textEditor("##editor", fileContent, fileColors);
+    text_changed = gEditor.textEditor();
 
     if (text_changed && !editor_state.active_find_box) {
         setUnsavedChanges(true);
@@ -344,34 +345,34 @@ void FileExplorer::renderEditor(bool &text_changed)
 void FileExplorer::adjustColorBuffer(int changeStart, int lengthDiff)
 {
     if (lengthDiff > 0) {
-        fileColors.insert(fileColors.begin() + changeStart, lengthDiff, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        editor_state.fileColors.insert(editor_state.fileColors.begin() + changeStart, lengthDiff, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     } else if (lengthDiff < 0) {
-        fileColors.erase(fileColors.begin() + changeStart, fileColors.begin() + changeStart - lengthDiff);
+        editor_state.fileColors.erase(editor_state.fileColors.begin() + changeStart, editor_state.fileColors.begin() + changeStart - lengthDiff);
     }
-    fileColors.resize(fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd)
 {
     int highlightStart = std::max(0, changeStart - 100);
-    int highlightEnd = std::min(static_cast<int>(fileContent.size()), changeEnd + 100);
+    int highlightEnd = std::min(static_cast<int>(editor_state.fileContent.size()), changeEnd + 100);
 
     std::string extension = fs::path(currentFile).extension().string();
-    gEditorHighlight.highlightContent(fileContent, fileColors, highlightStart, highlightEnd);
+    gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, highlightStart, highlightEnd);
 }
 
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
 {
     if (preAllocate) {
-        fileContent.reserve(std::max(fileContent.capacity(), state.content.length() + 1024 * 1024));
-        fileColors.reserve(std::max(fileColors.capacity(), state.content.length() + 1024 * 1024));
+        editor_state.fileContent.reserve(std::max(editor_state.fileContent.capacity(), state.content.length() + 1024 * 1024));
+        editor_state.fileColors.reserve(std::max(editor_state.fileColors.capacity(), state.content.length() + 1024 * 1024));
     }
 
-    int changeStart = std::min(state.changeStart, static_cast<int>(fileContent.length()));
-    int changeEnd = std::min(state.changeEnd, static_cast<int>(fileContent.length()));
+    int changeStart = std::min(state.changeStart, static_cast<int>(editor_state.fileContent.length()));
+    int changeEnd = std::min(state.changeEnd, static_cast<int>(editor_state.fileContent.length()));
 
-    int lengthDiff = state.content.length() - fileContent.length();
-    fileContent = state.content;
+    int lengthDiff = state.content.length() - editor_state.fileContent.length();
+    editor_state.fileContent = state.content;
 
     adjustColorBuffer(changeStart, lengthDiff);
     rehighlightChangedRegion(changeStart, changeEnd);
@@ -381,7 +382,7 @@ void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool 
 void FileExplorer::handleUndo()
 {
     if (currentUndoManager) {
-        auto state = currentUndoManager->undo(fileContent);
+        auto state = currentUndoManager->undo(editor_state.fileContent);
         applyContentChange(state);
     }
 }
@@ -389,7 +390,7 @@ void FileExplorer::handleUndo()
 void FileExplorer::handleRedo()
 {
     if (currentUndoManager) {
-        auto state = currentUndoManager->redo(fileContent);
+        auto state = currentUndoManager->redo(editor_state.fileContent);
         applyContentChange(state, true); // Pre-allocate memory for redo
     }
 }
@@ -398,7 +399,7 @@ void FileExplorer::saveCurrentFile()
 {
     if (!currentFile.empty() && _unsavedChanges) {
         // Check if we're dealing with a truncated file
-        if (fileContent.find("[File truncated - showing first") != std::string::npos) {
+        if (editor_state.fileContent.find("[File truncated - showing first") != std::string::npos) {
             std::cerr << "Cannot save truncated file content" << std::endl;
             // TODO: Show warning to user that they can't save changes to truncated files
             return;
@@ -406,7 +407,7 @@ void FileExplorer::saveCurrentFile()
 
         std::ofstream file(currentFile);
         if (file.is_open()) {
-            file << fileContent;
+            file << editor_state.fileContent;
             file.close();
             _unsavedChanges = false;
             std::cout << "File saved: " << currentFile << std::endl;
@@ -419,5 +420,5 @@ void FileExplorer::saveCurrentFile()
 void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 {
     std::cout << "\033[35mLSP:\033[0m Notifying file open: " << filePath << std::endl;
-    gEditorLSP.didOpen(filePath, fileContent);
+    gEditorLSP.didOpen(filePath, editor_state.fileContent);
 }

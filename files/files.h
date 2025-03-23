@@ -23,7 +23,6 @@ namespace fs = std::filesystem;
 class FileExplorer
 {
   public:
-    EditorState editor_state;
     const size_t MAX_FILE_SIZE = 1 * 1024 * 1024; // 1mb
 
     UndoRedoManager *currentUndoManager = nullptr;
@@ -39,16 +38,21 @@ class FileExplorer
     void saveCurrentFile();
     void setFileContent(const std::string &content)
     {
-        fileContent = content;
-        fileColors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        editor_state.fileContent = content;
+        editor_state.fileColors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
 
     // Content getters/setters
-    std::string &getFileContent() { return fileContent; }
-    std::vector<ImVec4> &getFileColors() { return fileColors; }
+    std::string &getFileContent() { return editor_state.fileContent; }
+
+    std::vector<ImVec4> &getFileColors() { return editor_state.fileColors; }
+
     std::string getCurrentFile() const { return currentFile; }
+
     bool hasUnsavedChanges() const { return _unsavedChanges; }
+
     void setUnsavedChanges(bool value) { _unsavedChanges = value; }
+
     std::string getSelectedFolder() const { return selectedFolder; }
 
     // Undo/Redo
@@ -80,13 +84,11 @@ class FileExplorer
     bool getShowWelcomeScreen() const { return showWelcomeScreen; }
 
     void notifyLSPFileOpen(const std::string &filePath);
-    std::string fileContent;
 
   private:
     std::string selectedFolder;
     bool _showFileDialog = false;
     bool _unsavedChanges = false;
-    std::vector<ImVec4> fileColors;
     std::map<std::string, ImTextureID> fileTypeIcons;
 
     // Icon loading helpers

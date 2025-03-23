@@ -6,6 +6,11 @@
 
 struct EditorState
 {
+    // Content of file being edited as string
+    std::string fileContent;
+    // syntax colors for every char
+    std::vector<ImVec4> fileColors;
+
     // Cursor State
     int cursor_index; // content index of curent cursor
     /*

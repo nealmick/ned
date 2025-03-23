@@ -301,15 +301,15 @@ void LSPGotoDef::renderDefinitionOptions()
         int currentLine = 0;
         std::cout << "Calculating cursor position..." << std::endl;
 
-        while (currentLine < selected.startLine && index < gFileExplorer.fileContent.length()) {
-            if (gFileExplorer.fileContent[index] == '\n') {
+        while (currentLine < selected.startLine && index < editor_state.fileContent.length()) {
+            if (editor_state.fileContent[index] == '\n') {
                 currentLine++;
             }
             index++;
         }
 
         index += selected.startChar;
-        index = std::min(index, (int)gFileExplorer.fileContent.length());
+        index = std::min(index, (int)editor_state.fileContent.length());
         editor_state.cursor_index = index;
         gEditorScroll.setEnsureCursorVisibleFrames(-1);
         showDefinitionOptions = false;
