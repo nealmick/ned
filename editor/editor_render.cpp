@@ -26,16 +26,16 @@ EditorRender gEditorRender;
 // Main Render Pipeline
 //==============================================================================
 
-void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &colors, ImVec2 &text_pos, float line_height, ImVec2 &line_numbers_pos, float line_number_width, ImVec2 &size, float total_height, float editor_top_margin)
+void EditorRender::renderEditorFrame(ImVec2 &text_pos, float line_height, ImVec2 &line_numbers_pos, float line_number_width, ImVec2 &size, float total_height)
 {
     // Render main editor content (text, selection, cursor)
-    gEditorRender.renderEditorContent(text, colors, line_height, text_pos);
+    gEditorRender.renderEditorContent(editor_state.fileContent, editor_state.fileColors, line_height, text_pos);
 
     // Render File Finder window
     gFileFinder.renderWindow();
 
     // Set cursor position for remaining content
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height + editor_top_margin);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + total_height + editor_state.editor_top_margin);
 
     // Get final scroll positions from ImGui
     float scrollY = ImGui::GetScrollY();
@@ -55,9 +55,9 @@ void EditorRender::renderEditorFrame(std::string &text, std::vector<ImVec4> &col
     ImGui::PopStyleVar(4);
 
     // Render line numbers with proper clipping
-    ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_top_margin), true);
+    ImGui::PushClipRect(line_numbers_pos, ImVec2(line_numbers_pos.x + line_number_width, line_numbers_pos.y + size.y - editor_state.editor_top_margin), true);
 
-    gEditorLineNumbers.renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.editor_content_lines.size(), gEditorScroll.getScrollPosition().y, size.y - editor_top_margin, editor_state, editor_state.cursor_blink_time);
+    gEditorLineNumbers.renderLineNumbers(line_numbers_pos, line_number_width, line_height, editor_state.editor_content_lines.size(), gEditorScroll.getScrollPosition().y, size.y - editor_state.editor_top_margin, editor_state, editor_state.cursor_blink_time);
 
     // Cleanup
     ImGui::PopClipRect();
@@ -75,9 +75,9 @@ bool EditorRender::validateAndResizeColors(std::string &text, std::vector<ImVec4
     return false;
 }
 
-void EditorRender::setupEditorWindow(const char *label, ImVec2 &size, float &line_number_width, float &line_height, float &editor_top_margin, float &text_left_margin)
+void EditorRender::setupEditorWindow(const char *label, float &line_number_width, float &line_height, float &editor_top_margin, float &text_left_margin)
 {
-    size = ImGui::GetContentRegionAvail();
+    editor_state.size = ImGui::GetContentRegionAvail();
     line_number_width = ImGui::CalcTextSize("0").x * 4 + 8.0f;
     line_height = ImGui::GetTextLineHeight();
     editor_top_margin = 2.0f;

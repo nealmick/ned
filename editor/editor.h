@@ -30,9 +30,9 @@ class Editor
   public:
     bool textEditor();
 
-    void setupEditorDisplay(ImVec2 &size, float &line_height, ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height, float &editor_top_margin, float &text_left_margin, float &current_scroll_x, float &current_scroll_y);
+    void setupEditorDisplay(ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height);
 
-    bool processEditorInput(ImVec2 &text_pos, float line_height, ImVec2 &size, float &current_scroll_x, float &current_scroll_y, CursorVisibility &ensure_cursor_visible);
+    bool processEditorInput(ImVec2 &text_pos, float line_height, ImVec2 &size, CursorVisibility &ensure_cursor_visible);
 
     void updateLineStarts(const std::string &text, std::vector<int> &line_starts);
 

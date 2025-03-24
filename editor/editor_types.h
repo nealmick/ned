@@ -8,11 +8,19 @@ struct EditorState
 {
     // Content of file being edited as string
     std::string fileContent;
+
     // syntax colors for every char
     std::vector<ImVec4> fileColors;
 
+    // Size of editor window
+    ImVec2 size;
+
+    // height of single line of content
+    float line_height;
+
     // Cursor State
     int cursor_index; // content index of curent cursor
+
     /*
      * cursor_column_prefered
      * Remembers horizontal position if line is shorter than preferred.
@@ -42,6 +50,9 @@ struct EditorState
      */
     std::vector<float> line_widths;
 
+    // scalling values
+    float current_scroll_x, current_scroll_y;
+
     // Caching for expensive measurements
     std::string cached_text;
 
@@ -50,6 +61,11 @@ struct EditorState
     bool active_find_box;    // Cmd+F search file dialog open
     bool block_input;        // Turn off all editor inputs
     float cursor_blink_time; // Used for cursor timing and rainbow mode state
+
+    // leaves room for file path and icon above editor window
+    float editor_top_margin;
+    // leave room for line numbers on left side of editor window
+    float text_left_margin;
 
     EditorState() : cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
 };
