@@ -32,7 +32,7 @@ class Editor
 
     void setupEditorDisplay();
 
-    bool processEditorInput();
+    void processEditorInput();
 
     void updateLineStarts();
 

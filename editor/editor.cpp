@@ -37,20 +37,18 @@ EditorState editor_state;
 
 bool Editor::textEditor()
 {
-    // Initialize variables
-    bool text_changed = false;
 
     // PHASE 1: Setup the editor display and windows
     setupEditorDisplay();
 
     // PHASE 2: Process user input and handle scrolling
-    text_changed = processEditorInput();
+    processEditorInput();
 
     // PHASE 3: Render editor content and finalize frame
     gEditorRender.renderEditorFrame();
 
     // std::cout << editor_state.cursor_index << std::endl;
-    return text_changed;
+    return editor_state.text_changed;
 }
 
 void Editor::setupEditorDisplay()
@@ -79,17 +77,13 @@ void Editor::setupEditorDisplay()
     gEditorRender.beginTextEditorChild("##editor", remaining_width, content_width, content_height);
 }
 
-bool Editor::processEditorInput()
+void Editor::processEditorInput()
 {
-    bool text_changed = false;
-    ImVec2 text_start_pos = editor_state.text_pos;
-    int initial_cursor_pos = editor_state.cursor_index;
-
     // Process keyboard input (text editing, cursor movement, etc.)
-    gEditorKeyboard.processTextEditorInput(editor_state.fileContent, text_start_pos, editor_state.line_height, text_changed, editor_state.fileColors, editor_state.ensure_cursor_visible, initial_cursor_pos);
+    gEditorKeyboard.processTextEditorInput();
 
     // Handle context menu (right-click menu)
-    gEditorMouse.handleContextMenu(editor_state.fileContent, editor_state.fileColors, text_changed);
+    gEditorMouse.handleContextMenu(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
 
     // Handle mouse wheel scrolling
     gEditorScroll.processMouseWheelForEditor(editor_state.line_height, editor_state.current_scroll_y, editor_state.current_scroll_x);
@@ -103,8 +97,6 @@ bool Editor::processEditorInput()
     // Apply calculated scroll positions to ImGui
     ImGui::SetScrollY(editor_state.current_scroll_y);
     ImGui::SetScrollX(editor_state.current_scroll_x);
-
-    return text_changed;
 }
 
 void Editor::updateLineStarts()

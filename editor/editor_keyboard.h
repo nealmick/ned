@@ -24,7 +24,8 @@ class EditorKeyboard
     void processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible);
     void processSelectAll(std::string &text, CursorVisibility &ensure_cursor_visible);
 
-    void processTextEditorInput(std::string &text, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos);
+    void processTextEditorInput();
+
     void handleEditorKeyboardInput(std::string &text, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible);
 
     void handleArrowKeyVisibility(CursorVisibility &ensure_cursor_visible);

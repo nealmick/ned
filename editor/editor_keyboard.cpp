@@ -216,24 +216,19 @@ void EditorKeyboard::processSelectAll(std::string &text, CursorVisibility &ensur
 
 // New method implementations for the refactored code
 
-void EditorKeyboard::processTextEditorInput(std::string &text, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible, int initial_cursor_pos)
+void EditorKeyboard::processTextEditorInput()
 {
     if (!editor_state.block_input) {
-        handleEditorKeyboardInput(text, text_start_pos, line_height, text_changed, colors, ensure_cursor_visible);
+        handleEditorKeyboardInput(editor_state.fileContent, editor_state.text_pos, editor_state.line_height, editor_state.text_changed, editor_state.fileColors, editor_state.ensure_cursor_visible);
     } else {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
     }
 
     if (gEditorScroll.getEnsureCursorVisibleFrames() > 0) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
         gEditorScroll.decrementEnsureCursorVisibleFrames();
-    }
-
-    if (editor_state.cursor_index != initial_cursor_pos) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
     }
 }
 
