@@ -19,12 +19,6 @@ struct ScrollAnimationState
     float current_velocity_y = 0.0f;
 };
 
-struct CursorVisibility
-{
-    bool vertical;
-    bool horizontal;
-};
-
 // Forward declarations
 class Editor;
 extern Editor gEditor;
@@ -45,7 +39,7 @@ class EditorScroll
     // Cursor visibility functions
     ScrollChange ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
 
-    void adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible);
+    void adjustScrollForCursorVisibility(const ImVec2 &text_pos, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible);
 
     // Direct scroll request handling
     void requestScroll(float x, float y)

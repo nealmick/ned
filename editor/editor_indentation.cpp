@@ -92,7 +92,7 @@ void EditorIndentation::finishIndentationChange(std::string &text, std::vector<I
 {
     // Mark text as changed and update
     text_changed = true;
-    gEditor.updateLineStarts(text, state.editor_content_lines);
+    gEditor.updateLineStarts();
     gFileExplorer.setUnsavedChanges(true);
 
     // Trigger syntax highlighting for the affected area
@@ -204,7 +204,7 @@ void EditorIndentation::updateColorsAfterIndentRemoval(std::string &text, Editor
     colors.insert(colors.begin() + firstLineStart, lastLineEnd - firstLineStart - totalSpacesRemoved, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
 
     // Update line starts
-    gEditor.updateLineStarts(text, state.editor_content_lines);
+    gEditor.updateLineStarts();
 
     // Mark text as changed
     gFileExplorer.setUnsavedChanges(true);

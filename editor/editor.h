@@ -30,13 +30,13 @@ class Editor
   public:
     bool textEditor();
 
-    void setupEditorDisplay(ImVec2 &line_numbers_pos, ImVec2 &text_pos, float &line_number_width, float &total_height);
+    void setupEditorDisplay();
 
-    bool processEditorInput(ImVec2 &text_pos, float line_height, ImVec2 &size, CursorVisibility &ensure_cursor_visible);
+    bool processEditorInput();
 
-    void updateLineStarts(const std::string &text, std::vector<int> &line_starts);
+    void updateLineStarts();
 
-    int getLineFromPos(const std::vector<int> &line_starts, int pos);
+    int getLineFromPos(int pos);
 
-    float calculateTextWidth(const std::string &text, const std::vector<int> &line_starts);
+    float calculateTextWidth();
 };

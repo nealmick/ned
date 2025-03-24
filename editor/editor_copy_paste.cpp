@@ -69,7 +69,7 @@ void EditorCopyPaste::cutWholeLine(std::string &text, std::vector<ImVec4> &color
 
     editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
     text_changed = true;
-    gEditor.updateLineStarts(text, editor_state.editor_content_lines);
+    gEditor.updateLineStarts();
 }
 
 void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, bool &text_changed)

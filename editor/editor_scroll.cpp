@@ -213,7 +213,7 @@ ScrollChange EditorScroll::ensureCursorVisible(const ImVec2 &text_pos, const std
     return {scroll_y_changed, scroll_x_changed};
 }
 
-void EditorScroll::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
+void EditorScroll::adjustScrollForCursorVisibility(const ImVec2 &text_pos, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible)
 {
     // IMPORTANT: Update scroll positions from ImGui to capture manual scrolling
     current_scroll_y = ImGui::GetScrollY();
@@ -246,7 +246,7 @@ void EditorScroll::adjustScrollForCursorVisibility(const ImVec2 &text_pos, const
     // Only try to ensure cursor visibility if not manually scrolled too far
     if (ensure_cursor_visible.vertical || ensure_cursor_visible.horizontal) {
         // Call ensureCursorVisible to calculate scroll adjustments
-        ScrollChange scroll_change = ensureCursorVisible(text_pos, text, line_height, window_height, window_width);
+        ScrollChange scroll_change = ensureCursorVisible(text_pos, editor_state.fileContent, line_height, window_height, window_width);
 
         // If scroll changes are needed, set animation targets
         if (scroll_change.horizontal) {

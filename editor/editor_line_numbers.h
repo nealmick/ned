@@ -16,10 +16,10 @@ class EditorLineNumbers
     ~EditorLineNumbers() = default;
 
     // Main rendering function
-    void renderLineNumbers(const ImVec2 &pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState &editor_state, float blink_time);
+    void renderLineNumbers();
 
     // Layout functions
-    ImVec2 createLineNumbersPanel(float line_number_width, float editor_top_margin);
+    ImVec2 createLineNumbersPanel();
 
   private:
     // Color calculation helpers

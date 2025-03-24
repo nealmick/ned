@@ -62,7 +62,7 @@ void EditorMouse::handleMouseClick(int char_index, const std::vector<int> &line_
         editor_state.selection_start = char_index;
         editor_state.selection_end = char_index;
         editor_state.selection_active = false;
-        int current_line = gEditor.getLineFromPos(line_starts, editor_state.cursor_index);
+        int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
         editor_state.cursor_column_prefered = editor_state.cursor_index - line_starts[current_line];
     }
     is_dragging = true;
@@ -230,7 +230,7 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
         // Go to Definition
         if (MenuItemWithAlignedShortcut("Go to Definition", "F12", nullptr, true)) {
             // Get current line number from editor_state
-            int current_line = gEditor.getLineFromPos(editor_state.editor_content_lines, editor_state.cursor_index);
+            int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
             // Get character offset in current line
             int line_start = editor_state.editor_content_lines[current_line];

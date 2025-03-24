@@ -4,6 +4,12 @@
 #include <unordered_map>
 #include <vector>
 
+struct CursorVisibility
+{
+    bool vertical;
+    bool horizontal;
+};
+
 struct EditorState
 {
     // Content of file being edited as string
@@ -14,6 +20,8 @@ struct EditorState
 
     // Size of editor window
     ImVec2 size;
+    // Height of window as float
+    float total_height;
 
     // height of single line of content
     float line_height;
@@ -66,6 +74,17 @@ struct EditorState
     float editor_top_margin;
     // leave room for line numbers on left side of editor window
     float text_left_margin;
+    // line number width changes based off how long file is,
+    // if less then 1000, it will only leave room for 3 chars...
+    float line_number_width;
+    // position where line numbers start
+    ImVec2 line_numbers_pos;
+
+    // text postion offset, used for scrolling.
+    ImVec2 text_pos;
+
+    // used for snapping scroll to cursor making cursor visibile
+    CursorVisibility ensure_cursor_visible = {false, false};
 
     EditorState() : cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
 };

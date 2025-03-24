@@ -170,17 +170,17 @@ void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &col
 
     if (text_changed) {
         // Get the start of the line where the change began
-        int line_start = editor_state.editor_content_lines[gEditor.getLineFromPos(editor_state.editor_content_lines, input_start)];
+        int line_start = editor_state.editor_content_lines[gEditor.getLineFromPos(input_start)];
 
         // Get the end of the line where the change ended (or the end of
         // the text if it's the last line)
-        int line_end = input_end < text.size() ? editor_state.editor_content_lines[gEditor.getLineFromPos(editor_state.editor_content_lines, input_end)] : text.size();
+        int line_end = input_end < text.size() ? editor_state.editor_content_lines[gEditor.getLineFromPos(input_end)] : text.size();
 
         // Update syntax highlighting only for the affected lines
         gEditorHighlight.highlightContent(text, colors, line_start, line_end);
 
         // Update line starts
-        gEditor.updateLineStarts(text, editor_state.editor_content_lines);
+        gEditor.updateLineStarts();
 
         // Add undo state with change range
         gFileExplorer.addUndoState(line_start, line_end);
@@ -325,7 +325,7 @@ void EditorKeyboard::processUndoRedo(std::string &text, std::vector<ImVec4> &col
         // Update text and colors
         text = gFileExplorer.getFileContent();
         colors = gFileExplorer.getFileColors();
-        gEditor.updateLineStarts(text, editor_state.editor_content_lines);
+        gEditor.updateLineStarts();
 
         int newLine = std::min(oldLine, static_cast<int>(editor_state.editor_content_lines.size()) - 1);
         int lineStart = editor_state.editor_content_lines[newLine];
