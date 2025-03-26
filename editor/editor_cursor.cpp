@@ -10,9 +10,9 @@ EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
 
-void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time)
+void EditorCursor::renderCursor(const ImVec2 &cursor_screen_pos)
 {
-    float blink_alpha = (sinf(blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
+    float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
     ImU32 cursor_color;
     bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
 
@@ -24,28 +24,29 @@ void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_scre
         cursor_color = IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
     }
 
-    draw_list->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + line_height - 1), cursor_color);
+    ImGui::GetWindowDrawList()->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + editor_state.line_height - 1), cursor_color);
 }
 
 // Cursor time management
 void EditorCursor::updateBlinkTime() { editor_state.cursor_blink_time += ImGui::GetIO().DeltaTime; }
 
 // Implementation of helper functions
-int EditorCursor::calculateVisualColumn(const std::string &text, int line_start, int cursor_pos)
+void EditorCursor::calculateVisualColumn()
 {
     const int TAB_WIDTH = 4; // Tab width in spaces
     int visual_column = 0;
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    int line_start = editor_state.editor_content_lines[current_line];
 
-    for (int i = line_start; i < cursor_pos && i < text.length(); i++) {
-        if (text[i] == '\t') {
+    for (int i = line_start; i < editor_state.cursor_index && i < editor_state.fileContent.length(); i++) {
+        if (editor_state.fileContent[i] == '\t') {
             // Calculate next tab stop (tabs align to positions divisible by TAB_WIDTH)
             visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
         } else {
             visual_column++;
         }
     }
-
-    return visual_column;
+    editor_state.cursor_column_prefered = visual_column;
 }
 
 int EditorCursor::findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column)
@@ -93,11 +94,7 @@ void EditorCursor::cursorRight(const std::string &text)
 {
     if (editor_state.cursor_index < text.size()) {
         editor_state.cursor_index++;
-
-        // Update preferred column using visual positions
-        int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
-        int line_start = editor_state.editor_content_lines[current_line];
-        editor_state.cursor_column_prefered = calculateVisualColumn(text, line_start, editor_state.cursor_index);
+        calculateVisualColumn();
     }
 }
 
@@ -107,8 +104,7 @@ void EditorCursor::cursorUp(const std::string &text, float line_height, float wi
     if (current_line > 0) {
         // Calculate current visual column if preferred_column hasn't been set yet
         if (editor_state.cursor_column_prefered == 0) {
-            int line_start = editor_state.editor_content_lines[current_line];
-            editor_state.cursor_column_prefered = calculateVisualColumn(text, line_start, editor_state.cursor_index);
+            calculateVisualColumn();
         }
 
         // Target the previous line
@@ -131,8 +127,7 @@ void EditorCursor::cursorDown(const std::string &text, float line_height, float 
     if (current_line < editor_state.editor_content_lines.size() - 1) {
         // Calculate current visual column if preferred_column hasn't been set yet
         if (editor_state.cursor_column_prefered == 0) {
-            int line_start = editor_state.editor_content_lines[current_line];
-            editor_state.cursor_column_prefered = calculateVisualColumn(text, line_start, editor_state.cursor_index);
+            calculateVisualColumn();
         }
 
         // Target the next line
@@ -156,8 +151,7 @@ void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 
     // Calculate current visual column if preferred_column hasn't been set yet
     if (editor_state.cursor_column_prefered == 0) {
-        int line_start = editor_state.editor_content_lines[current_line];
-        editor_state.cursor_column_prefered = calculateVisualColumn(text, line_start, editor_state.cursor_index);
+        calculateVisualColumn();
     }
 
     // Set the new cursor position using preferred visual column

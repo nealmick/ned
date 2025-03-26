@@ -21,6 +21,7 @@ struct EditorState
 
     // Size of editor window
     ImVec2 size;
+
     // Height of window as float
     float total_height;
 

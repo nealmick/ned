@@ -282,7 +282,7 @@ void EditorKeyboard::handleEditorKeyboardInput(std::string &text, const ImVec2 &
     handleTextInput(text, colors, text_changed);
 
     if (ImGui::IsWindowFocused() && ctrl_pressed)
-        gEditorCopyPaste.processClipboardShortcuts(text, colors, text_changed, ensure_cursor_visible);
+        gEditorCopyPaste.processClipboardShortcuts();
 
     // Update cursor visibility if text has changed
     updateCursorVisibilityOnTextChange(text_changed, ensure_cursor_visible);

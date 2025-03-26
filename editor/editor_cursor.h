@@ -51,10 +51,10 @@ class EditorCursor
 
     void updateBlinkTime();
 
-    void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
+    void renderCursor(const ImVec2 &cursor_screen_pos);
 
   private:
-    int calculateVisualColumn(const std::string &text, int line_start, int cursor_pos);
+    void calculateVisualColumn();
 
     int findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column);
 };

@@ -184,7 +184,7 @@ void EditorMouse::handleContextMenu()
 
         // Cut action
         if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, editor_state.selection_active)) {
-            gEditorCopyPaste.cutSelectedText(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
+            gEditorCopyPaste.cutSelectedText();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
@@ -198,7 +198,7 @@ void EditorMouse::handleContextMenu()
 
         // Paste action
         if (MenuItemWithAlignedShortcut("Paste", "Ctrl+V", nullptr, true)) {
-            gEditorCopyPaste.pasteText(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
+            gEditorCopyPaste.pasteText();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }

@@ -20,9 +20,9 @@ class EditorRender
   public:
     void renderEditorFrame();
 
-    void renderEditorContent(const std::string &text, const std::vector<ImVec4> &colors, float line_height, const ImVec2 &text_pos);
+    void renderEditorContent();
 
-    void renderText(ImDrawList *drawList, const ImVec2 &pos, const std::string &text, const std::vector<ImVec4> &colors, float line_height);
+    void renderText();
 
     bool validateAndResizeColors();
 
