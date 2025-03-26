@@ -21,7 +21,7 @@ class EditorMouse
     int getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height);
 
     // Context menu handler
-    void handleContextMenu(std::string &text, std::vector<ImVec4> &colors, bool &text_changed);
+    void handleContextMenu();
 
   private:
     // Selection state

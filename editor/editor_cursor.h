@@ -49,7 +49,7 @@ class EditorCursor
 
     float getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
 
-    void updateBlinkTime(float deltaTime);
+    void updateBlinkTime();
 
     void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
 

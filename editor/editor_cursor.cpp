@@ -28,7 +28,7 @@ void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_scre
 }
 
 // Cursor time management
-void EditorCursor::updateBlinkTime(float deltaTime) { editor_state.cursor_blink_time += deltaTime; }
+void EditorCursor::updateBlinkTime() { editor_state.cursor_blink_time += ImGui::GetIO().DeltaTime; }
 
 // Implementation of helper functions
 int EditorCursor::calculateVisualColumn(const std::string &text, int line_start, int cursor_pos)

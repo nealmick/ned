@@ -28,7 +28,7 @@ extern EditorState editor_state;
 class Editor
 {
   public:
-    bool textEditor();
+    void textEditor();
 
     void setupEditorDisplay();
 

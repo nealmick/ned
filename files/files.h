@@ -84,11 +84,11 @@ class FileExplorer
     bool getShowWelcomeScreen() const { return showWelcomeScreen; }
 
     void notifyLSPFileOpen(const std::string &filePath);
+    bool _unsavedChanges = false;
 
   private:
     std::string selectedFolder;
     bool _showFileDialog = false;
-    bool _unsavedChanges = false;
     std::map<std::string, ImTextureID> fileTypeIcons;
 
     // Icon loading helpers

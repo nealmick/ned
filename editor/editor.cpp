@@ -35,84 +35,64 @@
 Editor gEditor;
 EditorState editor_state;
 
-bool Editor::textEditor()
+void Editor::textEditor()
 {
 
-    // PHASE 1: Setup the editor display and windows
     setupEditorDisplay();
 
-    // PHASE 2: Process user input and handle scrolling
     processEditorInput();
 
-    // PHASE 3: Render editor content and finalize frame
     gEditorRender.renderEditorFrame();
 
     // std::cout << editor_state.cursor_index << std::endl;
-    return editor_state.text_changed;
 }
 
 void Editor::setupEditorDisplay()
 {
-    // Validate input data and prepare state
     gEditorRender.validateAndResizeColors();
 
-    gEditorCursor.updateBlinkTime(ImGui::GetIO().DeltaTime);
+    gEditorCursor.updateBlinkTime();
 
-    // Setup editor layout parameters
     gEditorRender.setupEditorWindow("##editor");
 
-    // Setup line numbers panel
     editor_state.line_numbers_pos = gEditorLineNumbers.createLineNumbersPanel();
 
-    // Parse text and compute line information
     updateLineStarts();
     editor_state.total_height = editor_state.line_height * editor_state.editor_content_lines.size();
 
-    // Calculate content dimensions for layout
     float remaining_width = editor_state.size.x - editor_state.line_number_width;
     float content_width = calculateTextWidth() + ImGui::GetFontSize() * 10.0f;
     float content_height = editor_state.editor_content_lines.size() * editor_state.line_height;
 
-    // Setup the main editor child window
     gEditorRender.beginTextEditorChild("##editor", remaining_width, content_width, content_height);
 }
 
 void Editor::processEditorInput()
 {
-    // Process keyboard input (text editing, cursor movement, etc.)
     gEditorKeyboard.processTextEditorInput();
 
-    // Handle context menu (right-click menu)
-    gEditorMouse.handleContextMenu(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
+    gEditorMouse.handleContextMenu();
 
-    // Handle mouse wheel scrolling
-    gEditorScroll.processMouseWheelForEditor(editor_state.line_height, editor_state.current_scroll_y, editor_state.current_scroll_x);
+    gEditorScroll.processMouseWheelForEditor();
 
-    // Ensure cursor visibility by adjusting scroll if needed
-    gEditorScroll.adjustScrollForCursorVisibility(editor_state.text_pos, editor_state.line_height, editor_state.size.y, editor_state.size.x, editor_state.current_scroll_y, editor_state.current_scroll_x, editor_state.ensure_cursor_visible);
+    gEditorScroll.adjustScrollForCursorVisibility();
 
-    // Update scroll animation (smooth scrolling)
-    gEditorScroll.updateScrollAnimation(editor_state.current_scroll_x, editor_state.current_scroll_y, ImGui::GetIO().DeltaTime);
+    gEditorScroll.updateScrollAnimation();
 
-    // Apply calculated scroll positions to ImGui
     ImGui::SetScrollY(editor_state.current_scroll_y);
     ImGui::SetScrollX(editor_state.current_scroll_x);
 }
 
 void Editor::updateLineStarts()
 {
-    // Skip update if text hasn't changed since last analysis
     if (editor_state.fileContent == editor_state.cached_text) {
         return;
     }
 
-    // Update cached text and clear old data
     editor_state.cached_text = editor_state.fileContent;
     editor_state.editor_content_lines.clear();
     editor_state.line_widths.clear();
 
-    // Find all line breaks and record starting positions
-    // The first entry (index 0) is always 0, representing the start of the first line
     editor_state.editor_content_lines.reserve(editor_state.fileContent.size() / 40); // Heuristic: assume average line length of 40 chars
     editor_state.editor_content_lines.push_back(0);
 
@@ -122,7 +102,6 @@ void Editor::updateLineStarts()
         ++pos;
     }
 
-    // Calculate and cache the pixel width of each line for layout calculations
     for (size_t i = 0; i < editor_state.editor_content_lines.size(); ++i) {
         int start = editor_state.editor_content_lines[i];
         int end = (i + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[i + 1] - 1 : editor_state.fileContent.size();
@@ -139,7 +118,6 @@ int Editor::getLineFromPos(int pos)
 
 float Editor::calculateTextWidth()
 {
-    // Find the maximum line width from the cached line widths
     float max_width = 0.0f;
     for (float width : editor_state.line_widths) {
         max_width = std::max(max_width, width);

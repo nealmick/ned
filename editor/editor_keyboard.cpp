@@ -8,6 +8,7 @@
 #include "editor_indentation.h"
 #include "editor_line_jump.h"
 #include "editor_mouse.h"
+#include "editor_render.h"
 #include "editor_scroll.h"
 #include "editor_selection.h"
 #include "editor_utils.h"
@@ -184,6 +185,11 @@ void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &col
 
         // Add undo state with change range
         gFileExplorer.addUndoState(line_start, line_end);
+        gFileExplorer._unsavedChanges = true;
+        gFileExplorer.saveCurrentFile();
+        editor_state.text_changed = false;
+        editor_state.ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
     }
 }
 

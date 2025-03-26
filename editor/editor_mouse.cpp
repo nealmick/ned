@@ -96,7 +96,7 @@ void EditorMouse::handleMouseRelease()
     anchor_pos = -1;
 }
 
-void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colors, bool &text_changed)
+void EditorMouse::handleContextMenu()
 {
     // For debugging
     static bool popupWasOpen = false;
@@ -184,21 +184,21 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
 
         // Cut action
         if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, editor_state.selection_active)) {
-            gEditorCopyPaste.cutSelectedText(text, colors, text_changed);
+            gEditorCopyPaste.cutSelectedText(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Copy action
         if (MenuItemWithAlignedShortcut("Copy", "Ctrl+C", nullptr, editor_state.selection_active)) {
-            gEditorCopyPaste.copySelectedText(text);
+            gEditorCopyPaste.copySelectedText(editor_state.fileContent);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Paste action
         if (MenuItemWithAlignedShortcut("Paste", "Ctrl+V", nullptr, true)) {
-            gEditorCopyPaste.pasteText(text, colors, text_changed);
+            gEditorCopyPaste.pasteText(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
@@ -220,8 +220,8 @@ void EditorMouse::handleContextMenu(std::string &text, std::vector<ImVec4> &colo
         if (MenuItemWithAlignedShortcut("Select All", "Ctrl+A", nullptr, true)) {
             editor_state.selection_active = true;
             editor_state.selection_start = 0;
-            editor_state.selection_end = text.size();
-            editor_state.cursor_index = text.size();
+            editor_state.selection_end = editor_state.fileContent.size();
+            editor_state.cursor_index = editor_state.fileContent.size();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }

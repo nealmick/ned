@@ -3,22 +3,6 @@
 #include "imgui.h"
 #include <string>
 
-struct ScrollChange
-{
-    bool vertical;
-    bool horizontal;
-};
-
-struct ScrollAnimationState
-{
-    bool active_x = false;
-    bool active_y = false;
-    float target_x = 0.0f;
-    float target_y = 0.0f;
-    float current_velocity_x = 0.0f;
-    float current_velocity_y = 0.0f;
-};
-
 // Forward declarations
 class Editor;
 extern Editor gEditor;
@@ -30,16 +14,16 @@ class EditorScroll
     ~EditorScroll() = default;
 
     // Main scroll animation update function
-    void updateScrollAnimation(float &current_scroll_x, float &current_scroll_y, float dt);
+    void updateScrollAnimation();
 
     // Mouse wheel handling
-    void processMouseWheelForEditor(float line_height, float &current_scroll_y, float &current_scroll_x);
+    void processMouseWheelForEditor();
     void processMouseWheelScrolling(float line_height);
 
     // Cursor visibility functions
-    ScrollChange ensureCursorVisible(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
+    ScrollChange ensureCursorVisible();
 
-    void adjustScrollForCursorVisibility(const ImVec2 &text_pos, float line_height, float window_height, float window_width, float &current_scroll_y, float &current_scroll_x, CursorVisibility &ensure_cursor_visible);
+    void adjustScrollForCursorVisibility();
 
     // Direct scroll request handling
     void requestScroll(float x, float y)

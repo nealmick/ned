@@ -335,9 +335,9 @@ void FileExplorer::renderFileContent()
 
 void FileExplorer::renderEditor(bool &text_changed)
 {
-    text_changed = gEditor.textEditor();
+    gEditor.textEditor();
 
-    if (text_changed && !editor_state.active_find_box) {
+    if (editor_state.text_changed && !editor_state.active_find_box) {
         setUnsavedChanges(true);
     }
 }
