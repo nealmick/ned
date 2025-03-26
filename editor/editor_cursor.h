@@ -27,11 +27,11 @@ class EditorCursor
 
     void cursorLeft();
 
-    void cursorRight(const std::string &text);
+    void cursorRight();
 
-    void cursorUp(const std::string &text, float line_height, float window_height);
+    void cursorUp();
 
-    void cursorDown(const std::string &text, float line_height, float window_height);
+    void cursorDown();
 
     void moveCursorVertically(std::string &text, int line_delta);
 
@@ -51,12 +51,12 @@ class EditorCursor
 
     void updateBlinkTime();
 
-    void renderCursor(const ImVec2 &cursor_screen_pos);
+    void renderCursor();
 
   private:
     void calculateVisualColumn();
 
-    int findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column);
+    void findPositionFromVisualColumn(int line_start, int line_end);
 };
 
 extern EditorCursor gEditorCursor;

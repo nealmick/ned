@@ -113,24 +113,11 @@ void EditorRender::beginTextEditorChild(const char *label, float remaining_width
 
 void EditorRender::renderEditorContent()
 {
-    gLineJump.handleLineJumpInput();
     gLineJump.renderLineJumpWindow();
 
-    // Render the text (with selection) using our character-by-character function
     renderText();
 
-    // Compute the cursor's line by finding which line the cursor is on
-    int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-    // Calculate cursor x position character-by-character using EditorCursor
-    float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
-
-    ImVec2 cursor_screen_pos = editor_state.text_pos;
-    cursor_screen_pos.x = cursor_x;
-    cursor_screen_pos.y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
-
-    // Draw the cursor using EditorCursor
-    gEditorCursor.renderCursor(cursor_screen_pos);
+    gEditorCursor.renderCursor();
 }
 
 void EditorRender::renderText()

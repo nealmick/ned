@@ -167,6 +167,7 @@ void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &col
     handleEnterKey(text, colors, text_changed, input_end);
     handleBackspaceKey(text, colors, text_changed, input_start);
     handleDeleteKey(text, colors, text_changed, input_end);
+    gLineJump.handleLineJumpInput();
     gEditorIndentation.handleTabKey(text, colors, text_changed, input_end);
 
     if (text_changed) {

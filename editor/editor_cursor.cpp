@@ -10,8 +10,15 @@ EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
 
-void EditorCursor::renderCursor(const ImVec2 &cursor_screen_pos)
+void EditorCursor::renderCursor()
 {
+    int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
+    float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
+
+    ImVec2 cursor_screen_pos = editor_state.text_pos;
+    cursor_screen_pos.x = cursor_x;
+    cursor_screen_pos.y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
+
     float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
     ImU32 cursor_color;
     bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
@@ -49,20 +56,20 @@ void EditorCursor::calculateVisualColumn()
     editor_state.cursor_column_prefered = visual_column;
 }
 
-int EditorCursor::findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column)
+void EditorCursor::findPositionFromVisualColumn(int line_start, int line_end)
 {
     const int TAB_WIDTH = 4; // Tab width in spaces
     int current_visual_column = 0;
     int pos = line_start;
 
-    while (pos < line_end && current_visual_column < visual_column && pos < text.length()) {
-        if (text[pos] == '\t') {
+    while (pos < line_end && current_visual_column < editor_state.cursor_column_prefered && pos < editor_state.fileContent.length()) {
+        if (editor_state.fileContent[pos] == '\t') {
             // Calculate next tab stop
             int next_tab_stop = ((current_visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
 
             // If going to or past the next tab stop would exceed our target,
             // we've found the closest position
-            if (next_tab_stop > visual_column) {
+            if (next_tab_stop > editor_state.cursor_column_prefered) {
                 break;
             }
 
@@ -73,8 +80,7 @@ int EditorCursor::findPositionFromVisualColumn(const std::string &text, int line
 
         pos++;
     }
-
-    return pos;
+    editor_state.cursor_index = pos;
 }
 
 void EditorCursor::cursorLeft()
@@ -90,15 +96,15 @@ void EditorCursor::cursorLeft()
 }
 
 // Fix for cursorRight
-void EditorCursor::cursorRight(const std::string &text)
+void EditorCursor::cursorRight()
 {
-    if (editor_state.cursor_index < text.size()) {
+    if (editor_state.cursor_index < editor_state.fileContent.size()) {
         editor_state.cursor_index++;
         calculateVisualColumn();
     }
 }
 
-void EditorCursor::cursorUp(const std::string &text, float line_height, float window_height)
+void EditorCursor::cursorUp()
 {
     int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     if (current_line > 0) {
@@ -112,16 +118,15 @@ void EditorCursor::cursorUp(const std::string &text, float line_height, float wi
         int new_line_start = editor_state.editor_content_lines[target_line];
         int new_line_end = editor_state.editor_content_lines[current_line] - 1;
 
-        // Find position in new line that corresponds to our visual column
-        editor_state.cursor_index = findPositionFromVisualColumn(text, new_line_start, new_line_end, editor_state.cursor_column_prefered);
+        findPositionFromVisualColumn(new_line_start, new_line_end);
 
         // Update scroll position through EditorScroll
         ImVec2 currentPos = gEditorScroll.getScrollPosition();
-        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, std::max(0.0f, currentPos.y - line_height)));
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, std::max(0.0f, currentPos.y - editor_state.line_height)));
     }
 }
 
-void EditorCursor::cursorDown(const std::string &text, float line_height, float window_height)
+void EditorCursor::cursorDown()
 {
     int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     if (current_line < editor_state.editor_content_lines.size() - 1) {
@@ -133,14 +138,14 @@ void EditorCursor::cursorDown(const std::string &text, float line_height, float 
         // Target the next line
         int target_line = current_line + 1;
         int new_line_start = editor_state.editor_content_lines[target_line];
-        int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[target_line + 1] - 1 : text.size();
+        int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[target_line + 1] - 1 : editor_state.fileContent.size();
 
         // Find position in new line that corresponds to our visual column
-        editor_state.cursor_index = findPositionFromVisualColumn(text, new_line_start, new_line_end, editor_state.cursor_column_prefered);
+        findPositionFromVisualColumn(new_line_start, new_line_end);
 
         // Update scroll position through EditorScroll
         ImVec2 currentPos = gEditorScroll.getScrollPosition();
-        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, currentPos.y + line_height));
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, currentPos.y + editor_state.line_height));
     }
 }
 
@@ -159,7 +164,7 @@ void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
     int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[target_line + 1] - 1 : text.size();
 
     // Find position in new line that corresponds to our visual column
-    editor_state.cursor_index = findPositionFromVisualColumn(text, new_line_start, new_line_end, editor_state.cursor_column_prefered);
+    findPositionFromVisualColumn(new_line_start, new_line_end);
 }
 
 void EditorCursor::moveWordForward(const std::string &text)
@@ -240,16 +245,16 @@ void EditorCursor::handleCursorMovement(const std::string &text, const ImVec2 &t
 
     // Handle cursor movement based on arrow keys
     if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-        cursorUp(text, line_height, window_height);
+        cursorUp();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-        cursorDown(text, line_height, window_height);
+        cursorDown();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
         cursorLeft();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
-        cursorRight(text);
+        cursorRight();
     }
 
     // Update selection end if we're in selection mode
