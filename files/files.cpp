@@ -142,7 +142,7 @@ void FileExplorer::refreshSyntaxHighlighting()
 {
     if (!currentFile.empty()) {
         std::string extension = fs::path(currentFile).extension().string();
-        gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, 0, editor_state.fileContent.size());
+        gEditorHighlight.highlightContent();
     }
 }
 
@@ -264,7 +264,7 @@ void FileExplorer::setupUndoManager(const std::string &path)
 void FileExplorer::initializeSyntaxHighlighting(const std::string &path)
 {
     std::string extension = fs::path(path).extension().string();
-    gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, 0, editor_state.fileContent.size());
+    gEditorHighlight.highlightContent();
 }
 
 void FileExplorer::handleLoadError()
@@ -358,7 +358,7 @@ void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd)
     int highlightEnd = std::min(static_cast<int>(editor_state.fileContent.size()), changeEnd + 100);
 
     std::string extension = fs::path(currentFile).extension().string();
-    gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, highlightStart, highlightEnd);
+    gEditorHighlight.highlightContent();
 }
 
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)

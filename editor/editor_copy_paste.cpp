@@ -97,7 +97,7 @@ void EditorCopyPaste::pasteText()
             editor_state.text_changed = true;
 
             // Trigger syntax highlighting for the pasted content
-            gEditorHighlight.highlightContent(editor_state.fileContent, editor_state.fileColors, paste_start, paste_end);
+            gEditorHighlight.highlightContent();
         }
     }
 }

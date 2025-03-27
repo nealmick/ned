@@ -20,7 +20,7 @@ EditorKeyboard gEditorKeyboard;
 
 EditorKeyboard::EditorKeyboard() {}
 
-void EditorKeyboard::handleCharacterInput(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_start, int &input_end)
+void EditorKeyboard::handleCharacterInput()
 {
     ImGuiIO &io = ImGui::GetIO();
     std::string input;
@@ -36,38 +36,37 @@ void EditorKeyboard::handleCharacterInput(std::string &text, std::vector<ImVec4>
         if (editor_state.selection_start != editor_state.selection_end) {
             int start = gEditorSelection.getSelectionStart();
             int end = gEditorSelection.getSelectionEnd();
-            if (start < 0 || end > static_cast<int>(text.size()) || start > end) {
+            if (start < 0 || end > static_cast<int>(editor_state.fileContent.size()) || start > end) {
                 std::cerr << "Error: Invalid selection range "
                              "in HandleCharacterInput"
                           << std::endl;
                 return;
             }
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
+            editor_state.fileContent.erase(start, end - start);
+            editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
             editor_state.cursor_index = start;
         }
 
         // Insert new text
-        if (editor_state.cursor_index < 0 || editor_state.cursor_index > static_cast<int>(text.size())) {
+        if (editor_state.cursor_index < 0 || editor_state.cursor_index > static_cast<int>(editor_state.fileContent.size())) {
             std::cerr << "Error: Invalid cursor position in "
                          "HandleCharacterInput"
                       << std::endl;
             return;
         }
-        text.insert(editor_state.cursor_index, input);
-        colors.insert(colors.begin() + editor_state.cursor_index, input.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        editor_state.fileContent.insert(editor_state.cursor_index, input);
+        editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index, input.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         editor_state.cursor_index += input.size();
 
         // Reset selection state
         editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
         editor_state.selection_active = false;
-
-        text_changed = true;
-        input_end = editor_state.cursor_index;
+        // set text changed
+        editor_state.text_changed = true;
     }
 }
 
-void EditorKeyboard::handleEnterKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end)
+void EditorKeyboard::handleEnterKey()
 {
     if (gLineJump.hasJustJumped()) {
         return;
@@ -75,42 +74,39 @@ void EditorKeyboard::handleEnterKey(std::string &text, std::vector<ImVec4> &colo
 
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         // Insert the newline character
-        text.insert(editor_state.cursor_index, 1, '\n');
+        editor_state.fileContent.insert(editor_state.cursor_index, 1, '\n');
 
         // Safely insert the color
-        if (editor_state.cursor_index <= colors.size()) {
-            colors.insert(colors.begin() + editor_state.cursor_index, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        if (editor_state.cursor_index <= editor_state.fileColors.size()) {
+            editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         } else {
             std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
-            colors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            editor_state.fileColors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
 
         editor_state.cursor_index++;
         editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
         editor_state.selection_active = false;
-        text_changed = true;
-        input_end = editor_state.cursor_index;
+        editor_state.text_changed = true;
     }
 }
 
-void EditorKeyboard::handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end)
+void EditorKeyboard::handleDeleteKey()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
         if (editor_state.selection_start != editor_state.selection_end) {
             // There's a selection, delete it
             int start = gEditorSelection.getSelectionStart();
             int end = gEditorSelection.getSelectionEnd();
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end - 1);
+            editor_state.fileContent.erase(start, end - start);
+            editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end - 1);
             editor_state.cursor_index = start;
-            text_changed = true;
-            input_end = start;
-        } else if (editor_state.cursor_index < text.size()) {
+            editor_state.text_changed = true;
+        } else if (editor_state.cursor_index < editor_state.fileContent.size()) {
             // No selection, delete the character at cursor position
-            text.erase(editor_state.cursor_index, 1);
-            colors.erase(colors.begin() + editor_state.cursor_index - 1);
-            text_changed = true;
-            input_end = editor_state.cursor_index + 1;
+            editor_state.fileContent.erase(editor_state.cursor_index, 1);
+            editor_state.fileColors.erase(editor_state.fileColors.begin() + editor_state.cursor_index - 1);
+            editor_state.text_changed = true;
         }
 
         // Clear selection after deletion
@@ -119,25 +115,23 @@ void EditorKeyboard::handleDeleteKey(std::string &text, std::vector<ImVec4> &col
     }
 }
 
-void EditorKeyboard::handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_start)
+void EditorKeyboard::handleBackspaceKey()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
         if (editor_state.selection_start != editor_state.selection_end) {
             // There's a selection, delete it
             int start = gEditorSelection.getSelectionStart();
             int end = gEditorSelection.getSelectionEnd();
-            text.erase(start, end - start);
-            colors.erase(colors.begin() + start, colors.begin() + end);
+            editor_state.fileContent.erase(start, end - start);
+            editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
             editor_state.cursor_index = start;
-            text_changed = true;
-            input_start = start;
+            editor_state.text_changed = true;
         } else if (editor_state.cursor_index > 0) {
             // No selection, delete the character before cursor position
-            text.erase(editor_state.cursor_index - 1, 1);
-            colors.erase(colors.begin() + editor_state.cursor_index - 1);
+            editor_state.fileContent.erase(editor_state.cursor_index - 1, 1);
+            editor_state.fileColors.erase(editor_state.fileColors.begin() + editor_state.cursor_index - 1);
             editor_state.cursor_index--;
-            text_changed = true;
-            input_start = editor_state.cursor_index;
+            editor_state.text_changed = true;
         }
 
         // Clear selection after deletion
@@ -146,7 +140,7 @@ void EditorKeyboard::handleBackspaceKey(std::string &text, std::vector<ImVec4> &
     }
 }
 
-void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &colors, bool &text_changed)
+void EditorKeyboard::handleTextInput()
 {
     int input_start = editor_state.cursor_index;
     int input_end = editor_state.cursor_index;
@@ -155,31 +149,31 @@ void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &col
     if (editor_state.selection_start != editor_state.selection_end && ImGui::IsKeyPressed(ImGuiKey_Enter)) {
         int start = gEditorSelection.getSelectionStart();
         int end = gEditorSelection.getSelectionEnd();
-        text.erase(start, end - start);
-        colors.erase(colors.begin() + start, colors.begin() + end);
+        editor_state.fileContent.erase(start, end - start);
+        editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
         editor_state.cursor_index = start;
         editor_state.selection_start = editor_state.selection_end = start;
-        text_changed = true;
+        editor_state.text_changed = true;
         input_start = input_end = start;
     }
 
-    handleCharacterInput(text, colors, text_changed, input_start, input_end);
-    handleEnterKey(text, colors, text_changed, input_end);
-    handleBackspaceKey(text, colors, text_changed, input_start);
-    handleDeleteKey(text, colors, text_changed, input_end);
+    handleCharacterInput();
+    handleEnterKey();
+    handleBackspaceKey();
+    handleDeleteKey();
     gLineJump.handleLineJumpInput();
-    gEditorIndentation.handleTabKey(text, colors, text_changed, input_end);
+    gEditorIndentation.handleTabKey();
 
-    if (text_changed) {
+    if (editor_state.text_changed) {
         // Get the start of the line where the change began
         int line_start = editor_state.editor_content_lines[gEditor.getLineFromPos(input_start)];
 
         // Get the end of the line where the change ended (or the end of
         // the text if it's the last line)
-        int line_end = input_end < text.size() ? editor_state.editor_content_lines[gEditor.getLineFromPos(input_end)] : text.size();
+        int line_end = input_end < editor_state.fileContent.size() ? editor_state.editor_content_lines[gEditor.getLineFromPos(input_end)] : editor_state.fileContent.size();
 
         // Update syntax highlighting only for the affected lines
-        gEditorHighlight.highlightContent(text, colors, line_start, line_end);
+        gEditorHighlight.highlightContent();
 
         // Update line starts
         gEditor.updateLineStarts();
@@ -194,29 +188,29 @@ void EditorKeyboard::handleTextInput(std::string &text, std::vector<ImVec4> &col
     }
 }
 
-void EditorKeyboard::processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible)
+void EditorKeyboard::processFontSizeAdjustment()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_Equal)) { // '+' key
         float currentSize = gSettings.getFontSize();
         gSettings.setFontSize(currentSize + 2.0f);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
         std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
     } else if (ImGui::IsKeyPressed(ImGuiKey_Minus)) { // '-' key
         float currentSize = gSettings.getFontSize();
         gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
         std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
     }
 }
 
-void EditorKeyboard::processSelectAll(std::string &text, CursorVisibility &ensure_cursor_visible)
+void EditorKeyboard::processSelectAll()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_A)) {
-        gEditorSelection.selectAllText(text);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        gEditorSelection.selectAllText(editor_state.fileContent);
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
         std::cout << "Ctrl+A: Selected all text" << std::endl;
     }
 }
@@ -226,7 +220,7 @@ void EditorKeyboard::processSelectAll(std::string &text, CursorVisibility &ensur
 void EditorKeyboard::processTextEditorInput()
 {
     if (!editor_state.block_input) {
-        handleEditorKeyboardInput(editor_state.fileContent, editor_state.text_pos, editor_state.line_height, editor_state.text_changed, editor_state.fileColors, editor_state.ensure_cursor_visible);
+        handleEditorKeyboardInput();
     } else {
         editor_state.ensure_cursor_visible.vertical = true;
         editor_state.ensure_cursor_visible.horizontal = true;
@@ -239,7 +233,7 @@ void EditorKeyboard::processTextEditorInput()
     }
 }
 
-void EditorKeyboard::handleEditorKeyboardInput(std::string &text, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible)
+void EditorKeyboard::handleEditorKeyboardInput()
 {
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -254,39 +248,39 @@ void EditorKeyboard::handleEditorKeyboardInput(std::string &text, const ImVec2 &
 
     if (ImGui::IsWindowFocused() && !editor_state.block_input) {
         // Process Shift+Tab for indentation removal. If handled, exit early.
-        if (gEditorIndentation.processIndentRemoval(text, text_changed, ensure_cursor_visible))
+        if (gEditorIndentation.processIndentRemoval())
             return;
 
         if (ctrl_pressed) {
-            processFontSizeAdjustment(ensure_cursor_visible);
-            processSelectAll(text, ensure_cursor_visible);
-            gEditorKeyboard.processUndoRedo(text, colors, text_changed, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processWordMovement(text, ensure_cursor_visible, shift_pressed);
-            gEditorCursor.processCursorJump(text, ensure_cursor_visible);
+            processFontSizeAdjustment();
+            processSelectAll();
+            gEditorKeyboard.processUndoRedo(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed, editor_state.ensure_cursor_visible, shift_pressed);
+            gEditorCursor.processWordMovement(editor_state.fileContent, editor_state.ensure_cursor_visible, shift_pressed);
+            gEditorCursor.processCursorJump(editor_state.fileContent, editor_state.ensure_cursor_visible);
         }
     }
 
     if (ImGui::IsWindowHovered()) {
-        gEditorMouse.handleMouseInput(text, text_start_pos, line_height);
-        gEditorScroll.processMouseWheelScrolling(line_height);
+        gEditorMouse.handleMouseInput(editor_state.fileContent, editor_state.text_pos, editor_state.line_height);
+        gEditorScroll.processMouseWheelScrolling(editor_state.line_height);
     }
 
     // Handle arrow key visibility
-    handleArrowKeyVisibility(ensure_cursor_visible);
+    handleArrowKeyVisibility(editor_state.ensure_cursor_visible);
 
     // Pass the correct variables to handleCursorMovement
     float window_height = ImGui::GetWindowHeight();
     float window_width = ImGui::GetWindowWidth();
-    gEditorCursor.handleCursorMovement(text, text_start_pos, line_height, window_height, window_width);
+    gEditorCursor.handleCursorMovement(editor_state.fileContent, editor_state.text_pos, editor_state.line_height, window_height, window_width);
 
     // Call the refactored method in EditorKeyboard
-    handleTextInput(text, colors, text_changed);
+    handleTextInput();
 
     if (ImGui::IsWindowFocused() && ctrl_pressed)
         gEditorCopyPaste.processClipboardShortcuts();
 
     // Update cursor visibility if text has changed
-    updateCursorVisibilityOnTextChange(text_changed, ensure_cursor_visible);
+    updateCursorVisibilityOnTextChange(editor_state.text_changed, editor_state.ensure_cursor_visible);
 }
 
 void EditorKeyboard::handleArrowKeyVisibility(CursorVisibility &ensure_cursor_visible)

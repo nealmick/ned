@@ -1,5 +1,6 @@
 #include "editor_highlight.h"
 #include "../files/files.h"
+#include "editor.h"
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
@@ -26,75 +27,60 @@ void EditorHighlight::forceColorUpdate()
     jsxLexer.forceColorUpdate();
 }
 
-bool EditorHighlight::validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos)
+bool EditorHighlight::validateHighlightContentParams()
 {
-    if (content.empty()) {
+    if (editor_state.fileContent.empty()) {
         std::cerr << "Error: Empty content in highlightContent" << std::endl;
         return false;
     }
-    if (colors.empty()) {
+    if (editor_state.fileColors.empty()) {
         std::cerr << "Error: Empty colors vector in highlightContent" << std::endl;
         return false;
     }
-    if (content.size() != colors.size()) {
+    if (editor_state.fileContent.size() != editor_state.fileColors.size()) {
         std::cerr << "Error: Mismatch between content and colors size "
                      "in highlightContent"
                   << std::endl;
         return false;
     }
-    if (start_pos < 0 || start_pos >= static_cast<int>(content.size())) {
-        std::cerr << "Error: Invalid start_pos in highlightContent" << std::endl;
-        return false;
-    }
-    if (end_pos < start_pos || end_pos > static_cast<int>(content.size())) {
-        std::cerr << "Error: Invalid end_pos in highlightContent" << std::endl;
-        return false;
-    }
+
     return true;
 }
-
-void EditorHighlight::highlightContent(const std::string &content, std::vector<ImVec4> &colors, int start_pos, int end_pos)
+void EditorHighlight::highlightContent()
 {
     std::lock_guard<std::mutex> lock(highlight_mutex);
-    std::cout << "\033[36mEditorHighlight:\033[0m Highlight Content. content size: " << content.size() << std::endl;
+    std::cout << "\033[36mEditorHighlight:\033[0m Highlight Content. content size: " << editor_state.fileContent.size() << std::endl;
 
-    // Cancel any ongoing highlighting first
     cancelHighlighting();
 
-    // For large files (>100KB), just use default color
     const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
-    if (content.size() > LARGE_FILE_THRESHOLD) {
-        // Pre-allocate colors vector to match content size
-        colors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD) {
+        editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         return;
     }
 
-    // Validate inputs
-    if (!validateHighlightContentParams(content, colors, start_pos, end_pos))
+    if (!validateHighlightContentParams())
         return;
 
-    // Pre-allocate vectors to avoid reallocation during async operation
-    std::string content_copy = content;
-    std::vector<ImVec4> colors_copy;
-    colors_copy.reserve(content.size()); // Reserve space before copying
-    colors_copy = colors;
+    // Create copies for async operation
+    std::string content_copy = editor_state.fileContent;
+    std::vector<ImVec4> colors_copy = editor_state.fileColors; // Copy directly without reserve
 
     std::string currentFile = gFileExplorer.getCurrentFile();
+    std::string extension = fs::path(currentFile).extension().string();
 
     highlightingInProgress = true;
     cancelHighlightFlag = false;
 
-    std::string extension = fs::path(currentFile).extension().string();
-
-    // Launch highlighting task - properly capture colors by reference
-    highlightFuture = std::async(std::launch::async, [this, content_copy, &colors, colors_copy = std::move(colors_copy), currentFile, start_pos, end_pos, extension]() mutable {
+    // Corrected async launch with proper captures
+    highlightFuture = std::async(std::launch::async, [this, content_copy, colors_copy = std::move(colors_copy), currentFile, extension]() mutable {
         try {
-            if (cancelHighlightFlag) {
+            if (cancelHighlightFlag.load()) {
                 highlightingInProgress = false;
                 return;
             }
 
-            // Apply highlighting
+            // Apply syntax highlighting
             if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
                 cppLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".py") {
@@ -104,18 +90,19 @@ void EditorHighlight::highlightContent(const std::string &content, std::vector<I
             } else if (extension == ".js" || extension == ".jsx") {
                 jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else {
-                std::fill(colors_copy.begin() + start_pos, colors_copy.begin() + end_pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                // Set default color for entire content
+                std::fill(colors_copy.begin(), colors_copy.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             }
 
+            // Update colors if still valid
             if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile()) {
                 std::lock_guard<std::mutex> colorsLock(colorsMutex);
-                // Note: colors is captured by reference now
-                if (colors.size() == colors_copy.size()) {
-                    colors = std::move(colors_copy);
+                if (editor_state.fileColors.size() == colors_copy.size()) {
+                    editor_state.fileColors = std::move(colors_copy);
                 }
             }
         } catch (const std::exception &e) {
-            std::cerr << "Error in highlighting: " << e.what() << std::endl;
+            std::cerr << "Highlighting error: " << e.what() << std::endl;
         }
         highlightingInProgress = false;
     });

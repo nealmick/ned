@@ -15,18 +15,18 @@ class EditorKeyboard
     EditorKeyboard();
     ~EditorKeyboard() = default;
 
-    void handleCharacterInput(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_start, int &input_end);
-    void handleEnterKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end);
-    void handleDeleteKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_end);
-    void handleBackspaceKey(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, int &input_start);
-    void handleTextInput(std::string &text, std::vector<ImVec4> &colors, bool &text_changed);
+    void handleCharacterInput();
+    void handleEnterKey();
+    void handleDeleteKey();
+    void handleBackspaceKey();
+    void handleTextInput();
 
-    void processFontSizeAdjustment(CursorVisibility &ensure_cursor_visible);
-    void processSelectAll(std::string &text, CursorVisibility &ensure_cursor_visible);
+    void processFontSizeAdjustment();
+    void processSelectAll();
 
     void processTextEditorInput();
 
-    void handleEditorKeyboardInput(std::string &text, const ImVec2 &text_start_pos, float line_height, bool &text_changed, std::vector<ImVec4> &colors, CursorVisibility &ensure_cursor_visible);
+    void handleEditorKeyboardInput();
 
     void handleArrowKeyVisibility(CursorVisibility &ensure_cursor_visible);
 

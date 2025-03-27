@@ -19,13 +19,13 @@ class EditorHighlight
     EditorHighlight();
     ~EditorHighlight() = default;
 
-    void highlightContent(const std::string &content, std::vector<ImVec4> &colors, int start_pos, int end_pos);
+    void highlightContent();
 
     void cancelHighlighting();
 
     void forceColorUpdate();
 
-    bool validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos);
+    bool validateHighlightContentParams();
 
     void loadTheme(const std::string &themeName);
 
