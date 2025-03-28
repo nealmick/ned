@@ -15,10 +15,10 @@ class EditorMouse
     ~EditorMouse() = default;
 
     // Main mouse handling function
-    void handleMouseInput(const std::string &text, const ImVec2 &text_start_pos, float line_height);
+    void handleMouseInput();
 
     // Character position calculation from mouse coordinates
-    int getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height);
+    int getCharIndexFromCoords();
 
     // Context menu handler
     void handleContextMenu();
@@ -31,7 +31,7 @@ class EditorMouse
     ImVec2 context_menu_pos;
 
     // Handle different mouse actions
-    void handleMouseClick(int char_index, const std::vector<int> &line_starts);
+    void handleMouseClick(int char_index);
     void handleMouseDrag(int char_index);
     void handleMouseRelease();
 };

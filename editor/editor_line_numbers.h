@@ -27,7 +27,7 @@ class EditorLineNumbers
     ImU32 determineLineNumberColor(int line_index, int current_line, int selection_start_line, int selection_end_line, bool is_selecting, bool rainbow_mode, ImU32 rainbow_color) const;
 
     // Selection helpers
-    void calculateSelectionLines(const EditorState &editor_state, int &selection_start_line, int &selection_end_line) const;
+    void calculateSelectionLines(int &selection_start_line, int &selection_end_line);
 
     // Layout/positioning helpers
     float calculateTextRightAlignedPosition(const char *text, float line_number_width, float right_margin = 8.0f) const;

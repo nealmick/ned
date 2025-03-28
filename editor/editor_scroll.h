@@ -18,7 +18,7 @@ class EditorScroll
 
     // Mouse wheel handling
     void processMouseWheelForEditor();
-    void processMouseWheelScrolling(float line_height);
+    void processMouseWheelScrolling();
 
     // Cursor visibility functions
     ScrollChange ensureCursorVisible();
@@ -46,7 +46,6 @@ class EditorScroll
 
     // New scroll position accessors (to replace direct access to EditorState)
     ImVec2 getScrollPosition() const { return scrollPos; }
-    float getScrollX() const { return scrollX; }
     void setScrollPosition(const ImVec2 &pos) { scrollPos = pos; }
     void setScrollX(float x) { scrollX = x; }
 
@@ -59,22 +58,11 @@ class EditorScroll
             ensureCursorVisibleFrames--;
     }
 
-    // Scroll animation state accessors
-    const ScrollAnimationState &getAnimationState() const { return scrollAnimation; }
-    ScrollAnimationState &getAnimationState() { return scrollAnimation; }
-    void setAnimationState(const ScrollAnimationState &state) { scrollAnimation = state; }
-
-    // Higher-level scrolling API methods
-    void scrollToLine(int lineNumber, float line_height);
-    void scrollToCharacter(int charIndex, const ImVec2 &text_pos, const std::string &text, float line_height);
-    void centerOnCursor(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
-
-    // Cursor movement scroll handling
-    void handleCursorMovementScroll(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width);
+    void handleCursorMovementScroll();
 
   private:
     // Helpers
-    float calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
+    float calculateCursorXPosition();
 
     // Helper that doesn't need direct access to Editor (to avoid circular dependency)
     int getLineFromPosition(const std::vector<int> &line_starts, int pos);

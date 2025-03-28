@@ -1,3 +1,4 @@
+
 #include "editor_keyboard.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
@@ -254,19 +255,19 @@ void EditorKeyboard::handleEditorKeyboardInput()
         if (ctrl_pressed) {
             processFontSizeAdjustment();
             processSelectAll();
-            gEditorKeyboard.processUndoRedo(editor_state.fileContent, editor_state.fileColors, editor_state.text_changed, editor_state.ensure_cursor_visible, shift_pressed);
+            gEditorKeyboard.processUndoRedo();
             gEditorCursor.processWordMovement(editor_state.fileContent, editor_state.ensure_cursor_visible, shift_pressed);
             gEditorCursor.processCursorJump(editor_state.fileContent, editor_state.ensure_cursor_visible);
         }
     }
 
     if (ImGui::IsWindowHovered()) {
-        gEditorMouse.handleMouseInput(editor_state.fileContent, editor_state.text_pos, editor_state.line_height);
-        gEditorScroll.processMouseWheelScrolling(editor_state.line_height);
+        gEditorMouse.handleMouseInput();
+        gEditorScroll.processMouseWheelScrolling();
     }
 
     // Handle arrow key visibility
-    handleArrowKeyVisibility(editor_state.ensure_cursor_visible);
+    handleArrowKeyVisibility();
 
     // Pass the correct variables to handleCursorMovement
     float window_height = ImGui::GetWindowHeight();
@@ -280,29 +281,30 @@ void EditorKeyboard::handleEditorKeyboardInput()
         gEditorCopyPaste.processClipboardShortcuts();
 
     // Update cursor visibility if text has changed
-    updateCursorVisibilityOnTextChange(editor_state.text_changed, editor_state.ensure_cursor_visible);
+    updateCursorVisibilityOnTextChange();
 }
 
-void EditorKeyboard::handleArrowKeyVisibility(CursorVisibility &ensure_cursor_visible)
+void EditorKeyboard::handleArrowKeyVisibility()
 {
     // Additional arrow key presses outside the ctrl block
     if (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow))
-        ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.vertical = true;
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow))
-        ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
 }
 
-void EditorKeyboard::updateCursorVisibilityOnTextChange(bool text_changed, CursorVisibility &ensure_cursor_visible)
+void EditorKeyboard::updateCursorVisibilityOnTextChange()
 {
     // Ensure cursor is visible if text has changed
-    if (text_changed) {
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+    if (editor_state.text_changed) {
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
     }
 }
 
-void EditorKeyboard::processUndoRedo(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
+void EditorKeyboard::processUndoRedo()
 {
+    bool shift_pressed = ImGui::GetIO().KeyShift;
     if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
         std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl << ", Shift: " << shift_pressed << std::endl;
 
@@ -319,20 +321,20 @@ void EditorKeyboard::processUndoRedo(std::string &text, std::vector<ImVec4> &col
         }
 
         // Update text and colors
-        text = gFileExplorer.getFileContent();
-        colors = gFileExplorer.getFileColors();
+        editor_state.fileContent = gFileExplorer.getFileContent();
+        editor_state.fileColors = gFileExplorer.getFileColors();
         gEditor.updateLineStarts();
 
         int newLine = std::min(oldLine, static_cast<int>(editor_state.editor_content_lines.size()) - 1);
         int lineStart = editor_state.editor_content_lines[newLine];
-        int lineEnd = (newLine + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[newLine + 1] - 1 : text.size();
+        int lineEnd = (newLine + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[newLine + 1] - 1 : editor_state.fileContent.size();
         int lineLength = lineEnd - lineStart;
 
         editor_state.cursor_index = lineStart + std::min(oldColumn, lineLength);
         editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
-        text_changed = true;
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        editor_state.text_changed = true;
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
 
         gFileExplorer.currentUndoManager->printStacks();
     }

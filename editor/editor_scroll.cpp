@@ -106,7 +106,7 @@ void EditorScroll::processMouseWheelForEditor()
     }
 }
 
-void EditorScroll::processMouseWheelScrolling(float line_height)
+void EditorScroll::processMouseWheelScrolling()
 {
     float wheel_y = ImGui::GetIO().MouseWheel;
     float wheel_x = ImGui::GetIO().MouseWheelH;
@@ -118,7 +118,7 @@ void EditorScroll::processMouseWheelScrolling(float line_height)
             ImGui::SetScrollX(new_scroll_x);
             scrollX = new_scroll_x;
         } else { // Vertical scrolling
-            float new_scroll_y = ImGui::GetScrollY() - wheel_y * line_height * 3;
+            float new_scroll_y = ImGui::GetScrollY() - wheel_y * editor_state.line_height * 3;
             new_scroll_y = std::max(0.0f, std::min(new_scroll_y, ImGui::GetScrollMaxY()));
             ImGui::SetScrollY(new_scroll_y);
             scrollPos.y = new_scroll_y;
@@ -126,14 +126,14 @@ void EditorScroll::processMouseWheelScrolling(float line_height)
     }
 }
 
-float EditorScroll::calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos)
+float EditorScroll::calculateCursorXPosition()
 {
-    float x = text_pos.x;
-    for (int i = 0; i < cursor_pos; i++) {
-        if (text[i] == '\n') {
-            x = text_pos.x;
+    float x = editor_state.text_pos.x;
+    for (int i = 0; i < editor_state.cursor_index; i++) {
+        if (editor_state.fileContent[i] == '\n') {
+            x = editor_state.text_pos.x;
         } else {
-            x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+            x += ImGui::CalcTextSize(&editor_state.fileContent[i], &editor_state.fileContent[i + 1]).x;
         }
     }
     return x;
@@ -152,7 +152,7 @@ ScrollChange EditorScroll::ensureCursorVisible()
     float viewport_height = editor_state.size.y;
 
     // Calculate cursor position
-    float abs_cursor_x = calculateCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
+    float abs_cursor_x = calculateCursorXPosition();
     // Use our own getLineFromPosition to avoid circular dependency
     int cursor_line = getLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     float abs_cursor_y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
@@ -265,8 +265,10 @@ void EditorScroll::adjustScrollForCursorVisibility()
     }
 }
 
-void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width)
+void EditorScroll::handleCursorMovementScroll()
 {
+    float window_height = ImGui::GetWindowHeight();
+    float window_width = ImGui::GetWindowWidth();
     // Get current viewport bounds
     float visible_start_y = ImGui::GetScrollY();
     float visible_end_y = visible_start_y + window_height;
@@ -276,70 +278,20 @@ void EditorScroll::handleCursorMovementScroll(const ImVec2 &text_pos, const std:
     // Get cursor position
     // Use our own method for getting line from position
     int cursor_line = getLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
-    float cursor_y = text_pos.y + (cursor_line * line_height);
-    float cursor_x = calculateCursorXPosition(text_pos, text, editor_state.cursor_index);
+    float cursor_y = editor_state.text_pos.y + (cursor_line * editor_state.line_height);
+    float cursor_x = calculateCursorXPosition();
 
     // Handle vertical scrolling
     if (cursor_y < visible_start_y) {
-        scrollPos.y = cursor_y - text_pos.y;
-    } else if (cursor_y + line_height > visible_end_y) {
-        scrollPos.y = cursor_y + line_height - window_height;
+        scrollPos.y = cursor_y - editor_state.text_pos.y;
+    } else if (cursor_y + editor_state.line_height > visible_end_y) {
+        scrollPos.y = cursor_y + editor_state.line_height - window_height;
     }
 
     // Handle horizontal scrolling
     if (cursor_x < visible_start_x) {
-        scrollX = cursor_x - text_pos.x;
+        scrollX = cursor_x - editor_state.text_pos.x;
     } else if (cursor_x > visible_end_x) {
         scrollX = cursor_x - window_width + ImGui::GetFontSize();
     }
-}
-
-void EditorScroll::scrollToLine(int lineNumber, float line_height)
-{
-    if (lineNumber < 0 || lineNumber >= editor_state.editor_content_lines.size()) {
-        return; // Invalid line number
-    }
-
-    // Calculate the Y position for this line
-    float lineY = lineNumber * line_height;
-
-    // Use requestScroll to trigger smooth scroll animation
-    requestScroll(scrollX, lineY);
-}
-
-void EditorScroll::scrollToCharacter(int charIndex, const ImVec2 &text_pos, const std::string &text, float line_height)
-{
-    if (charIndex < 0 || charIndex >= text.size()) {
-        return; // Invalid character index
-    }
-
-    // Find the line for this character
-    int line = getLineFromPosition(editor_state.editor_content_lines, charIndex);
-
-    // Calculate position
-    float charX = calculateCursorXPosition(text_pos, text, charIndex);
-    float lineY = text_pos.y + line * line_height - text_pos.y; // Relative to top
-
-    // Use requestScroll to trigger smooth scroll animation
-    requestScroll(charX - text_pos.x, lineY);
-}
-
-void EditorScroll::centerOnCursor(const ImVec2 &text_pos, const std::string &text, float line_height, float window_height, float window_width)
-{
-    int cursor_line = getLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
-
-    // Calculate the cursor position
-    float cursor_x = calculateCursorXPosition(text_pos, text, editor_state.cursor_index) - text_pos.x;
-    float cursor_y = cursor_line * line_height;
-
-    // Calculate centered scroll positions
-    float centered_x = cursor_x - window_width / 2;
-    float centered_y = cursor_y - window_height / 2;
-
-    // Ensure we don't scroll out of bounds
-    centered_x = std::max(0.0f, std::min(centered_x, ImGui::GetScrollMaxX()));
-    centered_y = std::max(0.0f, std::min(centered_y, ImGui::GetScrollMaxY()));
-
-    // Request smooth scroll to center position
-    requestScroll(centered_x, centered_y);
 }

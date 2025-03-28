@@ -26,7 +26,7 @@ void EditorLineNumbers::renderLineNumbers()
     // Calculate selection lines
     int selection_start_line = 0;
     int selection_end_line = 0;
-    calculateSelectionLines(editor_state, selection_start_line, selection_end_line);
+    calculateSelectionLines(selection_start_line, selection_end_line);
 
     // Get current line from cursor position
     int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
@@ -101,7 +101,7 @@ ImU32 EditorLineNumbers::determineLineNumberColor(int line_index, int current_li
     }
 }
 
-void EditorLineNumbers::calculateSelectionLines(const EditorState &editor_state, int &selection_start_line, int &selection_end_line) const
+void EditorLineNumbers::calculateSelectionLines(int &selection_start_line, int &selection_end_line)
 {
     // Get selection range accounting for selection direction
     int selection_start = std::min(editor_state.selection_start, editor_state.selection_end);

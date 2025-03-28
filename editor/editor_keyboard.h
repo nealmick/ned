@@ -28,11 +28,11 @@ class EditorKeyboard
 
     void handleEditorKeyboardInput();
 
-    void handleArrowKeyVisibility(CursorVisibility &ensure_cursor_visible);
+    void handleArrowKeyVisibility();
 
-    void updateCursorVisibilityOnTextChange(bool text_changed, CursorVisibility &ensure_cursor_visible);
+    void updateCursorVisibilityOnTextChange();
 
-    void processUndoRedo(std::string &text, std::vector<ImVec4> &colors, bool &text_changed, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
+    void processUndoRedo();
 };
 
 // Global instance

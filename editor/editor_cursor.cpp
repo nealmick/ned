@@ -263,7 +263,7 @@ void EditorCursor::handleCursorMovement(const std::string &text, const ImVec2 &t
     }
 
     // Use the EditorScroll class to handle scroll adjustments
-    gEditorScroll.handleCursorMovementScroll(text_pos, text, line_height, window_height, window_width);
+    gEditorScroll.handleCursorMovementScroll();
 }
 
 void EditorCursor::processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible)

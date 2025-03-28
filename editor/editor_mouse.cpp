@@ -11,14 +11,13 @@ EditorMouse gEditorMouse;
 
 EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false) {}
 
-void EditorMouse::handleMouseInput(const std::string &text, const ImVec2 &text_start_pos, float line_height)
+void EditorMouse::handleMouseInput()
 {
-    ImVec2 mouse_pos = ImGui::GetMousePos();
-    int char_index = getCharIndexFromCoords(text, mouse_pos, text_start_pos, editor_state.editor_content_lines, line_height);
+    int char_index = getCharIndexFromCoords();
 
     // Handle left click
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        handleMouseClick(char_index, editor_state.editor_content_lines);
+        handleMouseClick(char_index);
     }
     // Handle drag
     else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging) {
@@ -42,7 +41,7 @@ void EditorMouse::handleMouseInput(const std::string &text, const ImVec2 &text_s
     }
 }
 
-void EditorMouse::handleMouseClick(int char_index, const std::vector<int> &line_starts)
+void EditorMouse::handleMouseClick(int char_index)
 {
     if (ImGui::GetIO().KeyShift) {
         // If shift is held and we're not already selecting, set the anchor to the current
@@ -63,7 +62,7 @@ void EditorMouse::handleMouseClick(int char_index, const std::vector<int> &line_
         editor_state.selection_end = char_index;
         editor_state.selection_active = false;
         int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-        editor_state.cursor_column_prefered = editor_state.cursor_index - line_starts[current_line];
+        editor_state.cursor_column_prefered = editor_state.cursor_index - editor_state.editor_content_lines[current_line];
     }
     is_dragging = true;
 }
@@ -251,17 +250,19 @@ void EditorMouse::handleContextMenu()
     ImGui::PopStyleVar(6);
 }
 
-int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &click_pos, const ImVec2 &text_start_pos, const std::vector<int> &line_starts, float line_height)
+int EditorMouse::getCharIndexFromCoords()
 {
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+
     // Determine which line was clicked (clamped to valid indices)
-    int clicked_line = std::clamp(static_cast<int>((click_pos.y - text_start_pos.y) / line_height), 0, static_cast<int>(line_starts.size()) - 1);
+    int clicked_line = std::clamp(static_cast<int>((mouse_pos.y - editor_state.text_pos.y) / editor_state.line_height), 0, static_cast<int>(editor_state.editor_content_lines.size()) - 1);
 
     // Get start/end indices for that line in the text.
-    int line_start = line_starts[clicked_line];
-    int line_end = (clicked_line + 1 < line_starts.size()) ? line_starts[clicked_line + 1] : text.size();
+    int line_start = editor_state.editor_content_lines[clicked_line];
+    int line_end = (clicked_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[clicked_line + 1] : editor_state.fileContent.size();
 
     // Adjust line_end to exclude newline character if present
-    if (line_end > line_start && line_end <= text.size() && text[line_end - 1] == '\n') {
+    if (line_end > line_start && line_end <= editor_state.fileContent.size() && editor_state.fileContent[line_end - 1] == '\n') {
         line_end--;
     }
 
@@ -272,7 +273,7 @@ int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &c
         return line_start;
 
     // Compute the click's x-coordinate relative to the beginning of the text.
-    float click_x = click_pos.x - text_start_pos.x;
+    float click_x = mouse_pos.x - editor_state.text_pos.x;
 
     // For more accuracy, calculate character widths individually to avoid accumulating errors
     // This is especially important for longer lines where small errors add up
@@ -283,7 +284,7 @@ int EditorMouse::getCharIndexFromCoords(const std::string &text, const ImVec2 &c
 
     // Calculate the width of each character individually
     for (int i = 0; i < n; i++) {
-        char buf[2] = {text[line_start + i], '\0'};
+        char buf[2] = {editor_state.fileContent[line_start + i], '\0'};
         charWidths[i] = ImGui::CalcTextSize(buf).x;
     }
 
