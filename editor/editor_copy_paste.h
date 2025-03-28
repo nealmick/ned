@@ -16,21 +16,21 @@ class EditorCopyPaste
     ~EditorCopyPaste() = default;
 
     // Copy operation
-    void copySelectedText(const std::string &text, const EditorState &state);
+    void copySelectedText(const std::string &text);
 
     // Cut operations
-    void cutSelectedText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
-    void cutWholeLine(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
+    void cutSelectedText();
+    void cutWholeLine();
 
     // Paste operation
-    void pasteText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed);
-    void processClipboardShortcuts(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible);
+    void pasteText();
+    void processClipboardShortcuts();
 
   private:
     // Helper methods
     // Get selection bounds (helper methods)
-    int getSelectionStart(const EditorState &state) const;
-    int getSelectionEnd(const EditorState &state) const;
+    int getSelectionStart() const;
+    int getSelectionEnd() const;
 };
 
 // Global instance

@@ -2374,7 +2374,6 @@ void Terminal::tsetmode(int priv, int set, const std::vector<int> &args)
         }
     }
 }
-
 void Terminal::addToScrollback(const std::vector<Glyph> &line)
 {
     scrollbackBuffer.push_back(line);

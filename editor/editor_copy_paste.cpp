@@ -6,98 +6,98 @@
 // Global instance
 EditorCopyPaste gEditorCopyPaste;
 
-void EditorCopyPaste::processClipboardShortcuts(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed, CursorVisibility &ensure_cursor_visible)
+void EditorCopyPaste::processClipboardShortcuts()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-        gEditorCopyPaste.copySelectedText(text, state);
+        gEditorCopyPaste.copySelectedText(editor_state.fileContent);
     }
     if (ImGui::IsKeyPressed(ImGuiKey_X, false)) {
-        if (state.selection_start != state.selection_end)
-            gEditorCopyPaste.cutSelectedText(text, colors, state, text_changed);
+        if (editor_state.selection_start != editor_state.selection_end)
+            gEditorCopyPaste.cutSelectedText();
         else
-            gEditorCopyPaste.cutWholeLine(text, colors, state, text_changed);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+            gEditorCopyPaste.cutWholeLine();
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
-        gEditorCopyPaste.pasteText(text, colors, state, text_changed);
-        ensure_cursor_visible.vertical = true;
-        ensure_cursor_visible.horizontal = true;
+        gEditorCopyPaste.pasteText();
+        editor_state.ensure_cursor_visible.vertical = true;
+        editor_state.ensure_cursor_visible.horizontal = true;
     }
 }
 
-int EditorCopyPaste::getSelectionStart(const EditorState &state) const { return std::min(state.selection_start, state.selection_end); }
+int EditorCopyPaste::getSelectionStart() const { return std::min(editor_state.selection_start, editor_state.selection_end); }
 
-int EditorCopyPaste::getSelectionEnd(const EditorState &state) const { return std::max(state.selection_start, state.selection_end); }
+int EditorCopyPaste::getSelectionEnd() const { return std::max(editor_state.selection_start, editor_state.selection_end); }
 
-void EditorCopyPaste::copySelectedText(const std::string &text, const EditorState &state)
+void EditorCopyPaste::copySelectedText(const std::string &text)
 {
-    if (state.selection_start != state.selection_end) {
-        int start = getSelectionStart(state);
-        int end = getSelectionEnd(state);
+    if (editor_state.selection_start != editor_state.selection_end) {
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
         std::string selected_text = text.substr(start, end - start);
         ImGui::SetClipboardText(selected_text.c_str());
     }
 }
 
-void EditorCopyPaste::cutSelectedText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
+void EditorCopyPaste::cutSelectedText()
 {
-    if (state.selection_start != state.selection_end) {
-        int start = getSelectionStart(state);
-        int end = getSelectionEnd(state);
-        std::string selected_text = text.substr(start, end - start);
+    if (editor_state.selection_start != editor_state.selection_end) {
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
+        std::string selected_text = editor_state.fileContent.substr(start, end - start);
         ImGui::SetClipboardText(selected_text.c_str());
-        text.erase(start, end - start);
-        colors.erase(colors.begin() + start, colors.begin() + end);
-        state.cursor_column = start;
-        state.selection_start = state.selection_end = start;
-        text_changed = true;
+        editor_state.fileContent.erase(start, end - start);
+        editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
+        editor_state.cursor_index = start;
+        editor_state.selection_start = editor_state.selection_end = start;
+        editor_state.text_changed = true;
     }
 }
 
-void EditorCopyPaste::cutWholeLine(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
+void EditorCopyPaste::cutWholeLine()
 {
-    int line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-    int line_start = state.editor_content_lines[line];
-    int line_end = (line + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[line + 1] : text.size();
+    int line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    int line_start = editor_state.editor_content_lines[line];
+    int line_end = (line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[line + 1] : editor_state.fileContent.size();
 
-    std::string line_text = text.substr(line_start, line_end - line_start);
+    std::string line_text = editor_state.fileContent.substr(line_start, line_end - line_start);
     ImGui::SetClipboardText(line_text.c_str());
 
-    text.erase(line_start, line_end - line_start);
-    colors.erase(colors.begin() + line_start, colors.begin() + line_end);
+    editor_state.fileContent.erase(line_start, line_end - line_start);
+    editor_state.fileColors.erase(editor_state.fileColors.begin() + line_start, editor_state.fileColors.begin() + line_end);
 
-    state.cursor_column = line > 0 ? state.editor_content_lines[line] : 0;
-    text_changed = true;
-    gEditor.updateLineStarts(text, state.editor_content_lines);
+    editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
+    editor_state.text_changed = true;
+    gEditor.updateLineStarts();
 }
 
-void EditorCopyPaste::pasteText(std::string &text, std::vector<ImVec4> &colors, EditorState &state, bool &text_changed)
+void EditorCopyPaste::pasteText()
 {
     const char *clipboard_text = ImGui::GetClipboardText();
     if (clipboard_text != nullptr) {
         std::string paste_content = clipboard_text;
         if (!paste_content.empty()) {
-            int paste_start = state.cursor_column;
+            int paste_start = editor_state.cursor_index;
             int paste_end = paste_start + paste_content.size();
-            if (state.selection_start != state.selection_end) {
-                int start = getSelectionStart(state);
-                int end = getSelectionEnd(state);
-                text.replace(start, end - start, paste_content);
-                colors.erase(colors.begin() + start, colors.begin() + end);
-                colors.insert(colors.begin() + start, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            if (editor_state.selection_start != editor_state.selection_end) {
+                int start = getSelectionStart();
+                int end = getSelectionEnd();
+                editor_state.fileContent.replace(start, end - start, paste_content);
+                editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
+                editor_state.fileColors.insert(editor_state.fileColors.begin() + start, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
                 paste_start = start;
                 paste_end = start + paste_content.size();
             } else {
-                text.insert(state.cursor_column, paste_content);
-                colors.insert(colors.begin() + state.cursor_column, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                editor_state.fileContent.insert(editor_state.cursor_index, paste_content);
+                editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index, paste_content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             }
-            state.cursor_column = paste_end;
-            state.selection_start = state.selection_end = state.cursor_column;
-            text_changed = true;
+            editor_state.cursor_index = paste_end;
+            editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
+            editor_state.text_changed = true;
 
             // Trigger syntax highlighting for the pasted content
-            gEditorHighlight.highlightContent(text, colors, paste_start, paste_end);
+            gEditorHighlight.highlightContent();
         }
     }
 }

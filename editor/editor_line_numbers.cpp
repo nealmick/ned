@@ -1,59 +1,63 @@
 #include "editor_line_numbers.h"
 #include "../util/settings.h"
+#include "editor.h"
 #include <algorithm>
 #include <cmath>
 
 // Global instance
 EditorLineNumbers gEditorLineNumbers;
 
-void EditorLineNumbers::renderLineNumbers(const ImVec2 &pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState &editor_state, float blink_time)
+void EditorLineNumbers::renderLineNumbers()
 {
     static char line_number_buffer[LINE_NUMBER_BUFFER_SIZE];
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
     // Calculate visible line range
-    int start_line = static_cast<int>(scroll_y / line_height);
-    int end_line = std::min(num_lines, static_cast<int>((scroll_y + window_height) / line_height) + 1);
+    int start_line = static_cast<int>(gEditorScroll.getScrollPosition().y / editor_state.line_height);
+    int end_line = std::min(static_cast<int>(editor_state.editor_content_lines.size()), static_cast<int>((gEditorScroll.getScrollPosition().y + (editor_state.size.y - editor_state.editor_top_margin)) / editor_state.line_height) + 1);
 
     // Pre-calculate rainbow color if needed
     bool rainbow_mode = gSettings.getRainbowMode();
     ImU32 rainbow_color = CURRENT_LINE_COLOR;
     if (rainbow_mode) {
-        rainbow_color = calculateRainbowColor(blink_time);
+        rainbow_color = calculateRainbowColor(editor_state.cursor_blink_time);
     }
 
     // Calculate selection lines
     int selection_start_line = 0;
     int selection_end_line = 0;
-    calculateSelectionLines(editor_state, selection_start_line, selection_end_line);
+    calculateSelectionLines(selection_start_line, selection_end_line);
+
+    // Get current line from cursor position
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
 
     // Render each visible line number
     for (int i = start_line; i < end_line; i++) {
         // Calculate vertical position
-        float y_pos = pos.y + (i * line_height) - scroll_y;
+        float y_pos = editor_state.line_numbers_pos.y + (i * editor_state.line_height) - gEditorScroll.getScrollPosition().y;
 
         // Format line number text
         snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
 
         // Determine color based on selection and current line
-        ImU32 line_number_color = determineLineNumberColor(i, editor_state.cursor_row, selection_start_line, selection_end_line, editor_state.selection_active, rainbow_mode, rainbow_color);
+        ImU32 line_number_color = determineLineNumberColor(i, current_line, selection_start_line, selection_end_line, editor_state.selection_active, rainbow_mode, rainbow_color);
 
         // Calculate position for right-aligned text
         float text_width = ImGui::CalcTextSize(line_number_buffer).x;
-        float x_pos = calculateTextRightAlignedPosition(line_number_buffer, line_number_width);
+        float x_pos = calculateTextRightAlignedPosition(line_number_buffer, editor_state.line_number_width);
 
         // Draw the line number
         draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color, line_number_buffer);
     }
 }
 
-ImVec2 EditorLineNumbers::createLineNumbersPanel(float line_number_width, float editor_top_margin)
+ImVec2 EditorLineNumbers::createLineNumbersPanel()
 {
     ImGui::BeginGroup();
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
-    ImGui::BeginChild("LineNumbers", ImVec2(line_number_width, ImGui::GetContentRegionAvail().y), false, ImGuiWindowFlags_NoScrollbar);
+    ImGui::BeginChild("LineNumbers", ImVec2(editor_state.line_number_width, ImGui::GetContentRegionAvail().y), false, ImGuiWindowFlags_NoScrollbar);
     ImVec2 line_numbers_pos = ImGui::GetCursorScreenPos();
-    line_numbers_pos.y += editor_top_margin;
+    line_numbers_pos.y += editor_state.editor_top_margin;
     ImGui::EndChild();
     ImGui::PopStyleVar();
     ImGui::SameLine();
@@ -97,7 +101,7 @@ ImU32 EditorLineNumbers::determineLineNumberColor(int line_index, int current_li
     }
 }
 
-void EditorLineNumbers::calculateSelectionLines(const EditorState &editor_state, int &selection_start_line, int &selection_end_line) const
+void EditorLineNumbers::calculateSelectionLines(int &selection_start_line, int &selection_end_line)
 {
     // Get selection range accounting for selection direction
     int selection_start = std::min(editor_state.selection_start, editor_state.selection_end);

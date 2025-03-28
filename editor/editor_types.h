@@ -4,11 +4,33 @@
 #include <unordered_map>
 #include <vector>
 
+// set true to make editor scroll to cursor....
+struct CursorVisibility
+{
+    bool vertical;
+    bool horizontal;
+};
+
 struct EditorState
 {
+    // Content of file being edited as string
+    std::string fileContent;
+
+    // syntax colors for every char
+    std::vector<ImVec4> fileColors;
+
+    // Size of editor window
+    ImVec2 size;
+
+    // Height of window as float
+    float total_height;
+
+    // height of single line of content
+    float line_height;
+
     // Cursor State
-    int cursor_column; // Horizontal Character
-    int cursor_row;    // Vertical Line
+    int cursor_index; // content index of curent cursor
+
     /*
      * cursor_column_prefered
      * Remembers horizontal position if line is shorter than preferred.
@@ -38,6 +60,9 @@ struct EditorState
      */
     std::vector<float> line_widths;
 
+    // scalling values
+    float current_scroll_x, current_scroll_y;
+
     // Caching for expensive measurements
     std::string cached_text;
 
@@ -47,5 +72,40 @@ struct EditorState
     bool block_input;        // Turn off all editor inputs
     float cursor_blink_time; // Used for cursor timing and rainbow mode state
 
-    EditorState() : cursor_column_prefered(0), cursor_column(0), cursor_row(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
+    // leaves room for file path and icon above editor window
+    float editor_top_margin;
+    // leave room for line numbers on left side of editor window
+    float text_left_margin;
+    // line number width changes based off how long file is,
+    // if less then 1000, it will only leave room for 3 chars...
+    float line_number_width;
+    // position where line numbers start
+    ImVec2 line_numbers_pos;
+
+    // text postion offset, used for scrolling.
+    ImVec2 text_pos;
+
+    // used for snapping scroll to cursor making cursor visibile
+    CursorVisibility ensure_cursor_visible = {false, false};
+
+    // did text change or was edit made...
+    bool text_changed = false;
+
+    EditorState() : cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
+};
+
+struct ScrollChange
+{
+    bool vertical;
+    bool horizontal;
+};
+
+struct ScrollAnimationState
+{
+    bool active_x = false;
+    bool active_y = false;
+    float target_x = 0.0f;
+    float target_y = 0.0f;
+    float current_velocity_x = 0.0f;
+    float current_velocity_y = 0.0f;
 };

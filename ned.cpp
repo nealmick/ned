@@ -339,12 +339,12 @@ void Ned::handleKeyboardShortcuts()
         }
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false)) {
-        gFileExplorer.setShowWelcomeScreen(false);
+        gFileExplorer.showWelcomeScreen = false;
         gSettings.toggleSettingsWindow();
     }
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
         ClosePopper::closeAll();
-        gFileExplorer.setShowWelcomeScreen(!gFileExplorer.getShowWelcomeScreen());
+        gFileExplorer.showWelcomeScreen = !gFileExplorer.showWelcomeScreen;
         if (gTerminal.isTerminalVisible()) {
             gTerminal.toggleVisibility();
         }
@@ -353,9 +353,9 @@ void Ned::handleKeyboardShortcuts()
     if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
         std::cout << "triggering file dialog" << std::endl;
         ClosePopper::closeAll();
-        gFileExplorer.setShowWelcomeScreen(false);
+        gFileExplorer.showWelcomeScreen = false;
         gFileExplorer.saveCurrentFile();
-        gFileExplorer.setShowFileDialog(true);
+        gFileExplorer._showFileDialog = true;
     }
 }
 
@@ -368,8 +368,8 @@ void Ned::renderFileExplorer(float explorerWidth)
 
     ImGui::Text("File Explorer");
     ImGui::Separator();
-    if (!gFileExplorer.getSelectedFolder().empty()) {
-        gFileTree.displayFileTree(gFileTree.getRootNode()); // Changed to use gFileTree
+    if (!gFileExplorer.selectedFolder.empty()) {
+        gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
@@ -383,7 +383,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 
     // Determine the base icon size (equal to font size, or adjust with a multiplier)
     float iconSize = ImGui::GetFontSize();
-    std::string currentFile = gFileExplorer.getCurrentFile();
+    std::string currentFile = gFileExplorer.currentFile;
 
     // Render the left part: file icon (if available) and file path text.
     if (currentFile.empty()) {
@@ -435,6 +435,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
     ImGui::EndGroup();
     ImGui::Separator();
 }
+
 void Ned::renderSettingsIcon(float iconSize)
 {
     bool settingsOpen = gSettings.showSettingsWindow;
@@ -501,7 +502,7 @@ void Ned::renderMainWindow()
         return;
     }
 
-    if (gFileExplorer.getShowWelcomeScreen()) {
+    if (gFileExplorer.showWelcomeScreen) {
         gWelcome.render();
         return;
     }
@@ -563,15 +564,15 @@ void Ned::handleFileDialog()
 {
     if (gFileExplorer.showFileDialog()) {
         gFileExplorer.openFolderDialog();
-        if (!gFileExplorer.getSelectedFolder().empty()) {
-            auto &rootNode = gFileTree.getRootNode(); // Changed to use gFileTree
-            rootNode.name = fs::path(gFileExplorer.getSelectedFolder()).filename().string();
-            rootNode.fullPath = gFileExplorer.getSelectedFolder();
+        if (!gFileExplorer.selectedFolder.empty()) {
+            auto &rootNode = gFileTree.rootNode; // Changed to use gFileTree
+            rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
+            rootNode.fullPath = gFileExplorer.selectedFolder;
             rootNode.isDirectory = true;
             rootNode.children.clear();
-            gFileTree.buildFileTree(gFileExplorer.getSelectedFolder(),
+            gFileTree.buildFileTree(gFileExplorer.selectedFolder,
                                     rootNode); // Changed to use gFileTree
-            gFileExplorer.setShowWelcomeScreen(false);
+            gFileExplorer.showWelcomeScreen = false;
         }
     }
 }
@@ -619,7 +620,9 @@ void Ned::handleSettingsChanges()
 
         if (gSettings.hasThemeChanged()) {
             gEditorHighlight.setTheme(gSettings.getCurrentTheme());
-            gFileExplorer.refreshSyntaxHighlighting();
+            if (!gFileExplorer.currentFile.empty()) {
+                gEditorHighlight.highlightContent();
+            }
             gSettings.resetThemeChanged();
         }
         if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged()) {

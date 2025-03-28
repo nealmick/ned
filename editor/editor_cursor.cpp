@@ -1,5 +1,6 @@
 #include "editor_cursor.h"
 #include "../util/settings.h"
+#include "editor.h"
 #include "editor_utils.h"
 #include <algorithm>
 #include <cctype> // For std::isalnum, std::isspace
@@ -9,9 +10,16 @@ EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
 
-void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time)
+void EditorCursor::renderCursor()
 {
-    float blink_alpha = (sinf(blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
+    int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
+    float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
+
+    ImVec2 cursor_screen_pos = editor_state.text_pos;
+    cursor_screen_pos.x = cursor_x;
+    cursor_screen_pos.y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
+
+    float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
     ImU32 cursor_color;
     bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
 
@@ -23,44 +31,45 @@ void EditorCursor::renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_scre
         cursor_color = IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
     }
 
-    draw_list->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + line_height - 1), cursor_color);
+    ImGui::GetWindowDrawList()->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + editor_state.line_height - 1), cursor_color);
 }
 
 // Cursor time management
-void EditorCursor::updateBlinkTime(EditorState &state, float deltaTime) { state.cursor_blink_time += deltaTime; }
+void EditorCursor::updateBlinkTime() { editor_state.cursor_blink_time += ImGui::GetIO().DeltaTime; }
 
 // Implementation of helper functions
-int EditorCursor::calculateVisualColumn(const std::string &text, int line_start, int cursor_pos)
+void EditorCursor::calculateVisualColumn()
 {
     const int TAB_WIDTH = 4; // Tab width in spaces
     int visual_column = 0;
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    int line_start = editor_state.editor_content_lines[current_line];
 
-    for (int i = line_start; i < cursor_pos && i < text.length(); i++) {
-        if (text[i] == '\t') {
+    for (int i = line_start; i < editor_state.cursor_index && i < editor_state.fileContent.length(); i++) {
+        if (editor_state.fileContent[i] == '\t') {
             // Calculate next tab stop (tabs align to positions divisible by TAB_WIDTH)
             visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
         } else {
             visual_column++;
         }
     }
-
-    return visual_column;
+    editor_state.cursor_column_prefered = visual_column;
 }
 
-int EditorCursor::findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column)
+void EditorCursor::findPositionFromVisualColumn(int line_start, int line_end)
 {
     const int TAB_WIDTH = 4; // Tab width in spaces
     int current_visual_column = 0;
     int pos = line_start;
 
-    while (pos < line_end && current_visual_column < visual_column && pos < text.length()) {
-        if (text[pos] == '\t') {
+    while (pos < line_end && current_visual_column < editor_state.cursor_column_prefered && pos < editor_state.fileContent.length()) {
+        if (editor_state.fileContent[pos] == '\t') {
             // Calculate next tab stop
             int next_tab_stop = ((current_visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
 
             // If going to or past the next tab stop would exceed our target,
             // we've found the closest position
-            if (next_tab_stop > visual_column) {
+            if (next_tab_stop > editor_state.cursor_column_prefered) {
                 break;
             }
 
@@ -71,105 +80,96 @@ int EditorCursor::findPositionFromVisualColumn(const std::string &text, int line
 
         pos++;
     }
-
-    return pos;
+    editor_state.cursor_index = pos;
 }
 
-void EditorCursor::cursorLeft(EditorState &state)
+void EditorCursor::cursorLeft()
 {
-    if (state.cursor_column > 0) {
-        state.cursor_column--;
+    if (editor_state.cursor_index > 0) {
+        editor_state.cursor_index--;
 
         // We can't update the preferred visual column here since we don't have access to text
         // It will be updated next time cursor moves vertically
-        int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-        state.cursor_column_prefered = state.cursor_column - state.editor_content_lines[current_line];
+        int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+        editor_state.cursor_column_prefered = editor_state.cursor_index - editor_state.editor_content_lines[current_line];
     }
 }
 
 // Fix for cursorRight
-void EditorCursor::cursorRight(const std::string &text, EditorState &state)
+void EditorCursor::cursorRight()
 {
-    if (state.cursor_column < text.size()) {
-        state.cursor_column++;
-
-        // Update preferred column using visual positions
-        int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-        int line_start = state.editor_content_lines[current_line];
-        state.cursor_column_prefered = calculateVisualColumn(text, line_start, state.cursor_column);
+    if (editor_state.cursor_index < editor_state.fileContent.size()) {
+        editor_state.cursor_index++;
+        calculateVisualColumn();
     }
 }
 
-void EditorCursor::cursorUp(const std::string &text, EditorState &state, float line_height, float window_height)
+void EditorCursor::cursorUp()
 {
-    int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     if (current_line > 0) {
         // Calculate current visual column if preferred_column hasn't been set yet
-        if (state.cursor_column_prefered == 0) {
-            int line_start = state.editor_content_lines[current_line];
-            state.cursor_column_prefered = calculateVisualColumn(text, line_start, state.cursor_column);
+        if (editor_state.cursor_column_prefered == 0) {
+            calculateVisualColumn();
         }
 
         // Target the previous line
         int target_line = current_line - 1;
-        int new_line_start = state.editor_content_lines[target_line];
-        int new_line_end = state.editor_content_lines[current_line] - 1;
+        int new_line_start = editor_state.editor_content_lines[target_line];
+        int new_line_end = editor_state.editor_content_lines[current_line] - 1;
 
-        // Find position in new line that corresponds to our visual column
-        state.cursor_column = findPositionFromVisualColumn(text, new_line_start, new_line_end, state.cursor_column_prefered);
+        findPositionFromVisualColumn(new_line_start, new_line_end);
 
         // Update scroll position through EditorScroll
         ImVec2 currentPos = gEditorScroll.getScrollPosition();
-        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, std::max(0.0f, currentPos.y - line_height)));
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, std::max(0.0f, currentPos.y - editor_state.line_height)));
     }
 }
 
-void EditorCursor::cursorDown(const std::string &text, EditorState &state, float line_height, float window_height)
+void EditorCursor::cursorDown()
 {
-    int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-    if (current_line < state.editor_content_lines.size() - 1) {
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    if (current_line < editor_state.editor_content_lines.size() - 1) {
         // Calculate current visual column if preferred_column hasn't been set yet
-        if (state.cursor_column_prefered == 0) {
-            int line_start = state.editor_content_lines[current_line];
-            state.cursor_column_prefered = calculateVisualColumn(text, line_start, state.cursor_column);
+        if (editor_state.cursor_column_prefered == 0) {
+            calculateVisualColumn();
         }
 
         // Target the next line
         int target_line = current_line + 1;
-        int new_line_start = state.editor_content_lines[target_line];
-        int new_line_end = (target_line + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[target_line + 1] - 1 : text.size();
+        int new_line_start = editor_state.editor_content_lines[target_line];
+        int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[target_line + 1] - 1 : editor_state.fileContent.size();
 
         // Find position in new line that corresponds to our visual column
-        state.cursor_column = findPositionFromVisualColumn(text, new_line_start, new_line_end, state.cursor_column_prefered);
+        findPositionFromVisualColumn(new_line_start, new_line_end);
 
         // Update scroll position through EditorScroll
         ImVec2 currentPos = gEditorScroll.getScrollPosition();
-        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, currentPos.y + line_height));
+        gEditorScroll.setScrollPosition(ImVec2(currentPos.x, currentPos.y + editor_state.line_height));
     }
 }
 
-void EditorCursor::moveCursorVertically(std::string &text, EditorState &state, int line_delta)
+void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 {
-    int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-    int target_line = std::max(0, std::min(static_cast<int>(state.editor_content_lines.size()) - 1, current_line + line_delta));
+    int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    int target_line = std::max(0, std::min(static_cast<int>(editor_state.editor_content_lines.size()) - 1, current_line + line_delta));
 
     // Calculate current visual column if preferred_column hasn't been set yet
-    if (state.cursor_column_prefered == 0) {
-        int line_start = state.editor_content_lines[current_line];
-        state.cursor_column_prefered = calculateVisualColumn(text, line_start, state.cursor_column);
+    if (editor_state.cursor_column_prefered == 0) {
+        calculateVisualColumn();
     }
 
     // Set the new cursor position using preferred visual column
-    int new_line_start = state.editor_content_lines[target_line];
-    int new_line_end = (target_line + 1 < state.editor_content_lines.size()) ? state.editor_content_lines[target_line + 1] - 1 : text.size();
+    int new_line_start = editor_state.editor_content_lines[target_line];
+    int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[target_line + 1] - 1 : text.size();
 
     // Find position in new line that corresponds to our visual column
-    state.cursor_column = findPositionFromVisualColumn(text, new_line_start, new_line_end, state.cursor_column_prefered);
+    findPositionFromVisualColumn(new_line_start, new_line_end);
 }
 
-void EditorCursor::moveWordForward(const std::string &text, EditorState &state)
+void EditorCursor::moveWordForward(const std::string &text)
 {
-    size_t pos = state.cursor_column;
+    size_t pos = editor_state.cursor_index;
     size_t len = text.length();
 
     // Skip current word
@@ -186,13 +186,13 @@ void EditorCursor::moveWordForward(const std::string &text, EditorState &state)
     if (pos == len)
         pos = 0;
 
-    state.cursor_column = pos;
-    state.selection_start = state.selection_end = pos;
+    editor_state.cursor_index = pos;
+    editor_state.selection_start = editor_state.selection_end = pos;
 }
 
-void EditorCursor::moveWordBackward(const std::string &text, EditorState &state)
+void EditorCursor::moveWordBackward(const std::string &text)
 {
-    size_t pos = state.cursor_column;
+    size_t pos = editor_state.cursor_index;
 
     // If at the beginning, wrap around to the end
     if (pos == 0)
@@ -204,17 +204,17 @@ void EditorCursor::moveWordBackward(const std::string &text, EditorState &state)
     while (pos > 0 && std::isalnum(text[pos - 1]))
         pos--;
 
-    state.cursor_column = pos;
-    state.selection_start = state.selection_end = pos;
+    editor_state.cursor_index = pos;
+    editor_state.selection_start = editor_state.selection_end = pos;
 }
 
-float EditorCursor::getCursorYPosition(const EditorState &state, float line_height)
+float EditorCursor::getCursorYPosition(float line_height)
 {
-    int cursor_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
+    int cursor_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     return cursor_line * line_height;
 }
 
-float EditorCursor::calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos)
+float EditorCursor::getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos)
 {
     float x = text_pos.x;
     for (int i = 0; i < cursor_pos; i++) {
@@ -227,81 +227,78 @@ float EditorCursor::calculateCursorXPosition(const ImVec2 &text_pos, const std::
     return x;
 }
 
-void EditorCursor::handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width)
+void EditorCursor::handleCursorMovement(const std::string &text, const ImVec2 &text_pos, float line_height, float window_height, float window_width)
 {
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
-    // Update the current line
-    state.cursor_row = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-
     // Start a new selection only if Shift is pressed and we're not already selecting
-    if (shift_pressed && !state.selection_active) {
-        state.selection_active = true;
-        state.selection_start = state.cursor_column;
+    if (shift_pressed && !editor_state.selection_active) {
+        editor_state.selection_active = true;
+        editor_state.selection_start = editor_state.cursor_index;
     }
 
     // Clear selection only if a movement key is pressed without Shift
     if (!shift_pressed && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow) || ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow))) {
-        state.selection_active = false;
-        state.selection_start = state.selection_end = state.cursor_column;
+        editor_state.selection_active = false;
+        editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
     }
 
     // Handle cursor movement based on arrow keys
     if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-        cursorUp(text, state, line_height, window_height);
+        cursorUp();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-        cursorDown(text, state, line_height, window_height);
+        cursorDown();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
-        cursorLeft(state);
+        cursorLeft();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
-        cursorRight(text, state);
+        cursorRight();
     }
 
     // Update selection end if we're in selection mode
-    if (state.selection_active) {
-        state.selection_end = state.cursor_column;
+    if (editor_state.selection_active) {
+        editor_state.selection_end = editor_state.cursor_index;
     }
 
     // Use the EditorScroll class to handle scroll adjustments
-    gEditorScroll.handleCursorMovementScroll(text_pos, text, state, line_height, window_height, window_width);
+    gEditorScroll.handleCursorMovementScroll();
 }
 
-void EditorCursor::processCursorJump(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible)
+void EditorCursor::processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible)
 {
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
-        int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
-        state.cursor_column = state.editor_content_lines[current_line] + 1;
+        int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+        editor_state.cursor_index = editor_state.editor_content_lines[current_line] + 1;
         ensure_cursor_visible.horizontal = true;
     } else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
-        int current_line = EditorUtils::GetLineFromPosition(state.editor_content_lines, state.cursor_column);
+        int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
         int next_line = current_line + 1;
-        if (next_line < state.editor_content_lines.size()) {
-            state.cursor_column = state.editor_content_lines[next_line] - 2; // Position before the newline
+        if (next_line < editor_state.editor_content_lines.size()) {
+            editor_state.cursor_index = editor_state.editor_content_lines[next_line] - 2; // Position before the newline
         } else {
-            state.cursor_column = text.size();
+            editor_state.cursor_index = text.size();
         }
         ensure_cursor_visible.horizontal = true;
     } else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-        moveCursorVertically(text, state, -5);
+        moveCursorVertically(text, -5);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     } else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-        moveCursorVertically(text, state, 5);
+        moveCursorVertically(text, 5);
         ensure_cursor_visible.vertical = true;
         ensure_cursor_visible.horizontal = true;
     }
 }
 
-void EditorCursor::processWordMovement(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
+void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
 {
     if (ImGui::IsKeyPressed(ImGuiKey_W)) {
         if (shift_pressed) {
-            moveWordBackward(text, state);
+            moveWordBackward(text);
         } else {
-            moveWordForward(text, state);
+            moveWordForward(text);
         }
         ensure_cursor_visible.horizontal = true;
         ensure_cursor_visible.vertical = true;

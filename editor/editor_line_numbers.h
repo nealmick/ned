@@ -16,10 +16,10 @@ class EditorLineNumbers
     ~EditorLineNumbers() = default;
 
     // Main rendering function
-    void renderLineNumbers(const ImVec2 &pos, float line_number_width, float line_height, int num_lines, float scroll_y, float window_height, const EditorState &editor_state, float blink_time);
+    void renderLineNumbers();
 
     // Layout functions
-    ImVec2 createLineNumbersPanel(float line_number_width, float editor_top_margin);
+    ImVec2 createLineNumbersPanel();
 
   private:
     // Color calculation helpers
@@ -27,7 +27,7 @@ class EditorLineNumbers
     ImU32 determineLineNumberColor(int line_index, int current_line, int selection_start_line, int selection_end_line, bool is_selecting, bool rainbow_mode, ImU32 rainbow_color) const;
 
     // Selection helpers
-    void calculateSelectionLines(const EditorState &editor_state, int &selection_start_line, int &selection_end_line) const;
+    void calculateSelectionLines(int &selection_start_line, int &selection_end_line);
 
     // Layout/positioning helpers
     float calculateTextRightAlignedPosition(const char *text, float line_number_width, float right_margin = 8.0f) const;

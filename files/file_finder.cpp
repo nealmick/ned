@@ -13,7 +13,7 @@ void FileFinder::refreshFileList()
     filteredList.clear();
     selectedIndex = 0;
 
-    std::string projectDir = gFileExplorer.getSelectedFolder();
+    std::string projectDir = gFileExplorer.selectedFolder;
     if (projectDir.empty())
         return;
 
@@ -84,7 +84,7 @@ void FileFinder::toggleWindow()
     ClosePopper::closeAllExcept(ClosePopper::Type::FileFinder);
 
     if (showFFWindow) {
-        originalFile = gFileExplorer.getCurrentFile();
+        originalFile = gFileExplorer.currentFile;
         currentlyLoadedFile = originalFile; // Initialize with original file
         memset(searchBuffer, 0, sizeof(searchBuffer));
         previousSearch = ""; // Initialize this to empty string

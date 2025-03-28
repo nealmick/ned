@@ -31,12 +31,9 @@ class FileTree
 
     // Getters/Setters
     FileNode &getRootNode() { return rootNode; }
-    void setSelectedFolder(const std::string &folder) { selectedFolder = folder; }
-    std::string getSelectedFolder() const { return selectedFolder; }
+    FileNode rootNode;
 
   private:
-    FileNode rootNode;
-    std::string selectedFolder;
     double lastFileTreeRefreshTime = 0.0;
     const double FILE_TREE_REFRESH_INTERVAL = 1.0;
 

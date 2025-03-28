@@ -58,7 +58,7 @@ class Bookmarks
     inline bool jumpToBookmark(size_t slot, FileExplorer &fileExplorer, EditorState &editorState)
     {
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
-            if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
+            if (bookmarks[slot].filePath != fileExplorer.currentFile) {
                 // Create callback to set scroll after file loads
                 auto setScroll = [this, slot]() { gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY); };
 
@@ -68,15 +68,15 @@ class Bookmarks
                 gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
             }
 
-            editorState.cursor_column = bookmarks[slot].cursorPosition;
-            editorState.cursor_row = bookmarks[slot].lineNumber;
+            editorState.cursor_index = bookmarks[slot].cursorPosition; // use content string index...
+            // editorState.cursor_row = bookmarks[slot].lineNumber;
             gEditorScroll.setEnsureCursorVisibleFrames(-1); // Use EditorScroll method instead
             return true;
         }
         return false;
     }
 
-    inline void handleBookmarkInput(FileExplorer &fileExplorer, EditorState &editorState)
+    inline void handleBookmarkInput(FileExplorer &fileExplorer)
     {
         bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
         bool shift_pressed = ImGui::GetIO().KeyShift;
@@ -94,10 +94,11 @@ class Bookmarks
         for (size_t i = 0; i < NUM_BOOKMARKS; ++i) {
             if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
                 if (shift_pressed || alt_pressed) {
-                    setBookmark(i, fileExplorer.getCurrentFile(), editorState.cursor_column, editorState.cursor_row);
-                    std::cout << "Bookmark " << (i + 1) << " set at line " << editorState.cursor_row << std::endl;
+                    int lineNumber = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+                    setBookmark(i, fileExplorer.currentFile, editor_state.cursor_index, lineNumber);
+                    std::cout << "Bookmark " << (i + 1) << " set at line " << lineNumber << std::endl;
                 } else {
-                    if (jumpToBookmark(i, fileExplorer, editorState)) {
+                    if (jumpToBookmark(i, fileExplorer, editor_state)) {
                         std::cout << "Jumped to bookmark " << (i + 1) << std::endl;
                     } else {
                         std::cout << "Bookmark " << (i + 1) << " not set" << std::endl;

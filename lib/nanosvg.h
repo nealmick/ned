@@ -2400,7 +2400,7 @@ static void nsvg__parsePath(NSVGparser* p, const char** attr)
 	nsvg__addShape(p);
 }
 //hello world
-
+//hello wor
 static void nsvg__parseRect(NSVGparser* p, const char** attr)
 {
 	float x = 0.0f;

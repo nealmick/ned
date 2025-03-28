@@ -103,7 +103,7 @@ void Welcome::render()
 
     if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight))) {
         std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked" << std::endl;
-        gFileExplorer.setShowFileDialog(true);
+        gFileExplorer._showFileDialog = true;
     }
     // Debug Console
     ImGui::SetCursorPosY(windowHeight * 0.71f);                        // Position below button

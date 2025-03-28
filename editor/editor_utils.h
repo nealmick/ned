@@ -28,9 +28,9 @@ inline ImVec4 GetRainbowColor(float timeScale = 2.0f)
 }
 
 // Helper method to calculate the line number from cursor position
-inline int GetLineFromPosition(const std::vector<int> &line_starts, int pos)
+inline int GetLineFromPosition(const std::vector<int> &line_starts, int content_index)
 {
-    auto it = std::upper_bound(line_starts.begin(), line_starts.end(), pos);
+    auto it = std::upper_bound(line_starts.begin(), line_starts.end(), content_index);
     return std::distance(line_starts.begin(), it) - 1;
 }
 

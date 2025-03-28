@@ -110,6 +110,12 @@ add_executable(ned
     editor/editor_selection.cpp
     editor/editor_render.cpp
 
+    lsp/lsp.cpp
+    lsp/lsp_adapter_clangd.cpp
+    lsp/lsp_adapter_pyright.cpp
+    lsp/lsp_manager.cpp
+    lsp/lsp_goto_def.cpp
+    
     editor/editor_types.h
     editor/editor_utils.h
 
