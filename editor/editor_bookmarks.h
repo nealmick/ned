@@ -58,7 +58,7 @@ class Bookmarks
     inline bool jumpToBookmark(size_t slot, FileExplorer &fileExplorer, EditorState &editorState)
     {
         if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet) {
-            if (bookmarks[slot].filePath != fileExplorer.getCurrentFile()) {
+            if (bookmarks[slot].filePath != fileExplorer.currentFile) {
                 // Create callback to set scroll after file loads
                 auto setScroll = [this, slot]() { gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY); };
 
@@ -95,7 +95,7 @@ class Bookmarks
             if (main_key && ImGui::IsKeyPressed(numberKeys[i])) {
                 if (shift_pressed || alt_pressed) {
                     int lineNumber = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
-                    setBookmark(i, fileExplorer.getCurrentFile(), editor_state.cursor_index, lineNumber);
+                    setBookmark(i, fileExplorer.currentFile, editor_state.cursor_index, lineNumber);
                     std::cout << "Bookmark " << (i + 1) << " set at line " << lineNumber << std::endl;
                 } else {
                     if (jumpToBookmark(i, fileExplorer, editor_state)) {

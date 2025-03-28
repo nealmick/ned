@@ -240,7 +240,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
     // block input if searching for file...
-    if (gFileFinder.isWindowOpen()) {
+    if (gFileFinder.showFFWindow) {
         return;
     }
 
@@ -321,8 +321,6 @@ void EditorKeyboard::processUndoRedo()
         }
 
         // Update text and colors
-        editor_state.fileContent = gFileExplorer.getFileContent();
-        editor_state.fileColors = gFileExplorer.getFileColors();
         gEditor.updateLineStarts();
 
         int newLine = std::min(oldLine, static_cast<int>(editor_state.editor_content_lines.size()) - 1);

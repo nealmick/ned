@@ -66,7 +66,7 @@ void EditorHighlight::highlightContent()
     std::string content_copy = editor_state.fileContent;
     std::vector<ImVec4> colors_copy = editor_state.fileColors; // Copy directly without reserve
 
-    std::string currentFile = gFileExplorer.getCurrentFile();
+    std::string currentFile = gFileExplorer.currentFile;
     std::string extension = fs::path(currentFile).extension().string();
 
     highlightingInProgress = true;
@@ -95,7 +95,7 @@ void EditorHighlight::highlightContent()
             }
 
             // Update colors if still valid
-            if (!cancelHighlightFlag && currentFile == gFileExplorer.getCurrentFile()) {
+            if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile) {
                 std::lock_guard<std::mutex> colorsLock(colorsMutex);
                 if (editor_state.fileColors.size() == colors_copy.size()) {
                     editor_state.fileColors = std::move(colors_copy);

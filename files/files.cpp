@@ -36,17 +36,6 @@ void FileExplorer::loadIcons()
     }
 }
 
-ImTextureID FileExplorer::getIconForFile(const std::string &filename)
-{
-    std::string extension = fs::path(filename).extension().string();
-    if (!extension.empty() && extension[0] == '.') {
-        extension = extension.substr(1);
-    }
-
-    auto it = fileTypeIcons.find(extension);
-    return (it != fileTypeIcons.end()) ? it->second : fileTypeIcons["default"];
-}
-
 GLuint FileExplorer::createTexture(const unsigned char *pixels, int width, int height)
 {
     GLuint texture;
@@ -124,42 +113,17 @@ void FileExplorer::openFolderDialog()
     nfdresult_t result = NFD_PickFolder(NULL, &outPath);
     if (result == NFD_OKAY) {
         selectedFolder = outPath;
-        gFileTree.setSelectedFolder(outPath); // Update FileTree with the selected folder
         std::cout << "\033[35mFiles:\033[0m Selected folder: " << outPath << std::endl;
 
         free(outPath);
         _showFileDialog = false;
-        setShowWelcomeScreen(false); // Hide welcome screen when folder selected
+        showWelcomeScreen = false;
     } else if (result == NFD_CANCEL) {
         std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
         _showFileDialog = false; // Reset flag on cancel
     } else {
         std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
     }
-}
-
-void FileExplorer::refreshSyntaxHighlighting()
-{
-    if (!currentFile.empty()) {
-        std::string extension = fs::path(currentFile).extension().string();
-        gEditorHighlight.highlightContent();
-    }
-}
-
-void FileExplorer::resetEditorState()
-{
-    // editor_state.cursor_index = 0;
-    gEditorHighlight.cancelHighlighting();
-}
-
-void FileExplorer::updateFilePathStates(const std::string &path)
-{
-    currentFile = path;
-    if (currentOpenFile != path) {
-        previousOpenFile = currentOpenFile;
-        currentOpenFile = path;
-    }
-    _unsavedChanges = false;
 }
 
 bool FileExplorer::readFileContent(const std::string &path)
@@ -249,6 +213,15 @@ void FileExplorer::updateFileColorBuffer()
         throw std::runtime_error("Color buffer size mismatch");
     }
 }
+void FileExplorer::updateFilePathStates(const std::string &path)
+{
+    currentFile = path;
+    if (currentOpenFile != path) {
+        previousOpenFile = currentOpenFile;
+        currentOpenFile = path;
+    }
+    _unsavedChanges = false;
+}
 
 void FileExplorer::setupUndoManager(const std::string &path)
 {
@@ -259,12 +232,6 @@ void FileExplorer::setupUndoManager(const std::string &path)
     }
     currentUndoManager = &(it->second);
     currentUndoManager->addState(editor_state.fileContent, 0, editor_state.fileContent.size());
-}
-
-void FileExplorer::initializeSyntaxHighlighting(const std::string &path)
-{
-    std::string extension = fs::path(path).extension().string();
-    gEditorHighlight.highlightContent();
 }
 
 void FileExplorer::handleLoadError()
@@ -281,17 +248,19 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
     editor_state.cursor_index = 0;
 
     try {
-        resetEditorState();
+        // cancel any ongoing highlighting.,..
+        gEditorHighlight.cancelHighlighting();
 
         if (!readFileContent(path)) {
             handleLoadError();
             return;
         }
 
+        _unsavedChanges = false;
         updateFilePathStates(path);
         updateFileColorBuffer();
         setupUndoManager(path);
-        initializeSyntaxHighlighting(path);
+        gEditorHighlight.highlightContent();
 
         // Notify LSP about the newly opened file
         notifyLSPFileOpen(path);
@@ -319,11 +288,9 @@ void FileExplorer::renderFileContent()
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-    gFileContentSearch.setContent(editor_state.fileContent);
-    gFileContentSearch.setEditorState(editor_state);
     gFileContentSearch.handleFindBoxActivation();
 
-    if (gFileContentSearch.isFindBoxActive()) {
+    if (editor_state.active_find_box) {
         gFileContentSearch.renderFindBox();
     }
 
@@ -338,7 +305,7 @@ void FileExplorer::renderEditor(bool &text_changed)
     gEditor.textEditor();
 
     if (editor_state.text_changed && !editor_state.active_find_box) {
-        setUnsavedChanges(true);
+        _unsavedChanges = true;
     }
 }
 
@@ -350,15 +317,6 @@ void FileExplorer::adjustColorBuffer(int changeStart, int lengthDiff)
         editor_state.fileColors.erase(editor_state.fileColors.begin() + changeStart, editor_state.fileColors.begin() + changeStart - lengthDiff);
     }
     editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-}
-
-void FileExplorer::rehighlightChangedRegion(int changeStart, int changeEnd)
-{
-    int highlightStart = std::max(0, changeStart - 100);
-    int highlightEnd = std::min(static_cast<int>(editor_state.fileContent.size()), changeEnd + 100);
-
-    std::string extension = fs::path(currentFile).extension().string();
-    gEditorHighlight.highlightContent();
 }
 
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
@@ -375,7 +333,8 @@ void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool 
     editor_state.fileContent = state.content;
 
     adjustColorBuffer(changeStart, lengthDiff);
-    rehighlightChangedRegion(changeStart, changeEnd);
+    gEditorHighlight.highlightContent();
+
     _unsavedChanges = true;
 }
 

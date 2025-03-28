@@ -21,21 +21,21 @@ void FileContentSearch::findNext(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_index;
+        startPos = editor_state.cursor_index;
     } else {
         startPos = lastFoundPos + 1;
     }
 
-    if (startPos >= fileContent.length())
+    if (startPos >= editor_state.fileContent.length())
         startPos = 0; // Wrap around if at end
 
     size_t foundPos;
     if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
+        std::string fileContentLower = toLower(editor_state.fileContent);
         std::string findTextLower = toLower(findText);
         foundPos = fileContentLower.find(findTextLower, startPos);
     } else {
-        foundPos = fileContent.find(findText, startPos);
+        foundPos = editor_state.fileContent.find(findText, startPos);
     }
 
     std::cout << "Searching for '" << findText << "' starting from position " << startPos;
@@ -46,21 +46,21 @@ void FileContentSearch::findNext(bool ignoreCase)
     if (foundPos == std::string::npos) {
         // Wrap around to the beginning
         if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
+            std::string fileContentLower = toLower(editor_state.fileContent);
             std::string findTextLower = toLower(findText);
             foundPos = fileContentLower.find(findTextLower);
         } else {
-            foundPos = fileContent.find(findText);
+            foundPos = editor_state.fileContent.find(findText);
         }
         std::cout << "Wrapped search to beginning" << std::endl;
     }
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_index = foundPos;
-        editor_state->selection_start = foundPos;
-        editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_index << std::endl;
+        editor_state.cursor_index = foundPos;
+        editor_state.selection_start = foundPos;
+        editor_state.selection_end = foundPos + findText.length();
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_index << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }
@@ -73,18 +73,18 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 
     size_t startPos;
     if (lastFoundPos == std::string::npos) {
-        startPos = editor_state->cursor_index;
+        startPos = editor_state.cursor_index;
     } else {
-        startPos = (lastFoundPos == 0) ? fileContent.length() - 1 : lastFoundPos - 1;
+        startPos = (lastFoundPos == 0) ? editor_state.fileContent.length() - 1 : lastFoundPos - 1;
     }
 
     size_t foundPos;
     if (ignoreCase) {
-        std::string fileContentLower = toLower(fileContent);
+        std::string fileContentLower = toLower(editor_state.fileContent);
         std::string findTextLower = toLower(findText);
         foundPos = fileContentLower.rfind(findTextLower, startPos);
     } else {
-        foundPos = fileContent.rfind(findText, startPos);
+        foundPos = editor_state.fileContent.rfind(findText, startPos);
     }
 
     std::cout << "Searching backwards for '" << findText << "' starting from position " << startPos;
@@ -95,21 +95,21 @@ void FileContentSearch::findPrevious(bool ignoreCase)
     if (foundPos == std::string::npos) {
         // Wrap around to the end
         if (ignoreCase) {
-            std::string fileContentLower = toLower(fileContent);
+            std::string fileContentLower = toLower(editor_state.fileContent);
             std::string findTextLower = toLower(findText);
             foundPos = fileContentLower.rfind(findTextLower);
         } else {
-            foundPos = fileContent.rfind(findText);
+            foundPos = editor_state.fileContent.rfind(findText);
         }
         std::cout << "Wrapped search to end" << std::endl;
     }
 
     if (foundPos != std::string::npos) {
         lastFoundPos = foundPos;
-        editor_state->cursor_index = foundPos;
-        editor_state->selection_start = foundPos;
-        editor_state->selection_end = foundPos + findText.length();
-        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state->cursor_index << std::endl;
+        editor_state.cursor_index = foundPos;
+        editor_state.selection_start = foundPos;
+        editor_state.selection_end = foundPos + findText.length();
+        std::cout << "Found at position: " << foundPos << ", cursor now at: " << editor_state.cursor_index << std::endl;
     } else {
         std::cout << "Not found" << std::endl;
     }
@@ -121,22 +121,22 @@ void FileContentSearch::handleFindBoxActivation()
     // If Cmd+F is pressed, activate the find box (do not toggle off here)
     if ((io.KeyCtrl || io.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_F)) {
         ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
-        editor_state->active_find_box = true;
-        editor_state->block_input = true;
+        editor_state.active_find_box = true;
+        editor_state.block_input = true;
         findText = "";
         findBoxShouldFocus = true; // force focus on activation
     }
     // If Escape is pressed, deactivate the find box.
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state->active_find_box = false;
-        editor_state->block_input = false;
+        editor_state.active_find_box = false;
+        editor_state.block_input = false;
     }
 }
 
 void FileContentSearch::renderFindBox()
 {
     // Only render if the find box is active.
-    if (!editor_state->active_find_box)
+    if (!editor_state.active_find_box)
         return;
 
     // Reserve ~70% of available width for the input field.
@@ -205,7 +205,7 @@ void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        editor_state->active_find_box = false;
-        editor_state->block_input = false;
+        editor_state.active_find_box = false;
+        editor_state.block_input = false;
     }
 }

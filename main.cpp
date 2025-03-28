@@ -2,7 +2,6 @@
     File: main.cpp
     Description: NED text editor main entry point.
 */
-
 #include "ned.h"
 int main()
 {

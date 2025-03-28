@@ -18,16 +18,12 @@ class FileContentSearch
     void handleFindBoxActivation();
 
     // Getters/Setters
-    void setContent(const std::string &content) { fileContent = content; }
-    void setEditorState(EditorState &state) { editor_state = &state; }
-    bool isFindBoxActive() const { return editor_state ? editor_state->active_find_box : false; }
 
   private:
     // Core members
-    std::string fileContent;
-    std::string findText;
+    std::string findText; // the string we are searching for...
+
     size_t lastFoundPos = std::string::npos;
-    EditorState *editor_state = nullptr;
     bool findBoxShouldFocus = false;
 
     // Helper functions

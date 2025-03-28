@@ -236,7 +236,7 @@ void EditorMouse::handleContextMenu()
             int char_offset = editor_state.cursor_index - line_start;
 
             // Call LSP goto definition
-            gLSPGotoDef.gotoDefinition(gFileExplorer.getCurrentFile(), current_line, char_offset);
+            gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
 
             show_context_menu = false;
             ImGui::CloseCurrentPopup();

@@ -2,7 +2,6 @@
     File: editor.h
     Description: Main editor coordinator that manages the text editing interface.
 */
-
 #pragma once
 #include "imgui.h"
 

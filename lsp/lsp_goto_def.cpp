@@ -291,7 +291,7 @@ void LSPGotoDef::renderDefinitionOptions()
         const auto &selected = definitionLocations[selectedDefinitionIndex];
         std::cout << "Selected definition at " << selected.uri << " line " << (selected.startLine + 1) << " char " << (selected.startChar + 1) << std::endl;
 
-        if (selected.uri != gFileExplorer.getCurrentFile()) {
+        if (selected.uri != gFileExplorer.currentFile) {
             // Load the file first
             gFileExplorer.loadFileContent(selected.uri, nullptr);
         }
@@ -314,6 +314,8 @@ void LSPGotoDef::renderDefinitionOptions()
         gEditorScroll.setEnsureCursorVisibleFrames(-1);
         showDefinitionOptions = false;
         editor_state.block_input = false;
+        editor_state.ensure_cursor_visible.horizontal = true;
+        editor_state.ensure_cursor_visible.vertical = true;
     } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showDefinitionOptions = false;
         editor_state.block_input = false;

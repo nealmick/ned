@@ -27,33 +27,17 @@ class FileExplorer
 
     UndoRedoManager *currentUndoManager = nullptr;
     std::map<std::string, UndoRedoManager> fileUndoManagers;
+
     std::string currentOpenFile;
     std::string previousOpenFile;
     std::string currentFile;
-    ImVec4 openedFileColor = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
+
     bool showWelcomeScreen = true;
 
     // File operations
     void loadFileContent(const std::string &path, std::function<void()> afterLoadCallback = nullptr);
+
     void saveCurrentFile();
-    void setFileContent(const std::string &content)
-    {
-        editor_state.fileContent = content;
-        editor_state.fileColors.resize(content.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-    }
-
-    // Content getters/setters
-    std::string &getFileContent() { return editor_state.fileContent; }
-
-    std::vector<ImVec4> &getFileColors() { return editor_state.fileColors; }
-
-    std::string getCurrentFile() const { return currentFile; }
-
-    bool hasUnsavedChanges() const { return _unsavedChanges; }
-
-    void setUnsavedChanges(bool value) { _unsavedChanges = value; }
-
-    std::string getSelectedFolder() const { return selectedFolder; }
 
     // Undo/Redo
     void handleUndo();
@@ -63,11 +47,21 @@ class FileExplorer
     // UI functions
     void openFolderDialog();
     void renderFileContent();
-    void refreshSyntaxHighlighting();
 
     // Icon handling
+    // by file exntension for example .py or .cpp
     void loadIcons();
-    ImTextureID getIconForFile(const std::string &filename);
+    ImTextureID getIconForFile(const std::string &filename)
+    {
+        std::string extension = fs::path(filename).extension().string();
+        if (!extension.empty() && extension[0] == '.') {
+            extension = extension.substr(1);
+        }
+
+        auto it = fileTypeIcons.find(extension);
+        return (it != fileTypeIcons.end()) ? it->second : fileTypeIcons["default"];
+    }
+    // by icon name for example folder or folder-open
     ImTextureID getIcon(const std::string &iconName) const
     {
         auto it = fileTypeIcons.find(iconName);
@@ -79,16 +73,14 @@ class FileExplorer
 
     // Dialog state
     bool showFileDialog() const { return _showFileDialog; }
-    void setShowFileDialog(bool show) { _showFileDialog = show; }
-    void setShowWelcomeScreen(bool show) { showWelcomeScreen = show; }
-    bool getShowWelcomeScreen() const { return showWelcomeScreen; }
 
     void notifyLSPFileOpen(const std::string &filePath);
-    bool _unsavedChanges = false;
 
-  private:
+    bool _unsavedChanges = false;
     std::string selectedFolder;
     bool _showFileDialog = false;
+
+  private:
     std::map<std::string, ImTextureID> fileTypeIcons;
 
     // Icon loading helpers
@@ -104,18 +96,15 @@ class FileExplorer
     void createDefaultIcon();
 
     // File loading helpers
-    void resetEditorState();
     bool readFileContent(const std::string &path);
     void updateFileColorBuffer();
     void setupUndoManager(const std::string &path);
-    void initializeSyntaxHighlighting(const std::string &path);
     void handleLoadError();
     void updateFilePathStates(const std::string &path);
 
     // Undo/Redo helpers
     void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
     void adjustColorBuffer(int changeStart, int lengthDiff);
-    void rehighlightChangedRegion(int changeStart, int changeEnd);
 
     // Find box helpers
     void renderEditor(bool &text_changed);
