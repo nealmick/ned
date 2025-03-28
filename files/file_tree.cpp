@@ -124,7 +124,7 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
 
     ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x + TreeStyleSettings::LEFT_MARGIN + 10);
     ImGui::SetCursorPosY(textTopY);
-    renderNodeText(node.name, node.fullPath == gFileExplorer.getCurrentFile());
+    renderNodeText(node.name, node.fullPath == gFileExplorer.currentFile);
 
     if (clicked) {
         gFileExplorer.loadFileContent(node.fullPath);
@@ -138,24 +138,27 @@ void FileTree::refreshFileTree()
 
     // Check if enough time has passed since the last refresh
     if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL) {
+
         return;
     }
 
     // Update the last refresh time
     lastFileTreeRefreshTime = currentTime;
 
-    if (!selectedFolder.empty()) {
+    if (!gFileExplorer.selectedFolder.empty()) {
+        // std::cout << "refreshing file tree.. \n";
+
         // Store the old root node to preserve states
         FileNode oldRoot = rootNode;
 
         // Reset root node but preserve its open state
-        rootNode.name = fs::path(selectedFolder).filename().string();
-        rootNode.fullPath = selectedFolder;
+        rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
+        rootNode.fullPath = gFileExplorer.selectedFolder;
         rootNode.isDirectory = true;
         rootNode.isOpen = true; // Root should stay open
 
         // Build the new tree
-        buildFileTree(selectedFolder, rootNode);
+        buildFileTree(gFileExplorer.selectedFolder, rootNode);
 
         // Restore open states from old tree
         preserveOpenStates(oldRoot, rootNode);

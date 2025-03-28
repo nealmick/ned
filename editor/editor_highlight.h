@@ -19,17 +19,13 @@ class EditorHighlight
     EditorHighlight();
     ~EditorHighlight() = default;
 
-    // Highlight content with appropriate lexer based on file extension
-    void highlightContent(const std::string &content, std::vector<ImVec4> &colors, int start_pos, int end_pos);
+    void highlightContent();
 
-    // Cancel any ongoing highlighting operation
     void cancelHighlighting();
 
-    // Force update of all lexer color caches
     void forceColorUpdate();
 
-    // Validate parameters for the highlighting function
-    bool validateHighlightContentParams(const std::string &content, const std::vector<ImVec4> &colors, int start_pos, int end_pos);
+    bool validateHighlightContentParams();
 
     void loadTheme(const std::string &themeName);
 

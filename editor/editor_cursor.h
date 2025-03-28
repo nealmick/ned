@@ -25,104 +25,38 @@ class EditorCursor
     EditorCursor();
     ~EditorCursor() = default;
 
-    //--------------------------------------------------------------------------
-    // Basic Cursor Movement Operations
-    //--------------------------------------------------------------------------
+    void cursorLeft();
 
-    /**
-     * Moves the cursor one position to the left
-     */
-    void cursorLeft(EditorState &state);
+    void cursorRight();
 
-    /**
-     * Moves the cursor one position to the right
-     */
-    void cursorRight(const std::string &text, EditorState &state);
+    void cursorUp();
 
-    /**
-     * Moves the cursor up one line
-     */
-    void cursorUp(const std::string &text, EditorState &state, float line_height, float window_height);
+    void cursorDown();
 
-    /**
-     * Moves the cursor down one line
-     */
-    void cursorDown(const std::string &text, EditorState &state, float line_height, float window_height);
+    void moveCursorVertically(std::string &text, int line_delta);
 
-    /**
-     * Moves the cursor vertically by a specified number of lines
-     * @param line_delta Number of lines to move (positive = down, negative = up)
-     */
-    void moveCursorVertically(std::string &text, EditorState &state, int line_delta);
+    void moveWordForward(const std::string &text);
 
-    //--------------------------------------------------------------------------
-    // Word Navigation
-    //--------------------------------------------------------------------------
+    void moveWordBackward(const std::string &text);
 
-    /**
-     * Moves the cursor forward to the beginning of the next word
-     */
-    void moveWordForward(const std::string &text, EditorState &state);
+    void processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
 
-    /**
-     * Moves the cursor backward to the beginning of the previous word
-     */
-    void moveWordBackward(const std::string &text, EditorState &state);
+    void processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible);
 
-    /**
-     * Processes word-based cursor movement (Ctrl+Left/Right)
-     * @param shift_pressed Whether shift is pressed (for selection)
-     */
-    void processWordMovement(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
+    void handleCursorMovement(const std::string &text, const ImVec2 &text_pos, float line_height, float window_height, float window_width);
 
-    /**
-     * Handles cursor jumps to beginning/end of line or document
-     */
-    void processCursorJump(std::string &text, EditorState &state, CursorVisibility &ensure_cursor_visible);
+    float getCursorYPosition(float line_height);
 
-    //--------------------------------------------------------------------------
-    // High-level Cursor Control
-    //--------------------------------------------------------------------------
+    float getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
 
-    /**
-     * Main handler for cursor movement operations
-     */
-    void handleCursorMovement(const std::string &text, EditorState &state, const ImVec2 &text_pos, float line_height, float window_height, float window_width);
+    void updateBlinkTime();
 
-    //--------------------------------------------------------------------------
-    // Cursor Position and Rendering
-    //--------------------------------------------------------------------------
-
-    /**
-     * Gets the cursor's Y position in pixels
-     * @return Y position in pixels
-     */
-    float getCursorYPosition(const EditorState &state, float line_height);
-
-    /**
-     * Calculates the cursor's X position in pixels
-     * @return X position in pixels
-     */
-    float calculateCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
-
-    /**
-     * Updates the cursor blink timer
-     * @param deltaTime Time elapsed since last frame
-     */
-    void updateBlinkTime(EditorState &state, float deltaTime);
-
-    /**
-     * Renders the cursor at the specified position
-     */
-    void renderCursor(ImDrawList *draw_list, const ImVec2 &cursor_screen_pos, float line_height, float blink_time);
+    void renderCursor();
 
   private:
-    // Calculate visual column position considering tabs
-    int calculateVisualColumn(const std::string &text, int line_start, int cursor_pos);
+    void calculateVisualColumn();
 
-    // Find character position from visual column
-    int findPositionFromVisualColumn(const std::string &text, int line_start, int line_end, int visual_column);
+    void findPositionFromVisualColumn(int line_start, int line_end);
 };
 
-// Global instance
 extern EditorCursor gEditorCursor;
