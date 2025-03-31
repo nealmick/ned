@@ -82,20 +82,21 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
     std::cout << "\033[35mLSP:\033[0m Sending didOpen notification for file: " << filePath << std::endl;
 
     std::string notification = std::string(R"({
-        "jsonrpc": "2.0",
-        "method": "textDocument/didOpen",
-        "params": {
-            "textDocument": {
-                "uri": "file://)") +
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file://)") +
                                filePath + R"(",
-                "languageId": ")" +
+                    "languageId": ")" +
                                gLSPManager.getLanguageId(filePath) + R"(",
-                "version": 1,
-                "text": ")" + escapeJSON(content) +
+                    "version": 1,
+                    "text": ")" +
+                               escapeJSON(content) +
                                R"("
+                }
             }
-        }
-    })";
+        })";
 
     gLSPManager.sendRequest(notification);
     std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;

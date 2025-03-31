@@ -8,6 +8,7 @@
 #include "../files/file_finder.h"
 #include "../lsp/lsp.h"
 #include "../lsp/lsp_goto_def.h"
+#include "../lsp/lsp_goto_ref.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_cursor.h"
@@ -41,7 +42,9 @@ void EditorRender::renderEditorFrame()
     if (gLSPGotoDef.hasDefinitionOptions()) {
         gLSPGotoDef.renderDefinitionOptions();
     }
-
+    if (gLSPGotoRef.hasReferenceOptions()) {
+        gLSPGotoRef.renderReferenceOptions();
+    }
     // End the editor child window
     ImGui::EndChild();
     ImGui::PopStyleColor(4);

@@ -1,6 +1,7 @@
 #include "editor_mouse.h"
 #include "../files/files.h"
 #include "../lsp/lsp_goto_def.h"
+#include "../lsp/lsp_goto_ref.h"
 #include "editor.h"
 #include "editor_copy_paste.h"
 #include <algorithm>
@@ -242,7 +243,34 @@ void EditorMouse::handleContextMenu()
             ImGui::CloseCurrentPopup();
         }
 
+        // --- ADD FIND REFERENCES OPTION HERE ---
+        if (MenuItemWithAlignedShortcut("Find References", "Shift+F12", nullptr, true)) { // Using Shift+F12 as a common shortcut
+                                                                                          // Get current line number from editor_state (same as above)
+            int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+
+            // Get character offset in current line (same as above)
+            int line_start = 0; // Default to 0
+            if (current_line >= 0 && current_line < editor_state.editor_content_lines.size()) {
+                line_start = editor_state.editor_content_lines[current_line];
+            }
+            int char_offset = editor_state.cursor_index - line_start;
+            char_offset = std::max(0, char_offset); // Ensure non-negative
+
+            // Call LSP find references using the new global instance
+            gLSPGotoRef.findReferences(gFileExplorer.currentFile, current_line, char_offset);
+
+            show_context_menu = false;
+            ImGui::CloseCurrentPopup();
+        }
+        // --- END OF ADDED OPTION ---
+
         ImGui::EndPopup();
+    } else {
+        // If popup is not open (closed by ImGui itself)
+        if (show_context_menu) {
+            show_context_menu = false;
+            std::cout << "Popup closed by ImGui" << std::endl;
+        }
     }
 
     // Pop styling
