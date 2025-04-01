@@ -185,9 +185,6 @@ bool LSPAdapterPyright::sendRequest(const std::string &request)
         return false;
     }
 
-    // Print request for debugging
-    std::cout << "\033[36mPyright Request:\033[0m " << request << std::endl;
-
     fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
     fflush(impl->input);
     return true;

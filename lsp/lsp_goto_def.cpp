@@ -417,7 +417,7 @@ void LSPGotoDef::renderDefinitionOptions()
         // --- End Content Area ---
 
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down: Select, Enter/DblClick: Jump, Esc: Close");
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down Enter");
 
         // --- Handle Enter key remains the same (uses definitionLocations) ---
         if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) {
@@ -429,37 +429,26 @@ void LSPGotoDef::renderDefinitionOptions()
                 if (selected.uri != gFileExplorer.currentFile) {
                     gFileExplorer.loadFileContent(selected.uri, nullptr);
                 }
+                // loop through each char in file until we reach a current line = to selection jump line... currentLine
+                // index tracks every character to so we know which character index the line starts on
+                // then we can just add the char response to the line index start... and we have the index of the jump
+                int index = 0;
+                int currentLine = 0;
+                std::cout << "Calculating cursor position..." << std::endl;
 
-                // Calculate cursor position using correct global editor state
-                int target_index = 0;
-                if (selected.startLine >= 0 && selected.startLine < editor_state.editor_content_lines.size()) {
-                    target_index = editor_state.editor_content_lines[selected.startLine];
-                    target_index += selected.startChar;
-                } else {
-                    std::cout << "Warning: Target line " << selected.startLine << " out of bounds. Calculating index manually." << std::endl;
-                    int currentLine = 0;
-                    for (int i = 0; i < editor_state.fileContent.length(); ++i) {
-                        if (currentLine == selected.startLine) {
-                            target_index = i + selected.startChar;
-                            break;
-                        }
-                        if (editor_state.fileContent[i] == '\n') {
-                            currentLine++;
-                        }
-                        if (i == editor_state.fileContent.length() - 1 && currentLine < selected.startLine) {
-                            target_index = editor_state.fileContent.length();
-                            break;
-                        }
+                while (currentLine < selected.startLine && index < editor_state.fileContent.length()) {
+                    if (editor_state.fileContent[index] == '\n') {
+                        currentLine++;
                     }
+                    index++;
                 }
-                target_index = std::min(target_index, (int)editor_state.fileContent.length());
-                target_index = std::max(0, target_index);
 
-                std::cout << "Calculated target index: " << target_index << std::endl;
-
-                editor_state.cursor_index = target_index;
-                editor_state.selection_active = false;
-                gEditorScroll.setEnsureCursorVisibleFrames(5); // Use same frame count as ref
+                index += selected.startChar;
+                index = std::min(index, (int)editor_state.fileContent.length());
+                editor_state.cursor_index = index;
+                gEditorScroll.setEnsureCursorVisibleFrames(-1);
+                showDefinitionOptions = false;
+                editor_state.block_input = false;
                 editor_state.ensure_cursor_visible.horizontal = true;
                 editor_state.ensure_cursor_visible.vertical = true;
 
