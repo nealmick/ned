@@ -240,6 +240,7 @@ bool LSPGotoRef::hasReferenceOptions() const
     // Keep the logic consistent, show window only if flag is true AND locations exist
     return showReferenceOptions && !referenceLocations.empty();
 }
+
 void LSPGotoRef::renderReferenceOptions()
 {
     if (!showReferenceOptions || referenceLocations.empty()) {
@@ -249,17 +250,17 @@ void LSPGotoRef::renderReferenceOptions()
 
     editor_state.block_input = true;
 
-    // Height calculations - modified titleHeight
+    // Height calculations
     float itemHeight = ImGui::GetTextLineHeightWithSpacing();
     float padding = 16.0f;
-    float separatorHeight = ImGui::GetTextLineHeight() * 0.4f; // Height for separator + spacing
-    float titleHeight = itemHeight + separatorHeight + 4.0f;   // Text + separator + padding
+    float separatorHeight = ImGui::GetTextLineHeight() * 0.4f;
+    float titleHeight = itemHeight + separatorHeight + 4.0f;
     float footerHeight = itemHeight + padding;
     float contentHeight = itemHeight * referenceLocations.size();
     float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
     const float maxHeight = ImGui::GetIO().DisplaySize.y * 0.5f;
 
-    // Window size calculations (unchanged)
+    // Window size calculations
     float desiredWidth = 600.0f;
     desiredWidth = std::max(desiredWidth, 500.0f);
     ImVec2 windowSize(desiredWidth, std::min(totalHeight, maxHeight) + (referenceLocations.size() == 1 ? 10.0f : 25.0f));
@@ -272,12 +273,11 @@ void LSPGotoRef::renderReferenceOptions()
 
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 
-    // Style setup (unchanged)
+    // Style setup
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
-
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
@@ -306,7 +306,7 @@ void LSPGotoRef::renderReferenceOptions()
         // Fixed header
         ImGui::BeginChild("##Header", ImVec2(0, titleHeight), false);
         ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f), "Find References (%zu)", referenceLocations.size());
-        ImGui::Separator(); // Single separator with proper spacing
+        ImGui::Separator();
         ImGui::EndChild();
 
         // Scrollable content area
@@ -341,7 +341,7 @@ void LSPGotoRef::renderReferenceOptions()
             if (ImGui::Selectable(label.c_str(), is_selected, ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedReferenceIndex = i;
                 if (ImGui::IsMouseDoubleClicked(0)) {
-                    goto handle_enter_key_ref;
+                    handleReferenceSelection();
                 }
             }
 
@@ -363,34 +363,7 @@ void LSPGotoRef::renderReferenceOptions()
 
         // Handle Enter key
         if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) {
-        handle_enter_key_ref:
-            if (selectedReferenceIndex >= 0 && selectedReferenceIndex < referenceLocations.size()) {
-                const auto &selected = referenceLocations[selectedReferenceIndex];
-                std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1) << std::endl;
-
-                if (selected.uri != gFileExplorer.currentFile) {
-                    gFileExplorer.loadFileContent(selected.uri, nullptr);
-                }
-
-                int index = 0;
-                int currentLine = 0;
-                while (currentLine < selected.startLine && index < editor_state.fileContent.length()) {
-                    if (editor_state.fileContent[index] == '\n')
-                        currentLine++;
-                    index++;
-                }
-
-                index += selected.startChar;
-                index = std::min(index, (int)editor_state.fileContent.length());
-                editor_state.cursor_index = index;
-                gEditorScroll.setEnsureCursorVisibleFrames(-1);
-                editor_state.block_input = false;
-                editor_state.ensure_cursor_visible.horizontal = true;
-                editor_state.ensure_cursor_visible.vertical = true;
-
-                showReferenceOptions = false;
-                editor_state.block_input = false;
-            }
+            handleReferenceSelection();
         }
 
         ImGui::End(); // End main window
@@ -408,4 +381,39 @@ void LSPGotoRef::renderReferenceOptions()
     if (!showReferenceOptions) {
         editor_state.block_input = false;
     }
+}
+
+void LSPGotoRef::handleReferenceSelection()
+{
+    if (selectedReferenceIndex >= referenceLocations.size())
+        return;
+
+    const auto &selected = referenceLocations[selectedReferenceIndex];
+    std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1) << std::endl;
+
+    // Close window first
+    showReferenceOptions = false;
+    editor_state.block_input = false;
+
+    if (selected.uri != gFileExplorer.currentFile) {
+        gFileExplorer.loadFileContent(selected.uri, nullptr);
+    }
+
+    int index = 0;
+    int currentLine = 0;
+    const std::string &content = editor_state.fileContent;
+
+    while (currentLine < selected.startLine && index < content.length()) {
+        if (content[index] == '\n')
+            currentLine++;
+        index++;
+    }
+
+    index += selected.startChar;
+    index = std::min(index, static_cast<int>(content.length()));
+
+    editor_state.cursor_index = index;
+    gEditorScroll.setEnsureCursorVisibleFrames(-1);
+    editor_state.ensure_cursor_visible.horizontal = true;
+    editor_state.ensure_cursor_visible.vertical = true;
 }

@@ -119,13 +119,28 @@ void EditorMouse::handleContextMenu()
         ImGui::OpenPopup("##EditorContextMenu");
     }
 
-    // Set position of popup if we're showing it
+    // Set position with edge detection
     if (show_context_menu) {
-        ImGui::SetNextWindowPos(context_menu_pos);
-        // Make the menu wider to prevent text cramping and allow room for shortcuts
-        ImGui::SetNextWindowSize(ImVec2(220, 0), ImGuiCond_Always); // Width of 220, auto height
-    }
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImVec2 safe_pos = context_menu_pos;
 
+        // Get expected menu size (width is fixed at 220, estimate height)
+        const float menu_width = 200.0f;
+        const float estimated_menu_height = 250.0f; // Adjust based on your item count
+
+        // Check bottom edge collision
+        if ((safe_pos.y + estimated_menu_height) > (viewport->Pos.y + viewport->Size.y)) {
+            safe_pos.y -= estimated_menu_height; // Move up by estimated height
+        }
+
+        // Check right edge collision
+        if ((safe_pos.x + menu_width) > (viewport->Pos.x + viewport->Size.x)) {
+            safe_pos.x -= menu_width; // Move left by menu width
+        }
+
+        ImGui::SetNextWindowPos(safe_pos, ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(menu_width, 0), ImGuiCond_Always);
+    }
     // Apply styling - improved with rounded corners and better padding
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 12));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
