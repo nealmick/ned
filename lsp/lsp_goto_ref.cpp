@@ -240,71 +240,53 @@ bool LSPGotoRef::hasReferenceOptions() const
     // Keep the logic consistent, show window only if flag is true AND locations exist
     return showReferenceOptions && !referenceLocations.empty();
 }
-
-// --- renderReferenceOptions (Strictly Mirrored from renderDefinitionOptions) ---
 void LSPGotoRef::renderReferenceOptions()
 {
-    // Guard clause - exactly the same
     if (!showReferenceOptions || referenceLocations.empty()) {
         editor_state.block_input = false;
         return;
     }
 
-    editor_state.block_input = true; // Block input - same
+    editor_state.block_input = true;
 
-    // Calculate required height based on content - same logic, using referenceLocations.size()
+    // Height calculations - modified titleHeight
     float itemHeight = ImGui::GetTextLineHeightWithSpacing();
     float padding = 16.0f;
-    float titleHeight = itemHeight + 4.0f;
+    float separatorHeight = ImGui::GetTextLineHeight() * 0.4f; // Height for separator + spacing
+    float titleHeight = itemHeight + separatorHeight + 4.0f;   // Text + separator + padding
     float footerHeight = itemHeight + padding;
-    // Use referenceLocations.size() here
     float contentHeight = itemHeight * referenceLocations.size();
     float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
+    const float maxHeight = ImGui::GetIO().DisplaySize.y * 0.5f;
 
-    // Limit total height if there are many references (e.g., max 60% of screen height)
-    totalHeight = std::min(totalHeight, ImGui::GetIO().DisplaySize.y * 0.6f);
+    // Window size calculations (unchanged)
+    float desiredWidth = 600.0f;
+    desiredWidth = std::max(desiredWidth, 500.0f);
+    ImVec2 windowSize(desiredWidth, std::min(totalHeight, maxHeight) + (referenceLocations.size() == 1 ? 10.0f : 25.0f));
+    windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f);
 
-    // Calculate window position and size - same logic
-    // Allow a potentially wider window for references if file paths are long
-    float desiredWidth = 600.0f;                   // Let's use a slightly wider default than definition
-    desiredWidth = std::max(desiredWidth, 500.0f); // Ensure at least as wide as definition window
-    ImVec2 windowSize(desiredWidth, totalHeight);
-    windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f); // Limit width
+    ImVec2 windowPos(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f);
 
-    ImVec2 windowPos(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f); // Same vertical pos
-
-    // Set window position and size - use ImGuiCond_Always like definition
     ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
-    // Window flags - EXACTLY THE SAME as renderDefinitionOptions
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 
-    // Check if content height exceeds available space in the fixed size window (minus padding, title, footer)
-    float availableContentHeight = totalHeight - titleHeight - footerHeight - padding * 2;
-    if (contentHeight > availableContentHeight) {
-        // If content overflows, remove NoScrollbar flag to allow vertical scrolling
-        windowFlags &= ~ImGuiWindowFlags_NoScrollbar;
-    }
-
-    // Push styles - exactly the same
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding)); // Use the padding variable
+    // Style setup (unchanged)
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));    // Should be used by child window? No, just set window bg
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));        // Selection color for Selectable
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.4f)); // Hover color for Selectable
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));  // Active color for Selectable (pressed)
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
 
-    // Use a distinct ID for Begin, but keep structure the same
-    // Pass nullptr for p_open to prevent the 'x' button (matches definition window flags)
     if (ImGui::Begin("##ReferenceOptions", nullptr, windowFlags)) {
-
-        // Handle click outside window - exactly the same
+        // Handle click outside window
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             ImVec2 mousePos = ImGui::GetMousePos();
             ImVec2 currentWindowPos = ImGui::GetWindowPos();
@@ -312,55 +294,43 @@ void LSPGotoRef::renderReferenceOptions()
             if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) && (mousePos.x < currentWindowPos.x || mousePos.x > currentWindowPos.x + currentWindowSize.x || mousePos.y < currentWindowPos.y || mousePos.y > currentWindowPos.y + currentWindowSize.y)) {
                 showReferenceOptions = false;
                 editor_state.block_input = false;
-                // No End() needed here, Begin will return false on next frame
-                // But we pop styles/colors below, so it's okay.
             }
         }
-        // Handle escape key - add this for consistency if definition window has it or should have it
-        // (Your definition code didn't explicitly show escape check *before* items, only after)
+
+        // Handle escape key
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             showReferenceOptions = false;
             editor_state.block_input = false;
         }
 
-        // Title and separator - change title text
+        // Fixed header
+        ImGui::BeginChild("##Header", ImVec2(0, titleHeight), false);
         ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f), "Find References (%zu)", referenceLocations.size());
-        ImGui::Separator();
+        ImGui::Separator(); // Single separator with proper spacing
+        ImGui::EndChild();
 
-        // --- Content Area ---
-        // Use a scrolling child window if scrollbar is enabled
-        bool useChildWindow = !(windowFlags & ImGuiWindowFlags_NoScrollbar);
-        if (useChildWindow) {
-            ImGui::BeginChild("##RefListScroll", ImVec2(0, availableContentHeight), false, ImGuiWindowFlags_HorizontalScrollbar);
-        }
+        // Scrollable content area
+        float contentAvailableHeight = windowSize.y - titleHeight - footerHeight - padding * 2;
+        ImGui::BeginChild("##ContentScroll", ImVec2(0, contentAvailableHeight), false, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
-        // Handle keyboard navigation - exactly the same logic
-        // Check inside the potential child window or before iterating
-        if (!ImGui::IsAnyItemActive()) { // Prevent changing selection while scrolling etc.
+        // Keyboard navigation
+        if (!ImGui::IsAnyItemActive()) {
             if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
                 selectedReferenceIndex = (selectedReferenceIndex > 0) ? selectedReferenceIndex - 1 : referenceLocations.size() - 1;
-                if (useChildWindow)
-                    ImGui::SetScrollHereY(0.0f); // Scroll to top if navigating up
+                ImGui::SetScrollHereY(0.0f);
             }
             if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
                 selectedReferenceIndex = (selectedReferenceIndex + 1) % referenceLocations.size();
-                if (useChildWindow)
-                    ImGui::SetScrollHereY(1.0f); // Scroll to bottom if navigating down
+                ImGui::SetScrollHereY(1.0f);
             }
         }
 
-        // Display options - same loop structure
-        // Use itemPadding like definition window if needed for alignment
-        // float windowWidth = ImGui::GetContentRegionAvail().x; // Width calculation same if needed
-        // float itemPadding = 8.0f; // Same padding if used
-
+        // List items
         for (size_t i = 0; i < referenceLocations.size(); i++) {
             const auto &loc = referenceLocations[i];
             bool is_selected = (selectedReferenceIndex == i);
 
-            // ImGui::SetCursorPosX(ImGui::GetCursorPosX() + itemPadding); // Use if definition uses it
-
-            // Format label (filename:line:char is good for references)
+            // Format filename
             std::string filename = loc.uri;
             size_t lastSlash = filename.find_last_of("/\\");
             if (lastSlash != std::string::npos) {
@@ -368,112 +338,73 @@ void LSPGotoRef::renderReferenceOptions()
             }
             std::string label = filename + ":" + std::to_string(loc.startLine + 1) + ":" + std::to_string(loc.startChar + 1);
 
-            // Selectable call - same flags and size calculation if used in definition
-            // Use ImGuiSelectableFlags_AllowDoubleClick like before
-            if (ImGui::Selectable(label.c_str(), is_selected, ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_SpanAllColumns)) { // SpanAllColumns is good practice
+            if (ImGui::Selectable(label.c_str(), is_selected, ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedReferenceIndex = i;
                 if (ImGui::IsMouseDoubleClicked(0)) {
-                    goto handle_enter_key_ref; // Jump to confirmation logic on double click
+                    goto handle_enter_key_ref;
                 }
             }
 
-            // Ensure selected item is visible on navigation - same logic
             if (is_selected && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow))) {
-                // This works better if called *after* the Selectable potentially moved the scroll
                 ImGui::SetScrollHereY();
             }
-            if (is_selected && ImGui::IsWindowAppearing()) { // Scroll on first appearance
+            if (is_selected && ImGui::IsWindowAppearing()) {
                 ImGui::SetScrollHereY();
             }
         }
 
-        if (useChildWindow) {
-            ImGui::EndChild();
-        }
-        // --- End Content Area ---
+        ImGui::EndChild(); // End content scroll area
 
+        // Fixed footer
+        ImGui::BeginChild("##Footer", ImVec2(0, footerHeight), false);
         ImGui::Separator();
-        // Footer text - same
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down: Select, Enter/DblClick: Jump, Esc: Close");
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down Enter");
+        ImGui::EndChild();
 
-        // Handle Enter key - EXACTLY THE SAME LOGIC structure
+        // Handle Enter key
         if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) {
-        handle_enter_key_ref:                                                                        // Label for goto from double-click
-            if (selectedReferenceIndex >= 0 && selectedReferenceIndex < referenceLocations.size()) { // Check bounds
-                const auto &selected = referenceLocations[selectedReferenceIndex];                   // Use the selected reference
-                std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1) << " char " << (selected.startChar + 1) << std::endl;
+        handle_enter_key_ref:
+            if (selectedReferenceIndex >= 0 && selectedReferenceIndex < referenceLocations.size()) {
+                const auto &selected = referenceLocations[selectedReferenceIndex];
+                std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1) << std::endl;
 
                 if (selected.uri != gFileExplorer.currentFile) {
-                    std::cout << "Loading file: " << selected.uri << std::endl;
-                    // Load the file first - FIXED: Call void function directly
                     gFileExplorer.loadFileContent(selected.uri, nullptr);
-                    // Optional delay might be needed here if load is async or LSP needs time
-                    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
 
-                // Calculate cursor position - EXACTLY THE SAME LOGIC as definition jump
-                int target_index = 0;
-                // Use editor_content_lines for reliable line start index
-                if (selected.startLine >= 0 && selected.startLine < editor_state.editor_content_lines.size()) {
-                    target_index = editor_state.editor_content_lines[selected.startLine];
-                    target_index += selected.startChar; // Add character offset within the line
-                } else {
-                    // Fallback calculation (less reliable) if line index is out of bounds
-                    std::cout << "Warning: Target line " << selected.startLine << " out of bounds for editor_content_lines. Calculating index manually." << std::endl;
-                    int currentLine = 0;
-                    for (int i = 0; i < editor_state.fileContent.length(); ++i) {
-                        if (currentLine == selected.startLine) {
-                            target_index = i + selected.startChar;
-                            break;
-                        }
-                        if (editor_state.fileContent[i] == '\n') {
-                            currentLine++;
-                        }
-                        // If we reach the end and haven't found the line
-                        if (i == editor_state.fileContent.length() - 1 && currentLine < selected.startLine) {
-                            target_index = editor_state.fileContent.length(); // Go to end as fallback
-                            break;
-                        }
-                    }
+                int index = 0;
+                int currentLine = 0;
+                while (currentLine < selected.startLine && index < editor_state.fileContent.length()) {
+                    if (editor_state.fileContent[index] == '\n')
+                        currentLine++;
+                    index++;
                 }
 
-                target_index = std::min(target_index, (int)editor_state.fileContent.length()); // Clamp index
-                target_index = std::max(0, target_index);                                      // Ensure non-negative
-
-                std::cout << "Calculated target index: " << target_index << std::endl;
-
-                editor_state.cursor_index = target_index; // Set cursor position
-                editor_state.selection_active = false;    // Deactivate selection - same
-
-                // Ensure cursor is visible - use the same method as definition
-                gEditorScroll.setEnsureCursorVisibleFrames(5); // Ensure visibility over a few frames (use value from definition logic)
+                index += selected.startChar;
+                index = std::min(index, (int)editor_state.fileContent.length());
+                editor_state.cursor_index = index;
+                gEditorScroll.setEnsureCursorVisibleFrames(-1);
+                editor_state.block_input = false;
                 editor_state.ensure_cursor_visible.horizontal = true;
                 editor_state.ensure_cursor_visible.vertical = true;
 
-                showReferenceOptions = false;     // Close the window - same
-                editor_state.block_input = false; // Unblock input - same
+                showReferenceOptions = false;
+                editor_state.block_input = false;
             }
-        } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { // Already handled above, but keep for explicit action matching definition
-            showReferenceOptions = false;
-            editor_state.block_input = false;
         }
 
-        ImGui::End(); // End the window
-
+        ImGui::End(); // End main window
     } else {
-        // If Begin returned false (e.g., window closed programmatically)
-        // Ensure state is consistent
         if (showReferenceOptions) {
             showReferenceOptions = false;
             editor_state.block_input = false;
         }
     }
 
-    // Pop styles - exactly the same count
+    // Cleanup
     ImGui::PopStyleColor(6);
     ImGui::PopStyleVar(4);
 
-    // Final check to unblock input if window is closed for any reason
     if (!showReferenceOptions) {
         editor_state.block_input = false;
     }
