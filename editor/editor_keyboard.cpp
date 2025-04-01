@@ -2,6 +2,7 @@
 #include "editor_keyboard.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#include "../lsp/lsp_symbol_info.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_copy_paste.h"
@@ -258,6 +259,10 @@ void EditorKeyboard::handleEditorKeyboardInput()
             gEditorKeyboard.processUndoRedo();
             gEditorCursor.processWordMovement(editor_state.fileContent, editor_state.ensure_cursor_visible, shift_pressed);
             gEditorCursor.processCursorJump(editor_state.fileContent, editor_state.ensure_cursor_visible);
+            if (ImGui::IsKeyPressed(ImGuiKey_I)) {
+
+                gLSPSymbolInfo.fetchSymbolInfo(gFileExplorer.currentFile);
+            }
         }
     }
 
