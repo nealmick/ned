@@ -35,7 +35,7 @@ class LSPGotoRef
     // Helper methods
     void parseReferenceResponse(const std::string &response);
     int getNextRequestId() { return ++currentRequestId; }
-
+    void handleReferenceSelection();
     // Request tracking (using a different range than LSPGotoDef)
     int currentRequestId = 3000;
 
