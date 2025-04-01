@@ -183,21 +183,21 @@ void EditorMouse::handleContextMenu()
         };
 
         // Cut action
-        if (MenuItemWithAlignedShortcut("Cut", "Ctrl+X", nullptr, editor_state.selection_active)) {
+        if (MenuItemWithAlignedShortcut("Cut", "cmd x", nullptr, editor_state.selection_active)) {
             gEditorCopyPaste.cutSelectedText();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Copy action
-        if (MenuItemWithAlignedShortcut("Copy", "Ctrl+C", nullptr, editor_state.selection_active)) {
+        if (MenuItemWithAlignedShortcut("Copy", "cmd c", nullptr, editor_state.selection_active)) {
             gEditorCopyPaste.copySelectedText(editor_state.fileContent);
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
         }
 
         // Paste action
-        if (MenuItemWithAlignedShortcut("Paste", "Ctrl+V", nullptr, true)) {
+        if (MenuItemWithAlignedShortcut("Paste", "cmd v", nullptr, true)) {
             gEditorCopyPaste.pasteText();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
@@ -207,7 +207,7 @@ void EditorMouse::handleContextMenu()
         ImGui::Separator();
 
         // Save file action
-        if (MenuItemWithAlignedShortcut("Save", "Ctrl+S", nullptr, true)) {
+        if (MenuItemWithAlignedShortcut("Save", "cmd s", nullptr, true)) {
             gFileExplorer.saveCurrentFile();
             show_context_menu = false;
             ImGui::CloseCurrentPopup();
@@ -217,7 +217,7 @@ void EditorMouse::handleContextMenu()
         ImGui::Separator();
 
         // Select All
-        if (MenuItemWithAlignedShortcut("Select All", "Ctrl+A", nullptr, true)) {
+        if (MenuItemWithAlignedShortcut("Select All", "cmd a", nullptr, true)) {
             editor_state.selection_active = true;
             editor_state.selection_start = 0;
             editor_state.selection_end = editor_state.fileContent.size();
@@ -228,7 +228,7 @@ void EditorMouse::handleContextMenu()
         ImGui::Separator();
 
         // Go to Definition
-        if (MenuItemWithAlignedShortcut("Go to Definition", "F12", nullptr, true)) {
+        if (MenuItemWithAlignedShortcut("Goto Def", "cmd d", nullptr, true)) {
             // Get current line number from editor_state
             int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
@@ -244,8 +244,8 @@ void EditorMouse::handleContextMenu()
         }
 
         // --- ADD FIND REFERENCES OPTION HERE ---
-        if (MenuItemWithAlignedShortcut("Find References", "Shift+F12", nullptr, true)) { // Using Shift+F12 as a common shortcut
-                                                                                          // Get current line number from editor_state (same as above)
+        if (MenuItemWithAlignedShortcut("Find Ref", "cmd r", nullptr, true)) { // Using Shift+F12 as a common shortcut
+                                                                               // Get current line number from editor_state (same as above)
             int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
             // Get character offset in current line (same as above)

@@ -79,8 +79,6 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
         }
     }
 
-    std::cout << "\033[35mLSP:\033[0m Sending didOpen notification for file: " << filePath << std::endl;
-
     std::string notification = std::string(R"({
             "jsonrpc": "2.0",
             "method": "textDocument/didOpen",
