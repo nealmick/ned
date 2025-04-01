@@ -19,37 +19,38 @@ LSPGotoDef::LSPGotoDef() : currentRequestId(2000), showDefinitionOptions(false),
 LSPGotoDef::~LSPGotoDef() = default;
 
 // --- gotoDefinition (Updated Response Handling) ---
-    bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int character)
-    {
-        if (!gLSPManager.isInitialized()) {
-            std::cout << "\033[31mLSP GotoDef:\033[0m Not initialized" << std::endl;
-            return false;
-        }
+bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int character)
+{
+    if (!gLSPManager.isInitialized()) {
+        std::cout << "\033[31mLSP GotoDef:\033[0m Not initialized" << std::endl;
+        return false;
+    }
 
-        if (!gLSPManager.selectAdapterForFile(filePath)) {
-            std::cout << "\033[31mLSP GotoDef:\033[0m No LSP adapter available for file: " << filePath << std::endl;
-            return false;
-        }
+    if (!gLSPManager.selectAdapterForFile(filePath)) {
+        std::cout << "\033[31mLSP GotoDef:\033[0m No LSP adapter available for file: " << filePath << std::endl;
+        return false;
+    }
 
-        int requestId = getNextRequestId();
-        std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line << ", char " << character << " (ID: " << requestId << ")" << std::endl;
+    int requestId = getNextRequestId();
+    std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line << ", char " << character << " (ID: " << requestId << ")" << std::endl;
 
-        // Request structure remains the same
-        std::string request = std::string(R"({
+    // Request structure remains the same
+    std::string request = std::string(R"({
             "jsonrpc": "2.0",
             "id": )" + std::to_string(requestId) +
-                                          R"(,
+                                      R"(,
             "method": "textDocument/definition",
             "params": {
                 "textDocument": {
-                    "uri": "file://)" + filePath +
-                                          R"("
+                    "uri": "file://)" +
+                                      filePath +
+                                      R"("
                 },
                 "position": {
                     "line": )" + std::to_string(line) +
-                                          R"(,
+                                      R"(,
                     "character": )" + std::to_string(character) +
-                                          R"(
+                                      R"(
                 }
             }
         })");
