@@ -87,7 +87,7 @@ struct EditorState
 
     // used for snapping scroll to cursor making cursor visibile
     CursorVisibility ensure_cursor_visible = {false, false};
-
+    bool center_cursor_vertical = false;
     // did text change or was edit made...
     bool text_changed = false;
 

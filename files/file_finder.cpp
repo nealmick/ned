@@ -103,7 +103,7 @@ bool FileFinder::isWindowOpen() const { return showFFWindow; }
 void FileFinder::renderHeader()
 {
     // Window setup (size, position, flags)
-    ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Always);
     ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     // Push window style (3 style vars, 3 style colors)
