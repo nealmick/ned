@@ -370,6 +370,12 @@ void FileExplorer::saveCurrentFile()
             file.close();
             _unsavedChanges = false;
             std::cout << "File saved: " << currentFile << std::endl;
+            // Track document version - start at 1 and increment on each save
+            int &version = _documentVersions[currentFile];
+            version = version == 0 ? 1 : version + 1;
+
+            // Notify LSP after successful save
+            gEditorLSP.didChange(currentFile, version);
         } else {
             std::cerr << "Unable to save file: " << currentFile << std::endl;
         }
