@@ -189,56 +189,57 @@ bool LSPAdapterPyright::sendRequest(const std::string &request)
     fflush(impl->input);
     return true;
 }
+
 std::string LSPAdapterPyright::readResponse(int *contentLength)
 {
     if (!impl->output) {
-        std::cerr << "\033[31mPyright:\033[0m Cannot read response - server not initialized" << std::endl;
+        std::cerr << "\033[31mPyright:\033[0m Cannot read response" << std::endl;
         return "";
     }
 
-    char header[1024];
-    if (!fgets(header, sizeof(header), impl->output)) {
-        std::cerr << "\033[31mPyright:\033[0m Failed to read response header" << std::endl;
-        return "";
-    }
-
-    // If header starts with { it's a JSON response, not a Content-Length header
-    if (header[0] == '{') {
-        std::cerr << "\033[31mPyright:\033[0m Invalid header format, but contains JSON: " << header << std::endl;
-
-        // Extract just the JSON part (before Content-Length if present)
-        std::string response = header;
-        size_t contentPos = response.find("Content-Length:");
-        if (contentPos != std::string::npos) {
-            response = response.substr(0, contentPos);
+    // Read until we get a valid Content-Length header
+    while (true) {
+        char header[1024] = {0};
+        if (!fgets(header, sizeof(header), impl->output)) {
+            if (feof(impl->output)) {
+                std::cerr << "\033[33mPyright:\033[0m Server closed connection" << std::endl;
+                return "";
+            }
+            return "";
         }
 
-        std::cout << "\033[32mPyright:\033[0m Extracted JSON: " << response << std::endl;
-        return response;
+        // Skip empty lines or non-header content
+        if (strncmp(header, "Content-Length:", 15) == 0) {
+            int length = 0;
+            if (sscanf(header + 15, " %d", &length) == 1) {
+                // Read the remaining header (until \r\n\r\n)
+                while (fgets(header, sizeof(header), impl->output) && strcmp(header, "\r\n") != 0) {
+                }
+
+                // Read the actual content
+                std::vector<char> buffer(length + 1);
+                size_t bytes_read = fread(buffer.data(), 1, length, impl->output);
+                buffer[bytes_read] = '\0';
+
+                if (contentLength)
+                    *contentLength = length;
+                return std::string(buffer.data(), bytes_read);
+            }
+        }
+        // Handle JSON-RPC notifications (like diagnostics)
+        else if (header[0] == '{') {
+            std::string notification = header;
+            // Read until we get the full notification
+            while (!notification.empty() && notification.back() != '}') {
+                int ch = fgetc(impl->output);
+                if (ch == EOF)
+                    break;
+                notification += static_cast<char>(ch);
+            }
+            std::cout << "\033[35mPyright Notification:\033[0m " << notification << std::endl;
+        }
     }
-
-    // Regular header processing
-    int length = 0;
-    if (sscanf(header, "Content-Length: %d\r\n", &length) != 1) {
-        std::cerr << "\033[31mPyright:\033[0m Invalid header format: " << header << std::endl;
-        return "";
-    }
-
-    // Skip the empty line after the header
-    fgets(header, sizeof(header), impl->output);
-
-    // Read the response body
-    std::vector<char> buffer(length + 1);
-    size_t bytes_read = fread(buffer.data(), 1, length, impl->output);
-    buffer[bytes_read] = '\0';
-
-    if (contentLength) {
-        *contentLength = length;
-    }
-
-    return std::string(buffer.data(), bytes_read);
 }
-
 std::string LSPAdapterPyright::getLanguageId(const std::string &filePath) const
 {
     // Get file extension

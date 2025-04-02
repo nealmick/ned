@@ -1,4 +1,5 @@
 #include "lsp.h"
+#include "../editor/editor.h"
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -100,8 +101,48 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
     std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;
 }
 
-void EditorLSP::didChange(const std::string &filePath, const std::string &newContent, int version)
+void EditorLSP::didChange(const std::string &filePath, int version)
 {
-    // Implementation of didChange method
-    // (This is a placeholder, you can implement this as needed)
+    // Select the appropriate adapter for this file
+    if (!gLSPManager.selectAdapterForFile(filePath)) {
+        std::cout << "\033[31mLSP:\033[0m No LSP adapter available for file: " << filePath << std::endl;
+        return;
+    }
+
+    // Auto-initialize if needed
+    if (!gLSPManager.isInitialized()) {
+        std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
+        std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: " << workspacePath << std::endl;
+
+        if (!gLSPManager.initialize(workspacePath)) {
+            std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for " << filePath << std::endl;
+            return;
+        }
+    }
+
+    std::string notification = std::string(R"({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didChange",
+        "params": {
+            "textDocument": {
+                "uri": "file://)") +
+                               filePath + R"(",
+                "version": )" + std::to_string(version) +
+                               R"(
+            },
+            "contentChanges": [
+                {
+                    "text": ")" +
+                               escapeJSON(editor_state.fileContent) + R"("
+                }
+            ]
+        }
+    })";
+
+    if (gLSPManager.sendRequest(notification)) {
+        std::cout << "\033[32mLSP:\033[0m didChange notification sent successfully (v" << version << ")\n";
+
+    } else {
+        std::cout << "\033[31mLSP:\033[0m Failed to send didChange notification\n";
+    }
 }
