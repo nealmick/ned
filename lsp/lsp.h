@@ -14,7 +14,7 @@ class EditorLSP
     // Core LSP functionality
     bool initialize(const std::string &workspacePath);
     void didOpen(const std::string &filePath, const std::string &content);
-    void didChange(const std::string &filePath, const std::string &newContent, int version);
+    void didChange(const std::string &filePath, int version);
 
   private:
     // Helper methods

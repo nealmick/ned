@@ -83,6 +83,8 @@ class FileExplorer
   private:
     std::map<std::string, ImTextureID> fileTypeIcons;
 
+    std::unordered_map<std::string, int> _documentVersions;
+
     // Icon loading helpers
     struct IconDimensions
     {
