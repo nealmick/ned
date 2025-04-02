@@ -59,6 +59,7 @@ class EditorScroll
     }
 
     void handleCursorMovementScroll();
+    void centerCursorVertically();
 
   private:
     // Helpers

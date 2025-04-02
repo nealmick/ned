@@ -1,8 +1,9 @@
 #include "lsp_goto_def.h"
 #include "../editor/editor.h"           // Access to gEditor, editor_state
 #include "../editor/editor_line_jump.h" // Access to gEditorScroll
-#include "files.h"                      // Access to gFileExplorer
-#include <algorithm>                    // For std::min, std::max
+#include "editor_scroll.h"
+#include "files.h"   // Access to gFileExplorer
+#include <algorithm> // For std::min, std::max
 #include <cstdio>
 #include <iostream>
 #include <sstream>
@@ -450,9 +451,9 @@ void LSPGotoDef::renderDefinitionOptions()
                 gEditorScroll.setEnsureCursorVisibleFrames(-1);
                 showDefinitionOptions = false;
                 editor_state.block_input = false;
-                editor_state.ensure_cursor_visible.horizontal = true;
-                editor_state.ensure_cursor_visible.vertical = true;
-
+                // editor_state.ensure_cursor_visible.horizontal = true;
+                // editor_state.ensure_cursor_visible.vertical = true;
+                editor_state.center_cursor_vertical = true;
                 showDefinitionOptions = false;
                 editor_state.block_input = false;
             }

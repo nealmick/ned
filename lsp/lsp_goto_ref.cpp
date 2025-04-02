@@ -414,6 +414,7 @@ void LSPGotoRef::handleReferenceSelection()
 
     editor_state.cursor_index = index;
     gEditorScroll.setEnsureCursorVisibleFrames(-1);
-    editor_state.ensure_cursor_visible.horizontal = true;
-    editor_state.ensure_cursor_visible.vertical = true;
+    // editor_state.ensure_cursor_visible.horizontal = true;
+    // editor_state.ensure_cursor_visible.vertical = true;
+    editor_state.center_cursor_vertical = true;
 }

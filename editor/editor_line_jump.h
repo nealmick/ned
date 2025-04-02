@@ -149,35 +149,7 @@ class LineJump
         std::cout << "seting line number in linejump " << lineNumber << std::endl;
         editor_state.selection_active = false;
 
-        // Calculate the target scroll position
-        float line_height = ImGui::GetTextLineHeight();
-        float window_height = ImGui::GetWindowHeight();
-
-        // Calculate the exact middle of the window in pixels
-        float middle_pixel = window_height / 2.0f;
-
-        // For a line to appear in the middle, we need:
-        // scroll_position = (line_number * line_height) - middle_pixel
-        float target_scroll = (lineNumber * line_height) - middle_pixel;
-
-        // Apply a fixed offset to adjust how many lines from top the target appears
-        // Negative values move the line higher (fewer lines from top)
-        // Positive values move the line lower (more lines from top)
-        // Try different values to find the perfect position
-        float vertical_offset = -250.0f; // Adjust this to change vertical position
-        target_scroll += vertical_offset;
-
-        // Ensure we don't scroll past the boundaries
-        target_scroll = std::max(0.0f, target_scroll);
-
-        // REQUEST scroll through EditorScroll
-        gEditorScroll.requestScroll(0, target_scroll);
-
-        // Set these flags to ensure the cursor will be made visible
-        gEditorScroll.setEnsureCursorVisibleFrames(5); // Ensure visibility for several frames
-
-        // Force a direct scroll application in ImGui before the next frame
-        ImGui::SetScrollY(target_scroll);
+        editor_state.center_cursor_vertical = true;
 
         justJumped = true;
     }

@@ -2,6 +2,8 @@
 #include "editor_keyboard.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#include "../lsp/lsp_goto_def.h"
+#include "../lsp/lsp_goto_ref.h"
 #include "../lsp/lsp_symbol_info.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
@@ -262,6 +264,32 @@ void EditorKeyboard::handleEditorKeyboardInput()
             if (ImGui::IsKeyPressed(ImGuiKey_I)) {
 
                 gLSPSymbolInfo.fetchSymbolInfo(gFileExplorer.currentFile);
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) {
+
+                int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+                // Get character offset in current line (same as above)
+                int line_start = 0; // Default to 0
+                if (current_line >= 0 && current_line < editor_state.editor_content_lines.size()) {
+                    line_start = editor_state.editor_content_lines[current_line];
+                }
+                int char_offset = editor_state.cursor_index - line_start;
+                char_offset = std::max(0, char_offset); // Ensure non-negative
+
+                // Call LSP find references using the new global instance
+                gLSPGotoRef.findReferences(gFileExplorer.currentFile, current_line, char_offset);
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_D)) {
+
+                // Get current line number from editor_state
+                int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+
+                // Get character offset in current line
+                int line_start = editor_state.editor_content_lines[current_line];
+                int char_offset = editor_state.cursor_index - line_start;
+
+                // Call LSP goto definition
+                gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
             }
         }
     }
