@@ -219,7 +219,11 @@ void EditorScroll::adjustScrollForCursorVisibility()
     // IMPORTANT: Update scroll positions from ImGui to capture manual scrolling
     editor_state.current_scroll_y = ImGui::GetScrollY();
     editor_state.current_scroll_x = ImGui::GetScrollX();
-
+    if (editor_state.center_cursor_vertical) {
+        centerCursorVertically();
+        editor_state.center_cursor_vertical = false; // Reset the flag
+        return;
+    }
     // Update our internal state
     scrollPos.y = editor_state.current_scroll_y;
     scrollX = editor_state.current_scroll_x;
@@ -294,4 +298,26 @@ void EditorScroll::handleCursorMovementScroll()
     } else if (cursor_x > visible_end_x) {
         scrollX = cursor_x - window_width + ImGui::GetFontSize();
     }
+}
+
+void EditorScroll::centerCursorVertically()
+{
+    // Calculate cursor line position
+    int cursor_line = getLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+    float cursor_y = cursor_line * editor_state.line_height;
+
+    // Calculate center position
+    float viewport_height = editor_state.size.y;
+    float target_scroll_y = cursor_y - (viewport_height / 2.0f) + editor_state.line_height;
+
+    // Clamp to valid scroll range
+    target_scroll_y = std::clamp(target_scroll_y, 0.0f, ImGui::GetScrollMaxY());
+
+    // Set animation target
+    scrollAnimation.active_y = true;
+    scrollAnimation.target_y = target_scroll_y;
+    scrollPos.y = target_scroll_y;
+
+    // Reset horizontal animation if needed
+    scrollAnimation.active_x = false;
 }
