@@ -125,59 +125,120 @@ void EditorRender::renderEditorContent()
     gEditorCursor.renderCursor();
 }
 
+void EditorRender::renderLineBackground(int line_num, int start_visible_line, int end_visible_line, size_t cursor_line, const ImVec2 &line_start_draw_pos)
+{
+    if (static_cast<size_t>(line_num) != cursor_line) {
+        return; // Not the cursor line
+    }
+    if (line_num < start_visible_line || line_num > end_visible_line) {
+        return; // Line is not visible
+    }
+
+    const ImU32 highlight_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.18f, 0.18f, 0.35f));
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    float window_width = ImGui::GetWindowWidth();
+
+    float hl_x_start = window_pos.x + 5.0f; // Keep the offset as it was
+    float hl_x_end = window_pos.x + window_width;
+    float hl_y_start = line_start_draw_pos.y;
+    float hl_y_end = line_start_draw_pos.y + editor_state.line_height;
+
+    ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(hl_x_start, hl_y_start), ImVec2(hl_x_end, hl_y_end), highlight_color);
+}
+
+void EditorRender::renderCharacterAndSelection(size_t char_index, int selection_start, int selection_end, ImVec2 &current_draw_pos)
+{
+    if (char_index >= editor_state.fileColors.size()) {
+        return; // Skip rendering this char if color is missing
+    }
+
+    const char *char_start = &editor_state.fileContent[char_index];
+    const char *char_end = (char_index + 1 < editor_state.fileContent.size()) ? &editor_state.fileContent[char_index + 1] : nullptr;
+    float char_width = ImGui::CalcTextSize(char_start, char_end).x;
+
+    bool is_selected = (static_cast<int>(char_index) >= selection_start && static_cast<int>(char_index) < selection_end);
+    if (is_selected) {
+        ImVec2 sel_start_pos = current_draw_pos;
+        ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + char_width, sel_start_pos.y + editor_state.line_height);
+        const ImU32 selection_color = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
+        ImGui::GetWindowDrawList()->AddRectFilled(sel_start_pos, sel_end_pos, selection_color);
+    }
+
+    char current_char = editor_state.fileContent[char_index];
+    char buf[2] = {current_char, '\0'};
+    ImU32 text_color = ImGui::ColorConvertFloat4ToU32(editor_state.fileColors[char_index]);
+    ImGui::GetWindowDrawList()->AddText(current_draw_pos, text_color, buf);
+
+    current_draw_pos.x += char_width;
+}
+
+bool EditorRender::skipLineIfAboveVisible(size_t &char_index, int line_num, int start_visible_line, ImVec2 &current_draw_pos)
+{
+    if (line_num < start_visible_line) {
+        // Fast-forward index 'i' to the end of this line
+        while (char_index < editor_state.fileContent.size() && editor_state.fileContent[char_index] != '\n') {
+            char_index++;
+        }
+        // Note: The main loop's i++ will handle moving past the newline or end of file.
+        // We just need to adjust the draw pos and line num for the *next* iteration.
+        // The actual update happens after the loop check or newline handling in the main function.
+        return true;
+    }
+    return false;
+}
+
 void EditorRender::renderText()
 {
-    ImVec2 text_pos = editor_state.text_pos;
+    ImVec2 base_text_pos = editor_state.text_pos;
+    ImVec2 current_draw_pos = base_text_pos;
+
     int sel_start = gEditorSelection.getSelectionStart();
     int sel_end = gEditorSelection.getSelectionEnd();
 
-    // Calculate visible range - use gEditorScroll instead of direct access
     float scroll_y = gEditorScroll.getScrollPosition().y;
     float window_height = ImGui::GetWindowHeight();
     int start_line = static_cast<int>(scroll_y / editor_state.line_height);
-    int end_line = start_line + static_cast<int>(window_height / editor_state.line_height) + 1;
+    int end_line = start_line + static_cast<int>(ceil(window_height / editor_state.line_height)) + 1;
+    start_line = std::max(0, start_line - 1); // Buffer one line above
 
-    int current_line = 0;
-    for (size_t i = 0; i < editor_state.fileContent.size(); i++) {
-        // Safety check
-        if (i >= editor_state.fileColors.size()) {
-            std::cerr << "Error: Color index out of bounds in renderTextWithSelection" << std::endl;
-            break;
-        }
+    size_t cursor_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
 
-        // Handle newline: update line count and reset x
-        if (editor_state.fileContent[i] == '\n') {
-            current_line++;
-            if (current_line > end_line)
+    int current_line_num = 0;
+
+    for (size_t i = 0; i <= editor_state.fileContent.size(); ++i) {
+
+        bool is_start_of_line = (i == 0 || (i > 0 && editor_state.fileContent[i - 1] == '\n'));
+
+        if (is_start_of_line) {
+            renderLineBackground(current_line_num, start_line, end_line, cursor_line, current_draw_pos);
+
+            if (skipLineIfAboveVisible(i, current_line_num, start_line, current_draw_pos)) {
+                current_line_num++;
+                current_draw_pos.x = base_text_pos.x;
+                current_draw_pos.y += editor_state.line_height;
+                continue; // Let the main loop handle incrementing i past the newline
+            }
+
+            if (current_line_num > end_line) {
                 break;
-            text_pos.x = editor_state.text_pos.x;
-            text_pos.y += editor_state.line_height;
-            continue;
+            }
         }
 
-        // Skip lines above visible area
-        if (current_line < start_line) {
-            while (i < editor_state.fileContent.size() && editor_state.fileContent[i] != '\n')
-                i++;
-            i--; // Adjust for the outer loop's increment
-            continue;
-        }
-        if (current_line > end_line)
+        if (i == editor_state.fileContent.size()) {
             break;
-
-        // Check if this character is selected
-        bool is_selected = (i >= sel_start && i < sel_end);
-        if (is_selected) {
-            // Draw selection highlight
-            float char_width = ImGui::CalcTextSize(&editor_state.fileContent[i], &editor_state.fileContent[i + 1]).x;
-            ImVec2 sel_start_pos = text_pos;
-            ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + char_width, sel_start_pos.y + editor_state.line_height);
-            ImGui::GetWindowDrawList()->AddRectFilled(sel_start_pos, sel_end_pos, ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
         }
 
-        // Draw individual character
-        char buf[2] = {editor_state.fileContent[i], '\0'};
-        ImGui::GetWindowDrawList()->AddText(text_pos, ImGui::ColorConvertFloat4ToU32(editor_state.fileColors[i]), buf);
-        text_pos.x += ImGui::CalcTextSize(buf).x;
+        char current_char = editor_state.fileContent[i];
+
+        if (current_char == '\n') {
+            current_line_num++;
+            current_draw_pos.x = base_text_pos.x;
+            current_draw_pos.y += editor_state.line_height;
+            continue;
+        }
+
+        if (current_line_num >= start_line && current_line_num <= end_line) {
+            renderCharacterAndSelection(i, sel_start, sel_end, current_draw_pos);
+        }
     }
 }

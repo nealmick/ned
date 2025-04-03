@@ -1,17 +1,19 @@
-# Text Editor written in C++
-NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offers syntax highlighting, project file tree, and a customizable interface.
+# A Simple Text Editor
+NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offers syntax highlighting, LSP Support, Project file tree, and a customizable interface.
 
 
 <img src="https://i.imgur.com/Sb9geeH.png" alt="Ned Logo" width="100%" style="display: block; margin: auto; border-radius: 10px;">
 
-#### Features
+#### Noteable Features
+- Text Bookmarks
+- Rainbow mode
+- OpenGL Shaders
+- LSP Adapters
 - Terminal Emulator
 - Resizable panes
-- Text Bookmarks
 - Custom themes with JSON settings file
 - File Tree Explorer
-- Custom lexer and tokenizer
-- Rainbow mode for cursor, line number, and open file
+- Custom lexers and tokenizers
 - File type icons
 
 

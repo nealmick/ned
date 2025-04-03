@@ -16,6 +16,7 @@
 #include "editor_scroll.h"
 #include "editor_selection.h"
 #include "editor_utils.h"
+#include "imgui.h"
 
 #include <iostream>
 
@@ -248,7 +249,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
     }
 
     // Process bookmarks first
-    gBookmarks.handleBookmarkInput(gFileExplorer);
+    if (ImGui::GetIO().KeyAlt) {
+        gEditorCursor.processWordMovement(editor_state.fileContent, editor_state.ensure_cursor_visible);
+    }
 
     if (ImGui::IsWindowFocused() && !editor_state.block_input) {
         // Process Shift+Tab for indentation removal. If handled, exit early.
@@ -259,7 +262,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
             processFontSizeAdjustment();
             processSelectAll();
             gEditorKeyboard.processUndoRedo();
-            gEditorCursor.processWordMovement(editor_state.fileContent, editor_state.ensure_cursor_visible, shift_pressed);
+            gBookmarks.handleBookmarkInput(gFileExplorer);
+
             gEditorCursor.processCursorJump(editor_state.fileContent, editor_state.ensure_cursor_visible);
             if (ImGui::IsKeyPressed(ImGuiKey_I)) {
 

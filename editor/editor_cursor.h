@@ -39,7 +39,7 @@ class EditorCursor
 
     void moveWordBackward(const std::string &text);
 
-    void processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible, bool shift_pressed);
+    void processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible);
 
     void processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible);
 
@@ -57,6 +57,12 @@ class EditorCursor
     void calculateVisualColumn();
 
     void findPositionFromVisualColumn(int line_start, int line_end);
+
+    static bool isWordChar(char c)
+    {
+        // Standard definition: Alphanumeric characters plus underscore
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+    }
 };
 
 extern EditorCursor gEditorCursor;
