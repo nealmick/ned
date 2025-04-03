@@ -3,8 +3,10 @@
 #include "editor.h"
 #include "editor_utils.h"
 #include <algorithm>
-#include <cctype> // For std::isalnum, std::isspace
-
+#include <cctype>
+#include <cmath>
+#include <cstddef>
+#include <string>
 // Global instance
 EditorCursor gEditorCursor;
 
@@ -13,25 +15,32 @@ EditorCursor::EditorCursor() {}
 void EditorCursor::renderCursor()
 {
     int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-    float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
+    float cursor_x = getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
 
-    ImVec2 cursor_screen_pos = editor_state.text_pos;
-    cursor_screen_pos.x = cursor_x;
-    cursor_screen_pos.y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
+    ImVec2 cursor_start_pos = editor_state.text_pos;
+    cursor_start_pos.x = cursor_x;
+    cursor_start_pos.y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
 
-    float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f; // Blink frequency
+    ImVec2 cursor_end_pos = ImVec2(cursor_start_pos.x, cursor_start_pos.y + editor_state.line_height - 1);
+
+    float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f;
     ImU32 cursor_color;
-    bool rainbow_mode = gSettings.getRainbowMode(); // Get setting here
+    bool rainbow_mode = gSettings.getRainbowMode();
 
     if (rainbow_mode) {
-        // Use the shared rainbow color function - no need to pass blink_time
         ImVec4 rainbow = EditorUtils::GetRainbowColor();
         cursor_color = ImGui::ColorConvertFloat4ToU32(rainbow);
     } else {
         cursor_color = IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
     }
 
-    ImGui::GetWindowDrawList()->AddLine(cursor_screen_pos, ImVec2(cursor_screen_pos.x, cursor_screen_pos.y + editor_state.line_height - 1), cursor_color);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+
+    const float cursor_thickness = 2.0f;
+
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+        draw_list->AddLine(cursor_start_pos, cursor_end_pos, cursor_color, cursor_thickness);
+    }
 }
 
 // Cursor time management
@@ -170,42 +179,55 @@ void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 void EditorCursor::moveWordForward(const std::string &text)
 {
     size_t pos = editor_state.cursor_index;
-    size_t len = text.length();
+    const size_t len = text.length();
 
-    // Skip current word
-    while (pos < len && std::isalnum(text[pos]))
-        pos++;
-    // Skip spaces
-    while (pos < len && std::isspace(text[pos]))
-        pos++;
-    // Find start of next word
-    while (pos < len && !std::isalnum(text[pos]) && !std::isspace(text[pos]))
-        pos++;
+    if (pos >= len) {
+        return; // Already at or past the end
+    }
 
-    // If we've reached the end, wrap around to the beginning
-    if (pos == len)
-        pos = 0;
+    // Phase 1: Skip any non-word characters immediately at or after the cursor.
+    // This ensures that if we start in whitespace like "word1 | word2",
+    // we move past the whitespace first.
+    while (pos < len && !isWordChar(text[pos])) {
+        ++pos;
+    }
 
-    editor_state.cursor_index = pos;
-    editor_state.selection_start = editor_state.selection_end = pos;
+    // Phase 2: Skip the word characters of the word we just landed on
+    // (or the word we were already in if Phase 1 didn't move).
+    // This moves the cursor to the position *after* the end of the word.
+    while (pos < len && isWordChar(text[pos])) {
+        ++pos;
+    }
+
+    // The final position 'pos' is where the cursor should land.
+    editor_state.cursor_index = pos - 1;
 }
 
 void EditorCursor::moveWordBackward(const std::string &text)
 {
     size_t pos = editor_state.cursor_index;
+    // No need to check text.length() here, pos == 0 check handles empty string
 
-    // If at the beginning, wrap around to the end
-    if (pos == 0)
-        pos = text.length();
+    if (pos == 0) {
+        return; // Already at the beginning
+    }
 
-    // Move back to the start of the current word
-    while (pos > 0 && !std::isalnum(text[pos - 1]))
-        pos--;
-    while (pos > 0 && std::isalnum(text[pos - 1]))
-        pos--;
+    // Phase 1: Skip any non-word characters immediately *before* the cursor.
+    // We look at text[pos - 1]. This ensures that if we start like
+    // "word1 |word2" (cursor at '|') we skip the space first.
+    while (pos > 0 && !isWordChar(text[pos - 1])) {
+        --pos;
+    }
 
-    editor_state.cursor_index = pos;
-    editor_state.selection_start = editor_state.selection_end = pos;
+    // Phase 2: Skip the word characters of the word we just landed before
+    // (or the word we were already in if Phase 1 didn't move).
+    // This moves the cursor to the position *at the beginning* of that word.
+    while (pos > 0 && isWordChar(text[pos - 1])) {
+        --pos;
+    }
+
+    // The final position 'pos' is the beginning of the word we skipped over.
+    editor_state.cursor_index = pos + 1;
 }
 
 float EditorCursor::getCursorYPosition(float line_height)
@@ -292,15 +314,15 @@ void EditorCursor::processCursorJump(std::string &text, CursorVisibility &ensure
     }
 }
 
-void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible, bool shift_pressed)
+void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible)
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_W)) {
-        if (shift_pressed) {
-            moveWordBackward(text);
-        } else {
-            moveWordForward(text);
-        }
-        ensure_cursor_visible.horizontal = true;
-        ensure_cursor_visible.vertical = true;
+
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
+        moveWordBackward(text);
     }
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
+        moveWordForward(text);
+    }
+    ensure_cursor_visible.horizontal = true;
+    ensure_cursor_visible.vertical = true;
 }
