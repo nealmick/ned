@@ -2,6 +2,7 @@
 #include "editor_keyboard.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#include "../lsp/lsp_autocomplete.h"
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
 #include "../lsp/lsp_symbol_info.h"
@@ -294,6 +295,17 @@ void EditorKeyboard::handleEditorKeyboardInput()
 
                 // Call LSP goto definition
                 gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_L)) {
+
+                // Get current line number from editor_state
+                int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+
+                // Get character offset in current line
+                int line_start = editor_state.editor_content_lines[current_line];
+                int char_offset = editor_state.cursor_index - line_start;
+
+                gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile, current_line, char_offset);
             }
         }
     }

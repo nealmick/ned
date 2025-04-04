@@ -496,7 +496,6 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 void Ned::renderMainWindow()
 {
     handleKeyboardShortcuts();
-
     if (gTerminal.isTerminalVisible()) {
         gTerminal.render();
         return;
