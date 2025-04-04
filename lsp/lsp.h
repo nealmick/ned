@@ -15,11 +15,11 @@ class EditorLSP
     bool initialize(const std::string &workspacePath);
     void didOpen(const std::string &filePath, const std::string &content);
     void didChange(const std::string &filePath, int version);
+    int getNextRequestId() { return ++currentRequestId; }
 
   private:
     // Helper methods
     std::string escapeJSON(const std::string &s) const;
-    int getNextRequestId() { return ++currentRequestId; }
 
     // Request tracking
     int currentRequestId = 1000;

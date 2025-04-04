@@ -260,14 +260,11 @@ void Settings::renderSettingsWindow()
     wasFocused = isFocused;
 
     // Detect clicks outside this window
-    if (ImGui::IsMouseClicked(0)) {
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         ImVec2 mousePos = ImGui::GetMousePos();
-        ImVec2 windowPos = ImGui::GetWindowPos();
-        ImVec2 windowSize = ImGui::GetWindowSize();
-
-        bool isOutside = (mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) || mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y));
-
-        if (isOutside && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopup)) {
+        ImVec2 currentWindowPos = ImGui::GetWindowPos();
+        ImVec2 currentWindowSize = ImGui::GetWindowSize();
+        if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) && (mousePos.x < currentWindowPos.x || mousePos.x > currentWindowPos.x + currentWindowSize.x || mousePos.y < currentWindowPos.y || mousePos.y > currentWindowPos.y + currentWindowSize.y)) {
             showSettingsWindow = false;
             saveSettings();
         }
