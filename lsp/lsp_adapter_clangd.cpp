@@ -100,6 +100,11 @@ bool LSPAdapterClangd::initialize(const std::string &workspacePath)
                     "textDocument": {
                         "definition": {
                             "dynamicRegistration": true
+                        },
+                        "completion": {
+                            "completionItem": {
+                                "sortTextSupport": true
+                            }
                         }
                     }
                 }

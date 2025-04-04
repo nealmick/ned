@@ -134,7 +134,7 @@ void EditorRender::renderLineBackground(int line_num, int start_visible_line, in
         return; // Line is not visible
     }
 
-    const ImU32 highlight_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.18f, 0.18f, 0.35f));
+    const ImU32 highlight_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.18f, 0.18f, 0.3f));
     ImVec2 window_pos = ImGui::GetWindowPos();
     float window_width = ImGui::GetWindowWidth();
 

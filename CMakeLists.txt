@@ -117,6 +117,7 @@ add_executable(ned
     lsp/lsp_goto_def.cpp
     lsp/lsp_goto_ref.cpp
     lsp/lsp_symbol_info.cpp
+    lsp/lsp_autocomplete.cpp
     
     editor/editor_types.h
     editor/editor_utils.h

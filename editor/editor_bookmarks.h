@@ -110,7 +110,23 @@ class Bookmarks
 
     inline void renderBookmarksWindow()
     {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            ImVec2 mousePos = ImGui::GetMousePos();
+            ImVec2 currentWindowPos = ImGui::GetWindowPos();
+            ImVec2 currentWindowSize = ImGui::GetWindowSize();
+            if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) && (mousePos.x < currentWindowPos.x || mousePos.x > currentWindowPos.x + currentWindowSize.x || mousePos.y < currentWindowPos.y || mousePos.y > currentWindowPos.y + currentWindowSize.y)) {
+                showBookmarksWindow = false;
+                editor_state.block_input = false;
+            }
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            showBookmarksWindow = false;
+            editor_state.block_input = false;
+        }
+
         if (showBookmarksWindow) {
+            editor_state.block_input = true;
+
             ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
@@ -141,7 +157,7 @@ class Bookmarks
             ImGui::EndChild();
 
             ImGui::Separator();
-            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+B to close this window");
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Escape to close this window");
 
             ImGui::End();
 

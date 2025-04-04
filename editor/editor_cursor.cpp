@@ -235,7 +235,6 @@ float EditorCursor::getCursorYPosition(float line_height)
     int cursor_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
     return cursor_line * line_height;
 }
-
 float EditorCursor::getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos)
 {
     float x = text_pos.x;
