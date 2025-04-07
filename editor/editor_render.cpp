@@ -7,6 +7,7 @@
 #include "editor_render.h"
 #include "../files/file_finder.h"
 #include "../lsp/lsp.h"
+#include "../lsp/lsp_autocomplete.h"
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
 #include "../lsp/lsp_symbol_info.h"
@@ -46,6 +47,7 @@ void EditorRender::renderEditorFrame()
     if (gLSPGotoRef.hasReferenceOptions()) {
         gLSPGotoRef.renderReferenceOptions();
     }
+
     gLSPSymbolInfo.renderSymbolInfo();
     // End the editor child window
     ImGui::EndChild();
