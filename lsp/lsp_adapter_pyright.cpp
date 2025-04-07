@@ -110,7 +110,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
                         },
                         "completion": {
                             "completionItem": {
-                                "snippetSupport": true
+                                "snippetSupport": true,
+                                "insertReplaceSupport": true
                             }
                         }
                     },

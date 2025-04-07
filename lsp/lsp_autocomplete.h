@@ -16,8 +16,11 @@ struct CompletionDisplayItem
     std::string detail;
     std::string insertText;
     int kind;
+    int startLine = -1;
+    int startChar = -1;
+    int endLine = -1;
+    int endChar = -1;
 };
-
 class LSPAutocomplete
 {
   public:
@@ -54,6 +57,8 @@ class LSPAutocomplete
     bool processResponse(const std::string &response, int requestId);
     void parseCompletionResult(const json &result);
     void updatePopupPosition();
+
+    void insertText(int row_start, int col__start, int row_end, int col__end, std::string text);
 };
 
 // Global instance

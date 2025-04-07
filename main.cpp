@@ -9,7 +9,6 @@ int main()
     if (!ned.initialize()) {
         return -1;
     }
-
     std::cout << "NED initialized successfully" << '\n';
     ned.run();
     return 0;

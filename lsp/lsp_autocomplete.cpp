@@ -66,7 +66,15 @@ bool LSPAutocomplete::handleInputAndCheckClose()
         if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size()) {
             blockEnter = true;
             const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
-            std::cout << "[renderCompletions] Selected (Enter): " << selected_item.insertText << std::endl;
+
+            // Simplified debug output
+            std::cout << "\n---ENTER PRESSED---\n";
+            std::cout << "Selected text: " << selected_item.insertText << std::endl;
+            std::cout << "Start position: L" << selected_item.startLine << " C" << selected_item.startChar << std::endl;
+            std::cout << "End position: L" << selected_item.endLine << " C" << selected_item.endChar << std::endl;
+            std::cout.flush(); // Force immediate output
+            insertText(selected_item.startLine, selected_item.startChar, selected_item.endLine, selected_item.endChar, selected_item.insertText);
+
             // TODO: Insert text
         }
         closeAndUnblock = true;
@@ -74,10 +82,14 @@ bool LSPAutocomplete::handleInputAndCheckClose()
         if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size()) {
             blockTab = true;
             const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
-            std::cout << "[renderCompletions] Selected (Tab): " << selected_item.insertText << std::endl;
-            // TODO: Insert text
+            // Simplified debug output
+            std::cout << "\n---tab PRESSED---\n";
+            std::cout << "Selected text: " << selected_item.insertText << std::endl;
+            std::cout << "Start position: L" << selected_item.startLine << " C" << selected_item.startChar << std::endl;
+            std::cout << "End position: L" << selected_item.endLine << " C" << selected_item.endChar << std::endl;
+            std::cout.flush(); // Force immediate output
+            insertText(selected_item.startLine, selected_item.startChar, selected_item.endLine, selected_item.endChar, selected_item.insertText);
         }
-        std::cout << "[renderCompletions] Tab pressed, hiding completions." << std::endl;
         closeAndUnblock = true;
     }
 
@@ -105,6 +117,42 @@ bool LSPAutocomplete::handleInputAndCheckClose()
     }
 
     return false;
+}
+
+void LSPAutocomplete::insertText(int row_start, int col__start, int row_end, int col__end, std::string text)
+{
+
+    int start_index = editor_state.editor_content_lines[row_start] + col__start;
+    int end_index = editor_state.editor_content_lines[row_end] + col__end;
+    if (start_index < 0 || end_index < 0 || start_index > end_index) {
+        std::cerr << "Invalid positions - using cursor insertion" << std::endl;
+        start_index = end_index = editor_state.cursor_index;
+    }
+    std::cout << "index start" << start_index << "index_end" << end_index << std::endl;
+
+    // Delete existing content in both buffers
+    if (start_index <= end_index && end_index <= editor_state.fileContent.size()) {
+        // Erase from fileContent
+        editor_state.fileContent.erase(start_index, end_index - start_index);
+
+        // Erase from fileColors
+        auto colors_begin = editor_state.fileColors.begin() + start_index;
+        auto colors_end = editor_state.fileColors.begin() + end_index;
+        editor_state.fileColors.erase(colors_begin, colors_end);
+    }
+
+    // Insert new text and colors
+    if (!text.empty()) {
+        // Insert into fileContent
+        editor_state.fileContent.insert(start_index, text);
+
+        // Insert into fileColors (using default color for new text)
+        ImVec4 default_color(1.0f, 1.0f, 1.0f, 1.0f); // White as placeholder
+        editor_state.fileColors.insert(editor_state.fileColors.begin() + start_index, text.size(), default_color);
+    }
+    editor_state.cursor_index = start_index + text.size();
+    editor_state.text_changed = true;
+    gEditorHighlight.highlightContent();
 }
 
 void LSPAutocomplete::calculateWindowGeometry(ImVec2 &outWindowSize, ImVec2 &outSafePos)
@@ -297,7 +345,6 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId, const std::str
     })";
 }
 
-// Helper 2: Process a single response (returns true if handled)
 bool LSPAutocomplete::processResponse(const std::string &response, int requestId)
 {
     try {
@@ -337,8 +384,6 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
         return true;
     }
 }
-
-// Helper 3: Parse the "result" portion of the response
 void LSPAutocomplete::parseCompletionResult(const json &result)
 {
     std::vector<json> items_json;
@@ -365,7 +410,7 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 
     std::cout << "\033[32mFound " << items_json.size() << " completions" << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
 
-    // Parse items
+    // Parse items with detailed logging
     currentCompletionItems.clear();
     currentCompletionItems.reserve(items_json.size());
 
@@ -374,13 +419,50 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
         newItem.label = item_json.value("label", "[No Label]");
         newItem.detail = item_json.value("detail", "");
         newItem.kind = item_json.value("kind", 0);
+        newItem.startLine = -1;
+        newItem.startChar = -1;
+        newItem.endLine = -1;
+        newItem.endChar = -1;
 
-        if (item_json.contains("textEdit") && item_json["textEdit"].contains("newText")) {
-            newItem.insertText = item_json["textEdit"]["newText"];
-        } else if (item_json.contains("insertText")) {
-            newItem.insertText = item_json["insertText"];
+        std::string positionInfo;
+
+        if (item_json.contains("textEdit") && item_json["textEdit"].is_object()) {
+            const auto &textEdit = item_json["textEdit"];
+            if (textEdit.contains("newText") && textEdit["newText"].is_string()) {
+                newItem.insertText = textEdit["newText"].get<std::string>();
+
+                // Extract and store position data
+                if (textEdit.contains("range") && textEdit["range"].is_object()) {
+                    const auto &range = textEdit["range"];
+                    if (range.contains("start") && range["start"].is_object() && range.contains("end") && range["end"].is_object()) {
+                        const auto &start = range["start"];
+                        const auto &end = range["end"];
+
+                        // Store start position
+                        if (start.contains("line") && start.contains("character")) {
+                            newItem.startLine = start["line"].get<int>();
+                            newItem.startChar = start["character"].get<int>();
+                        }
+
+                        // Store end position
+                        if (end.contains("line") && end.contains("character")) {
+                            newItem.endLine = end["line"].get<int>();
+                            newItem.endChar = end["character"].get<int>();
+                        }
+
+                        // Build position info string
+                        if (newItem.startLine != -1) {
+                            positionInfo = "Replace from [L" + std::to_string(newItem.startLine) + ":C" + std::to_string(newItem.startChar) + "] to [L" + std::to_string(newItem.endLine) + ":C" + std::to_string(newItem.endChar) + "]";
+                        }
+                    }
+                }
+            }
+        } else if (item_json.contains("insertText") && item_json["insertText"].is_string()) {
+            newItem.insertText = item_json["insertText"].get<std::string>();
+            positionInfo = "Insert at cursor position";
         } else {
             newItem.insertText = newItem.label;
+            positionInfo = "Label fallback (no position)";
         }
 
         currentCompletionItems.push_back(newItem);
@@ -396,7 +478,6 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
     }
 }
 
-// Helper 4: Update popup position based on cursor
 void LSPAutocomplete::updatePopupPosition()
 {
     try {
@@ -412,7 +493,6 @@ void LSPAutocomplete::updatePopupPosition()
     }
 }
 
-// Refactored main function
 void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, int character)
 {
     if (!gLSPManager.isInitialized()) {
