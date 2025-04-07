@@ -271,7 +271,148 @@ void LSPAutocomplete::renderCompletions()
     ImGui::PopStyleVar(3);
     finalizeRenderState();
 }
+std::string LSPAutocomplete::formCompletionRequest(int requestId, const std::string &filePath, int line, int character)
+{
+    return std::string(R"({
+        "jsonrpc": "2.0",
+        "id": )") +
+           std::to_string(requestId) +
+           R"(,
+        "method": "textDocument/completion",
+        "params": {
+            "textDocument": {
+                "uri": "file://)" +
+           filePath + R"("
+            },
+            "position": {
+                "line": )" +
+           std::to_string(line) + R"(,
+                "character": )" +
+           std::to_string(character) + R"(
+            },
+            "context": {
+                "triggerKind": 2
+            }
+        }
+    })";
+}
 
+// Helper 2: Process a single response (returns true if handled)
+bool LSPAutocomplete::processResponse(const std::string &response, int requestId)
+{
+    try {
+        json j = json::parse(response);
+
+        // Check if response matches our request ID
+        if (!j.contains("id") || !j["id"].is_number_integer() || j["id"].get<int>() != requestId) {
+            return false;
+        }
+
+        std::cout << "\033[32mLSP Autocomplete:\033[0m Received response for ID " << requestId << std::endl;
+
+        // Handle errors
+        if (j.contains("error")) {
+            std::cerr << "\033[31mLSP Autocomplete:\033[0m Error: " << j["error"].dump(2) << std::endl;
+            currentCompletionItems.clear();
+            showCompletions = false;
+            return true;
+        }
+
+        // Process result
+        if (j.contains("result")) {
+            parseCompletionResult(j["result"]);
+            return true;
+        }
+
+        // Handle missing result
+        std::cout << "\033[31mLSP Autocomplete:\033[0m Response missing 'result' field." << std::endl;
+        currentCompletionItems.clear();
+        showCompletions = false;
+        return true;
+
+    } catch (const json::exception &e) {
+        std::cerr << "\033[31mLSP Autocomplete:\033[0m JSON error: " << e.what() << std::endl;
+        currentCompletionItems.clear();
+        showCompletions = false;
+        return true;
+    }
+}
+
+// Helper 3: Parse the "result" portion of the response
+void LSPAutocomplete::parseCompletionResult(const json &result)
+{
+    std::vector<json> items_json;
+    bool is_incomplete = false;
+
+    if (result.is_array()) {
+        items_json = result.get<std::vector<json>>();
+    } else if (result.is_object()) {
+        if (result.contains("items") && result["items"].is_array()) {
+            items_json = result["items"].get<std::vector<json>>();
+        }
+        is_incomplete = result.value("isIncomplete", false);
+    } else if (result.is_null()) {
+        std::cout << "\033[33mLSP Autocomplete:\033[0m No completions found (result is null)." << std::endl;
+        currentCompletionItems.clear();
+        showCompletions = false;
+        return;
+    } else {
+        std::cout << "\033[31mLSP Autocomplete:\033[0m Unexpected result format: " << result.type_name() << std::endl;
+        currentCompletionItems.clear();
+        showCompletions = false;
+        return;
+    }
+
+    std::cout << "\033[32mFound " << items_json.size() << " completions" << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
+
+    // Parse items
+    currentCompletionItems.clear();
+    currentCompletionItems.reserve(items_json.size());
+
+    for (const auto &item_json : items_json) {
+        CompletionDisplayItem newItem;
+        newItem.label = item_json.value("label", "[No Label]");
+        newItem.detail = item_json.value("detail", "");
+        newItem.kind = item_json.value("kind", 0);
+
+        if (item_json.contains("textEdit") && item_json["textEdit"].contains("newText")) {
+            newItem.insertText = item_json["textEdit"]["newText"];
+        } else if (item_json.contains("insertText")) {
+            newItem.insertText = item_json["insertText"];
+        } else {
+            newItem.insertText = newItem.label;
+        }
+
+        currentCompletionItems.push_back(newItem);
+    }
+
+    // Update UI state
+    if (!currentCompletionItems.empty()) {
+        updatePopupPosition();
+        showCompletions = true;
+        selectedCompletionIndex = 0;
+    } else {
+        showCompletions = false;
+    }
+}
+
+// Helper 4: Update popup position based on cursor
+void LSPAutocomplete::updatePopupPosition()
+{
+    try {
+        int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
+        float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
+        completionPopupPos = editor_state.text_pos;
+        completionPopupPos.x = cursor_x;
+        completionPopupPos.y += cursor_line * editor_state.line_height;
+        std::cout << ">>> [requestCompletion] Stored Anchor Pos: (" << completionPopupPos.x << ", " << completionPopupPos.y << ")" << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "!!! ERROR calculating cursor pos: " << e.what() << std::endl;
+        completionPopupPos = ImVec2(0, 0);
+    }
+}
+
+// Refactored main function
 void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, int character)
 {
     if (!gLSPManager.isInitialized()) {
@@ -284,154 +425,34 @@ void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, i
         return;
     }
 
-    // *** Use the global ID generator from gEditorLSP ***
     int requestId = gEditorLSP.getNextRequestId();
     std::cout << "\033[35mLSP Autocomplete:\033[0m Requesting completions at line " << line << ", char " << character << " (ID: " << requestId << ")" << std::endl;
 
-    // Prepare JSON-RPC request (line/character are 0-based in LSP)
-    std::string request = std::string(R"({
-        "jsonrpc": "2.0",
-        "id": )") + std::to_string(requestId) +
-                          R"(,
-        "method": "textDocument/completion",
-        "params": {
-            "textDocument": {
-                "uri": "file://)" +
-                          filePath + R"("
-            },
-            "position": {
-                "line": )" +
-                          std::to_string(line) + R"(,
-                "character": )" +
-                          std::to_string(character) + R"(
-            },
-            "context": {
-                "triggerKind": 2
-            }
-        }
-    })";
-
+    // Form and send request
+    std::string request = formCompletionRequest(requestId, filePath, line, character);
     if (!gLSPManager.sendRequest(request)) {
         std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request" << std::endl;
         return;
     }
+
+    // Await response
     const int MAX_ATTEMPTS = 15;
-    const int WAIT_MS = 50; // Or your preferred wait time
+    const int WAIT_MS = 50;
     for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
         std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_MS));
         int contentLength = 0;
         std::string response = gLSPManager.readResponse(&contentLength);
+
         if (response.empty()) {
-            if (attempt == 0) {
+            if (attempt == 0)
                 std::cout << "\033[35mLSP Autocomplete:\033[0m Waiting..." << std::endl;
-            }
             continue;
         }
-        try {
-            json j = json::parse(response);
-            if (!j.contains("id") || !j["id"].is_number_integer() || j["id"].get<int>() != requestId) {
-                continue; // Skip other responses
-            }
 
-            std::cout << "\033[32mLSP Autocomplete:\033[0m Received response for ID " << requestId << std::endl;
-
-            if (j.contains("error")) {
-                std::cerr << "\033[31mLSP Autocomplete:\033[0m Error: " << j["error"].dump(2) << std::endl;
-                currentCompletionItems.clear(); // Clear items on error
-                showCompletions = false;
-                return;
-            }
-
-            if (j.contains("result")) {
-                json result = j["result"];
-                std::vector<json> items_json; // Temporary vector to hold json items
-                bool is_incomplete = false;
-
-                // --- Extract the list of items from JSON ---
-                if (result.is_array()) {
-                    items_json = result.get<std::vector<json>>();
-                } else if (result.is_object()) {
-                    if (result.contains("items") && result["items"].is_array()) {
-                        items_json = result["items"].get<std::vector<json>>();
-                    }
-                    is_incomplete = result.value("isIncomplete", false); // Check if list is incomplete
-                } else if (result.is_null()) {
-                    std::cout << "\033[33mLSP Autocomplete:\033[0m No completions found (result is null)." << std::endl;
-                    currentCompletionItems.clear(); // Clear just in case
-                    showCompletions = false;
-                    return; // Exit successfully, nothing to show
-                } else {
-                    std::cout << "\033[31mLSP Autocomplete:\033[0m Unexpected result format: " << result.type_name() << std::endl;
-                    currentCompletionItems.clear();
-                    showCompletions = false;
-                    return;
-                }
-
-                std::cout << "\033[32mFound " << items_json.size() << " completions" << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
-
-                // --- Clear previous items and parse new ones ---
-                currentCompletionItems.clear();
-                currentCompletionItems.reserve(items_json.size()); // Optional optimization
-
-                for (const auto &item_json : items_json) {
-                    CompletionDisplayItem newItem;
-
-                    // Extract label (required)
-                    newItem.label = item_json.value("label", "[No Label]");
-
-                    // Extract detail (optional)
-                    newItem.detail = item_json.value("detail", "");
-
-                    // Extract kind (optional, default to 0 or a 'Text' kind if defined)
-                    newItem.kind = item_json.value("kind", 0); // 0 is often 'Unknown' or not specified
-
-                    // Determine insertText (using LSP priority: textEdit > insertText > label)
-                    if (item_json.contains("textEdit") && item_json["textEdit"].is_object() && item_json["textEdit"].contains("newText") && item_json["textEdit"]["newText"].is_string()) {
-                        newItem.insertText = item_json["textEdit"]["newText"].get<std::string>();
-                    } else if (item_json.contains("insertText") && item_json["insertText"].is_string()) {
-                        newItem.insertText = item_json["insertText"].get<std::string>();
-                    } else // Fallback to label
-                    {
-                        newItem.insertText = newItem.label;
-                    }
-
-                    currentCompletionItems.push_back(newItem);
-                }
-
-                if (!currentCompletionItems.empty()) {
-                    try {
-                        int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-                        float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos, editor_state.fileContent, editor_state.cursor_index);
-                        completionPopupPos = editor_state.text_pos;
-                        completionPopupPos.x = cursor_x;
-                        completionPopupPos.y += cursor_line * editor_state.line_height;
-                        std::cout << ">>> [requestCompletion] Stored Anchor Pos: (" << completionPopupPos.x << ", " << completionPopupPos.y << ")" << std::endl;
-                    } catch (const std::exception &e) {
-                        std::cerr << "!!! ERROR calculating cursor pos in requestCompletion: " << e.what() << std::endl;
-                        completionPopupPos = ImVec2(0, 0); // Fallback on error
-                    }
-
-                    showCompletions = true;
-                    selectedCompletionIndex = 0; // Reset selection to the top
-
-                } else {
-                    showCompletions = false;
-                }
-
-                return; // Success (handled response)
-            } else {
-                std::cout << "\033[31mLSP Autocomplete:\033[0m Response missing 'result' field." << std::endl;
-                currentCompletionItems.clear();
-                showCompletions = false;
-                return;
-            }
-
-        } catch (const json::exception &e) {
-            std::cerr << "\033[31mLSP Autocomplete:\033[0m JSON error: " << e.what() << std::endl;
-            currentCompletionItems.clear();
-            showCompletions = false;
-            return;
+        if (processResponse(response, requestId)) {
+            return; // Handled successfully
         }
     }
+
     std::cout << "\033[31mLSP Autocomplete:\033[0m Timed out waiting for response ID " << requestId << "." << std::endl;
 }
