@@ -26,6 +26,7 @@
 
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#include "../lsp/lsp_autocomplete.h"
 #include "../util/settings.h"
 
 #include <algorithm>
@@ -37,6 +38,8 @@ EditorState editor_state;
 
 void Editor::textEditor()
 {
+    // process auto complete before edtior input....
+    gLSPAutocomplete.renderCompletions();
 
     setupEditorDisplay();
 

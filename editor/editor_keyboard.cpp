@@ -148,6 +148,10 @@ void EditorKeyboard::handleBackspaceKey()
 
 void EditorKeyboard::handleTextInput()
 {
+    if (gLSPAutocomplete.blockEnter) {
+        gLSPAutocomplete.blockEnter = false;
+        return;
+    }
     int input_start = editor_state.cursor_index;
     int input_end = editor_state.cursor_index;
 
@@ -245,7 +249,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
     bool shift_pressed = ImGui::GetIO().KeyShift;
 
     // block input if searching for file...
-    if (gFileFinder.showFFWindow) {
+    if (gFileFinder.showFFWindow || gLSPAutocomplete.blockTab) {
+        gLSPAutocomplete.blockTab = false;
         return;
     }
 
