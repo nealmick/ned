@@ -321,6 +321,13 @@ void LSPAutocomplete::renderCompletions()
 }
 std::string LSPAutocomplete::formCompletionRequest(int requestId, const std::string &filePath, int line, int character)
 {
+    // Determine if we're triggering after a '.' (common in Python)
+    bool is_triggered_by_dot = false;
+    if (editor_state.cursor_index > 0) {
+        char prev_char = editor_state.fileContent[editor_state.cursor_index - 1];
+        is_triggered_by_dot = (prev_char == '.');
+    }
+
     return std::string(R"({
         "jsonrpc": "2.0",
         "id": )") +
@@ -339,7 +346,10 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId, const std::str
            std::to_string(character) + R"(
             },
             "context": {
-                "triggerKind": 2
+                "triggerKind": )" +
+           (is_triggered_by_dot ? "1" : "2") + R"(,
+                "triggerCharacter": )" +
+           (is_triggered_by_dot ? "\".\"" : "null") + R"(
             }
         }
     })";
@@ -410,7 +420,6 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 
     std::cout << "\033[32mFound " << items_json.size() << " completions" << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
 
-    // Parse items with detailed logging
     currentCompletionItems.clear();
     currentCompletionItems.reserve(items_json.size());
 
@@ -424,45 +433,70 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
         newItem.endLine = -1;
         newItem.endChar = -1;
 
+        bool hasTextEdit = false;
         std::string positionInfo;
 
+        // First try to get textEdit data
         if (item_json.contains("textEdit") && item_json["textEdit"].is_object()) {
             const auto &textEdit = item_json["textEdit"];
             if (textEdit.contains("newText") && textEdit["newText"].is_string()) {
                 newItem.insertText = textEdit["newText"].get<std::string>();
 
-                // Extract and store position data
                 if (textEdit.contains("range") && textEdit["range"].is_object()) {
                     const auto &range = textEdit["range"];
                     if (range.contains("start") && range["start"].is_object() && range.contains("end") && range["end"].is_object()) {
                         const auto &start = range["start"];
                         const auto &end = range["end"];
 
-                        // Store start position
-                        if (start.contains("line") && start.contains("character")) {
-                            newItem.startLine = start["line"].get<int>();
-                            newItem.startChar = start["character"].get<int>();
-                        }
+                        newItem.startLine = start.value("line", -1);
+                        newItem.startChar = start.value("character", -1);
+                        newItem.endLine = end.value("line", -1);
+                        newItem.endChar = end.value("character", -1);
 
-                        // Store end position
-                        if (end.contains("line") && end.contains("character")) {
-                            newItem.endLine = end["line"].get<int>();
-                            newItem.endChar = end["character"].get<int>();
-                        }
-
-                        // Build position info string
                         if (newItem.startLine != -1) {
                             positionInfo = "Replace from [L" + std::to_string(newItem.startLine) + ":C" + std::to_string(newItem.startChar) + "] to [L" + std::to_string(newItem.endLine) + ":C" + std::to_string(newItem.endChar) + "]";
                         }
                     }
                 }
+                hasTextEdit = true;
             }
-        } else if (item_json.contains("insertText") && item_json["insertText"].is_string()) {
-            newItem.insertText = item_json["insertText"].get<std::string>();
-            positionInfo = "Insert at cursor position";
-        } else {
-            newItem.insertText = newItem.label;
-            positionInfo = "Label fallback (no position)";
+        }
+
+        // If no textEdit, calculate word boundaries
+        if (!hasTextEdit) {
+            int cursor_pos = editor_state.cursor_index;
+
+            // Find current word boundaries
+            int word_start = cursor_pos;
+            int word_end = cursor_pos;
+
+            // Walk backwards to find word start (include underscores for Python)
+            while (word_start > 0 && (isalnum(editor_state.fileContent[word_start - 1]) || editor_state.fileContent[word_start - 1] == '_')) {
+                word_start--;
+            }
+
+            // Walk forwards to find word end
+            while (word_end < editor_state.fileContent.size() && (isalnum(editor_state.fileContent[word_end]) || editor_state.fileContent[word_end] == '_')) {
+                word_end++;
+            }
+
+            // Convert to line/character positions
+            auto [startLine, startChar] = getLineAndCharFromIndex(word_start);
+            auto [endLine, endChar] = getLineAndCharFromIndex(word_end);
+
+            newItem.startLine = startLine;
+            newItem.startChar = startChar;
+            newItem.endLine = endLine;
+            newItem.endChar = endChar;
+
+            // Get insert text from either insertText or label
+            if (item_json.contains("insertText") && item_json["insertText"].is_string()) {
+                newItem.insertText = item_json["insertText"].get<std::string>();
+            } else {
+                newItem.insertText = newItem.label;
+            }
+
+            positionInfo = "Replace current word";
         }
 
         currentCompletionItems.push_back(newItem);

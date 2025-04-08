@@ -59,6 +59,25 @@ class LSPAutocomplete
     void updatePopupPosition();
 
     void insertText(int row_start, int col__start, int row_end, int col__end, std::string text);
+
+    std::pair<int, int> getLineAndCharFromIndex(int index) const
+    {
+        if (editor_state.editor_content_lines.empty() || index < 0)
+            return {0, 0};
+
+        // Find the line containing this index
+        int line = 0;
+        for (; line < static_cast<int>(editor_state.editor_content_lines.size()); ++line) {
+            if (editor_state.editor_content_lines[line] > index) {
+                break;
+            }
+        }
+        line = std::max(0, line - 1);
+
+        // Calculate character position within line
+        int line_start = editor_state.editor_content_lines[line];
+        return {line, index - line_start};
+    }
 };
 
 // Global instance
