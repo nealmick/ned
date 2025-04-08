@@ -148,7 +148,7 @@ void EditorKeyboard::handleBackspaceKey()
 
 void EditorKeyboard::handleTextInput()
 {
-    if (gLSPAutocomplete.blockEnter) {
+    if (gLSPAutocomplete.blockEnter || editor_state.block_input) {
         gLSPAutocomplete.blockEnter = false;
         return;
     }
