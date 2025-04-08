@@ -390,10 +390,10 @@ void LSPGotoRef::handleReferenceSelection()
 
     const auto &selected = referenceLocations[selectedReferenceIndex];
     std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1) << std::endl;
+    std::cout << "Input Block... " << editor_state.block_input << std::endl;
 
     // Close window first
     showReferenceOptions = false;
-    editor_state.block_input = false;
 
     if (selected.uri != gFileExplorer.currentFile) {
         gFileExplorer.loadFileContent(selected.uri, nullptr);
@@ -417,4 +417,5 @@ void LSPGotoRef::handleReferenceSelection()
     // editor_state.ensure_cursor_visible.horizontal = true;
     // editor_state.ensure_cursor_visible.vertical = true;
     editor_state.center_cursor_vertical = true;
+    editor_state.block_input = false;
 }
