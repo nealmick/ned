@@ -7,6 +7,7 @@ Description: Main application class implementation for NED text editor.
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#include "../ai/ai_tab.h"
 #include "ned.h"
 
 #include "editor/editor_bookmarks.h"
@@ -381,55 +382,53 @@ void Ned::renderEditorHeader(ImFont *currentFont)
     ImGui::BeginGroup();
     ImGui::PushFont(currentFont);
 
-    // Determine the base icon size (equal to font size, or adjust with a multiplier)
+    // Determine the base icon size (equal to font size)
     float iconSize = ImGui::GetFontSize();
     std::string currentFile = gFileExplorer.currentFile;
 
-    // Render the left part: file icon (if available) and file path text.
+    // Render left side (file icon and name)
     if (currentFile.empty()) {
         ImGui::Text("Editor - No file selected");
     } else {
-        // Get the file type icon.
         ImTextureID fileIcon = gFileExplorer.getIconForFile(currentFile);
         if (fileIcon) {
-            // Calculate the center point of the line
+            // Vertical centering for file icon
             float textHeight = ImGui::GetTextLineHeight();
-            float lineCenterY = ImGui::GetCursorPosY() + (textHeight / 2.0f);
-
-            // Position the icon so its center aligns with the line center
-            float iconTopY = lineCenterY - (iconSize / 2.0f);
+            float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
             ImGui::SetCursorPosY(iconTopY);
-
             ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
             ImGui::SameLine();
-
-            // Reset cursor Y for text
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (iconSize - textHeight) / 2.0f);
         }
         ImGui::Text("Editor - %s", currentFile.c_str());
     }
 
-    // Now, to place the settings toggle on the far right,
-    // get the available width of the current window.
-    float availableWidth = ImGui::GetWindowContentRegionMax().x;
-    float rightPadding = 10.0f;               // Add padding from the right edge
-    float adjustedIconSize = iconSize * 0.8f; // Make the icon slightly smaller
+    // Right-aligned status area
+    const float rightPadding = 25.0f;                           // Space from window edge
+    const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
 
-    // Calculate the line's center point
-    float textHeight = ImGui::GetTextLineHeight();
-    float lineCenterY = ImGui::GetCursorPosY() - textHeight + (textHeight / 2.0f);
+    // Position at far right edge
+    ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
 
-    // Position the icon so its center aligns with the line center
-    float iconTopY = lineCenterY - (adjustedIconSize / 2.0f);
+    // Status group
+    ImGui::BeginGroup();
+    {
+        // Vertical centering
+        float textHeight = ImGui::GetTextLineHeight();
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f);
 
-    // Move the cursor to a position near the far right with padding
-    ImGui::SameLine(availableWidth - adjustedIconSize - rightPadding);
+        // Brain icon (only visible when active)
+        if (gAITab.request_active) {
+            ImGui::Image(gFileExplorer.getIcon("brain"), ImVec2(iconSize, iconSize));
+        } else {
+            // Invisible placeholder to maintain layout
+            ImGui::InvisibleButton("##brain-placeholder", ImVec2(iconSize, iconSize));
+        }
+        ImGui::SameLine();
 
-    // Apply vertical centering by directly setting cursor Y
-    ImGui::SetCursorPosY(iconTopY);
-
-    // Render the settings icon
-    renderSettingsIcon(adjustedIconSize * 0.80f);
+        // Settings icon (always in same position)
+        renderSettingsIcon(iconSize * 0.8f);
+    }
+    ImGui::EndGroup();
 
     ImGui::PopFont();
     ImGui::EndGroup();
@@ -443,6 +442,11 @@ void Ned::renderSettingsIcon(float iconSize)
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+
+    // Vertical centering
+    float textHeight = ImGui::GetTextLineHeight();
+    float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
+    ImGui::SetCursorPosY(iconTopY);
 
     if (!settingsOpen) {
         ImVec2 cursor_pos = ImGui::GetCursorPos();

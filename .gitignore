@@ -5,6 +5,7 @@
 Ned.app
 Ned.dmg
 
+.openrouter
 
 # LSP specific files
 compile_commands.json
