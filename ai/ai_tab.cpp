@@ -1,6 +1,7 @@
 #include "ai_tab.h"
+#include "../editor/editor.h"
+#include "../files/files.h"
 #include "ai_open_router.h"
-#include "editor.h"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -82,7 +83,6 @@ void AITab::tab_complete()
         request_active = false;
     });
 }
-
 std::string AITab::collect_context() const
 {
     const int cursor_pos = editor_state.cursor_index;
@@ -96,10 +96,10 @@ std::string AITab::collect_context() const
         }
     }
 
-    // Calculate line range (100 lines before/after)
+    // Reduced context window for better focus (10 lines before, 5 after)
     const int total_lines = editor_state.editor_content_lines.size();
-    const int start_line = std::max(0, current_line - 100);
-    const int end_line = std::min(total_lines - 1, current_line + 100);
+    const int start_line = std::max(0, current_line - 10);
+    const int end_line = std::min(total_lines - 1, current_line + 5);
 
     // Get line start/end indices
     const int context_start = editor_state.editor_content_lines[start_line];
@@ -111,23 +111,90 @@ std::string AITab::collect_context() const
     // Extract the context string
     std::string context = editor_state.fileContent.substr(context_start, context_end - context_start);
 
-    // Build prompt with cursor marker
-    std::string prompt = "Complete the code after the CURSOR marker.\n"
-                         "Context:\n```\n" +
-                         context.substr(0, cursor_pos - context_start) + "/* CURSOR */" + context.substr(cursor_pos - context_start) + "\n```\nProvide only the completion code without explanations.";
+    // Insert unambiguous cursor marker with newlines for visibility
+    const size_t cursor_pos_in_context = cursor_pos - context_start;
+    context.insert(cursor_pos_in_context, "\n [[CURSOR]]\n");
+
+    // Format prompt with clear structure
+    std::string prompt = "You are a code completion assistant. Replace [[CURSOR]] with appropriate code.\n"
+                         "File: " +
+                         gFileExplorer.currentFile +
+                         "\n"
+                         "Code:\n"
+                         "```" +
+                         get_file_extension() + "\n" + context +
+                         "\n```\n"
+                         "Respond only with the code that should replace [[CURSOR]]. No markdown, no explanations.\n";
 
     std::cout << "\n=== Generated Prompt ===\n" << prompt << "\n=======================\n";
 
     return prompt;
 }
 
+// Helper to get file extension for syntax highlighting
+std::string AITab::get_file_extension() const
+{
+    size_t dot_pos = gFileExplorer.currentFile.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        return gFileExplorer.currentFile.substr(dot_pos + 1);
+    }
+    return "txt";
+}
+
 void AITab::update()
 {
     if (worker.joinable() && request_done) {
         worker.join();
+
         std::cout << "\n=== AI Response ===" << std::endl;
         std::cout << response << std::endl;
-        std::cout << "===================\n" << std::endl;
+        std::cout << "===================\n";
+
+        if (!response.empty() && response.find("error") == std::string::npos) {
+            insert(response);
+        } else {
+            std::cerr << "Error in AI response: " << response << "\n";
+        }
+
         request_done = false;
     }
+}
+
+void AITab::insert(const std::string &code)
+{
+    if (code.empty()) {
+        std::cerr << "No code to insert\n";
+        return;
+    }
+
+    // Remove trailing newline if present
+    std::string cleaned_code = code;
+    if (!cleaned_code.empty() && cleaned_code.back() == '\n') {
+        cleaned_code.pop_back();
+    }
+
+    int insert_pos = editor_state.cursor_index;
+    int new_cursor_pos = insert_pos + cleaned_code.size();
+
+    // Handle selection replacement
+    if (editor_state.selection_start != editor_state.selection_end) {
+        int start = std::min(editor_state.selection_start, editor_state.selection_end);
+        int end = std::max(editor_state.selection_start, editor_state.selection_end);
+
+        editor_state.fileContent.replace(start, end - start, cleaned_code);
+        editor_state.fileColors.erase(editor_state.fileColors.begin() + start, editor_state.fileColors.begin() + end);
+        insert_pos = start;
+        new_cursor_pos = start + cleaned_code.size();
+    } else {
+        editor_state.fileContent.insert(insert_pos, cleaned_code);
+        editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos, cleaned_code.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+
+    // Update editor state
+    editor_state.cursor_index = new_cursor_pos;
+    editor_state.selection_start = editor_state.selection_end = new_cursor_pos;
+    editor_state.text_changed = true;
+
+    // Trigger syntax highlighting
+    gEditorHighlight.highlightContent();
 }

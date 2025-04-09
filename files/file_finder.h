@@ -41,6 +41,7 @@ class FileFinder
     void renderFileList();
 
     void handleSelectionChange();
+    int orginal_cursor_index;
 
   public:
     bool showFFWindow = false;

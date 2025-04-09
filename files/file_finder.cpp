@@ -197,6 +197,7 @@ void FileFinder::renderWindow()
     // Toggle with Ctrl+P
     bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
     if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_P)) {
+        orginal_cursor_index = editor_state.cursor_index;
         toggleWindow();
         return;
     }
@@ -206,6 +207,8 @@ void FileFinder::renderWindow()
             gFileExplorer.loadFileContent(originalFile);
         }
         toggleWindow();
+        editor_state.cursor_index = orginal_cursor_index;
+
         return;
     }
 
