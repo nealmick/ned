@@ -33,10 +33,10 @@ git submodule init
 git submodule update
 
 #Mac OS Intel and ARM
-brew install clang-format cmake llvm glfw glew pkg-config
+brew install clang-format cmake llvm glfw glew pkg-config curl
 
 #Ubuntu may require patching logic
-sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential
+sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential curl
 ```
 
 Building the Project

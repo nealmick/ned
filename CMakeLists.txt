@@ -11,6 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(CURL REQUIRED)
+
 
 # Explicitly set GLEW paths
 # Find GLEW properly
@@ -118,6 +120,10 @@ add_executable(ned
     lsp/lsp_goto_ref.cpp
     lsp/lsp_symbol_info.cpp
     lsp/lsp_autocomplete.cpp
+
+
+    ai/ai_tab.cpp
+    ai/ai_open_router.cpp
     
     editor/editor_types.h
     editor/editor_utils.h
@@ -158,6 +164,7 @@ target_link_libraries(ned PRIVATE
     nfd
     util
     ${GLEW_LIBRARIES}
+    CURL::libcurl 
 )
 
 if(APPLE)
