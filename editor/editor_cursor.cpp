@@ -315,7 +315,6 @@ void EditorCursor::processCursorJump(std::string &text, CursorVisibility &ensure
 
 void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensure_cursor_visible)
 {
-
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
         moveWordBackward(text);
     }
