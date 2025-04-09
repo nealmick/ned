@@ -1,5 +1,6 @@
 
 #include "editor_keyboard.h"
+#include "../ai/ai_tab.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
 #include "../lsp/lsp_autocomplete.h"
@@ -265,6 +266,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
             return;
 
         if (ctrl_pressed) {
+            if (ImGui::IsKeyPressed(ImGuiKey_G)) {
+                gAITab.tab_complete();
+            }
             processFontSizeAdjustment();
             processSelectAll();
             gEditorKeyboard.processUndoRedo();

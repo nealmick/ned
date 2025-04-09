@@ -25,7 +25,7 @@ bool LSPAutocomplete::shouldRender()
 {
     if (!showCompletions || currentCompletionItems.empty()) {
 
-        //remvoed due to turning off blocking every frame...
+        // remvoed due to turning off blocking every frame...
         /*
         if (editor_state.block_input) {
             editor_state.block_input = false;
