@@ -86,12 +86,18 @@ void EditorHighlight::highlightContent()
                 cppLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".py") {
                 pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-            } else if (extension == ".html") {
+            } else if (extension == ".html" || extension == ".cshtml") {
                 htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".js" || extension == ".jsx") {
                 jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".tsx" || extension == ".ts") {
                 tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".java") {
+                javaLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".cs") {
+                csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".css") {
+                cssLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else {
                 // Set default color for entire content
                 std::fill(colors_copy.begin(), colors_copy.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
