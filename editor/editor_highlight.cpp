@@ -25,6 +25,7 @@ void EditorHighlight::forceColorUpdate()
     cppLexer.forceColorUpdate();
     htmlLexer.forceColorUpdate();
     jsxLexer.forceColorUpdate();
+    tsxLexer.forceColorUpdate();
 }
 
 bool EditorHighlight::validateHighlightContentParams()
@@ -89,6 +90,8 @@ void EditorHighlight::highlightContent()
                 htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".js" || extension == ".jsx") {
                 jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+            } else if (extension == ".tsx" || extension == ".ts") {
+                tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else {
                 // Set default color for entire content
                 std::fill(colors_copy.begin(), colors_copy.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));

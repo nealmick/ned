@@ -3,6 +3,7 @@
 #include "../lexers/html.h"
 #include "../lexers/jsx.h"
 #include "../lexers/python.h"
+#include "../lexers/tsx.h"
 #include "imgui.h"
 #include <atomic>
 #include <filesystem>
@@ -37,6 +38,7 @@ class EditorHighlight
     CppLexer::Lexer cppLexer;
     HtmlLexer::Lexer htmlLexer;
     JsxLexer::Lexer jsxLexer;
+    TsxLexer::Lexer tsxLexer;
 
     std::unordered_map<std::string, ImVec4> themeColors;
 

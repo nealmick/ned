@@ -159,7 +159,6 @@ void AITab::update()
         request_done = false;
     }
 }
-
 void AITab::insert(const std::string &code)
 {
     if (code.empty()) {
@@ -173,7 +172,8 @@ void AITab::insert(const std::string &code)
         cleaned_code.pop_back();
     }
 
-    int insert_pos = editor_state.cursor_index;
+    const int original_pos = editor_state.cursor_index;
+    int insert_pos = original_pos;
     int new_cursor_pos = insert_pos + cleaned_code.size();
 
     // Handle selection replacement
@@ -190,9 +190,13 @@ void AITab::insert(const std::string &code)
         editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos, cleaned_code.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
 
-    // Update editor state
+    // Update editor state with selection
+    editor_state.selection_start = insert_pos;
+    editor_state.selection_end = new_cursor_pos;
+    editor_state.selection_active = true;
     editor_state.cursor_index = new_cursor_pos;
-    editor_state.selection_start = editor_state.selection_end = new_cursor_pos;
+
+    // Force editor to show the inserted text
     editor_state.text_changed = true;
 
     // Trigger syntax highlighting

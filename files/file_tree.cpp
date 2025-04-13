@@ -2,6 +2,7 @@
 #include "../editor/editor_utils.h"
 #include "../files/files.h"
 #include "../util/settings.h"
+#include "editor.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <iostream>
@@ -127,6 +128,10 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
     renderNodeText(node.name, node.fullPath == gFileExplorer.currentFile);
 
     if (clicked) {
+        editor_state.cursor_index = 0;
+        editor_state.selection_start = 0;
+        editor_state.selection_end = 0;
+        editor_state.selection_active = false;
         gFileExplorer.loadFileContent(node.fullPath);
     }
 }
