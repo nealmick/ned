@@ -237,6 +237,10 @@ void FileFinder::renderWindow()
     bool enterPressed = renderSearchInput();
     if (enterPressed) {
         toggleWindow(); // Just close the finder
+        editor_state.cursor_index = 0;
+        editor_state.selection_start = 0;
+        editor_state.selection_end = 0;
+        editor_state.selection_active = false;
         ImGui::End();
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(3);

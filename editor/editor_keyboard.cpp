@@ -72,7 +72,6 @@ void EditorKeyboard::handleCharacterInput()
         editor_state.text_changed = true;
     }
 }
-
 void EditorKeyboard::handleEnterKey()
 {
     if (gLineJump.hasJustJumped()) {
@@ -80,18 +79,47 @@ void EditorKeyboard::handleEnterKey()
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Enter)) {
-        // Insert the newline character
-        editor_state.fileContent.insert(editor_state.cursor_index, 1, '\n');
+        // Get current line and its start/end positions
+        int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+        int line_start = editor_state.editor_content_lines[current_line];
+        int line_end = (current_line + 1 < editor_state.editor_content_lines.size()) ? editor_state.editor_content_lines[current_line + 1] : editor_state.fileContent.size();
 
-        // Safely insert the color
-        if (editor_state.cursor_index <= editor_state.fileColors.size()) {
-            editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index, 1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        } else {
-            std::cerr << "Warning: Invalid cursor position for colors" << std::endl;
-            editor_state.fileColors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        // Find the end of the leading whitespace in the current line
+        size_t indent_end = line_start;
+        while (indent_end < line_end && (editor_state.fileContent[indent_end] == ' ' || editor_state.fileContent[indent_end] == '\t')) {
+            indent_end++;
         }
 
-        editor_state.cursor_index++;
+        // Calculate cursor's position within the line and leading whitespace length
+        size_t cursor_pos_in_line = editor_state.cursor_index - line_start;
+        size_t leading_whitespace_length = indent_end - line_start;
+
+        // Determine indent length: min(cursor position, leading whitespace length)
+        size_t indent_length = std::min(cursor_pos_in_line, leading_whitespace_length);
+        std::string indent = editor_state.fileContent.substr(line_start, indent_length);
+
+        // Prepare the string to insert: newline + calculated indent
+        std::string to_insert = "\n" + indent;
+        size_t insert_length = to_insert.size();
+
+        // Insert the newline and indentation into the content
+        editor_state.fileContent.insert(editor_state.cursor_index, to_insert);
+
+        // Insert corresponding color entries
+        if (editor_state.cursor_index <= editor_state.fileColors.size()) {
+            editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index, insert_length, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        } else {
+            std::cerr << "Warning: Invalid cursor position for colors when inserting newline and indent" << std::endl;
+            // Append if necessary (e.g., cursor at end of file)
+            for (size_t i = 0; i < insert_length; ++i) {
+                editor_state.fileColors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+        }
+
+        // Update cursor position to the end of the inserted content
+        editor_state.cursor_index += insert_length;
+
+        // Reset selection state
         editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
         editor_state.selection_active = false;
         editor_state.text_changed = true;
