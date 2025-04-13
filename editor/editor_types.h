@@ -1,16 +1,30 @@
+// editor_types.h global state, include editor.h for external access
 #pragma once
 #include "imgui.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-// set true to make editor scroll to cursor....
 struct CursorVisibility
 {
     bool vertical;
     bool horizontal;
 };
+struct ScrollChange
+{
+    bool vertical;
+    bool horizontal;
+};
 
+struct ScrollAnimationState
+{
+    bool active_x = false;
+    bool active_y = false;
+    float target_x = 0.0f;
+    float target_y = 0.0f;
+    float current_velocity_x = 0.0f;
+    float current_velocity_y = 0.0f;
+};
 struct EditorState
 {
     // Content of file being edited as string
@@ -92,20 +106,4 @@ struct EditorState
     bool text_changed = false;
 
     EditorState() : cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0), selection_active(false), full_text_selected(false), editor_content_lines({0}), line_widths(), rainbow_mode(true), cursor_blink_time(0.0f), active_find_box(false), block_input(false) {}
-};
-
-struct ScrollChange
-{
-    bool vertical;
-    bool horizontal;
-};
-
-struct ScrollAnimationState
-{
-    bool active_x = false;
-    bool active_y = false;
-    float target_x = 0.0f;
-    float target_y = 0.0f;
-    float current_velocity_x = 0.0f;
-    float current_velocity_y = 0.0f;
 };

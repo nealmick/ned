@@ -3,7 +3,9 @@
 #include <vector>
 
 namespace IconDefinitions {
-static const std::vector<std::string> DEFAULT_ICONS = {"brain.svg",
+static const std::vector<std::string> DEFAULT_ICONS = {"tsx.svg",
+                                                       "ts.svg",
+                                                       "brain.svg",
                                                        "close.svg",
                                                        "gear.svg",
                                                        "gear-hover.svg",

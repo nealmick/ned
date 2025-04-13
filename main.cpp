@@ -2,6 +2,7 @@
     File: main.cpp
     Description: NED text editor main entry point.
 */
+
 #include "ned.h"
 int main()
 {
@@ -12,6 +13,5 @@ int main()
     }
     std::cout << "Starting NED..." << '\n';
     ned.run();
-    std::cout << "NED Terminated." << '\n';
-	return 0;
+    return 0;
 }
