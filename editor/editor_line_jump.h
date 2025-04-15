@@ -14,7 +14,6 @@
 #include "editor_types.h"
 
 #include <string>
-
 class LineJump
 {
   private:
