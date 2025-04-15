@@ -4,3 +4,9 @@
 [submodule "lib/nativefiledialog"] 
     path = lib/nativefiledialog
     url = https://github.com/mlabbe/nativefiledialog.git
+[submodule "lib/tree-sitter"]
+	path = lib/tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter.git
+[submodule "lib/tree-sitter-cpp"]
+	path = lib/tree-sitter-cpp
+	url = https://github.com/tree-sitter/tree-sitter-cpp.git
