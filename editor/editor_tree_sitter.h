@@ -33,6 +33,11 @@ class TreeSitter
 
     static void setColors(const std::string &fileContent, std::vector<ImVec4> &fileColors, int start, int end, const ImVec4 &color);
 
+    static TSParser *getParser();
+    static void cleanupParser();
+
   private:
+    static TSParser *parser;
+    static std::mutex parserMutex;
     static void traverseAndPrint(const std::string &fileContent, std::vector<ImVec4> &fileColors, TSNode node, int depth, bool is_last, const std::vector<bool> &hierarchy);
 };

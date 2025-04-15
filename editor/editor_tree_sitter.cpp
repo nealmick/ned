@@ -2,11 +2,14 @@
 #include "editor.h"
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <vector>
 
 // Define static members
 bool TreeSitter::colorsNeedUpdate = true;
 ThemeColors TreeSitter::cachedColors;
+TSParser *TreeSitter::parser = nullptr;
+std::mutex TreeSitter::parserMutex;
 
 // Declare C++ language parser function
 extern "C" TSLanguage *tree_sitter_cpp();
@@ -16,26 +19,42 @@ extern "C" TSLanguage *tree_sitter_cpp();
 #define COLOR_POS "\033[36m"  // Cyan
 #define COLOR_RESET "\033[0m"
 
+TSParser *TreeSitter::getParser()
+{
+    if (!parser) {
+        parser = ts_parser_new();
+        ts_parser_set_language(parser, tree_sitter_cpp());
+    }
+    return parser;
+}
+
+void TreeSitter::cleanupParser()
+{
+    std::lock_guard<std::mutex> lock(parserMutex);
+    if (parser) {
+        ts_parser_delete(parser);
+        parser = nullptr;
+    }
+}
+
 void TreeSitter::parseAndPrintAST(const std::string &fileContent, std::vector<ImVec4> &fileColors)
 {
+    std::lock_guard<std::mutex> lock(parserMutex); // Critical section
+
     if (fileContent.empty()) {
         std::cerr << "No content to parse!\n";
         return;
-    } else {
-        updateThemeColors();
     }
 
-    TSParser *parser = ts_parser_new();
-    ts_parser_set_language(parser, tree_sitter_cpp());
+    updateThemeColors();
+
+    TSParser *parser = getParser(); // Reuse existing parser
     TSTree *tree = ts_parser_parse_string(parser, nullptr, fileContent.c_str(), fileContent.size());
 
-    // std::cout << "\n" << COLOR_NODE "Abstract Syntax Tree:" COLOR_RESET "\n";
     traverseAndPrint(fileContent, fileColors, ts_tree_root_node(tree), 0, false, {});
+    // printColors();
 
-    printColors();
-
-    ts_tree_delete(tree);
-    ts_parser_delete(parser);
+    ts_tree_delete(tree); // Only delete the tree, keep parser alive
 }
 
 void TreeSitter::traverseAndPrint(const std::string &fileContent, std::vector<ImVec4> &fileColors, TSNode node, int depth, bool is_last, const std::vector<bool> &hierarchy)
@@ -45,44 +64,26 @@ void TreeSitter::traverseAndPrint(const std::string &fileContent, std::vector<Im
         return;
     }
 
-    // --- Skipping Logic ---
-    // Using the skipping condition from your provided code.
-    // This skips nodes that are UNNAMED unless they are NOT EXTRA and have CHILDREN.
-    // It also skips nodes that are LEAF nodes (no children) AND are EXTRA (like comments).
-    // Consider adjusting this if it filters too much (e.g., unnamed literals) or too little.
-    // A simpler alternative might be: if (ts_node_is_extra(node)) return; // Skips comments etc.
-    // Or: if (!ts_node_is_named(node) && ts_node_child_count(node) == 0) return; // Skips unnamed leaves
     if (!ts_node_is_named(node) && ts_node_is_extra(node)) {
-        // Let's try only skipping unnamed extra nodes (often comments, whitespace nodes)
         return;
     }
-    // Original complex condition:
-    // if (ts_node_is_named(node) == false || (ts_node_child_count(node) == 0 && ts_node_is_extra(node))) {
-    //     return;
-    // }
-
-    // --- Hierarchy Visualization ---
     std::string prefix;
     for (size_t i = 0; i < hierarchy.size(); ++i) { // Use size_t for loop index
         prefix += hierarchy[i] ? "    " : "│   ";
     }
     prefix += is_last ? "└── " : "├── ";
 
-    // --- Position Info (using byte offsets) ---
     uint32_t start_byte = ts_node_start_byte(node);
     uint32_t end_byte = ts_node_end_byte(node);
     const char *type = ts_node_type(node);
 
-    // --- Node Text Snippet ---
     std::string content = "ERR"; // Default error string
-    // Basic bounds check: ensure end is not before start and within the file content size
     if (start_byte <= end_byte && end_byte <= fileContent.size()) {
         size_t length = end_byte - start_byte;
-        // Double-check substr parameters are valid relative to string size
         if (start_byte + length <= fileContent.size()) {
             content = fileContent.substr(start_byte, length);
         } else {
-            content = "ERR_BOUNDS"; // Indicate an issue with calculated length
+            content = "ERR_BOUNDS";
         }
 
         // Clean up snippet: remove internal newlines and limit length for display
@@ -94,14 +95,12 @@ void TreeSitter::traverseAndPrint(const std::string &fileContent, std::vector<Im
             content = content.substr(0, 37) + "..."; // Truncate long snippets
         }
     } else {
-        // Indicate invalid byte range from tree-sitter or inconsistent file content size
         content = "ERR_RANGE";
     }
 
     const ImVec4 &color = convertNodeType(type);
-    std::cout << COLOR_POS << "Idx " << start_byte << "-" << end_byte << COLOR_RESET << " " << prefix << "\033[38;2;" << int(color.x * 255) << ";" << int(color.y * 255) << ";" << int(color.z * 255) << "m" << type << COLOR_RESET << " \"" << content << "\"" << std::endl;
+    // std::cout << COLOR_POS << "Idx " << start_byte << "-" << end_byte << COLOR_RESET << " " << prefix << "\033[38;2;" << int(color.x * 255) << ";" << int(color.y * 255) << ";" << int(color.z * 255) << "m" << type << COLOR_RESET << " \"" << content << "\"" << std::endl;
     setColors(fileContent, fileColors, static_cast<int>(start_byte), static_cast<int>(end_byte), color);
-    // --- Recurse for Children ---
     std::vector<bool> child_hierarchy = hierarchy;
     child_hierarchy.push_back(is_last); // Add current node's 'last' status for child prefix calculation
 
@@ -109,7 +108,6 @@ void TreeSitter::traverseAndPrint(const std::string &fileContent, std::vector<Im
     for (uint32_t i = 0; i < child_count; i++) {
         TSNode child = ts_node_child(node, i);
         bool last_child = (i == child_count - 1);
-        // Recursive call: The skipping logic is handled at the start of the function now.
         traverseAndPrint(fileContent, fileColors, child, depth + 1, last_child, child_hierarchy);
     }
 }
@@ -158,13 +156,9 @@ void TreeSitter::updateThemeColors()
 }
 void TreeSitter::setColors(const std::string &content, std::vector<ImVec4> &colors, int start, int end, const ImVec4 &color)
 {
-    // Always keep colors matching content size
-    if (colors.size() != content.size()) {
-        std::cout << " rsize mismatch red alert size mismatch !! " << std::endl;
-        colors.resize(content.size(), cachedColors.text);
+    if (end > content.size() || start > end) {
+        return;
     }
-
-    // Clamp indices to valid range
     start = std::clamp(start, 0, (int)colors.size() - 1);
     end = std::clamp(end, 0, (int)colors.size());
 
