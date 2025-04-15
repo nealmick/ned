@@ -1,9 +1,11 @@
 #include "editor_highlight.h"
 #include "../files/files.h"
 #include "editor.h"
+#include "editor_tree_sitter.h"
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <tree_sitter/api.h>
 
 // Global instance
 EditorHighlight gEditorHighlight;
@@ -47,43 +49,54 @@ bool EditorHighlight::validateHighlightContentParams()
 
     return true;
 }
+
 void EditorHighlight::highlightContent()
 {
     std::lock_guard<std::mutex> lock(highlight_mutex);
-    std::cout << "\033[36mEditorHighlight:\033[0m Highlight Content. content size: " << editor_state.fileContent.size() << std::endl;
+    std::cout << "\033[36mEditorHighlight:\033[0m Highlight Content\n";
 
     cancelHighlighting();
 
-    const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
-    if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD) {
-        editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        return;
+    // Create safe copies of content and colors
+    std::string content_copy;
+    std::vector<ImVec4> colors_copy;
+    std::string currentFile;
+    std::string extension;
+
+    {
+        std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
+
+        // Handle large files quickly
+        const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
+        if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD) {
+            editor_state.fileColors.resize(editor_state.fileContent.size(), TreeSitter::cachedColors.text);
+
+            return;
+        }
+
+        if (!validateHighlightContentParams())
+            return;
+
+        // Create copies while locked
+        content_copy = editor_state.fileContent;
+        colors_copy = editor_state.fileColors;
+        currentFile = gFileExplorer.currentFile;
+        extension = fs::path(currentFile).extension().string();
     }
-
-    if (!validateHighlightContentParams())
-        return;
-
-    // Create copies for async operation
-    std::string content_copy = editor_state.fileContent;
-    std::vector<ImVec4> colors_copy = editor_state.fileColors; // Copy directly without reserve
-
-    std::string currentFile = gFileExplorer.currentFile;
-    std::string extension = fs::path(currentFile).extension().string();
 
     highlightingInProgress = true;
     cancelHighlightFlag = false;
 
-    // Corrected async launch with proper captures
-    highlightFuture = std::async(std::launch::async, [this, content_copy, colors_copy = std::move(colors_copy), currentFile, extension]() mutable {
+    highlightFuture = std::async(std::launch::async, [this, content_copy, colors_copy, currentFile, extension]() mutable {
         try {
             if (cancelHighlightFlag.load()) {
                 highlightingInProgress = false;
                 return;
             }
 
-            // Apply syntax highlighting
+            // Process highlighting on the copies
             if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
-                cppLexer.applyHighlighting(content_copy, colors_copy, 0);
+                TreeSitter::parseAndPrintAST(content_copy, colors_copy);
             } else if (extension == ".py") {
                 pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".html" || extension == ".cshtml") {
@@ -103,12 +116,12 @@ void EditorHighlight::highlightContent()
                 std::fill(colors_copy.begin(), colors_copy.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             }
 
-            // Update colors if still valid
-            if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile) {
-                std::lock_guard<std::mutex> colorsLock(colorsMutex);
-                if (editor_state.fileColors.size() == colors_copy.size()) {
-                    editor_state.fileColors = std::move(colors_copy);
-                }
+            // Safely update colors if still valid
+            std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
+
+            if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile && content_copy == editor_state.fileContent && colors_copy.size() == editor_state.fileColors.size()) {
+                editor_state.fileColors = colors_copy; // Copy, don't move
+                std::cout << "Applied new highlighting\n";
             }
         } catch (const std::exception &e) {
             std::cerr << "Highlighting error: " << e.what() << std::endl;

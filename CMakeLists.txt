@@ -8,6 +8,8 @@ configure_file(
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -64,6 +66,26 @@ target_include_directories(nfd PUBLIC
     ${NFD_DIR}/src/include
 )
 
+# Add the core Tree-sitter library
+add_library(tree-sitter-lib STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/src/lib.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/src/parser.c
+    # Add other core .c files if needed in future versions, but these are usually enough
+)
+target_include_directories(tree-sitter-lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/include
+)
+add_library(tree-sitter-cpp-grammar STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src/parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src/scanner.c
+)
+target_include_directories(tree-sitter-cpp-grammar PRIVATE # Internal headers for building the grammar
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src
+)
+set_target_properties(tree-sitter-cpp-grammar PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
+
+target_link_libraries(tree-sitter-cpp-grammar PRIVATE tree-sitter-lib)
+
 # Copy resources
 file(COPY ${CMAKE_SOURCE_DIR}/fonts DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
@@ -111,6 +133,7 @@ add_executable(ned
     editor/editor_keyboard.cpp
     editor/editor_selection.cpp
     editor/editor_render.cpp
+    editor/editor_tree_sitter.cpp
 
     lsp/lsp.cpp
     lsp/lsp_adapter_clangd.cpp
@@ -155,6 +178,7 @@ target_include_directories(ned PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
     ${CMAKE_BINARY_DIR}
     ${GLEW_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/include
 )
 
 # Link libraries
@@ -165,6 +189,8 @@ target_link_libraries(ned PRIVATE
     util
     ${GLEW_LIBRARIES}
     CURL::libcurl 
+    tree-sitter-lib
+    tree-sitter-cpp-grammar
 )
 
 if(APPLE)

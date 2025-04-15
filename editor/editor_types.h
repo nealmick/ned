@@ -32,6 +32,7 @@ struct EditorState
 
     // syntax colors for every char
     std::vector<ImVec4> fileColors;
+    std::mutex colorsMutex;
 
     // Size of editor window
     ImVec2 size;
