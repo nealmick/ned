@@ -86,6 +86,21 @@ set_target_properties(tree-sitter-cpp-grammar PROPERTIES C_STANDARD 11 C_STANDAR
 
 target_link_libraries(tree-sitter-cpp-grammar PRIVATE tree-sitter-lib)
 
+# Add this after the tree-sitter-javascript
+add_library(tree-sitter-javascript-grammar STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src/parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src/scanner.c
+)
+target_include_directories(tree-sitter-javascript-grammar PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src
+)
+set_target_properties(tree-sitter-javascript-grammar PROPERTIES 
+    C_STANDARD 11 
+    C_STANDARD_REQUIRED YES
+)
+target_link_libraries(tree-sitter-javascript-grammar PRIVATE tree-sitter-lib)
+
+
 # Copy resources
 file(COPY ${CMAKE_SOURCE_DIR}/fonts DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
@@ -191,6 +206,7 @@ target_link_libraries(ned PRIVATE
     CURL::libcurl 
     tree-sitter-lib
     tree-sitter-cpp-grammar
+    tree-sitter-javascript-grammar
 )
 
 if(APPLE)
