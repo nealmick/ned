@@ -28,6 +28,8 @@ void EditorHighlight::forceColorUpdate()
     htmlLexer.forceColorUpdate();
     jsxLexer.forceColorUpdate();
     tsxLexer.forceColorUpdate();
+
+    TreeSitter::refreshColors();
 }
 
 bool EditorHighlight::validateHighlightContentParams()
@@ -96,13 +98,15 @@ void EditorHighlight::highlightContent()
 
             // Process highlighting on the copies
             if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
-                TreeSitter::parseAndPrintAST(content_copy, colors_copy);
+                TreeSitter::parse(content_copy, colors_copy, extension);
             } else if (extension == ".py") {
                 pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".html" || extension == ".cshtml") {
                 htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".js" || extension == ".jsx") {
-                jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+                TreeSitter::parse(content_copy, colors_copy, extension);
+
+                // jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".tsx" || extension == ".ts") {
                 tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
             } else if (extension == ".java") {

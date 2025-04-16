@@ -22,15 +22,17 @@ struct ThemeColors
 class TreeSitter
 {
   public:
-    static void parseAndPrintAST(const std::string &fileContent, std::vector<ImVec4> &fileColors);
+    static void parse(const std::string &fileContent, std::vector<ImVec4> &fileColors, const std::string &extension);
+
     static void updateThemeColors();
+    static void refreshColors() { colorsNeedUpdate = true; };
     static void printColors();
 
     static bool colorsNeedUpdate;    // settings theme changed
     static ThemeColors cachedColors; // cached settings theme colors, so we dont read from disk
 
-    static const ImVec4 &convertNodeType(const std::string &nodeType);
-
+    static const ImVec4 &convertNodeTypeCPP(const std::string &nodeType);
+    static const ImVec4 &convertNodeTypeJS(const std::string &nodeType, const std::string &parentNodeType, const std::string &nodeText);
     static void setColors(const std::string &fileContent, std::vector<ImVec4> &fileColors, int start, int end, const ImVec4 &color);
 
     static TSParser *getParser();
@@ -39,5 +41,5 @@ class TreeSitter
   private:
     static TSParser *parser;
     static std::mutex parserMutex;
-    static void traverseAndPrint(const std::string &fileContent, std::vector<ImVec4> &fileColors, TSNode node, int depth, bool is_last, const std::vector<bool> &hierarchy);
+    static void traverse(const std::string &extension, const std::string &fileContent, std::vector<ImVec4> &fileColors, TSNode node, int depth, bool is_last, const std::vector<bool> &hierarchy, const std::string &parentNodeType = "");
 };
