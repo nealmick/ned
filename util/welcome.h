@@ -7,22 +7,22 @@
 class Welcome
 {
   public:
-    void render(); // Main render function for welcome screen
-    static Welcome &getInstance()
-    {
-        static Welcome instance;
-        return instance;
-    }
+	void render(); // Main render function for welcome screen
+	static Welcome &getInstance()
+	{
+		static Welcome instance;
+		return instance;
+	}
 
   private:
-    Welcome() : frameCount(0), lastTime(0.0), fps(0) {} // Initialize FPS members
+	Welcome() : frameCount(0), lastTime(0.0), fps(0) {} // Initialize FPS members
 
-    // FPS calculation members
-    int frameCount;
-    double lastTime;
-    int fps;
+	// FPS calculation members
+	int frameCount;
+	double lastTime;
+	int fps;
 
-    void calculateFPS(); // Helper to calculate FPS
+	void calculateFPS(); // Helper to calculate FPS
 };
 
 extern Welcome &gWelcome;
