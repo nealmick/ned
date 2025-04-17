@@ -105,40 +105,44 @@ void EditorHighlight::highlightContent()
 							   highlightingInProgress = false;
 							   return;
 						   }
-
-						   // Process highlighting on the copies
-						   if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
-						   {
-							   TreeSitter::parse(content_copy, colors_copy, extension);
-						   } else if (extension == ".py")
-						   {
-							   pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".html" || extension == ".cshtml")
-						   {
-							   htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".js" || extension == ".jsx")
+						   if (useTreeSitter)
 						   {
 							   TreeSitter::parse(content_copy, colors_copy, extension);
 
-							   // jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".tsx" || extension == ".ts")
-						   {
-							   tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".java")
-						   {
-							   javaLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".cs")
-						   {
-							   csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
-						   } else if (extension == ".css")
-						   {
-							   cssLexer.applyHighlighting(content_copy, colors_copy, 0);
 						   } else
 						   {
-							   // Set default color for entire content
-							   std::fill(colors_copy.begin(),
-										 colors_copy.end(),
-										 ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+							   // use custom lexers....
+							   if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
+							   {
+								   cppLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".py")
+							   {
+								   pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".html" || extension == ".cshtml")
+							   {
+								   htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".js" || extension == ".jsx")
+							   {
+								   jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".tsx" || extension == ".ts")
+							   {
+								   tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".java")
+							   {
+								   javaLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".cs")
+							   {
+								   csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else if (extension == ".css")
+							   {
+								   cssLexer.applyHighlighting(content_copy, colors_copy, 0);
+							   } else
+							   {
+								   // Set default color for entire content
+								   std::fill(colors_copy.begin(),
+											 colors_copy.end(),
+											 ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+							   }
 						   }
 
 						   // Safely update colors if still valid
