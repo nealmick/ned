@@ -1,220 +1,206 @@
 cmake_minimum_required(VERSION 3.10)
 project(ned)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in"
-    "${CMAKE_BINARY_DIR}/config.h"
-)
+
+# ========================
+# Configuration & Settings
+# ========================
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in" "${CMAKE_BINARY_DIR}/config.h")
+add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# ==============
+# Dependencies
+# ==============
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(CURL REQUIRED)
 
-
-# Explicitly set GLEW paths
-# Find GLEW properly
+# GLEW Configuration
 if(APPLE)
-  # Check if we're on Apple Silicon (M-series) or Intel
   execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-  if(${ARCH} STREQUAL "arm64")
-    # M-series Mac
+  if(ARCH STREQUAL "arm64")
     set(GLEW_INCLUDE_DIRS "/opt/homebrew/Cellar/glew/2.2.0_1/include")
     set(GLEW_LIBRARIES "/opt/homebrew/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
   else()
-    # Intel Mac
     set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
     set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
   endif()
 else()
-  # For non-Apple systems, use find_package
   find_package(GLEW REQUIRED)
 endif()
 
-
 if(APPLE)
-    add_definitions(-DGL_SILENCE_DEPRECATION)
-    add_compile_options(-Wno-deprecated-declarations)
+  add_definitions(-DGL_SILENCE_DEPRECATION)
+  add_compile_options(-Wno-deprecated-declarations)
 endif()
 
-# NFD setup
+# ================
+# Native File Dialog
+# ================
 set(NFD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog)
+add_library(nfd STATIC)
+target_sources(nfd PRIVATE
+  ${NFD_DIR}/src/nfd_common.c
+)
+
 if(APPLE)
-    add_library(nfd STATIC
-        ${NFD_DIR}/src/nfd_common.c
-        ${NFD_DIR}/src/nfd_cocoa.m
-    )
-    target_compile_options(nfd PRIVATE -x objective-c -Wno-deprecated-declarations)
-    target_link_libraries(nfd PRIVATE "-framework Cocoa")
+  target_sources(nfd PRIVATE ${NFD_DIR}/src/nfd_cocoa.m)
+  target_compile_options(nfd PRIVATE -x objective-c -Wno-deprecated-declarations)
+  target_link_libraries(nfd PRIVATE "-framework Cocoa")
 elseif(UNIX)
-    add_library(nfd STATIC
-        ${NFD_DIR}/src/nfd_common.c
-        ${NFD_DIR}/src/nfd_gtk.c
-    )
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-    target_include_directories(nfd PRIVATE ${GTK3_INCLUDE_DIRS})
-    target_link_libraries(nfd PRIVATE ${GTK3_LIBRARIES})
+  target_sources(nfd PRIVATE ${NFD_DIR}/src/nfd_gtk.c)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+  target_include_directories(nfd PRIVATE ${GTK3_INCLUDE_DIRS})
+  target_link_libraries(nfd PRIVATE ${GTK3_LIBRARIES})
 endif()
 
 target_include_directories(nfd PUBLIC
-    ${NFD_DIR}/src
-    ${NFD_DIR}/src/include
+  ${NFD_DIR}/src
+  ${NFD_DIR}/src/include
 )
 
-# Add the core Tree-sitter library
+# =================
+# Tree-Sitter Setup
+# =================
+# Core library
 add_library(tree-sitter-lib STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/src/lib.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/src/parser.c
-    # Add other core .c files if needed in future versions, but these are usually enough
+  lib/tree-sitter/lib/src/lib.c
+  lib/tree-sitter/lib/src/parser.c
 )
 target_include_directories(tree-sitter-lib PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/include
+  lib/tree-sitter/lib/include
 )
-add_library(tree-sitter-cpp-grammar STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src/parser.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src/scanner.c
-)
-target_include_directories(tree-sitter-cpp-grammar PRIVATE # Internal headers for building the grammar
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-cpp/src
-)
-set_target_properties(tree-sitter-cpp-grammar PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
 
-target_link_libraries(tree-sitter-cpp-grammar PRIVATE tree-sitter-lib)
+# Grammar detection
+file(GLOB TS_GRAMMAR_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-*")
+foreach(TS_DIR ${TS_GRAMMAR_DIRS})
+  get_filename_component(LANG ${TS_DIR} NAME)
+  string(REPLACE "tree-sitter-" "" LANG ${LANG})
 
-# Add this after the tree-sitter-javascript
-add_library(tree-sitter-javascript-grammar STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src/parser.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src/scanner.c
-)
-target_include_directories(tree-sitter-javascript-grammar PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-javascript/src
-)
-set_target_properties(tree-sitter-javascript-grammar PROPERTIES 
-    C_STANDARD 11 
+  if(EXISTS "${TS_DIR}/src/scanner.c")
+    set(GRAMMAR_SOURCES "${TS_DIR}/src/parser.c" "${TS_DIR}/src/scanner.c")
+  else()
+    set(GRAMMAR_SOURCES "${TS_DIR}/src/parser.c")
+  endif()
+
+  add_library(tree-sitter-${LANG}-grammar STATIC ${GRAMMAR_SOURCES})
+  target_include_directories(tree-sitter-${LANG}-grammar PRIVATE ${TS_DIR}/src)
+  set_target_properties(tree-sitter-${LANG}-grammar PROPERTIES
+    C_STANDARD 11
     C_STANDARD_REQUIRED YES
+  )
+  target_link_libraries(tree-sitter-${LANG}-grammar PRIVATE tree-sitter-lib)
+  list(APPEND TS_GRAMMAR_LIBS tree-sitter-${LANG}-grammar)
+endforeach()
+
+# ================
+# Project Sources
+# ================
+# Core application
+set(APP_SOURCES
+  main.cpp
+  ned.cpp
+  shaders/shader.cpp
 )
-target_link_libraries(tree-sitter-javascript-grammar PRIVATE tree-sitter-lib)
 
+# Component groups
+file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
+file(GLOB_RECURSE LSP_SOURCES       "lsp/*.cpp")
+file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
+file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
-# Copy resources
-file(COPY ${CMAKE_SOURCE_DIR}/fonts DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY ${CMAKE_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
+# ImGui sources (explicitly listed for stability)
+set(IMGUI_SOURCES
+  lib/imgui/imgui.cpp
+  lib/imgui/imgui_demo.cpp
+  lib/imgui/imgui_draw.cpp
+  lib/imgui/imgui_tables.cpp
+  lib/imgui/imgui_widgets.cpp
+  lib/imgui/backends/imgui_impl_glfw.cpp
+  lib/imgui/backends/imgui_impl_opengl3.cpp
+)
 
-# Add util library
+# Utility library
 add_library(util STATIC
-    util/settings.cpp
-    util/terminal.cpp
-    util/close_popper.cpp
-    util/welcome.cpp
-    util/debug_console.cpp
+  util/settings.cpp
+  util/terminal.cpp
+  util/close_popper.cpp
+  util/welcome.cpp
+  util/debug_console.cpp
 )
-add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_include_directories(util PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui/backends
-    ${CMAKE_CURRENT_SOURCE_DIR}/editor  # Add editor directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
-    ${CMAKE_BINARY_DIR}  # This is where config.h gets generated
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  lib/imgui
+  lib/imgui/backends
+  editor
+  files
+  ${CMAKE_BINARY_DIR}
 )
+target_link_libraries(util PUBLIC ${OPENGL_LIBRARIES} glfw)
 
-target_link_libraries(util PUBLIC
-    ${OPENGL_LIBRARIES}
-    glfw
-)
-
-# Main executable
+# ================
+# Main Executable
+# ================
 add_executable(ned
-    main.cpp
-    ned.cpp
-    shaders/shader.cpp
-
-    # Editor files
-    editor/editor.cpp
-    editor/editor_line_jump.cpp
-    editor/editor_scroll.cpp
-    editor/editor_cursor.cpp
-    editor/editor_copy_paste.cpp
-    editor/editor_indentation.cpp
-    editor/editor_line_numbers.cpp
-    editor/editor_highlight.cpp
-    editor/editor_mouse.cpp
-    editor/editor_keyboard.cpp
-    editor/editor_selection.cpp
-    editor/editor_render.cpp
-    editor/editor_tree_sitter.cpp
-
-    lsp/lsp.cpp
-    lsp/lsp_adapter_clangd.cpp
-    lsp/lsp_adapter_pyright.cpp
-    lsp/lsp_manager.cpp
-    lsp/lsp_goto_def.cpp
-    lsp/lsp_goto_ref.cpp
-    lsp/lsp_symbol_info.cpp
-    lsp/lsp_autocomplete.cpp
-
-
-    ai/ai_tab.cpp
-    ai/ai_open_router.cpp
-    
-    editor/editor_types.h
-    editor/editor_utils.h
-
-
-    # Files
-    files/files.cpp
-    files/file_tree.cpp
-    files/file_finder.cpp
-    files/file_content_search.cpp
-    
-    # ImGui files
-    lib/imgui/imgui.cpp
-    lib/imgui/imgui_demo.cpp
-    lib/imgui/imgui_draw.cpp
-    lib/imgui/imgui_tables.cpp
-    lib/imgui/imgui_widgets.cpp
-    lib/imgui/backends/imgui_impl_glfw.cpp
-    lib/imgui/backends/imgui_impl_opengl3.cpp
+  ${APP_SOURCES}
+  ${EDITOR_SOURCES}
+  ${LSP_SOURCES}
+  ${AI_SOURCES}
+  ${FILES_SOURCES}
+  ${IMGUI_SOURCES}
 )
 
+# =====================
+# Include Directories
+# =====================
 target_include_directories(ned PRIVATE
-    lib/imgui
-    lib/imgui/backends
-    ${NFD_DIR}/src
-    ${NFD_DIR}/src/include
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/editor  # Add editor directory
-    ${CMAKE_CURRENT_SOURCE_DIR}/files   # Add files directory
-    ${CMAKE_BINARY_DIR}
-    ${GLEW_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter/lib/include
+  lib/imgui
+  lib/imgui/backends
+  ${NFD_DIR}/src
+  ${NFD_DIR}/src/include
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  editor
+  files
+  ${CMAKE_BINARY_DIR}
+  ${GLEW_INCLUDE_DIRS}
+  lib/tree-sitter/lib/include
 )
 
-# Link libraries
+# ================
+# Linking
+# ================
 target_link_libraries(ned PRIVATE
-    ${OPENGL_LIBRARIES}
-    glfw
-    nfd
-    util
-    ${GLEW_LIBRARIES}
-    CURL::libcurl 
-    tree-sitter-lib
-    tree-sitter-cpp-grammar
-    tree-sitter-javascript-grammar
+  ${OPENGL_LIBRARIES}
+  glfw
+  nfd
+  util
+  ${GLEW_LIBRARIES}
+  CURL::libcurl 
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
 )
 
 if(APPLE)
-    target_link_libraries(ned PRIVATE
-        "-framework Cocoa"
-        "-framework IOKit"
-        "-framework CoreVideo"
-        "-framework OpenGL"
-    )
+  target_link_libraries(ned PRIVATE
+    "-framework Cocoa"
+    "-framework IOKit"
+    "-framework CoreVideo"
+    "-framework OpenGL"
+  )
 endif()
 
+# ================
+# Resources
+# ================
+file(COPY 
+  ${CMAKE_SOURCE_DIR}/fonts
+  ${CMAKE_SOURCE_DIR}/icons
+  ${CMAKE_SOURCE_DIR}/shaders
+  DESTINATION ${CMAKE_BINARY_DIR}
+)
