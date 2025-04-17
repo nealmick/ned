@@ -1,6 +1,6 @@
 /*
-    File: shader.h
-    Description: Apply shaders to IMGUI output for visual effects
+	File: shader.h
+	Description: Apply shaders to IMGUI output for visual effects
 */
 
 #ifndef SHADER_H
@@ -9,20 +9,21 @@
 class Shader
 {
   public:
-    // Constructor and destructor
-    Shader();
-    ~Shader();
+	// Constructor and destructor
+	Shader();
+	~Shader();
 
-    // Load and compile shader functions
-    bool loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath);
-    void useShader();
+	// Load and compile shader functions
+	bool loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath);
+	void useShader();
 
-    // Utility functions
-    void setFloat(const std::string &name, float value);
-    void setInt(const std::string &name, int value);
-    void setMatrix4fv(const std::string &name, const float *matrix); // Add this line
+	// Utility functions
+	void setFloat(const std::string &name, float value);
+	void setInt(const std::string &name, int value);
+	void setMatrix4fv(const std::string &name,
+					  const float *matrix); // Add this line
 
-    unsigned int shaderProgram;
+	unsigned int shaderProgram;
 
   private:
 };

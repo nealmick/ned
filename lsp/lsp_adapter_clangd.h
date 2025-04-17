@@ -9,23 +9,23 @@ class EditorLSP;
 class LSPAdapterClangd
 {
   public:
-    LSPAdapterClangd();
-    ~LSPAdapterClangd();
+	LSPAdapterClangd();
+	~LSPAdapterClangd();
 
-    // Setup and initialization
-    bool initialize(const std::string &workspacePath);
-    bool isInitialized() const { return initialized; }
+	// Setup and initialization
+	bool initialize(const std::string &workspacePath);
+	bool isInitialized() const { return initialized; }
 
-    // Protocol communication
-    bool sendRequest(const std::string &request);
-    std::string readResponse(int *contentLength = nullptr);
+	// Protocol communication
+	bool sendRequest(const std::string &request);
+	std::string readResponse(int *contentLength = nullptr);
 
-    // Clangd-specific functionality
-    std::string getLanguageId(const std::string &filePath) const;
+	// Clangd-specific functionality
+	std::string getLanguageId(const std::string &filePath) const;
 
   private:
-    class ClangdImpl;
-    std::unique_ptr<ClangdImpl> impl;
-    bool initialized;
-    std::string lspPath;
+	class ClangdImpl;
+	std::unique_ptr<ClangdImpl> impl;
+	bool initialized;
+	std::string lspPath;
 };

@@ -1,6 +1,6 @@
 /*
-    File: files.h
-    Description: Main file logic, handles saving after changes, and more...
+	File: files.h
+	Description: Main file logic, handles saving after changes, and more...
 */
 
 #pragma once
@@ -23,93 +23,96 @@ namespace fs = std::filesystem;
 class FileExplorer
 {
   public:
-    const size_t MAX_FILE_SIZE = 1 * 1024 * 1024; // 1mb
+	const size_t MAX_FILE_SIZE = 1 * 1024 * 1024; // 1mb
 
-    UndoRedoManager *currentUndoManager = nullptr;
-    std::map<std::string, UndoRedoManager> fileUndoManagers;
+	UndoRedoManager *currentUndoManager = nullptr;
+	std::map<std::string, UndoRedoManager> fileUndoManagers;
 
-    std::string currentOpenFile;
-    std::string previousOpenFile;
-    std::string currentFile;
+	std::string currentOpenFile;
+	std::string previousOpenFile;
+	std::string currentFile;
 
-    bool showWelcomeScreen = true;
+	bool showWelcomeScreen = true;
 
-    // File operations
-    void loadFileContent(const std::string &path, std::function<void()> afterLoadCallback = nullptr);
+	// File operations
+	void loadFileContent(const std::string &path,
+						 std::function<void()> afterLoadCallback = nullptr);
 
-    void saveCurrentFile();
+	void saveCurrentFile();
 
-    // Undo/Redo
-    void handleUndo();
-    void handleRedo();
-    void addUndoState(int changeStart, int changeEnd);
+	// Undo/Redo
+	void handleUndo();
+	void handleRedo();
+	void addUndoState(int changeStart, int changeEnd);
 
-    // UI functions
-    void openFolderDialog();
-    void renderFileContent();
+	// UI functions
+	void openFolderDialog();
+	void renderFileContent();
 
-    // Icon handling
-    // by file exntension for example .py or .cpp
-    void loadIcons();
-    ImTextureID getIconForFile(const std::string &filename)
-    {
-        std::string extension = fs::path(filename).extension().string();
-        if (!extension.empty() && extension[0] == '.') {
-            extension = extension.substr(1);
-        }
+	// Icon handling
+	// by file exntension for example .py or .cpp
+	void loadIcons();
+	ImTextureID getIconForFile(const std::string &filename)
+	{
+		std::string extension = fs::path(filename).extension().string();
+		if (!extension.empty() && extension[0] == '.')
+		{
+			extension = extension.substr(1);
+		}
 
-        auto it = fileTypeIcons.find(extension);
-        return (it != fileTypeIcons.end()) ? it->second : fileTypeIcons["default"];
-    }
-    // by icon name for example folder or folder-open
-    ImTextureID getIcon(const std::string &iconName) const
-    {
-        auto it = fileTypeIcons.find(iconName);
-        if (it != fileTypeIcons.end()) {
-            return it->second;
-        }
-        return fileTypeIcons.at("default");
-    }
+		auto it = fileTypeIcons.find(extension);
+		return (it != fileTypeIcons.end()) ? it->second : fileTypeIcons["default"];
+	}
+	// by icon name for example folder or folder-open
+	ImTextureID getIcon(const std::string &iconName) const
+	{
+		auto it = fileTypeIcons.find(iconName);
+		if (it != fileTypeIcons.end())
+		{
+			return it->second;
+		}
+		return fileTypeIcons.at("default");
+	}
 
-    // Dialog state
-    bool showFileDialog() const { return _showFileDialog; }
+	// Dialog state
+	bool showFileDialog() const { return _showFileDialog; }
 
-    void notifyLSPFileOpen(const std::string &filePath);
+	void notifyLSPFileOpen(const std::string &filePath);
 
-    bool _unsavedChanges = false;
-    std::string selectedFolder;
-    bool _showFileDialog = false;
+	bool _unsavedChanges = false;
+	std::string selectedFolder;
+	bool _showFileDialog = false;
 
   private:
-    std::map<std::string, ImTextureID> fileTypeIcons;
+	std::map<std::string, ImTextureID> fileTypeIcons;
 
-    std::unordered_map<std::string, int> _documentVersions;
+	std::unordered_map<std::string, int> _documentVersions;
 
-    // Icon loading helpers
-    struct IconDimensions
-    {
-        static constexpr int WIDTH = 32;
-        static constexpr int HEIGHT = 32;
-        static constexpr float SVG_DPI = 96.0f;
-    };
+	// Icon loading helpers
+	struct IconDimensions
+	{
+		static constexpr int WIDTH = 32;
+		static constexpr int HEIGHT = 32;
+		static constexpr float SVG_DPI = 96.0f;
+	};
 
-    GLuint createTexture(const unsigned char *pixels, int width, int height);
-    bool loadSingleIcon(const std::string &iconFile);
-    void createDefaultIcon();
+	GLuint createTexture(const unsigned char *pixels, int width, int height);
+	bool loadSingleIcon(const std::string &iconFile);
+	void createDefaultIcon();
 
-    // File loading helpers
-    bool readFileContent(const std::string &path);
-    void updateFileColorBuffer();
-    void setupUndoManager(const std::string &path);
-    void handleLoadError();
-    void updateFilePathStates(const std::string &path);
+	// File loading helpers
+	bool readFileContent(const std::string &path);
+	void updateFileColorBuffer();
+	void setupUndoManager(const std::string &path);
+	void handleLoadError();
+	void updateFilePathStates(const std::string &path);
 
-    // Undo/Redo helpers
-    void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
-    void adjustColorBuffer(int changeStart, int lengthDiff);
+	// Undo/Redo helpers
+	void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
+	void adjustColorBuffer(int changeStart, int lengthDiff);
 
-    // Find box helpers
-    void renderEditor(bool &text_changed);
+	// Find box helpers
+	void renderEditor(bool &text_changed);
 };
 
 extern Editor gEditor;

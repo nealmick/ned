@@ -9,11 +9,11 @@
 
 struct ReferenceLocation
 {
-    std::string uri;
-    int startLine;
-    int startChar;
-    int endLine;
-    int endChar;
+	std::string uri;
+	int startLine;
+	int startChar;
+	int endLine;
+	int endChar;
 };
 
 using json = nlohmann::json;
@@ -21,28 +21,28 @@ using json = nlohmann::json;
 class LSPGotoRef
 {
   public:
-    LSPGotoRef();
-    ~LSPGotoRef();
+	LSPGotoRef();
+	~LSPGotoRef();
 
-    // Core find references functionality
-    bool findReferences(const std::string &filePath, int line, int character);
+	// Core find references functionality
+	bool findReferences(const std::string &filePath, int line, int character);
 
-    // Reference options window rendering
-    void renderReferenceOptions();
-    bool hasReferenceOptions() const;
+	// Reference options window rendering
+	void renderReferenceOptions();
+	bool hasReferenceOptions() const;
 
   private:
-    // Helper methods
-    void parseReferenceResponse(const std::string &response);
-    int getNextRequestId() { return ++currentRequestId; }
-    void handleReferenceSelection();
-    // Request tracking (using a different range than LSPGotoDef)
-    int currentRequestId = 3000;
+	// Helper methods
+	void parseReferenceResponse(const std::string &response);
+	int getNextRequestId() { return ++currentRequestId; }
+	void handleReferenceSelection();
+	// Request tracking (using a different range than LSPGotoDef)
+	int currentRequestId = 3000;
 
-    // Reference options state
-    std::vector<ReferenceLocation> referenceLocations;
-    int selectedReferenceIndex = 0;
-    bool showReferenceOptions = false;
+	// Reference options state
+	std::vector<ReferenceLocation> referenceLocations;
+	int selectedReferenceIndex = 0;
+	bool showReferenceOptions = false;
 };
 
 // Global instance

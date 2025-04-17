@@ -12,27 +12,27 @@ extern Editor gEditor;
 class EditorKeyboard
 {
   public:
-    EditorKeyboard();
-    ~EditorKeyboard() = default;
+	EditorKeyboard();
+	~EditorKeyboard() = default;
 
-    void handleCharacterInput();
-    void handleEnterKey();
-    void handleDeleteKey();
-    void handleBackspaceKey();
-    void handleTextInput();
+	void handleCharacterInput();
+	void handleEnterKey();
+	void handleDeleteKey();
+	void handleBackspaceKey();
+	void handleTextInput();
 
-    void processFontSizeAdjustment();
-    void processSelectAll();
+	void processFontSizeAdjustment();
+	void processSelectAll();
 
-    void processTextEditorInput();
+	void processTextEditorInput();
 
-    void handleEditorKeyboardInput();
+	void handleEditorKeyboardInput();
 
-    void handleArrowKeyVisibility();
+	void handleArrowKeyVisibility();
 
-    void updateCursorVisibilityOnTextChange();
+	void updateCursorVisibilityOnTextChange();
 
-    void processUndoRedo();
+	void processUndoRedo();
 };
 
 // Global instance
