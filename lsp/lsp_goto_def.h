@@ -13,40 +13,40 @@ using json = nlohmann::json;
 // Structure to hold location information (remains the same)
 struct DefinitionLocation
 {
-    std::string uri;
-    int startLine;
-    int startChar;
-    int endLine; // Keep these, might be useful later
-    int endChar;
+	std::string uri;
+	int startLine;
+	int startChar;
+	int endLine; // Keep these, might be useful later
+	int endChar;
 };
 
 class LSPGotoDef
 {
   public:
-    LSPGotoDef();
-    ~LSPGotoDef();
+	LSPGotoDef();
+	~LSPGotoDef();
 
-    // Core goto definition functionality
-    bool gotoDefinition(const std::string &filePath, int line, int character);
+	// Core goto definition functionality
+	bool gotoDefinition(const std::string &filePath, int line, int character);
 
-    // Definition options window (no changes needed in declaration)
-    void renderDefinitionOptions();
-    bool hasDefinitionOptions() const;
+	// Definition options window (no changes needed in declaration)
+	void renderDefinitionOptions();
+	bool hasDefinitionOptions() const;
 
   private:
-    // Helper methods
-    void parseDefinitionResponse(const std::string &response);
-    // New helper to parse the array part of the response
-    void parseDefinitionArray(const json &results_array); // <<< ADDED DECLARATION
-    int getNextRequestId() { return ++currentRequestId; }
+	// Helper methods
+	void parseDefinitionResponse(const std::string &response);
+	// New helper to parse the array part of the response
+	void parseDefinitionArray(const json &results_array); // <<< ADDED DECLARATION
+	int getNextRequestId() { return ++currentRequestId; }
 
-    // Request tracking
-    int currentRequestId = 2000; // Start at different value than EditorLSP
+	// Request tracking
+	int currentRequestId = 2000; // Start at different value than EditorLSP
 
-    // Definition options state (remains the same)
-    std::vector<DefinitionLocation> definitionLocations;
-    int selectedDefinitionIndex = 0;
-    bool showDefinitionOptions = false;
+	// Definition options state (remains the same)
+	std::vector<DefinitionLocation> definitionLocations;
+	int selectedDefinitionIndex = 0;
+	bool showDefinitionOptions = false;
 };
 
 // Global instance (remains the same)

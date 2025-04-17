@@ -1,6 +1,7 @@
 /*
-    File: editor.h
-    Description: Main editor coordinator that manages the text editing interface.
+	File: editor.h
+	Description: Main editor coordinator that manages the text editing
+   interface.
 */
 #pragma once
 #include "imgui.h"
@@ -27,15 +28,15 @@ extern EditorState editor_state;
 class Editor
 {
   public:
-    void textEditor();
+	void textEditor();
 
-    void setupEditorDisplay();
+	void setupEditorDisplay();
 
-    void processEditorInput();
+	void processEditorInput();
 
-    void updateLineStarts();
+	void updateLineStarts();
 
-    int getLineFromPos(int pos);
+	int getLineFromPos(int pos);
 
-    float calculateTextWidth();
+	float calculateTextWidth();
 };

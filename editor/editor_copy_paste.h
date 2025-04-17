@@ -12,25 +12,25 @@ extern Editor gEditor;
 class EditorCopyPaste
 {
   public:
-    EditorCopyPaste() = default;
-    ~EditorCopyPaste() = default;
+	EditorCopyPaste() = default;
+	~EditorCopyPaste() = default;
 
-    // Copy operation
-    void copySelectedText(const std::string &text);
+	// Copy operation
+	void copySelectedText(const std::string &text);
 
-    // Cut operations
-    void cutSelectedText();
-    void cutWholeLine();
+	// Cut operations
+	void cutSelectedText();
+	void cutWholeLine();
 
-    // Paste operation
-    void pasteText();
-    void processClipboardShortcuts();
+	// Paste operation
+	void pasteText();
+	void processClipboardShortcuts();
 
   private:
-    // Helper methods
-    // Get selection bounds (helper methods)
-    int getSelectionStart() const;
-    int getSelectionEnd() const;
+	// Helper methods
+	// Get selection bounds (helper methods)
+	int getSelectionStart() const;
+	int getSelectionEnd() const;
 };
 
 // Global instance
