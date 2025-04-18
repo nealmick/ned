@@ -17,6 +17,8 @@ struct ThemeColors
 	ImVec4 comment;
 	ImVec4 text;
 	ImVec4 function;
+	ImVec4 type;
+	ImVec4 variable;
 };
 
 class TreeSitter
@@ -32,10 +34,22 @@ class TreeSitter
 
 	static bool colorsNeedUpdate;	 // settings theme changed
 	static ThemeColors cachedColors; // cached settings theme colors, so we dont read from disk
-	static const ImVec4 &convertNodeTypeCPP(const std::string &nodeType);
+
+	static const ImVec4 &convertNodeTypeCPP(const std::string &nodeType,
+											const std::string &parentNodeType,
+											const std::string &nodeText);
 	static const ImVec4 &convertNodeTypeJS(const std::string &nodeType,
 										   const std::string &parentNodeType,
 										   const std::string &nodeText);
+
+	static const ImVec4 &convertNodeTypePython(const std::string &nodeType,
+											   const std::string &parentNodeType,
+											   const std::string &nodeText);
+
+	static const ImVec4 &convertNodeTypeCSharp(const std::string &nodeType,
+											   const std::string &parentNodeType,
+											   const std::string &nodeText);
+
 	static void setColors(const std::string &fileContent,
 						  std::vector<ImVec4> &fileColors,
 						  int start,
