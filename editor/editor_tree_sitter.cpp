@@ -14,6 +14,8 @@ std::mutex TreeSitter::parserMutex;
 // Declare language parser functions
 extern "C" TSLanguage *tree_sitter_cpp();
 extern "C" TSLanguage *tree_sitter_javascript();
+extern "C" TSLanguage *tree_sitter_python();
+extern "C" TSLanguage *tree_sitter_c_sharp();
 
 // ANSI color codes
 #define COLOR_NODE "\033[33m" // Yellow
@@ -62,6 +64,12 @@ void TreeSitter::parse(const std::string &fileContent,
 	} else if (extension == ".js" || extension == ".jsx")
 	{
 		lang = tree_sitter_javascript();
+	} else if (extension == ".py")
+	{
+		lang = tree_sitter_python();
+	} else if (extension == ".cs")
+	{
+		lang = tree_sitter_c_sharp();
 	} else
 	{
 		lang = tree_sitter_cpp(); // Default fallback
@@ -138,12 +146,18 @@ void TreeSitter::traverse(const std::string &extension,
 	// Assign based on file type (no "const ImVec4 &" redeclaration)
 	if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
 	{
-		color = convertNodeTypeCPP(type); // <-- Assignment, not declaration
+		color = convertNodeTypeCPP(type, parentNodeType, nodeText);
+
 	} else if (extension == ".js" || extension == ".jsx")
 	{
 		color = convertNodeTypeJS(type, parentNodeType, nodeText);
+	} else if (extension == ".py")
+	{
+		color = convertNodeTypePython(type, parentNodeType, nodeText);
+	} else if (extension == ".cs")
+	{
+		color = convertNodeTypeCSharp(type, parentNodeType, nodeText);
 	}
-
 	std::cout << COLOR_POS << "Idx " << start_byte << "-" << end_byte << COLOR_RESET << " "
 			  << prefix << " color: " << int(color.x * 255) << "," << int(color.y * 255) << ","
 			  << int(color.z * 255) << ": " << type << " -- " << content << std::endl;
@@ -162,101 +176,387 @@ void TreeSitter::traverse(const std::string &extension,
 			extension, fileContent, fileColors, child, depth + 1, last_child, child_hierarchy, type);
 	}
 }
-
-const ImVec4 &TreeSitter::convertNodeTypeJS(const std::string &nodeType,
-											const std::string &parentNodeType,
-											const std::string &nodeText)
+const ImVec4 &TreeSitter::convertNodeTypeCSharp(const std::string &nodeType,
+												const std::string &parentNodeType,
+												const std::string &nodeText)
 {
-	static const std::unordered_map<std::string, ImVec4> baseMap = {
-		{"string", cachedColors.string},
-		{"number", cachedColors.number},
-		{"comment", cachedColors.comment},
-		{"string_fragment", cachedColors.string},
-		{"jsx_text", cachedColors.text},
-		{"template_string", cachedColors.string},
-		{"true", cachedColors.keyword},
-		{"false", cachedColors.keyword},
-		{"null", cachedColors.keyword}};
+	// --- Keywords ---
+	// Using a set for faster keyword lookup
+	static const std::unordered_set<std::string> keywords = {
+		"abstract",
+		"as",
+		"base",
+		"bool",
+		"break",
+		"byte",
+		"case",
+		"catch",
+		"char",
+		"checked",
+		"class",
+		"const",
+		"continue",
+		"decimal",
+		"default",
+		"delegate",
+		"do",
+		"double",
+		"else",
+		"enum",
+		"event",
+		"explicit",
+		"extern",
+		"false",
+		"finally",
+		"fixed",
+		"float",
+		"for",
+		"foreach",
+		"goto",
+		"if",
+		"implicit",
+		"in",
+		"int",
+		"interface",
+		"internal",
+		"is",
+		"lock",
+		"long",
+		"namespace",
+		"new",
+		"null",
+		"object",
+		"operator",
+		"out",
+		"override",
+		"params",
+		"private",
+		"protected",
+		"public",
+		"readonly",
+		"ref",
+		"return",
+		"sbyte",
+		"sealed",
+		"short",
+		"sizeof",
+		"stackalloc",
+		"static",
+		"string",
+		"struct",
+		"switch",
+		"this",
+		"throw",
+		"true",
+		"try",
+		"typeof",
+		"uint",
+		"ulong",
+		"unchecked",
+		"unsafe",
+		"ushort",
+		"using", // using keyword itself
+		"virtual",
+		"void",
+		"volatile",
+		"while",
+		// Contextual keywords (often treated as keywords)
+		"add",
+		"alias",
+		"async",
+		"await",
+		"dynamic",
+		"get",
+		"global",
+		"nameof",
+		"partial",
+		"remove",
+		"set",
+		"value",
+		"var",
+		"when",
+		"where",
+		"yield"
+		// Note: 'value' is handled specially below for property setters
+		// Note: 'var' could be type or keyword depending on preference, often keyword
+	};
 
-	// JSX/HTML specific rules (keep your preferred version)
-	if (parentNodeType == "jsx_attribute")
+	if (keywords.count(nodeType)) // Direct keyword node types (like 'if', 'while')
 	{
-		if (nodeType == "property_identifier")
-			return cachedColors.keyword;
-		if (nodeType == "string")
-			return cachedColors.string;
+		return cachedColors.keyword;
+	}
+	if (keywords.count(nodeText) &&
+		(nodeType == "keyword" || nodeType == "identifier" ||
+		 nodeType ==
+			 "contextual_keyword")) // Check nodeText if nodeType is generic like 'identifier'
+	{
+		// Special case for 'value' in setters - treat as variable
+		if (nodeText == "value" &&
+			(parentNodeType == "set_accessor_declaration" ||
+			 parentNodeType == "expression_statement")) // Adjust parent based on grammar
+		{
+			return cachedColors.variable;
+		}
+		return cachedColors.keyword;
+	}
+	if (nodeType == "modifier")
+	{ // Modifiers like public, private, static etc.
+		return cachedColors.keyword;
+	}
+	if (nodeType == "predefined_type")
+	{							  // Built-in types like int, string, bool, void
+		return cachedColors.type; // Use Type color for built-in types
 	}
 
-	if ((parentNodeType == "jsx_opening_element" || parentNodeType == "jsx_closing_element") &&
-		nodeType == "identifier")
+	// --- Literals ---
+	if (nodeType == "integer_literal" || nodeType == "real_literal")
 	{
-		return (isupper(nodeText[0])) ? cachedColors.function : cachedColors.keyword;
+		return cachedColors.number;
+	}
+	if (nodeType == "string_literal" || nodeType == "verbatim_string_literal" ||
+		nodeType == "interpolated_string_literal" || nodeType == "character_literal")
+	{
+		// TODO: Could potentially color interpolation parts differently
+		return cachedColors.string;
+	}
+	if (nodeType == "boolean_literal" || nodeType == "null_literal")
+	{
+		return cachedColors.keyword; // Treat true, false, null as keywords
 	}
 
-	if (nodeType == "jsx_opening_element" || nodeType == "jsx_closing_element")
+	// --- Comments ---
+	if (nodeType == "comment" || nodeType == "documentation_comment")
 	{
-		return cachedColors.function;
+		return cachedColors.comment;
 	}
 
-	if (nodeType == "<" || nodeType == ">" || nodeType == "/>" || nodeType == "</")
+	// --- Types (Classes, Structs, Interfaces, Enums, Delegates, Records) ---
+	if (nodeType == "class_declaration" || nodeType == "struct_declaration" ||
+		nodeType == "interface_declaration" || nodeType == "enum_declaration" ||
+		nodeType == "delegate_declaration" || nodeType == "record_declaration" ||
+		nodeType == "record_struct_declaration")
 	{
+		// Color the entire declaration block? Or just the name?
+		// Let's color specific parts below, default the block to text.
+		// return cachedColors.type; // This would color the whole block
+	}
+	if (nodeType == "type_identifier" || nodeType == "generic_name" || nodeType == "nullable_type")
+	{
+		// This catches usage of type names (e.g., List<string>, MyClass, int?)
+		return cachedColors.type;
+	}
+
+	// --- Functions / Methods / Constructors ---
+	if (nodeType == "method_declaration" || nodeType == "constructor_declaration" ||
+		nodeType == "operator_declaration" || nodeType == "conversion_operator_declaration" ||
+		nodeType == "destructor_declaration" || nodeType == "local_function_statement")
+	{
+		// Color the whole block? Or just the name?
+		// Let's color the identifier name below.
+		// return cachedColors.function;
+	}
+	// Catch function/method calls
+	if (nodeType == "invocation_expression" && parentNodeType != "object_creation_expression")
+	{
+		// The expression itself might be complex (e.g., member access),
+		// color the final identifier (method name) via the identifier logic below.
+	}
+
+	// --- Variables & Parameters ---
+	if (nodeType == "variable_declaration" || nodeType == "local_declaration_statement")
+	{
+		// Declaration itself doesn't get special color, identifier inside does
+	}
+	if (nodeType == "parameter")
+	{
+		// Parameter declaration itself doesn't get special color, identifier inside does
+	}
+	if (nodeType == "property_declaration" || nodeType == "field_declaration" ||
+		nodeType == "event_field_declaration")
+	{
+		// Declaration itself doesn't get special color, identifier inside does
+	}
+
+	// --- Identifiers (Context is Key!) ---
+	if (nodeType == "identifier")
+	{
+		// Is it a parameter name?
+		if (parentNodeType == "parameter")
+		{
+			return cachedColors.variable; // Use variable color for parameters
+		}
+		// Is it a variable name being declared?
+		if (parentNodeType == "variable_declarator" || parentNodeType == "catch_declaration")
+		{
+			return cachedColors.variable;
+		}
+		// Is it a loop variable? (foreach)
+		if (parentNodeType == "foreach_statement")
+		{
+			// Need to check if it's the identifier specifically for the loop variable
+			// This depends on the exact grammar structure. Assuming it is for now.
+			return cachedColors.variable;
+		}
+		// Is it a class, struct, interface, enum, delegate, or record name being declared?
+		if (parentNodeType == "class_declaration" || parentNodeType == "struct_declaration" ||
+			parentNodeType == "interface_declaration" || parentNodeType == "enum_declaration" ||
+			parentNodeType == "delegate_declaration" || parentNodeType == "record_declaration" ||
+			nodeType == "record_struct_declaration")
+		{
+			return cachedColors.type; // Use type color for type definition names
+		}
+		// Is it a method, constructor, operator, or local function name being declared?
+		if (parentNodeType == "method_declaration" || parentNodeType == "constructor_declaration" ||
+			parentNodeType == "operator_declaration" ||
+			parentNodeType == "conversion_operator_declaration" ||
+			parentNodeType == "destructor_declaration" ||
+			parentNodeType == "local_function_statement")
+		{
+			return cachedColors.function; // Use function color for function definition names
+		}
+		// Is it a property, field, or event name being declared?
+		if (parentNodeType == "property_declaration" || parentNodeType == "field_declaration" ||
+			parentNodeType == "event_field_declaration" ||
+			parentNodeType == "enum_member_declaration")
+		{
+			return cachedColors.variable; // Use variable color for fields/properties
+		}
+		// Is it a function or method being called?
+		// This requires looking at the parent/grandparent structure, e.g., identifier inside
+		// member_access inside invocation
+		if (parentNodeType == "member_access_expression" ||
+			parentNodeType == "invocation_expression" ||
+			parentNodeType == "object_creation_expression")
+		{
+			// Very simplified: assume identifiers in these contexts are function/method calls or
+			// properties being accessed. A more robust solution might check if the grandparent is
+			// invocation_expression.
+			return cachedColors.function; // Tentatively color as function call
+		}
+		// Is it part of a namespace or qualified name?
+		if (parentNodeType == "qualified_name" || parentNodeType == "namespace_declaration")
+		{
+			// Could be namespace part or type part. Let's use 'Type' color for consistency.
+			return cachedColors.type;
+		}
+		// Is it an attribute name?
+		if (parentNodeType == "attribute")
+		{
+			return cachedColors.type; // Attributes often map to Type names
+		}
+		// Is it a label?
+		if (parentNodeType == "labeled_statement")
+		{
+			return cachedColors.text; // Labels usually aren't highlighted specially
+		}
+
+		// If none of the above, it's likely a variable usage.
+		// return cachedColors.variable; // Default identifier usage to variable? Risky.
+		// Let's default to text if context is uncertain.
 		return cachedColors.text;
 	}
 
-	// Enhanced JavaScript keyword handling
-	static const std::unordered_set<std::string> keywords = {
-		"return",	 "function", "if",		   "else",	   "for",	  "while",	  "do",
-		"switch",	 "case",	 "try",		   "catch",	   "finally", "throw",	  "new",
-		"delete",	 "typeof",	 "instanceof", "void",	   "break",	  "continue", "debugger",
-		"var",		 "let",		 "const",	   "class",	   "extends", "super",	  "this",
-		"async",	 "await",	 "yield",	   "of",	   "in",	  "static",	  "get",
-		"set",		 "export",	 "import",	   "default",  "from",	  "as",		  "typeof",
-		"interface", "type",	 "implements", "namespace"};
+	// --- Other ---
+	if (nodeType == "using_directive")
+	{ // The whole 'using Blah.Blah;' statement
+	  // Let parts inside (keyword, qualified_name) be colored by their rules.
+	  // return cachedColors.keyword; // Or color the whole line keyword? Let's use text.
+	}
+	if (nodeType == "attribute")
+	{ // [AttributeName(...)]
+		// Color the brackets/commas? Probably text. Color the name via identifier logic.
+		return cachedColors.type; // Color the whole attribute block? Let's try type.
+	}
+	if (nodeType == "preprocessor_directive" || nodeType == "preprocessor_call")
+	{
+		return cachedColors.comment; // Style preprocessor like comments or a distinct color
+	}
 
+	// --- Fallback ---
+	// If the node type didn't match any specific rule above
+	return cachedColors.text;
+}
+
+const ImVec4 &TreeSitter::convertNodeTypePython(const std::string &nodeType,
+												const std::string &parentNodeType,
+												const std::string &nodeText)
+{
+	static const std::unordered_map<std::string, ImVec4> baseMap = {
+		{"string", cachedColors.string},
+		{"string_start", cachedColors.string},
+		{"string_end", cachedColors.string},
+		{"string_content", cachedColors.string},
+		{"fstring_start", cachedColors.string},
+		{"fstring_end", cachedColors.string},
+		{"fstring_content", cachedColors.string},
+		{"comment", cachedColors.comment},
+		{"integer", cachedColors.number},
+		{"float", cachedColors.number},
+		{"none", cachedColors.keyword},
+		{"true", cachedColors.keyword},
+		{"false", cachedColors.keyword},
+		{"escape_sequence", cachedColors.string},
+		{"fstring_start", cachedColors.string},
+		{"fstring_end", cachedColors.string}};
+
+	static const std::unordered_set<std::string> keywords = {
+		"and",	  "as",	  "assert", "async",  "await",	"break",   "class",	   "continue",
+		"def",	  "del",  "elif",	"else",	  "except", "finally", "for",	   "from",
+		"global", "if",	  "import", "in",	  "is",		"lambda",  "nonlocal", "not",
+		"or",	  "pass", "raise",	"return", "try",	"while",   "with",	   "yield"};
+
+	// Handle keywords
 	if (keywords.count(nodeType))
 	{
 		return cachedColors.keyword;
 	}
 
-	// Function handling
-	if (nodeType == "function_declaration" || nodeType == "arrow_function" ||
-		nodeType == "method_definition" || nodeType == "call_expression")
+	// Function and class definitions
+	if (nodeType == "identifier")
 	{
-		return cachedColors.function;
-	}
-
-	// React hooks pattern
-	if (nodeType == "identifier" && parentNodeType == "lexical_declaration")
-	{
-		static const std::unordered_set<std::string> hooks = {"useState",
-															  "useEffect",
-															  "useContext",
-															  "useReducer",
-															  "useCallback",
-															  "useMemo",
-															  "useRef",
-															  "useImperativeHandle",
-															  "useLayoutEffect"};
-		if (hooks.count(nodeText))
+		if (parentNodeType == "function_definition" || parentNodeType == "class_definition" ||
+			parentNodeType == "decorator")
+		{
 			return cachedColors.function;
-	}
-
-	// JSX expressions
-	if (parentNodeType == "jsx_expression")
-	{
-		if (nodeType == "identifier" || nodeType == "member_expression")
+		}
+		if (parentNodeType == "call")
 		{
 			return cachedColors.function;
 		}
 	}
 
-	// Object/class properties
-	if (nodeType == "property_identifier" && parentNodeType != "jsx_attribute")
+	// Parameters
+	if (nodeType == "parameters" || nodeType == "default_parameter")
+	{
+		return cachedColors.text;
+	}
+
+	// Decorators
+	if (nodeType == "decorator")
 	{
 		return cachedColors.function;
 	}
 
-	// Default mappings
+	// Type annotations
+	if (parentNodeType == "type_alias" || parentNodeType == "typed_parameter")
+	{
+		return cachedColors.keyword;
+	}
+
+	// String formatting
+	if (nodeType == "format_specifier")
+	{
+		return cachedColors.string;
+	}
+
+	// Import statements
+	if (nodeType == "dotted_name" &&
+		(parentNodeType == "import_from_statement" || parentNodeType == "import_statement"))
+	{
+		return cachedColors.keyword;
+	}
+
+	// Handle base mappings
 	if (auto it = baseMap.find(nodeType); it != baseMap.end())
 	{
 		return it->second;
@@ -264,32 +564,234 @@ const ImVec4 &TreeSitter::convertNodeTypeJS(const std::string &nodeType,
 
 	return cachedColors.text;
 }
-const ImVec4 &TreeSitter::convertNodeTypeCPP(const std::string &nodeType)
+const ImVec4 &TreeSitter::convertNodeTypeJS(const std::string &nodeType,
+											const std::string &parentNodeType,
+											const std::string &nodeText)
 {
-	// C++ specific node mappings
-	static const std::unordered_map<std::string, ImVec4 &> cppTypeMap = {
-		{"number_literal", cachedColors.number},
-		{"string_literal", cachedColors.string},
-		{"char_literal", cachedColors.string},
-		{"comment", cachedColors.comment},
-		{"function_definition", cachedColors.function},
-		{"call_expression", cachedColors.function},
-		{"field_identifier", cachedColors.function},
-		{"primitive_type", cachedColors.keyword},
-		{"type_identifier", cachedColors.keyword},
-		{"if", cachedColors.keyword},
-		{"for", cachedColors.keyword},
-		{"while", cachedColors.keyword},
+	static const std::unordered_map<std::string, ImVec4> pythonTypeMap = {
+		// Basic syntax
+		{"import", cachedColors.keyword},
+		{"from", cachedColors.keyword},
+		{"def", cachedColors.keyword},
+		{"class", cachedColors.keyword},
 		{"return", cachedColors.keyword},
-		{"class_specifier", cachedColors.keyword},
-		{"namespace_identifier", cachedColors.function}};
 
-	if (auto it = cppTypeMap.find(nodeType); it != cppTypeMap.end())
+		// Literals
+		{"string", cachedColors.string},
+		{"integer", cachedColors.number},
+		{"float", cachedColors.number},
+		{"true", cachedColors.keyword},
+		{"false", cachedColors.keyword},
+		{"none", cachedColors.keyword},
+
+		// Functions/classes
+		{"function_definition", cachedColors.function},
+		{"class_definition", cachedColors.function},
+		{"call", cachedColors.function},
+
+		// Comments
+		{"comment", cachedColors.comment},
+
+		// Imports
+		{"import_statement", cachedColors.keyword},
+		{"import_from_statement", cachedColors.keyword},
+		{"dotted_name", cachedColors.function}};
+
+	if (auto it = pythonTypeMap.find(nodeType); it != pythonTypeMap.end())
 	{
 		return it->second;
 	}
 
-	return cachedColors.text; // Default fallback
+	return cachedColors.text;
+}
+const ImVec4 &TreeSitter::convertNodeTypeCPP(const std::string &nodeType,
+											 const std::string &parentNodeType,
+											 const std::string &nodeText)
+{
+	// --- Keywords ---
+	static const std::unordered_set<std::string> keywords = {
+		"alignas",		 "alignof",		"and",
+		"and_eq",		 "asm",			"auto",
+		"bitand",		 "bitor",		"bool",
+		"break",		 "case",		"catch",
+		"char",			 "char8_t",		"char16_t",
+		"char32_t",		 "class",		"compl",
+		"concept",		 "const",		"consteval",
+		"constexpr",	 "constinit",	"const_cast",
+		"continue",		 "co_await",	"co_return",
+		"co_yield",		 "decltype",	"default",
+		"delete",		 "do",			"double",
+		"dynamic_cast",	 "else",		"enum",
+		"explicit",		 "export",		"extern",
+		"false",		 "float",		"for",
+		"friend",		 "goto",		"if",
+		"inline",		 "int",			"long",
+		"mutable",		 "namespace",	"new",
+		"noexcept",		 "not",			"not_eq",
+		"nullptr",		 "operator",	"or",
+		"or_eq",		 "private",		"protected",
+		"public",		 "register",	"reinterpret_cast",
+		"requires",		 "return",		"short",
+		"signed",		 "sizeof",		"static",
+		"static_assert", "static_cast", "struct",
+		"switch",		 "template",	"this",
+		"thread_local",	 "throw",		"true",
+		"try",			 "typedef",		"typeid",
+		"typename",		 "union",		"unsigned",
+		"using",		 "virtual",		"void",
+		"volatile",		 "wchar_t",		"while",
+		"xor",			 "xor_eq"
+		// Note: Some node types like 'if_statement' might contain the keyword 'if',
+		// so checking nodeText can be useful too.
+	};
+
+	// Check if the node type itself is a keyword or if the text content is a keyword
+	if (keywords.count(nodeType) || (nodeType == "identifier" && keywords.count(nodeText)))
+	{
+		return cachedColors.keyword;
+	}
+	if (nodeType == "storage_class_specifier" || // extern, static, register, mutable, thread_local
+		nodeType == "type_qualifier" ||			 // const, volatile, restrict, _Atomic
+		nodeType == "access_specifier")			 // public, private, protected
+	{
+		return cachedColors.keyword;
+	}
+
+	// --- Literals ---
+	if (nodeType == "number_literal" || nodeType == "user_defined_literal")
+	{ // Catches 123, 1.23, 1.23f, 123_udl
+		return cachedColors.number;
+	}
+	if (nodeType == "string_literal" || nodeType == "raw_string_literal" ||
+		nodeType == "concatenated_string")
+	{
+		return cachedColors.string;
+	}
+	if (nodeType == "char_literal")
+	{
+		return cachedColors.string; // Often styled like strings
+	}
+	if (nodeType == "boolean_literal" || nodeType == "null_literal")
+	{ // true, false, nullptr
+		return cachedColors.keyword;
+	}
+
+	// --- Comments ---
+	if (nodeType == "comment")
+	{
+		return cachedColors.comment;
+	}
+
+	// --- Preprocessor ---
+	if (nodeType.rfind("preproc_", 0) == 0)
+	{ // Matches preproc_if, preproc_def, etc.
+		// Could use a dedicated 'macro' color, but comment is common
+		return cachedColors.comment;
+	}
+	if (nodeType == "system_lib_string" ||
+		nodeType == "string_literal" && parentNodeType == "preproc_include")
+	{ // <iostream> or "myheader.h" in #include
+		return cachedColors.string;
+	}
+
+	// --- Types ---
+	if (nodeType == "primitive_type")
+	{ // int, float, bool, void, etc.
+		return cachedColors.type;
+	}
+	if (nodeType == "type_identifier")
+	{ // Usage of a type like MyClass, std::vector
+		return cachedColors.type;
+	}
+	if (nodeType == "namespace_identifier" || nodeType == "template_type" ||
+		nodeType == "template_function")
+	{
+		return cachedColors.type; // Often refer to or contain types
+	}
+	if (nodeType == "sized_type_specifier")
+	{ // e.g. long long int
+		return cachedColors.type;
+	}
+
+	// --- Functions ---
+	if (nodeType == "function_definition")
+	{
+		// Definition itself doesn't get special color, identifier inside does (handled below)
+	}
+	if (nodeType == "call_expression")
+	{
+		// The expression itself doesn't get special color, identifier inside does (handled below)
+	}
+	if (nodeType == "operator_name")
+	{ // operator+, operator=, etc.
+		return cachedColors.function;
+	}
+
+	// --- Identifiers (Context is Key!) ---
+	if (nodeType == "identifier")
+	{
+		// Is it a function name being declared?
+		if (parentNodeType == "function_declarator")
+		{
+			return cachedColors.function;
+		}
+		// Is it a function name being called? (Simplistic check)
+		if (parentNodeType == "call_expression")
+		{
+			return cachedColors.function;
+		}
+		// Is it a class, struct, enum, union, or namespace name being declared?
+		if (parentNodeType == "class_specifier" || parentNodeType == "struct_specifier" ||
+			parentNodeType == "enum_specifier" || parentNodeType == "union_specifier" ||
+			parentNodeType == "namespace_definition" ||
+			parentNodeType == "namespace_alias_definition")
+		{
+			return cachedColors.type;
+		}
+		// Is it a parameter name?
+		if (parentNodeType == "parameter_declaration")
+		{
+			return cachedColors.variable; // Use variable color for parameters
+		}
+		// Is it a variable name being declared?
+		if (parentNodeType == "init_declarator" || parentNodeType == "declaration")
+		{
+			// Needs more context, check siblings/grandparents? For now, assume variable.
+			return cachedColors.variable;
+		}
+		// Is it a template parameter name?
+		if (parentNodeType == "type_parameter_declaration")
+		{
+			return cachedColors.type; // Template params often represent types
+		}
+		// Is it part of a using declaration/directive?
+		if (parentNodeType == "using_declaration")
+		{
+			return cachedColors.type; // Usually brings in types or namespaces
+		}
+		// Is it part of a qualified identifier (namespace::member)?
+		if (parentNodeType == "qualified_identifier")
+		{
+			// Could be namespace, type, function, or variable. Needs more context.
+			// Defaulting to 'type' might be okay as often it is namespace::Type or Type::member.
+			return cachedColors.type;
+		}
+
+		// Default for unclassified identifiers - could be variable usage
+		return cachedColors.variable; // Default identifier usage to variable (can be refined)
+	}
+
+	// --- Member Access ---
+	if (nodeType == "field_identifier")
+	{ // obj.member or ptr->member
+		// This could be a data member or a function. Without more context (like trailing ()),
+		// it's ambiguous. Defaulting to variable is a common choice.
+		return cachedColors.variable;
+	}
+
+	// --- Fallback ---
+	// If the node type didn't match any specific rule above
+	return cachedColors.text;
 }
 
 void TreeSitter::printColors()
@@ -332,6 +834,8 @@ void TreeSitter::updateThemeColors()
 	cachedColors.comment = loadColor("comment");
 	cachedColors.text = loadColor("text");
 	cachedColors.function = loadColor("function");
+	cachedColors.type = loadColor("type");
+	cachedColors.variable = loadColor("variable");
 
 	colorsNeedUpdate = false;
 }
