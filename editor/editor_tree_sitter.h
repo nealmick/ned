@@ -30,25 +30,9 @@ class TreeSitter
 
 	static void updateThemeColors();
 	static void refreshColors() { colorsNeedUpdate = true; };
-	static void printColors();
 
 	static bool colorsNeedUpdate;	 // settings theme changed
-	static ThemeColors cachedColors; // cached settings theme colors, so we dont read from disk
-
-	static const ImVec4 &convertNodeTypeCPP(const std::string &nodeType,
-											const std::string &parentNodeType,
-											const std::string &nodeText);
-	static const ImVec4 &convertNodeTypeJS(const std::string &nodeType,
-										   const std::string &parentNodeType,
-										   const std::string &nodeText);
-
-	static const ImVec4 &convertNodeTypePython(const std::string &nodeType,
-											   const std::string &parentNodeType,
-											   const std::string &nodeText);
-
-	static const ImVec4 &convertNodeTypeCSharp(const std::string &nodeType,
-											   const std::string &parentNodeType,
-											   const std::string &nodeText);
+	static ThemeColors cachedColors; // <--- ADDED STATIC HERE!
 
 	static void setColors(const std::string &fileContent,
 						  std::vector<ImVec4> &fileColors,
@@ -69,4 +53,5 @@ class TreeSitter
 						 bool is_last,
 						 const std::vector<bool> &hierarchy,
 						 const std::string &parentNodeType = "");
+	static std::map<std::string, TSQuery *> languageQueries; // Maps extensions to queries
 };
