@@ -72,9 +72,11 @@ target_include_directories(nfd PUBLIC
 add_library(tree-sitter-lib STATIC
   lib/tree-sitter/lib/src/lib.c
   lib/tree-sitter/lib/src/parser.c
+  lib/tree-sitter/lib/src/query.c 
 )
 target_include_directories(tree-sitter-lib PUBLIC
   lib/tree-sitter/lib/include
+  lib/tree-sitter/lib/src
 )
 
 # Grammar detection
@@ -170,6 +172,7 @@ target_include_directories(ned PRIVATE
   ${CMAKE_BINARY_DIR}
   ${GLEW_INCLUDE_DIRS}
   lib/tree-sitter/lib/include
+  lib/tree-sitter/lib/src
 )
 
 # ================
