@@ -31,6 +31,7 @@ void EditorHighlight::forceColorUpdate()
 	tsxLexer.forceColorUpdate();
 
 	TreeSitter::refreshColors();
+	std::cout << "refrehsing colors for highlight" << std::endl;
 }
 
 bool EditorHighlight::validateHighlightContentParams()
