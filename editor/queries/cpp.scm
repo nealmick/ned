@@ -1,8 +1,17 @@
+;; ==============================================================================
+;; C++ Highlighting Query
+;; ==============================================================================
+
 ;; Comments
 (comment) @comment
 
 ;; Preprocessor Directives
-(preproc_include path: (_) @string.special) ; Highlight the path in #include
+(preproc_include) @keyword ; Highlight #include as a keyword
+(preproc_include
+  path: [
+    (string_literal) @string ; Highlight paths in quotes (e.g., "editor_cursor.h")
+    (system_lib_string) @string ; Highlight paths in angle brackets (e.g., <algorithm>)
+  ])
 (preproc_def name: (identifier) @constant.macro) ; Highlight the macro name in #define
 [
   (preproc_directive)
@@ -13,7 +22,6 @@
   (preproc_call)
   (preproc_def)
   (preproc_function_def)
-  (preproc_include)
 ] @preprocessor
 
 ;; Keywords
@@ -94,29 +102,21 @@
   "++"
   "+="
   "<"
-  "<="
-  "<<"
-  "<<="
   "="
   "=="
   "!="
   ">"
-  ">="
   ">>"
-  ">>="
   "|"
-  "|="
   "||"
   "?"
   "^"
-  "^="
   "~"
   "*"
   "*="
   "/"
   "/="
   "%"
-  "%="
   ":"
   "::"
   "."
@@ -153,56 +153,71 @@
 ;; Built-in Variables/Keywords acting like variables
 (this) @variable.builtin
 
-;; Types
-(primitive_type) @type.builtin ; int, float, void, bool, char, etc.
-(auto) @type.builtin ; Treat auto like a built-in type specifier
+;; === Types ===
+
+;; Primitive Types
+(primitive_type) @type ; int, float, void, bool, char, etc.
+(auto) @type ; Treat auto like a type specifier
+
+;; User-Defined Types
+(class_specifier name: (type_identifier) @type)
+(struct_specifier name: (type_identifier) @type)
+(union_specifier name: (type_identifier) @type)
+(enum_specifier name: (type_identifier) @type)
 
 ;; Type Definitions
-(class_specifier name: (type_identifier) @type.definition)
-(struct_specifier name: (type_identifier) @type.definition)
-(union_specifier name: (type_identifier) @type.definition)
-(enum_specifier name: (type_identifier) @type.definition)
-(alias_declaration name: (type_identifier) @type.definition) ; using MyType = ...
-(type_definition declarator: (type_identifier) @type.definition) ; typedef ... MyType;
+(alias_declaration name: (type_identifier) @type) ; using MyType = ...
+(type_definition declarator: (type_identifier) @type) ; typedef ... MyType;
 
-;; Type Usage (More general captures)
+;; Type Usage (General)
 (type_identifier) @type
 
-;; Function Declarations/Definitions
+;; === Function Declarations/Definitions ===
+
+;; Function Definitions
 (function_definition
-  declarator: [
-    (function_declarator
-      declarator: [(identifier) (field_identifier) (operator_name)] @function.definition)
-    (pointer_declarator declarator: (function_declarator declarator: (identifier) @function.definition)) ; Function pointers
-  ])
-(function_declarator ; Standalone declarations
-  declarator: [(identifier) (field_identifier) (operator_name)] @function)
+  declarator: (function_declarator
+    declarator: (identifier) @function)) ; Function name in definitions
+
+;; Function Declarations
+(declaration
+  declarator: (function_declarator
+    declarator: (identifier) @function)) ; Function name in declarations
+
+;; Method Definitions
+(function_definition
+  declarator: (function_declarator
+    declarator: (field_identifier) @function)) ; Method name in definitions
+
+;; Method Declarations
+(declaration
+  declarator: (function_declarator
+    declarator: (field_identifier) @function)) ; Method name in declarations
 
 ;; Function Calls
 (call_expression
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 (call_expression
-  function: (field_expression field: (field_identifier) @function.call)) ; obj.method()
+  function: (field_expression field: (field_identifier) @function)) ; obj.method()
 (call_expression
-  function: (qualified_identifier name: (identifier) @function.call)) ; namespace::func()
+  function: (qualified_identifier name: (identifier) @function)) ; namespace::func()
 (call_expression
-  function: (template_function name: (identifier) @function.call)) ; func<T>()
+  function: (template_function name: (identifier) @function)) ; func<T>()
 
 ;; Templates
-(template_declaration) @keyword ; Highlight the 'template' keyword itself
-(template_parameter_list) @type.parameter ; Highlight the <...> part
+(template_declaration) @keyword
+(template_parameter_list) @type
 (template_function
   name: (identifier) @function)
 (template_method
   name: (field_identifier) @function)
 
-
 ;; Namespaces
-(using_declaration (qualified_identifier) @namespace) ; Could also be a variable/function, might need refinement
+(using_declaration (qualified_identifier) @namespace)
 
-;; Identifiers (General Fallback - IMPORTANT: Place this near the end)
-(identifier) @variable ; General identifier, potentially a variable
-(field_identifier) @variable.member ; Member variables (obj.member)
+;; Identifiers (General Fallback)
+(identifier) @variable
+(field_identifier) @variable.member
 
 ;; Constants (Enum members)
 (enumerator (identifier) @constant)
@@ -212,15 +227,11 @@
 (attribute (identifier) @attribute)
 
 ;; Concepts (C++20)
-(concept_definition name: (identifier) @type.definition) ; Or maybe @keyword.definition
+(concept_definition name: (identifier) @type)
 
 ;; Qualified Identifiers (Refinement)
-;; Try to differentiate types and namespaces within qualified identifiers
 (qualified_identifier
   scope: (namespace_identifier) @namespace
-  name: (identifier) @variable) ; Default to variable if not caught by function/type rules above
+  name: (identifier) @variable)
 (qualified_identifier
-  name: (identifier) @variable) ; Default to variable if not caught by function/type rules above
-
-;; Make sure types in qualified identifiers are caught
-(qualified_identifier name: (type_identifier) @type)
+  name: (identifier) @variable)

@@ -17,6 +17,7 @@ extern "C" TSLanguage *tree_sitter_cpp();
 extern "C" TSLanguage *tree_sitter_javascript();
 extern "C" TSLanguage *tree_sitter_python();
 extern "C" TSLanguage *tree_sitter_c_sharp();
+extern "C" TSLanguage *tree_sitter_html();
 
 std::map<std::string, TSQuery *> TreeSitter::languageQueries;
 
@@ -37,6 +38,53 @@ void TreeSitter::cleanupParser()
 	{
 		ts_parser_delete(parser);
 		parser = nullptr;
+	}
+}
+
+void print_ast_node(TSNode node, const std::string &source_code, int indent_level)
+{
+	// Print indentation
+	for (int i = 0; i < indent_level; ++i)
+	{
+		std::cout << "  ";
+	}
+
+	// Get node type and range
+	const char *node_type = ts_node_type(node);
+	uint32_t start_byte = ts_node_start_byte(node);
+	uint32_t end_byte = ts_node_end_byte(node);
+
+	// Print node info: (TYPE) [start_byte - end_byte] "optional_text"
+	std::cout << "(" << node_type << ") [" << start_byte << " - " << end_byte << "]";
+
+	// Optionally print the text content for small nodes (helps identify)
+	if ((end_byte - start_byte) < 40)
+	{ // Only print text for reasonably small nodes
+		std::cout << " \"";
+		// Be careful with multi-byte characters if source is UTF-8; this simple print might be
+		// imperfect
+		for (uint32_t i = start_byte; i < end_byte && i < source_code.length(); ++i)
+		{
+			char c = source_code[i];
+			if (c == '\n')
+				std::cout << "\\n"; // Escape newline for readability
+			else if (c == '\r')
+				std::cout << "\\r";
+			else if (c == '\t')
+				std::cout << "\\t";
+			else
+				std::cout << c;
+		}
+		std::cout << "\"";
+	}
+	std::cout << std::endl;
+
+	// Recurse for children
+	uint32_t child_count = ts_node_child_count(node);
+	for (uint32_t i = 0; i < child_count; ++i)
+	{
+		TSNode child_node = ts_node_child(node, i);
+		print_ast_node(child_node, source_code, indent_level + 1); // Increase indent
 	}
 }
 
@@ -77,6 +125,10 @@ void TreeSitter::parse(const std::string &fileContent,
 	{
 		lang = tree_sitter_c_sharp();
 		query_path = "editor/queries/csharp.scm";
+	} else if (extension == ".html")
+	{
+		lang = tree_sitter_html();
+		query_path = "editor/queries/html.scm";
 	} else
 	{
 		lang = tree_sitter_cpp();
@@ -90,7 +142,18 @@ void TreeSitter::parse(const std::string &fileContent,
 
 	ts_parser_set_language(parser, lang);
 	TSTree *tree = ts_parser_parse_string(parser, nullptr, fileContent.c_str(), fileContent.size());
-
+	if (tree)
+	{ // Make sure the tree was actually created
+		TSNode root_node = ts_tree_root_node(tree);
+		std::cout << "\n======================================================\n";
+		std::cout << "                 TREE-SITTER AST DUMP                 \n";
+		std::cout << "======================================================\n";
+		print_ast_node(root_node, fileContent, 0); // Start printing from root node
+		std::cout << "======================================================\n\n";
+	} else
+	{
+		std::cerr << "Failed to parse content, cannot print AST." << std::endl;
+	}
 	// Load query
 	std::ifstream file(query_path);
 	if (!file.is_open())
