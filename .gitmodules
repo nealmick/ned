@@ -19,3 +19,6 @@
 [submodule "lib/tree-sitter-csharp"]
 	path = lib/tree-sitter-csharp
 	url = https://github.com/tree-sitter/tree-sitter-c-sharp
+[submodule "lib/tree-sitter-html"]
+	path = lib/tree-sitter-html
+	url = https://github.com/tree-sitter/tree-sitter-html
