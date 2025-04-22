@@ -18,6 +18,18 @@ extern "C" TSLanguage *tree_sitter_javascript();
 extern "C" TSLanguage *tree_sitter_python();
 extern "C" TSLanguage *tree_sitter_c_sharp();
 extern "C" TSLanguage *tree_sitter_html();
+extern "C" TSLanguage *tree_sitter_tsx();
+extern "C" TSLanguage *tree_sitter_css();
+extern "C" TSLanguage *tree_sitter_java();
+extern "C" TSLanguage *tree_sitter_go();
+extern "C" TSLanguage *tree_sitter_hcl();
+extern "C" TSLanguage *tree_sitter_json();
+extern "C" TSLanguage *tree_sitter_kotlin();
+extern "C" TSLanguage *tree_sitter_bash();
+extern "C" TSLanguage *tree_sitter_c();
+extern "C" TSLanguage *tree_sitter_rust();
+extern "C" TSLanguage *tree_sitter_toml();
+extern "C" TSLanguage *tree_sitter_ruby();
 
 std::map<std::string, TSQuery *> TreeSitter::languageQueries;
 
@@ -129,6 +141,54 @@ void TreeSitter::parse(const std::string &fileContent,
 	{
 		lang = tree_sitter_html();
 		query_path = "editor/queries/html.scm";
+	} else if (extension == ".tsx" || extension == ".ts")
+	{
+		lang = tree_sitter_tsx();
+		query_path = "editor/queries/tsx.scm";
+	} else if (extension == ".css")
+	{
+		lang = tree_sitter_css();
+		query_path = "editor/queries/css.scm";
+	} else if (extension == ".java")
+	{
+		lang = tree_sitter_java();
+		query_path = "editor/queries/java.scm";
+	} else if (extension == ".go")
+	{
+		lang = tree_sitter_go();
+		query_path = "editor/queries/go.scm";
+	} else if (extension == ".tf")
+	{
+		lang = tree_sitter_hcl();
+		query_path = "editor/queries/hcl.scm";
+	} else if (extension == ".json")
+	{
+		lang = tree_sitter_json();
+		query_path = "editor/queries/json.scm";
+	} else if (extension == ".sh")
+	{
+		lang = tree_sitter_bash();
+		query_path = "editor/queries/sh.scm";
+	} else if (extension == ".kt")
+	{
+		lang = tree_sitter_kotlin();
+		query_path = "editor/queries/kotlin.scm";
+	} else if (extension == ".rs")
+	{
+		lang = tree_sitter_rust();
+		query_path = "editor/queries/rs.scm";
+	} else if (extension == ".toml")
+	{
+		lang = tree_sitter_toml();
+		query_path = "editor/queries/toml.scm";
+	} else if (extension == ".rb")
+	{
+		lang = tree_sitter_ruby();
+		query_path = "editor/queries/rb.scm";
+	} else if (extension == ".c")
+	{
+		lang = tree_sitter_c();
+		query_path = "editor/queries/c.scm";
 	} else
 	{
 		lang = tree_sitter_cpp();
@@ -142,6 +202,8 @@ void TreeSitter::parse(const std::string &fileContent,
 
 	ts_parser_set_language(parser, lang);
 	TSTree *tree = ts_parser_parse_string(parser, nullptr, fileContent.c_str(), fileContent.size());
+	/*
+	// print tree...
 	if (tree)
 	{ // Make sure the tree was actually created
 		TSNode root_node = ts_tree_root_node(tree);
@@ -154,6 +216,7 @@ void TreeSitter::parse(const std::string &fileContent,
 	{
 		std::cerr << "Failed to parse content, cannot print AST." << std::endl;
 	}
+	*/
 	// Load query
 	std::ifstream file(query_path);
 	if (!file.is_open())
@@ -223,11 +286,13 @@ void TreeSitter::parse(const std::string &fileContent,
 
 	ts_tree_delete(tree);
 }
+
 std::ostream &operator<<(std::ostream &os, const ImVec4 &color)
 {
 	os << "(" << color.x << ", " << color.y << ", " << color.z << ", " << color.w << ")";
 	return os;
 }
+
 void TreeSitter::updateThemeColors()
 {
 	if (!colorsNeedUpdate)
@@ -243,49 +308,40 @@ void TreeSitter::updateThemeColors()
 	ImVec4 newColor;
 	// --- Keyword ---
 	newColor = loadColor("keyword");
-	std::cout << "keyword: old" << cachedColors.keyword << " -> new" << newColor << std::endl;
 	cachedColors.keyword = newColor;
 
 	// --- String ---
 	newColor = loadColor("string");
-	std::cout << "string:  old" << cachedColors.string << " -> new" << newColor << std::endl;
 	cachedColors.string = newColor;
 
 	// --- Number ---
 	newColor = loadColor("number");
-	std::cout << "number:  old" << cachedColors.number << " -> new" << newColor << std::endl;
 	cachedColors.number = newColor;
 
 	// --- Comment ---
 	newColor = loadColor("comment");
-	std::cout << "comment: old" << cachedColors.comment << " -> new" << newColor << std::endl;
 	cachedColors.comment = newColor;
 
 	// --- Text ---
 	newColor = loadColor("text");
-	std::cout << "text:    old" << cachedColors.text << " -> new" << newColor << std::endl;
 	cachedColors.text = newColor;
 
 	// --- Function ---
 	newColor = loadColor("function");
-	std::cout << "function:old" << cachedColors.function << " -> new" << newColor << std::endl;
 	cachedColors.function = newColor;
 
 	// --- Type ---
 	newColor = loadColor("type");
-	std::cout << "type:    old" << cachedColors.type << " -> new" << newColor << std::endl;
 	cachedColors.type = newColor;
 
 	// --- Variable ---
 	newColor = loadColor("variable");
-	std::cout << "variable:old" << cachedColors.variable << " -> new" << newColor << std::endl;
 	cachedColors.variable = newColor;
-
-	// --- Add any other colors similarly ---
 
 	colorsNeedUpdate = false;
 	std::cout << "--- Theme Colors Updated ---" << std::endl;
 }
+
 void TreeSitter::setColors(const std::string &content,
 						   std::vector<ImVec4> &colors,
 						   int start,

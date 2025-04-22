@@ -79,10 +79,39 @@ target_include_directories(tree-sitter-lib PUBLIC
   lib/tree-sitter/lib/src
 )
 
-# Grammar detection
+# Manually define grammars with non-standard structures
+set(TS_GRAMMAR_LIBS)
+
+# TypeScript
+add_library(tree-sitter-typescript-grammar STATIC
+  lib/tree-sitter-typescript/typescript/src/parser.c
+  lib/tree-sitter-typescript/typescript/src/scanner.c
+)
+target_include_directories(tree-sitter-typescript-grammar PRIVATE
+  lib/tree-sitter-typescript/typescript/src
+)
+list(APPEND TS_GRAMMAR_LIBS tree-sitter-typescript-grammar)
+
+# TSX
+add_library(tree-sitter-tsx-grammar STATIC
+  lib/tree-sitter-typescript/tsx/src/parser.c
+  lib/tree-sitter-typescript/tsx/src/scanner.c
+)
+target_include_directories(tree-sitter-tsx-grammar PRIVATE
+  lib/tree-sitter-typescript/tsx/src
+)
+list(APPEND TS_GRAMMAR_LIBS tree-sitter-tsx-grammar)
+
+# Other grammars with standard structure
 file(GLOB TS_GRAMMAR_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-*")
 foreach(TS_DIR ${TS_GRAMMAR_DIRS})
   get_filename_component(LANG ${TS_DIR} NAME)
+  
+  # Skip already added TypeScript grammars
+  if(${LANG} MATCHES "typescript")
+    continue()
+  endif()
+
   string(REPLACE "tree-sitter-" "" LANG ${LANG})
 
   if(EXISTS "${TS_DIR}/src/scanner.c")
