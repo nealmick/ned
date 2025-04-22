@@ -22,3 +22,39 @@
 [submodule "lib/tree-sitter-html"]
 	path = lib/tree-sitter-html
 	url = https://github.com/tree-sitter/tree-sitter-html
+[submodule "lib/tree-sitter-typescript"]
+	path = lib/tree-sitter-typescript
+	url = https://github.com/tree-sitter/tree-sitter-typescript
+[submodule "lib/tree-sitter-css"]
+	path = lib/tree-sitter-css
+	url = https://github.com/tree-sitter/tree-sitter-css.git
+[submodule "lib/tree-sitter-java"]
+	path = lib/tree-sitter-java
+	url = https://github.com/tree-sitter/tree-sitter-java
+[submodule "lib/tree-sitter-go"]
+	path = lib/tree-sitter-go
+	url = https://github.com/tree-sitter/tree-sitter-go
+[submodule "lib/tree-sitter-hcl"]
+	path = lib/tree-sitter-hcl
+	url = https://github.com/MichaHoffmann/tree-sitter-hcl
+[submodule "lib/tree-sitter-json"]
+	path = lib/tree-sitter-json
+	url = https://github.com/tree-sitter/tree-sitter-json
+[submodule "lib/tree-sitter-kotlin"]
+	path = lib/tree-sitter-kotlin
+	url = https://github.com/fwcd/tree-sitter-kotlin
+[submodule "lib/tree-sitter-bash"]
+	path = lib/tree-sitter-bash
+	url = https://github.com/tree-sitter/tree-sitter-bash
+[submodule "lib/tree-sitter-c"]
+	path = lib/tree-sitter-c
+	url = https://github.com/tree-sitter/tree-sitter-c
+[submodule "lib/tree-sitter-rust"]
+	path = lib/tree-sitter-rust
+	url = https://github.com/tree-sitter/tree-sitter-rust
+[submodule "lib/tree-sitter-toml"]
+	path = lib/tree-sitter-toml
+	url = https://github.com/ikatyang/tree-sitter-toml
+[submodule "lib/tree-sitter-ruby"]
+	path = lib/tree-sitter-ruby
+	url = https://github.com/tree-sitter/tree-sitter-ruby
