@@ -3,7 +3,6 @@
 	This utility adds a terminal emulator, activate it using the keybind cmd t
 	The emulator is based suckless st.c and support most xterm ansi sequences
 */
-
 #include "util/terminal.h"
 #include "util/settings.h"
 #include <errno.h>
@@ -13,9 +12,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-
 Terminal gTerminal;
-
 Terminal::Terminal()
 {
 	// Initialize with safe default size
@@ -342,6 +339,8 @@ void Terminal::handleSpecialKeys(const ImGuiIO &io)
 		processInput("\033");
 	}
 }
+
+
 void Terminal::handleControlCombos(const ImGuiIO &io)
 {
 	if (!io.KeyCtrl && !io.KeySuper)
