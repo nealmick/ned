@@ -11,7 +11,6 @@
 EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
-
 void EditorCursor::renderCursor()
 {
 	int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);

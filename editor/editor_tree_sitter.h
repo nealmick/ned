@@ -40,18 +40,12 @@ class TreeSitter
 						  int end,
 						  const ImVec4 &color);
 	static TSParser *getParser();
-	static void cleanupParser();
 
   private:
 	static TSParser *parser;
 	static std::mutex parserMutex;
-	static void traverse(const std::string &extension,
-						 const std::string &fileContent,
-						 std::vector<ImVec4> &fileColors,
-						 TSNode node,
-						 int depth,
-						 bool is_last,
-						 const std::vector<bool> &hierarchy,
-						 const std::string &parentNodeType = "");
-	static std::map<std::string, TSQuery *> languageQueries; // Maps extensions to queries
+	static std::unordered_map<std::string, TSQuery *> queryCache;
+	// incremental parsing
+	static TSTree *previousTree;
+	static std::string previousContent;
 };

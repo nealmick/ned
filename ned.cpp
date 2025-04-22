@@ -20,7 +20,6 @@ Description: Main application class implementation for NED text editor.
 #include <filesystem>
 #include <iostream>
 #include <thread>
-
 // global scope
 Bookmarks gBookmarks;
 bool shader_toggle = false;
@@ -63,7 +62,6 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
-
 bool Ned::initialize()
 {
 	if (!initializeGraphics())

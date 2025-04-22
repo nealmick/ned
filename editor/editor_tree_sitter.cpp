@@ -11,6 +11,11 @@ bool TreeSitter::colorsNeedUpdate = true;
 ThemeColors TreeSitter::cachedColors;
 TSParser *TreeSitter::parser = nullptr;
 std::mutex TreeSitter::parserMutex;
+std::unordered_map<std::string, TSQuery *> TreeSitter::queryCache;
+
+// incremental parsing
+TSTree *TreeSitter::previousTree = nullptr;
+std::string TreeSitter::previousContent;
 
 // Declare language parser functions
 extern "C" TSLanguage *tree_sitter_cpp();
@@ -31,8 +36,6 @@ extern "C" TSLanguage *tree_sitter_rust();
 extern "C" TSLanguage *tree_sitter_toml();
 extern "C" TSLanguage *tree_sitter_ruby();
 
-std::map<std::string, TSQuery *> TreeSitter::languageQueries;
-
 TSParser *TreeSitter::getParser()
 {
 	if (!parser)
@@ -41,16 +44,6 @@ TSParser *TreeSitter::getParser()
 		ts_parser_set_language(parser, tree_sitter_cpp());
 	}
 	return parser;
-}
-
-void TreeSitter::cleanupParser()
-{
-	std::lock_guard<std::mutex> lock(parserMutex);
-	if (parser)
-	{
-		ts_parser_delete(parser);
-		parser = nullptr;
-	}
 }
 
 void print_ast_node(TSNode node, const std::string &source_code, int indent_level)
@@ -115,10 +108,10 @@ void TreeSitter::parse(const std::string &fileContent,
 	updateThemeColors();
 	TSParser *parser = getParser();
 
+	// Language detection
 	TSLanguage *lang = nullptr;
 	std::string query_path;
 
-	// Language detection
 	if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
 	{
 		lang = tree_sitter_cpp();
@@ -127,12 +120,10 @@ void TreeSitter::parse(const std::string &fileContent,
 	{
 		lang = tree_sitter_javascript();
 		query_path = "editor/queries/jsx.scm";
-
 	} else if (extension == ".py")
 	{
 		lang = tree_sitter_python();
 		query_path = "editor/queries/python.scm";
-
 	} else if (extension == ".cs")
 	{
 		lang = tree_sitter_c_sharp();
@@ -200,51 +191,111 @@ void TreeSitter::parse(const std::string &fileContent,
 		return;
 	}
 
+	TSTree *newTree = nullptr;
+	bool initialParse = previousContent.empty();
+
 	ts_parser_set_language(parser, lang);
-	TSTree *tree = ts_parser_parse_string(parser, nullptr, fileContent.c_str(), fileContent.size());
-	/*
-	// print tree...
-	if (tree)
-	{ // Make sure the tree was actually created
-		TSNode root_node = ts_tree_root_node(tree);
-		std::cout << "\n======================================================\n";
-		std::cout << "                 TREE-SITTER AST DUMP                 \n";
-		std::cout << "======================================================\n";
-		print_ast_node(root_node, fileContent, 0); // Start printing from root node
-		std::cout << "======================================================\n\n";
+	size_t start = 0;
+	size_t newEnd = fileContent.size();
+
+	if (!initialParse)
+	{
+		size_t oldEnd = previousContent.size();
+
+		// Find first differing byte
+		while (start < oldEnd && start < newEnd && previousContent[start] == fileContent[start])
+		{
+			start++;
+		}
+
+		// Find last differing byte
+		while (oldEnd > start && newEnd > start &&
+			   previousContent[oldEnd - 1] == fileContent[newEnd - 1])
+		{
+			oldEnd--;
+			newEnd--;
+		}
+		TSInputEdit edit;
+		edit.start_byte = static_cast<uint32_t>(start);
+		edit.old_end_byte = static_cast<uint32_t>(oldEnd);
+		edit.new_end_byte = static_cast<uint32_t>(newEnd);
+		edit.start_point = {0, static_cast<uint32_t>(start)};
+		edit.old_end_point = {0, static_cast<uint32_t>(oldEnd)};
+		edit.new_end_point = {0, static_cast<uint32_t>(newEnd)};
+
+		// Apply edit to previous tree (correct ts_tree_edit signature)
+		ts_tree_edit(previousTree, &edit);
+
+		// Create input for incremental parsing
+		TSInput input = {.payload = (void *)fileContent.data(),
+						 .read = [](void *payload,
+									uint32_t byte,
+									TSPoint position,
+									uint32_t *bytes_read) -> const char * {
+							 const char *data = static_cast<const char *>(payload);
+							 *bytes_read = static_cast<uint32_t>(strlen(data + byte));
+							 return data + byte;
+						 },
+						 .encoding = TSInputEncodingUTF8};
+
+		// Reparse incrementally (correct ts_parser_parse signature)
+		newTree = ts_parser_parse(parser, previousTree, input);
+
 	} else
 	{
-		std::cerr << "Failed to parse content, cannot print AST." << std::endl;
+		// Initial full parse using string-based API
+		newTree = ts_parser_parse_string(parser, nullptr, fileContent.c_str(), fileContent.size());
 	}
-	*/
+
+	// Cleanup previous tree and update state
+	if (previousTree)
+	{
+		ts_tree_delete(previousTree);
+	}
+	previousTree = newTree;
+	previousContent = fileContent;
+
 	// Load query
-	std::ifstream file(query_path);
-	if (!file.is_open())
+	TSQuery *query = nullptr;
+	auto cacheIt = queryCache.find(query_path);
+	if (cacheIt != queryCache.end())
 	{
-		std::cerr << "Failed to open query file: " << query_path << "\n";
-		ts_tree_delete(tree);
-		return;
+		query = cacheIt->second;
+	} else
+	{
+		std::ifstream file(query_path);
+		if (!file.is_open())
+		{
+			std::cerr << "Failed to open query file: " << query_path << "\n";
+			return;
+		}
+		std::string query_src((std::istreambuf_iterator<char>(file)),
+							  std::istreambuf_iterator<char>());
+		file.close();
+
+		uint32_t error_offset;
+		TSQueryError error_type;
+		query = ts_query_new(lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
+		if (!query)
+		{
+			std::cerr << "Query error (" << error_type << ") at offset " << error_offset << "\n";
+			return;
+		}
+		queryCache[query_path] = query;
 	}
 
-	std::string query_src((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-	uint32_t error_offset;
-	TSQueryError error_type;
-	TSQuery *query =
-		ts_query_new(lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
-
-	if (!query)
-	{
-		std::cerr << "Query error (" << error_type << ") at offset " << error_offset << "\n";
-		ts_tree_delete(tree);
-		return;
-	}
-
-	// Execute query
+	// Execute query with incremental range
 	TSQueryCursor *cursor = ts_query_cursor_new();
-	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
+	if (!initialParse)
+	{
+		// Use the edit range from earlier
+		uint32_t start_byte = static_cast<uint32_t>(start);
+		uint32_t end_byte = static_cast<uint32_t>(newEnd);
+		ts_query_cursor_set_byte_range(cursor, start_byte, end_byte);
+	}
+	ts_query_cursor_exec(cursor, query, ts_tree_root_node(previousTree));
 
-	// Color mapping
+	// Apply highlighting
 	const std::unordered_map<std::string, ImVec4> capture_colors = {
 		{"keyword", cachedColors.keyword},
 		{"string", cachedColors.string},
@@ -260,16 +311,11 @@ void TreeSitter::parse(const std::string &fileContent,
 		for (uint32_t i = 0; i < match.capture_count; ++i)
 		{
 			TSNode node = match.captures[i].node;
-
-			// Get the capture name using the new API function
 			uint32_t name_length;
 			const char *name_ptr =
 				ts_query_capture_name_for_id(query, match.captures[i].index, &name_length);
-
-			// Convert the C-style string (pointer + length) to std::string for map lookup
 			std::string name(name_ptr, name_length);
 
-			// Now use the std::string 'name' for the lookup
 			auto it = capture_colors.find(name);
 			if (it != capture_colors.end())
 			{
@@ -280,13 +326,10 @@ void TreeSitter::parse(const std::string &fileContent,
 		}
 	}
 
-	// Cleanup
+	// Cleanup query resources
 	ts_query_cursor_delete(cursor);
-	ts_query_delete(query);
-
-	ts_tree_delete(tree);
+	// ts_query_delete(query);
 }
-
 std::ostream &operator<<(std::ostream &os, const ImVec4 &color)
 {
 	os << "(" << color.x << ", " << color.y << ", " << color.z << ", " << color.w << ")";
@@ -359,11 +402,4 @@ void TreeSitter::setColors(const std::string &content,
 	{
 		colors[i] = color;
 	}
-}
-std::string readFile(const std::string &path)
-{
-	std::ifstream file(path);
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	return buffer.str();
 }
