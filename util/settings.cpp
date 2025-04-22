@@ -179,6 +179,10 @@ void Settings::loadSettings()
 	{
 		settings["theme"] = "default";
 	}
+	if (!settings.contains("treesitter"))
+	{
+		settings["treesitter"] = true;
+	}
 	if (!settings.contains("rainbow"))
 	{
 		settings["rainbow"] = true; // default to true
@@ -189,19 +193,18 @@ void Settings::loadSettings()
 	}
 	if (!settings.contains("themes"))
 	{
-		settings["themes"] = {
-			{"default",
-			 {{"function", {1.0f, 1.0f, 1.0f, 1.0f}},	 {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
-			  {"type", {0.4f, 0.8f, 0.4f, 1.0f}},		 {"variable", {0.8f, 0.6f, 0.7f, 1.0f}},
-			  {"background", {0.2f, 0.2f, 0.2f, 1.0f}},	 {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
-			  {"string", {0.87f, 0.87f, 0.0f, 1.0f}},	 {"number", {0.0f, 0.8f, 0.8f, 1.0f}},
-			  {"comment", {0.5f, 0.5f, 0.5f, 1.0f}},	 {"heading", {0.9f, 0.5f, 0.2f, 1.0f}},
-			  {"bold", {1.0f, 0.7f, 0.7f, 1.0f}},		 {"italic", {0.7f, 1.0f, 0.7f, 1.0f}},
-			  {"link", {0.4f, 0.4f, 1.0f, 1.0f}},		 {"code_block", {0.8f, 0.8f, 0.8f, 1.0f}},
-			  {"inline_code", {0.7f, 0.7f, 0.7f, 1.0f}}, {"tag", {0.3f, 0.7f, 0.9f, 1.0f}},
-			  {"attribute", {0.9f, 0.7f, 0.3f, 1.0f}},	 {"selector", {0.9f, 0.4f, 0.6f, 1.0f}},
-			  {"property", {0.6f, 0.9f, 0.4f, 1.0f}},	 {"value", {0.4f, 0.6f, 0.9f, 1.0f}},
-			  {"key", {0.9f, 0.6f, 0.4f, 1.0f}}}}};
+		settings["themes"] = {{"default",
+							   {
+								   {"function", {1.0f, 1.0f, 1.0f, 1.0f}},
+								   {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
+								   {"type", {0.4f, 0.8f, 0.4f, 1.0f}},
+								   {"variable", {0.8f, 0.6f, 0.7f, 1.0f}},
+								   {"background", {0.2f, 0.2f, 0.2f, 1.0f}},
+								   {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
+								   {"string", {0.87f, 0.87f, 0.0f, 1.0f}},
+								   {"number", {0.0f, 0.8f, 0.8f, 1.0f}},
+								   {"comment", {0.5f, 0.5f, 0.5f, 1.0f}},
+							   }}};
 	}
 
 	// Pull out a few keys into your members
@@ -258,6 +261,7 @@ void Settings::checkSettingsFile()
 			oldSettings["theme"] != settings["theme"] ||
 			oldSettings["themes"] != settings["themes"] ||
 			oldSettings["rainbow"] != settings["rainbow"] ||
+			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
 			oldSettings["font"] != settings["font"])
 		{
@@ -444,6 +448,17 @@ void Settings::renderSettingsWindow()
 	{
 		settings["rainbow"] = rainbowMode;
 		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor & line numbers)");
+	// treesitter
+	bool treesitterMode = settings["treesitter"].get<bool>();
+	if (ImGui::Checkbox("TreeSitter Mode", &treesitterMode))
+	{
+		settings["treesitter"] = treesitterMode;
+		settingsChanged = true;
+		editor_state.text_changed = true;
 		saveSettings();
 	}
 	ImGui::SameLine();

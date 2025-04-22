@@ -35,7 +35,6 @@ class EditorHighlight
 	void loadTheme(const std::string &themeName);
 
 	void setTheme(const std::string &themeName);
-	bool useTreeSitter = true;
 
   private:
 	// Lexer instances
