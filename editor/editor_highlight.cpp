@@ -106,7 +106,7 @@ void EditorHighlight::highlightContent()
 							   highlightingInProgress = false;
 							   return;
 						   }
-						   if (useTreeSitter)
+						   if (gSettings.getTreesitterMode())
 						   {
 							   TreeSitter::parse(content_copy, colors_copy, extension);
 

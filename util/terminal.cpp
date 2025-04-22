@@ -1240,7 +1240,6 @@ void Terminal::handleCSI(const CSIEscape &csi)
 		clearRegion(state.c.x, state.c.y, state.c.x + n - 1, state.c.y);
 	}
 	break;
-
 	case 'Z': // CBT -- Cursor Backward Tabulation <n>
 	{
 		int n = csi.args.empty() ? 1 : csi.args[0];
@@ -2752,6 +2751,7 @@ void Terminal::tsetmode(int priv, int set, const std::vector<int> &args)
 		}
 	}
 }
+
 void Terminal::addToScrollback(const std::vector<Glyph> &line)
 {
 	scrollbackBuffer.push_back(line);
