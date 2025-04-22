@@ -245,16 +245,12 @@ void EditorKeyboard::handleTextInput()
 
 	if (editor_state.text_changed)
 	{
-		// Get the start of the line where the change began
 		int line_start = editor_state.editor_content_lines[gEditor.getLineFromPos(input_start)];
 
-		// Get the end of the line where the change ended (or the end of
-		// the text if it's the last line)
 		int line_end = input_end < editor_state.fileContent.size()
 						   ? editor_state.editor_content_lines[gEditor.getLineFromPos(input_end)]
 						   : editor_state.fileContent.size();
 
-		// Update syntax highlighting only for the affected lines
 		gEditorHighlight.highlightContent();
 
 		// Update line starts
