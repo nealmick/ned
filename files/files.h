@@ -52,8 +52,44 @@ class FileExplorer
 	// Icon handling
 	// by file exntension for example .py or .cpp
 	void loadIcons();
+
 	ImTextureID getIconForFile(const std::string &filename)
 	{
+		// Get the filename without path
+		std::string fileName = fs::path(filename).filename().string();
+
+		// First check for special filenames without extensions
+
+		if (fileName == "CMakeLists.txt" || fileName == "cmake")
+		{
+			auto it = fileTypeIcons.find("cmake");
+			if (it != fileTypeIcons.end())
+				return it->second;
+		}
+		if (fileName == ".clangd" || fileName == ".clang-format")
+		{
+			auto it = fileTypeIcons.find("clangd");
+			if (it != fileTypeIcons.end())
+				return it->second;
+		}
+		if (fileName == "Dockerfile")
+		{
+			auto it = fileTypeIcons.find("Dockerfile");
+			if (it != fileTypeIcons.end())
+				return it->second;
+		} else if (fileName == ".gitignore")
+		{
+			auto it = fileTypeIcons.find("gitignore");
+			if (it != fileTypeIcons.end())
+				return it->second;
+		} else if (fileName == ".gitmodules")
+		{
+			auto it = fileTypeIcons.find("gitmodule");
+			if (it != fileTypeIcons.end())
+				return it->second;
+		}
+
+		// Proceed with extension-based lookup for other files
 		std::string extension = fs::path(filename).extension().string();
 		if (!extension.empty() && extension[0] == '.')
 		{
@@ -63,6 +99,7 @@ class FileExplorer
 		auto it = fileTypeIcons.find(extension);
 		return (it != fileTypeIcons.end()) ? it->second : fileTypeIcons["default"];
 	}
+
 	// by icon name for example folder or folder-open
 	ImTextureID getIcon(const std::string &iconName) const
 	{

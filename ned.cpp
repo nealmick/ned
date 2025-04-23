@@ -21,6 +21,7 @@ Description: Main application class implementation for NED text editor.
 #include <iostream>
 #include <thread>
 // global scope
+// asdfasdf
 Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;

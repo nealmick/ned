@@ -48,4 +48,20 @@ class TreeSitter
 	// incremental parsing
 	static TSTree *previousTree;
 	static std::string previousContent;
+
+	static std::pair<TSLanguage *, std::string>
+	detectLanguageAndQuery(const std::string &extension);
+	static void
+	computeEditRange(const std::string &newContent, size_t &start, size_t &newEnd, size_t &oldEnd);
+	static TSInputEdit createEdit(size_t start, size_t oldEnd, size_t newEnd);
+	static TSInput createInput(const std::string &content);
+	static TSTree *createNewTree(TSParser *parser, bool initialParse, const std::string &content);
+	static TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path);
+	static void executeQueryAndHighlight(TSQuery *query,
+										 TSTree *tree,
+										 const std::string &content,
+										 std::vector<ImVec4> &colors,
+										 bool initialParse,
+										 size_t start,
+										 size_t end);
 };
