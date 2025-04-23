@@ -102,15 +102,23 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	}
 	return {tree_sitter_cpp(), "editor/queries/cpp.scm"};
 }
+
 void TreeSitter::computeEditRange(const std::string &newContent,
 								  size_t &start,
 								  size_t &newEnd,
 								  size_t &oldEnd)
 {
-	oldEnd = previousContent.size();
-	newEnd = newContent.size(); // Use new content's size
+	if (previousContent == newContent)
+	{
+		start = 0;
+		oldEnd = previousContent.size();
+		newEnd = newContent.size();
+		return;
+	}
 
-	// Compare previous vs new content
+	oldEnd = previousContent.size();
+	newEnd = newContent.size();
+
 	while (start < oldEnd && start < newEnd && previousContent[start] == newContent[start])
 	{
 		start++;
@@ -123,7 +131,6 @@ void TreeSitter::computeEditRange(const std::string &newContent,
 		newEnd--;
 	}
 }
-
 TSInputEdit TreeSitter::createEdit(size_t start, size_t oldEnd, size_t newEnd)
 {
 	TSInputEdit edit;
@@ -277,7 +284,8 @@ void TreeSitter::parse(const std::string &fileContent,
 
 	if (!initialParse)
 	{
-		computeEditRange(fileContent, start, newEnd, oldEnd); // Pass new content
+		computeEditRange(fileContent, start, newEnd,
+						 oldEnd); // Pass new content
 		TSInputEdit edit = createEdit(start, oldEnd, newEnd);
 		ts_tree_edit(previousTree, &edit);
 	}

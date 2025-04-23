@@ -4,6 +4,7 @@
 */
 #include "file_finder.h"
 #include "../util/close_popper.h"
+#include "editor.h"
 
 FileFinder gFileFinder;
 
@@ -251,6 +252,7 @@ void FileFinder::renderWindow()
 		}
 		toggleWindow();
 		editor_state.cursor_index = orginal_cursor_index;
+		editor_state.text_changed = true;
 
 		return;
 	}
