@@ -462,7 +462,7 @@ void Settings::renderSettingsWindow()
 		saveSettings();
 	}
 	ImGui::SameLine();
-	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Rainbow cursor & line numbers)");
+	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Syntax Highlighting)");
 
 	// Shader
 	bool shaderEnabled = settings["shader_toggle"].get<bool>();

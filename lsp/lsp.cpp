@@ -160,10 +160,10 @@ void EditorLSP::didChange(const std::string &filePath, int version)
 
 	if (gLSPManager.sendRequest(notification))
 	{
-		std::cout << "\033[32mLSP:\033[0m didChange notification sent successfully (v" << version
-				  << ")\n";
+		// std::cout << "\033[32mLSP:\033[0m didChange notification sent successfully (v" << version
+		// << ")\n";
 	} else
 	{
-		std::cout << "\033[31mLSP:\033[0m Failed to send didChange notification\n";
+		// std::cout << "\033[31mLSP:\033[0m Failed to send didChange notification\n";
 	}
 }

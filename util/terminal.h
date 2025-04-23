@@ -349,25 +349,26 @@ class Terminal
 
 	static constexpr const ImVec4 defaultColorMap[16] = {
 		// Standard colors
-		ImVec4(0.0f, 0.0f, 0.0f, 1.0f),	   // Black
-		ImVec4(0.5f, 0.0f, 0.0f, 1.0f),	   // Red
-		ImVec4(0.0f, 0.5f, 0.0f, 1.0f),	   // Green
-		ImVec4(0.5f, 0.5f, 0.0f, 1.0f),	   // Yellow
-		ImVec4(0.0f, 0.0f, 0.5f, 1.0f),	   // Blue
-		ImVec4(0.5f, 0.0f, 0.5f, 1.0f),	   // Magenta
-		ImVec4(0.0f, 0.5f, 0.5f, 1.0f),	   // Cyan
-		ImVec4(0.75f, 0.75f, 0.75f, 1.0f), // White
+		ImVec4(0.0f, 0.0f, 0.0f, 1.0f), // Black
+		ImVec4(0.8f, 0.2f, 0.2f, 1.0f), // Rich Red
+		ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // Vibrant Green
+		ImVec4(0.9f, 0.9f, 0.3f, 1.0f), // Sunny Yellow
+		ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // Sky Blue (brighter blue)
+		ImVec4(0.8f, 0.3f, 0.8f, 1.0f), // Electric Purple
+		ImVec4(0.3f, 0.8f, 0.8f, 1.0f), // Aqua Cyan
+		ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // Off-White
 
-		// Bright colors
-		ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Bright Black (Gray)
-		ImVec4(1.0f, 0.0f, 0.0f, 1.0f), // Bright Red
-		ImVec4(0.0f, 1.0f, 0.0f, 1.0f), // Bright Green
-		ImVec4(1.0f, 1.0f, 0.0f, 1.0f), // Bright Yellow
-		ImVec4(0.0f, 0.0f, 1.0f, 1.0f), // Bright Blue
-		ImVec4(1.0f, 0.0f, 1.0f, 1.0f), // Bright Magenta
-		ImVec4(0.0f, 1.0f, 1.0f, 1.0f), // Bright Cyan
-		ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Bright White
+		// Bright colors (pastel-like but still vibrant)
+		ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Medium Gray
+		ImVec4(1.0f, 0.4f, 0.4f, 1.0f), // Coral Red
+		ImVec4(0.4f, 1.0f, 0.4f, 1.0f), // Lime Green
+		ImVec4(1.0f, 1.0f, 0.6f, 1.0f), // Lemon Yellow
+		ImVec4(0.4f, 0.6f, 1.0f, 1.0f), // Bright Sky Blue
+		ImVec4(1.0f, 0.5f, 1.0f, 1.0f), // Pink Purple
+		ImVec4(0.5f, 1.0f, 1.0f, 1.0f), // Ice Blue
+		ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
 	};
+
 	const std::unordered_map<Rune, Rune> boxDrawingChars = {
 		// Basic box drawing - map proper Unicode box chars to themselves
 		{0x2500, L'─'}, // HORIZONTAL LINE

@@ -60,7 +60,6 @@ bool EditorHighlight::validateHighlightContentParams()
 void EditorHighlight::highlightContent()
 {
 	std::lock_guard<std::mutex> lock(highlight_mutex);
-	std::cout << "\033[36mEditorHighlight:\033[0m Highlight Content\n";
 
 	cancelHighlighting();
 
@@ -154,7 +153,6 @@ void EditorHighlight::highlightContent()
 							   colors_copy.size() == editor_state.fileColors.size())
 						   {
 							   editor_state.fileColors = colors_copy; // Copy, don't move
-							   std::cout << "Applied new highlighting\n";
 						   }
 					   } catch (const std::exception &e)
 					   {
