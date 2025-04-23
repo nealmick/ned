@@ -20,8 +20,8 @@ Description: Main application class implementation for NED text editor.
 #include <filesystem>
 #include <iostream>
 #include <thread>
+
 // global scope
-// asdfasdf
 Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
@@ -63,6 +63,7 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
+
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -138,20 +139,32 @@ void Ned::initializeImGui()
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
 }
+// In Ned::initializeResources()
 void Ned::initializeResources()
 {
 	gDebugConsole.toggleVisibility();
 	gSettings.loadSettings();
 	gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
-	// Apply settings to the ImGui style.
-	ApplySettings(ImGui::GetStyle());
+	// Save original font size
+	float originalFontSize = gSettings.getSettings()["fontSize"].get<float>();
 
+	// Temporarily force font size to 19.0 for proper terminal initialization
+	gSettings.getSettings()["fontSize"] = 19.0f;
+
+	// Apply settings with temporary font size
+	ApplySettings(ImGui::GetStyle());
+	currentFont = loadFont(gSettings.getCurrentFont(), 19.0f);
+
+	// Restore original font size
+	gSettings.getSettings()["fontSize"] = originalFontSize;
+	needFontReload = true;
+	handleFontReload(); // This will reload fonts with original size
+
+	// Continue with remaining initialization
 	shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 	gFileExplorer.loadIcons();
 
-	currentFont =
-		loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
 	if (!currentFont)
 	{
 		std::cerr << "🔴 Failed to load font, using default font" << std::endl;
@@ -374,6 +387,26 @@ void Ned::handleKeyboardShortcuts()
 		gFileExplorer.showWelcomeScreen = false;
 		gSettings.toggleSettingsWindow();
 	}
+
+	if (modPressed)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_Equal))
+		{ // '+' key
+			float currentSize = gSettings.getFontSize();
+			gSettings.setFontSize(currentSize + 2.0f);
+			editor_state.ensure_cursor_visible.vertical = true;
+			editor_state.ensure_cursor_visible.horizontal = true;
+			std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
+		} else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
+		{ // '-' key
+			float currentSize = gSettings.getFontSize();
+			gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
+			editor_state.ensure_cursor_visible.vertical = true;
+			editor_state.ensure_cursor_visible.horizontal = true;
+			std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
+		}
+	}
+
 	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false))
 	{
 		ClosePopper::closeAll();

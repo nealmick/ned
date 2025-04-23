@@ -299,7 +299,7 @@ void Settings::renderSettingsWindow()
 							ImVec2(0.5f, 0.5f));
 
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
+								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
 								   ImGuiWindowFlags_Modal;
 
 	// Push custom styles
@@ -348,9 +348,13 @@ void Settings::renderSettingsWindow()
 	float textHeight = ImGui::GetTextLineHeight();
 	ImGui::TextUnformatted("Settings");
 
-	float closeIconSize = textHeight - 5;
-	ImGui::SameLine(ImGui::GetWindowWidth() - closeIconSize - 20);
+	// Calculate close button position relative to content region
+	float closeIconSize = ImGui::GetFrameHeight() - 10; // Use frame height to match font scaling
+	ImVec2 contentAvail = ImGui::GetContentRegionAvail();
+	float buttonPosX = contentAvail.x - closeIconSize - ImGui::GetStyle().FramePadding.x * 2;
+	ImGui::SameLine(buttonPosX);
 
+	// Store cursor position for icon placement
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
 	if (ImGui::InvisibleButton("##close-settings", ImVec2(closeIconSize, closeIconSize)))
 	{
@@ -360,7 +364,7 @@ void Settings::renderSettingsWindow()
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
 
-	// e.g. gFileExplorer.getIcon("close");
+	// Get and display close icon
 	ImTextureID closeIcon = gFileExplorer.getIcon("close");
 	ImGui::Image(closeIcon,
 				 ImVec2(closeIconSize, closeIconSize),

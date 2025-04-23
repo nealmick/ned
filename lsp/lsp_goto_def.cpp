@@ -23,7 +23,6 @@ LSPGotoDef::LSPGotoDef()
 }
 LSPGotoDef::~LSPGotoDef() = default;
 
-// --- gotoDefinition (Updated Response Handling) ---
 bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int character)
 {
 	if (!gLSPManager.isInitialized())
@@ -43,7 +42,6 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 	std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line << ", char "
 			  << character << " (ID: " << requestId << ")" << std::endl;
 
-	// Request structure remains the same
 	std::string request = std::string(R"({
             "jsonrpc": "2.0",
             "id": )" + std::to_string(requestId) +
@@ -70,7 +68,6 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 		return false;
 	}
 
-	// --- MODIFIED Response Handling Loop ---
 	const int MAX_ATTEMPTS = 15;
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
@@ -91,30 +88,21 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 						  << std::endl;
 				return false;
 			}
-			// Consider adding sleep:
-			// std::this_thread::sleep_for(std::chrono::milliseconds(50));
 			continue;
 		}
 
-		// Check if the response ID matches our request
 		if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
 		{
 			std::cout << "\033[32mLSP GotoDef:\033[0m Received response for "
 						 "request ID "
 					  << requestId << std::endl;
 
-			// Use the NEW robust JSON parser function
 			parseDefinitionResponse(response); // Pass the raw response
 
-			// Check if parsing actually found locations
-			// (parseDefinitionResponse now sets showDefinitionOptions
-			// internally)
 			if (showDefinitionOptions)
-			{				 // Check the flag set by the parser
-				return true; // Success, options window will show
+			{				 
+				return true;
 			}
-			// Check if the response indicates a server-side error *after*
-			// attempting to parse
 			else if (response.find("\"error\":") != std::string::npos)
 			{
 				std::cout << "\033[31mLSP GotoDef:\033[0m Error reported in "
@@ -122,26 +110,19 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 						  << std::endl;
 				return false; // Error from server
 			}
-			// If parsing didn't yield options and there wasn't an error object,
-			// it means result was null, empty array, or parsing failed
-			// internally.
 			else
 			{
 				std::cout << "\033[33mLSP GotoDef:\033[0m No definition "
 							 "locations found or parsed from the response."
 						  << std::endl;
-				// Return true because we got *a* valid response for our ID,
-				// even if it contained no results. The UI simply won't show the
-				// options window because hasDefinitionOptions() will be false.
 				return true;
 			}
 		}
 
-		// If it wasn't our response ID, log and continue waiting
 		std::cout << "\033[33mLSP GotoDef:\033[0m Received unrelated response. "
 					 "Continuing..."
 				  << std::endl;
-	} // End for loop
+	} 
 
 	std::cout << "\033[31mLSP GotoDef:\033[0m Exceeded maximum attempts "
 				 "waiting for response ID "
@@ -149,12 +130,8 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 	return false;
 }
 
-// --- parseDefinitionResponse (REWRITTEN using nlohmann::json) ---
 void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 {
-	// Optional: Print raw response for debugging
-	// std::cout << "\033[36mLSP GotoDef Raw Response:\033[0m\n>>>>>>>>>>\n" <<
-	// response << "\n<<<<<<<<<<\n" << std::endl;
 
 	definitionLocations.clear();   // Clear previous results
 	showDefinitionOptions = false; // Assume no options initially
@@ -163,48 +140,38 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 	{
 		json j = json::parse(response);
 
-		// Check if 'result' key exists
 		if (!j.contains("result"))
 		{
-			// Check if 'error' key exists instead
 			if (j.contains("error"))
 			{
 				std::cout << "\033[31mLSP GotoDef Parse:\033[0m Response "
 							 "contains an error object."
 						  << std::endl;
-				// Optionally log error details: std::cerr << j["error"].dump(2)
-				// << std::endl;
 			} else
 			{
 				std::cout << "\033[31mLSP GotoDef Parse:\033[0m Response "
 							 "missing 'result' key."
 						  << std::endl;
 			}
-			return; // Nothing to parse
+			return; 
 		}
 
 		const auto &result = j["result"];
 
-		// Case 1: Result is null
 		if (result.is_null())
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m 'result' is null. "
 						 "No definition found."
 					  << std::endl;
-			// definitionLocations is already cleared, showDefinitionOptions
-			// remains false
 		}
-		// Case 2: Result is a single Location object (check for uri/range keys)
 		else if (result.is_object() && result.contains("uri") && result.contains("range"))
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m Found single "
 						 "'result' object (Location)."
 					  << std::endl;
-			// Create a temporary array containing just this single object
 			json results_array = json::array({result});
 			parseDefinitionArray(results_array); // Call helper to parse
 		}
-		// Case 3: Result is an array (either Location[] or LocationLink[])
 		else if (result.is_array())
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m Found 'result' "
@@ -220,7 +187,6 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 				parseDefinitionArray(result); // Call helper to parse the array
 			}
 		}
-		// Case 4: Unexpected result type
 		else
 		{
 			std::cout << "\033[31mLSP GotoDef Parse:\033[0m 'result' key "
@@ -368,19 +334,14 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 	} // End for loop
 }
 
-// --- hasDefinitionOptions (remains the same) ---
 bool LSPGotoDef::hasDefinitionOptions() const
 {
-	// This check remains correct. The window should only show if the flag is
-	// true AND the vector actually contains items.
 	return showDefinitionOptions && !definitionLocations.empty();
 }
 
-// --- renderDefinitionOptions (NO CHANGES NEEDED - Uses definitionLocations)
-// ---
+
 void LSPGotoDef::renderDefinitionOptions()
 {
-	// Guard clause remains the same - uses hasDefinitionOptions() effectively
 	if (!hasDefinitionOptions())
 	{ // Combined check using the method
 		editor_state.block_input = false;
@@ -389,38 +350,26 @@ void LSPGotoDef::renderDefinitionOptions()
 
 	editor_state.block_input = true;
 
-	// --- All calculation logic below remains the same ---
-	// It correctly uses definitionLocations.size()
-
-	// Calculate required height based on content
 	float itemHeight = ImGui::GetTextLineHeightWithSpacing();
 	float padding = 16.0f;
 	float titleHeight = itemHeight + 4.0f;
 	float footerHeight = itemHeight + padding;
-	float contentHeight = itemHeight * definitionLocations.size(); // Uses the vector size
+	float contentHeight = itemHeight * definitionLocations.size(); 
 	float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
 
-	// --- Limit height for long lists (like reference window) ---
 	totalHeight = std::min(totalHeight, ImGui::GetIO().DisplaySize.y * 0.6f);
 
-	// Calculate window position and size - Use same width logic as reference
-	// for consistency?
-	float desiredWidth = 600.0f; // Use same width as references? Or keep 500?
-								 // Let's use 600 for consistency.
-	// desiredWidth = std::max(desiredWidth, 500.0f); // Ensure minimum width if
-	// needed
+	float desiredWidth = 600.0f; 
 	ImVec2 windowSize(desiredWidth, totalHeight);
 	windowSize.x = std::min(windowSize.x,
-							ImGui::GetIO().DisplaySize.x * 0.9f); // Limit width
+							ImGui::GetIO().DisplaySize.x * 0.9f); 
 
 	ImVec2 windowPos(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f,
-					 ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f); // Same pos logic
+					 ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f);
 
-	// Set window position and size
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
-	// --- Window flags - Add scrollbar if content overflows ---
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
 								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
 	float availableContentHeight = totalHeight - titleHeight - footerHeight - padding * 2;
@@ -429,7 +378,6 @@ void LSPGotoDef::renderDefinitionOptions()
 		windowFlags &= ~ImGuiWindowFlags_NoScrollbar; // Enable scrollbar if needed
 	}
 
-	// --- Styling remains the same ---
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -441,11 +389,9 @@ void LSPGotoDef::renderDefinitionOptions()
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
 
-	// --- Begin Window ---
 	if (ImGui::Begin("##DefinitionOptions", nullptr, windowFlags))
 	{ // Use nullptr for p_open
 
-		// --- Click outside / Escape handling remains the same ---
 		if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 		{
 			ImVec2 mousePos = ImGui::GetMousePos();
@@ -459,7 +405,6 @@ void LSPGotoDef::renderDefinitionOptions()
 			{
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
-				// End() is not needed here, Begin returns false next frame
 			}
 		}
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
@@ -468,13 +413,11 @@ void LSPGotoDef::renderDefinitionOptions()
 			editor_state.block_input = false;
 		}
 
-		// --- Title and separator remain the same ---
 		ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f),
 						   "Go to Definition (%zu)",
 						   definitionLocations.size());
 		ImGui::Separator();
 
-		// --- Content Area (with conditional child window for scrolling) ---
 		bool useChildWindow = !(windowFlags & ImGuiWindowFlags_NoScrollbar);
 		if (useChildWindow)
 		{
@@ -484,7 +427,6 @@ void LSPGotoDef::renderDefinitionOptions()
 							  ImGuiWindowFlags_HorizontalScrollbar);
 		}
 
-		// --- Keyboard navigation remains the same ---
 		if (!ImGui::IsAnyItemActive())
 		{
 			if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
@@ -504,20 +446,13 @@ void LSPGotoDef::renderDefinitionOptions()
 			}
 		}
 
-		// --- Display options loop remains the same ---
-		// float windowWidth = ImGui::GetContentRegionAvail().x; // Not needed
-		// if using SpanAllColumns float itemPadding = 8.0f; // Not needed if
-		// not using SetCursorPosX
 
 		for (size_t i = 0; i < definitionLocations.size(); i++)
 		{
 			const auto &loc = definitionLocations[i];
 			bool is_selected = (selectedDefinitionIndex == i);
 
-			// ImGui::SetCursorPosX(ImGui::GetCursorPosX() + itemPadding); //
-			// Removed for simplicity, use SpanAllColumns
 
-			// Format label (Filename:Line:Char is good here too)
 			std::string filename = loc.uri;
 			size_t lastSlash = filename.find_last_of("/\\");
 			if (lastSlash != std::string::npos)
@@ -527,7 +462,6 @@ void LSPGotoDef::renderDefinitionOptions()
 			std::string label = filename + ":" + std::to_string(loc.startLine + 1) + ":" +
 								std::to_string(loc.startChar + 1);
 
-			// Use AllowDoubleClick and SpanAllColumns
 			if (ImGui::Selectable(label.c_str(),
 								  is_selected,
 								  ImGuiSelectableFlags_AllowDoubleClick |
@@ -540,7 +474,6 @@ void LSPGotoDef::renderDefinitionOptions()
 				}
 			}
 
-			// Ensure selected item is visible on navigation
 			if (is_selected &&
 				(ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
 			{
@@ -556,12 +489,10 @@ void LSPGotoDef::renderDefinitionOptions()
 		{
 			ImGui::EndChild();
 		}
-		// --- End Content Area ---
 
 		ImGui::Separator();
 		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down Enter");
 
-		// --- Handle Enter key remains the same (uses definitionLocations) ---
 		if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 		{
 		handle_enter_key_def: // Unique label
@@ -577,11 +508,6 @@ void LSPGotoDef::renderDefinitionOptions()
 				{
 					gFileExplorer.loadFileContent(selected.uri, nullptr);
 				}
-				// loop through each char in file until we reach a current line
-				// = to selection jump line... currentLine index tracks every
-				// character to so we know which character index the line starts
-				// on then we can just add the char response to the line index
-				// start... and we have the index of the jump
 				int index = 0;
 				int currentLine = 0;
 				std::cout << "Calculating cursor position..." << std::endl;
