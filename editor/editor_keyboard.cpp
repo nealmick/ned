@@ -268,21 +268,7 @@ void EditorKeyboard::handleTextInput()
 
 void EditorKeyboard::processFontSizeAdjustment()
 {
-	if (ImGui::IsKeyPressed(ImGuiKey_Equal))
-	{ // '+' key
-		float currentSize = gSettings.getFontSize();
-		gSettings.setFontSize(currentSize + 2.0f);
-		editor_state.ensure_cursor_visible.vertical = true;
-		editor_state.ensure_cursor_visible.horizontal = true;
-		std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
-	} else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
-	{ // '-' key
-		float currentSize = gSettings.getFontSize();
-		gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
-		editor_state.ensure_cursor_visible.vertical = true;
-		editor_state.ensure_cursor_visible.horizontal = true;
-		std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
-	}
+	// moved to main ned class
 }
 
 void EditorKeyboard::processSelectAll()
