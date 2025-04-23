@@ -88,14 +88,10 @@ bool LSPManager::selectAdapterForFile(const std::string &filePath)
 	// Select appropriate adapter based on file extension
 	if (ext == "c" || ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" || ext == "hpp")
 	{
-		std::cout << "\033[32mLSP Manager:\033[0m Selected clangd adapter for file: " << filePath
-				  << std::endl;
 		activeAdapter = CLANGD;
 		return true;
 	} else if (ext == "py")
 	{
-		std::cout << "\033[32mLSP Manager:\033[0m Selected pyright adapter for file: " << filePath
-				  << std::endl;
 		activeAdapter = PYRIGHT;
 		return true;
 	}

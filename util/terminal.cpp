@@ -340,7 +340,6 @@ void Terminal::handleSpecialKeys(const ImGuiIO &io)
 	}
 }
 
-
 void Terminal::handleControlCombos(const ImGuiIO &io)
 {
 	if (!io.KeyCtrl && !io.KeySuper)
