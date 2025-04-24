@@ -139,7 +139,10 @@ void FileFinder::renderHeader()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+	// background
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 0.7f));
+	// window styles...
+
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 	ImGui::Begin("FileFinder", nullptr, windowFlags);
@@ -194,7 +197,8 @@ void FileFinder::renderFileList()
 	ImGui::BeginChild("SearchResults",
 					  ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
 					  false,
-					  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+					  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+						  ImGuiWindowFlags_NoMouseInputs);
 
 	// Push styling for list items.
 	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
@@ -279,6 +283,18 @@ void FileFinder::renderWindow()
 			isInitialSelection = false; // User made an intentional selection
 			selectedIndex++;
 			handleSelectionChange(); // Load file when moving down
+		}
+	}
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+		if (mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) ||
+			mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y))
+		{
+			toggleWindow();
 		}
 	}
 

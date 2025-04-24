@@ -209,7 +209,7 @@ void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 	int new_line_start = editor_state.editor_content_lines[target_line];
 	int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size())
 						   ? editor_state.editor_content_lines[target_line + 1] - 1
-						   : text.size();
+						   : text.size();,
 
 	// Find position in new line that corresponds to our visual column
 	findPositionFromVisualColumn(new_line_start, new_line_end);
