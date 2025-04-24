@@ -362,7 +362,8 @@ void LSPGotoRef::renderReferenceOptions()
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
+								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+								   ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_NoMouseInputs;
 
 	// Style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
@@ -393,6 +394,8 @@ void LSPGotoRef::renderReferenceOptions()
 				showReferenceOptions = false;
 				editor_state.block_input = false;
 			}
+			showReferenceOptions = false;
+			editor_state.block_input = false;
 		}
 
 		// Handle escape key
@@ -416,7 +419,8 @@ void LSPGotoRef::renderReferenceOptions()
 						  ImVec2(0, contentAvailableHeight),
 						  false,
 						  ImGuiWindowFlags_HorizontalScrollbar |
-							  ImGuiWindowFlags_AlwaysVerticalScrollbar);
+							  ImGuiWindowFlags_AlwaysVerticalScrollbar |
+							  ImGuiWindowFlags_NoMouseInputs);
 
 		// Keyboard navigation
 		if (!ImGui::IsAnyItemActive())

@@ -100,17 +100,15 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 			parseDefinitionResponse(response); // Pass the raw response
 
 			if (showDefinitionOptions)
-			{				 
+			{
 				return true;
-			}
-			else if (response.find("\"error\":") != std::string::npos)
+			} else if (response.find("\"error\":") != std::string::npos)
 			{
 				std::cout << "\033[31mLSP GotoDef:\033[0m Error reported in "
 							 "server response."
 						  << std::endl;
 				return false; // Error from server
-			}
-			else
+			} else
 			{
 				std::cout << "\033[33mLSP GotoDef:\033[0m No definition "
 							 "locations found or parsed from the response."
@@ -122,7 +120,7 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 		std::cout << "\033[33mLSP GotoDef:\033[0m Received unrelated response. "
 					 "Continuing..."
 				  << std::endl;
-	} 
+	}
 
 	std::cout << "\033[31mLSP GotoDef:\033[0m Exceeded maximum attempts "
 				 "waiting for response ID "
@@ -153,7 +151,7 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 							 "missing 'result' key."
 						  << std::endl;
 			}
-			return; 
+			return;
 		}
 
 		const auto &result = j["result"];
@@ -163,16 +161,14 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m 'result' is null. "
 						 "No definition found."
 					  << std::endl;
-		}
-		else if (result.is_object() && result.contains("uri") && result.contains("range"))
+		} else if (result.is_object() && result.contains("uri") && result.contains("range"))
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m Found single "
 						 "'result' object (Location)."
 					  << std::endl;
 			json results_array = json::array({result});
 			parseDefinitionArray(results_array); // Call helper to parse
-		}
-		else if (result.is_array())
+		} else if (result.is_array())
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m Found 'result' "
 						 "array with "
@@ -186,8 +182,7 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 			{
 				parseDefinitionArray(result); // Call helper to parse the array
 			}
-		}
-		else
+		} else
 		{
 			std::cout << "\033[31mLSP GotoDef Parse:\033[0m 'result' key "
 						 "contains unexpected data type: "
@@ -339,7 +334,6 @@ bool LSPGotoDef::hasDefinitionOptions() const
 	return showDefinitionOptions && !definitionLocations.empty();
 }
 
-
 void LSPGotoDef::renderDefinitionOptions()
 {
 	if (!hasDefinitionOptions())
@@ -354,15 +348,14 @@ void LSPGotoDef::renderDefinitionOptions()
 	float padding = 16.0f;
 	float titleHeight = itemHeight + 4.0f;
 	float footerHeight = itemHeight + padding;
-	float contentHeight = itemHeight * definitionLocations.size(); 
+	float contentHeight = itemHeight * definitionLocations.size();
 	float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
 
 	totalHeight = std::min(totalHeight, ImGui::GetIO().DisplaySize.y * 0.6f);
 
-	float desiredWidth = 600.0f; 
+	float desiredWidth = 600.0f;
 	ImVec2 windowSize(desiredWidth, totalHeight);
-	windowSize.x = std::min(windowSize.x,
-							ImGui::GetIO().DisplaySize.x * 0.9f); 
+	windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f);
 
 	ImVec2 windowPos(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f,
 					 ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f);
@@ -371,7 +364,8 @@ void LSPGotoDef::renderDefinitionOptions()
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
+								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+								   ImGuiWindowFlags_NoMouseInputs;
 	float availableContentHeight = totalHeight - titleHeight - footerHeight - padding * 2;
 	if (contentHeight > availableContentHeight)
 	{
@@ -406,6 +400,8 @@ void LSPGotoDef::renderDefinitionOptions()
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
 			}
+			showDefinitionOptions = false;
+			editor_state.block_input = false;
 		}
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
@@ -424,7 +420,8 @@ void LSPGotoDef::renderDefinitionOptions()
 			ImGui::BeginChild("##DefListScroll",
 							  ImVec2(0, availableContentHeight),
 							  false,
-							  ImGuiWindowFlags_HorizontalScrollbar);
+							  ImGuiWindowFlags_HorizontalScrollbar |
+								  ImGuiWindowFlags_NoMouseInputs);
 		}
 
 		if (!ImGui::IsAnyItemActive())
@@ -446,12 +443,10 @@ void LSPGotoDef::renderDefinitionOptions()
 			}
 		}
 
-
 		for (size_t i = 0; i < definitionLocations.size(); i++)
 		{
 			const auto &loc = definitionLocations[i];
 			bool is_selected = (selectedDefinitionIndex == i);
-
 
 			std::string filename = loc.uri;
 			size_t lastSlash = filename.find_last_of("/\\");

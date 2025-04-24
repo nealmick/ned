@@ -8,8 +8,8 @@
     "font": "SourceCodePro-Regular",
     "fontSize": 19.0,
     "rainbow": true,
-    "shader_toggle": true,
-    "splitPos": 0.33890846371650696,
+    "shader_toggle": false,
+    "splitPos": 0.21654929220676422,
     "theme": "default",
     "themes": {
         "default": {
