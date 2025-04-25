@@ -102,6 +102,9 @@ class Ned
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
+
+	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+	double scrollYAccumulator = 0.0;
 };
 
 // Global scope
