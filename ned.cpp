@@ -138,6 +138,13 @@ void Ned::initializeImGui()
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
+	glfwSetScrollCallback(window, Ned::scrollCallback);
+}
+
+void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
+	app->scrollYAccumulator += yoffset * 0.3; // Adjust 0.3 to control speed
 }
 // In Ned::initializeResources()
 void Ned::initializeResources()
@@ -285,12 +292,20 @@ void Ned::run()
 
 void Ned::handleEvents()
 {
+	// Add this at the start of the function
+	if (scrollYAccumulator != 0.0)
+	{
+		ImGui::GetIO().MouseWheel += scrollYAccumulator;
+		scrollYAccumulator = 0.0;
+	}
+
+	// Rest of existing code...
 	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
 	} else
 	{
-		glfwWaitEventsTimeout(0.016); // 16ms ~60Hz timeout
+		glfwWaitEventsTimeout(0.016);
 	}
 }
 

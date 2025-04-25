@@ -56,6 +56,7 @@ void FileTree::renderNodeText(const std::string &name, bool isCurrentFile)
 		ImGui::PopStyleColor();
 	}
 }
+
 void FileTree::displayDirectoryNode(const FileNode &node,
 									const TreeDisplayMetrics &metrics,
 									int &depth)
@@ -65,12 +66,23 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 	ImVec2 iconDimensions(iconSize, iconSize);
 	ImTextureID folderIcon = getFolderIcon(node.isOpen);
 
+	ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
+
+	float requiredWidth =
+		(depth * metrics.indentWidth) + TreeStyleSettings::HORIZONTAL_PADDING + iconDimensions.x +
+		TreeStyleSettings::TEXT_PADDING // Spacing between icon and text (matches SameLine offset)
+		+ textSize.x;
+
+	float availableWidth = ImGui::GetContentRegionAvail().x;
+
+	float buttonWidth = std::max(requiredWidth, availableWidth);
+
 	ImGui::PushStyleColor(ImGuiCol_Button, TreeStyleSettings::TRANSPARENT_BG);
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
-	bool isOpen = ImGui::Button(("##" + node.fullPath).c_str(),
-								ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
+	bool isOpen =
+		ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(buttonWidth, metrics.itemHeight));
 
 	ImGui::PopStyleVar();
 	ImGui::PopStyleColor(2);
@@ -86,7 +98,7 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 	float textHeight = ImGui::GetTextLineHeight();
 	float textTopY = lineCenterY - (textHeight / 2.0f);
 
-	ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x +
+	ImGui::SameLine(metrics.cursorPos.x + depth * metrics.indentWidth + iconDimensions.x +
 					TreeStyleSettings::HORIZONTAL_PADDING + TreeStyleSettings::TEXT_PADDING);
 	ImGui::SetCursorPosY(textTopY);
 	ImGui::Text("%s", node.name.c_str());
@@ -118,16 +130,33 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
 	ImVec2 iconDimensions(iconSize, iconSize);
 	ImTextureID fileIcon = gFileExplorer.getIconForFile(node.name);
 
+	// Calculate the width of the node's text
+	ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
+
+	// Calculate the required width to fit indentation, icon, spacing, and text
+	float requiredWidth = (depth * metrics.indentWidth) + TreeStyleSettings::LEFT_MARGIN +
+						  iconSize +
+						  10.0f // Spacing between icon and text (matches SameLine offset)
+						  + textSize.x;
+
+	// Get the available width in the content region
+	float availableWidth = ImGui::GetContentRegionAvail().x;
+
+	// Use the larger of required or available width to prevent cutoff
+	float buttonWidth = std::max(requiredWidth, availableWidth);
+
 	ImGui::PushStyleColor(ImGuiCol_Button, TreeStyleSettings::TRANSPARENT_BG);
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
-	bool clicked = ImGui::Button(("##" + node.fullPath).c_str(),
-								 ImVec2(ImGui::GetContentRegionAvail().x, metrics.itemHeight));
+	// Create button with calculated width to cover full content
+	bool clicked =
+		ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(buttonWidth, metrics.itemHeight));
 
 	ImGui::PopStyleVar();
 	ImGui::PopStyleColor(2);
 
+	// Position icon and text as before...
 	float lineCenterY = metrics.cursorPos.y + (metrics.itemHeight / 2.0f);
 	float iconTopY = lineCenterY - (iconDimensions.y / 2.0f);
 
@@ -156,35 +185,26 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
 
 void FileTree::refreshFileTree()
 {
-	// Get the current time
 	double currentTime = glfwGetTime();
 
-	// Check if enough time has passed since the last refresh
 	if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL)
 	{
 		return;
 	}
 
-	// Update the last refresh time
 	lastFileTreeRefreshTime = currentTime;
 
 	if (!gFileExplorer.selectedFolder.empty())
 	{
-		// std::cout << "refreshing file tree.. \n";
-
-		// Store the old root node to preserve states
 		FileNode oldRoot = rootNode;
 
-		// Reset root node but preserve its open state
 		rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
 		rootNode.fullPath = gFileExplorer.selectedFolder;
 		rootNode.isDirectory = true;
 		rootNode.isOpen = true; // Root should stay open
 
-		// Build the new tree
 		buildFileTree(gFileExplorer.selectedFolder, rootNode);
 
-		// Restore open states from old tree
 		preserveOpenStates(oldRoot, rootNode);
 	}
 }
