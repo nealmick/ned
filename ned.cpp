@@ -562,22 +562,76 @@ void Ned::renderSettingsIcon(float iconSize)
 
 void Ned::renderSplitter(float padding, float availableWidth)
 {
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.9f, 0.9f, 0.9f, 0.2f));
 	ImGui::SameLine(0, 0);
-	float splitterWidth = 2.0f;
-	ImGui::Button("##vsplitter", ImVec2(splitterWidth, -1));
-	ImGui::PopStyleColor();
 
-	if (ImGui::IsItemActive())
+	// Interaction settings
+	const float visible_width = 1.0f;	// Rendered width at rest
+	const float hover_width = 6.0f;		// Invisible hitbox size
+	const float hover_expansion = 3.0f; // Expanded visual width
+	const float hover_delay = 0.15f;	// Seconds before hover effect
+
+	ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
+
+	// Create invisible button with larger hitbox
+	ImGui::Button("##vsplitter", ImVec2(hover_width, -1));
+
+	// Hover delay logic
+	static float hover_start_time = -1.0f;
+	bool visual_hover = false;
+	const bool is_hovered = ImGui::IsItemHovered();
+	const bool is_active = ImGui::IsItemActive();
+
+	if (is_hovered && !is_active)
 	{
-		float mousePosInWindow = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
-		float leftPadding = padding * 2;
-		float rightPadding = padding * 2 + 6;
-		float newSplitPos =
-			(mousePosInWindow - leftPadding) / (availableWidth - leftPadding - rightPadding);
-		newSplitPos = clamp(newSplitPos, 0.1f, 0.9f);
-		gSettings.setSplitPos(newSplitPos);
+		if (hover_start_time < 0)
+		{
+			hover_start_time = ImGui::GetTime();
+		}
+		float elapsed = ImGui::GetTime() - hover_start_time;
+		visual_hover = elapsed >= hover_delay;
+	} else
+	{
+		hover_start_time = -1.0f;
 	}
+
+	// Calculate dimensions
+	ImVec2 min = ImGui::GetItemRectMin();
+	ImVec2 max = ImGui::GetItemRectMax();
+	const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
+
+	// Center the visible splitter in the hover zone
+	min.x += (hover_width - width) * 0.5f;
+	max.x = min.x + width;
+
+	// Color setup
+	const ImU32 color_base = IM_COL32(134, 134, 134, 140);
+	const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
+	const ImU32 color_active = IM_COL32(11, 94, 215, 255);
+
+	// Determine color
+	ImU32 current_color = color_base;
+	if (is_active)
+	{
+		current_color = color_active;
+	} else if (visual_hover)
+	{
+		current_color = color_hover;
+	}
+
+	// Draw the splitter
+	ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
+
+	// Handle dragging
+	if (is_active)
+	{
+		const float mouse_x = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
+		const float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
+		gSettings.setSplitPos(clamp(new_split, 0.1f, 0.9f));
+	}
+
+	ImGui::PopStyleColor(3);
 }
 
 void Ned::renderEditor(ImFont *currentFont, float editorWidth)
@@ -618,28 +672,31 @@ void Ned::renderMainWindow()
 				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
 					 ImGuiWindowFlags_NoResize);
 
-	ImGui::PopFont();
-
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
-	float splitterWidth = 2.0f;
-	float availableWidth = windowWidth - padding * 3 - splitterWidth;
+	float availableWidth = windowWidth - padding * 3 - 4.0f; // Account for splitter width
 
 	if (showSidebar)
 	{
 		explorerWidth = availableWidth * gSettings.getSplitPos();
-		editorWidth = availableWidth - explorerWidth - 6;
+		editorWidth = availableWidth - explorerWidth - 4.0f;
 
+		// Render elements in correct z-order
 		renderFileExplorer(explorerWidth);
+		ImGui::SameLine(0, 0);
 		renderSplitter(padding, availableWidth);
+		ImGui::SameLine(0, 0);
+		renderEditor(currentFont, editorWidth);
 	} else
 	{
 		editorWidth = availableWidth;
+		renderEditor(currentFont, editorWidth);
 	}
-	renderEditor(currentFont, editorWidth);
 
 	ImGui::End();
+	ImGui::PopFont();
 }
+
 void Ned::renderFrame()
 {
 	int display_w, display_h;
