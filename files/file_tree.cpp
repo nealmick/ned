@@ -185,14 +185,22 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
 
 void FileTree::refreshFileTree()
 {
-	double currentTime = glfwGetTime();
-
-	if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL)
+	// Always allow immediate refresh for initial load
+	if (!initialRefreshDone)
 	{
-		return;
+		// Force initial refresh
+		lastFileTreeRefreshTime = 0;
+		initialRefreshDone = true;
+	} else
+	{
+		// Use normal interval checks after initial load
+		double currentTime = glfwGetTime();
+		if (currentTime - lastFileTreeRefreshTime < FILE_TREE_REFRESH_INTERVAL)
+		{
+			return;
+		}
+		lastFileTreeRefreshTime = currentTime;
 	}
-
-	lastFileTreeRefreshTime = currentTime;
 
 	if (!gFileExplorer.selectedFolder.empty())
 	{
