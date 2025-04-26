@@ -352,130 +352,105 @@ void EditorCursor::handleCursorMovement(const std::string &text,
 	// Use the EditorScroll class to handle scroll adjustments
 	gEditorScroll.handleCursorMovementScroll();
 }
-
-
 void EditorCursor::swapLines(int direction)
 {
-	if (direction != -1)
-	{ // Handle downward movement
+	// Handle line movement down
+	if (direction == 1)
+	{
 		const int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 																  editor_state.cursor_index);
 
-		// Can't move down from last line
+		// Boundary check: Can't move down from last line
 		if (current_line >= editor_state.editor_content_lines.size() - 1)
 			return;
 
-		// Get original line content and positions
+		// Get current line boundaries and content
 		const size_t line_start = editor_state.editor_content_lines[current_line];
 		const size_t line_end = editor_state.editor_content_lines[current_line + 1];
 		const std::string line_content =
 			editor_state.fileContent.substr(line_start, line_end - line_start);
-		const size_t original_cursor_offset = editor_state.cursor_index - line_start;
+		const size_t cursor_offset = editor_state.cursor_index - line_start;
 
-		// Calculate insertion point BEFORE deletion
-		size_t insertion_point;
-		if (current_line + 2 < editor_state.editor_content_lines.size())
-		{
-			insertion_point = editor_state.editor_content_lines[current_line + 2];
-		} else
-		{
-			insertion_point = editor_state.fileContent.size();
-		}
+		// Calculate insertion point after next line
+		size_t insert_pos = (current_line + 2 < editor_state.editor_content_lines.size())
+								? editor_state.editor_content_lines[current_line + 2]
+								: editor_state.fileContent.size();
 
-		// Delete current line
+		// Delete original line
 		editor_state.fileContent.erase(line_start, line_end - line_start);
 		editor_state.fileColors.erase(editor_state.fileColors.begin() + line_start,
 									  editor_state.fileColors.begin() + line_end);
 
-		// Adjust insertion point for the deleted content
-		if (insertion_point > line_start)
-		{
-			insertion_point -= (line_end - line_start);
-		}
+		// Adjust insertion position for the deleted content
+		if (insert_pos > line_start)
+			insert_pos -= (line_end - line_start);
 
-		// Insert line at new position
-		editor_state.fileContent.insert(insertion_point, line_content);
-		editor_state.fileColors.insert(editor_state.fileColors.begin() + insertion_point,
+		// Insert below next line
+		editor_state.fileContent.insert(insert_pos, line_content);
+		editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos,
 									   line_content.size(),
 									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-		// Update line starts and find new cursor position
+		// Update line structure and cursor
 		gEditor.updateLineStarts();
 		const int new_line =
-			EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, insertion_point);
-
-		// Calculate new cursor position
+			EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, insert_pos);
 		const size_t new_line_start = editor_state.editor_content_lines[new_line];
 		const size_t new_line_length =
 			(new_line + 1 < editor_state.editor_content_lines.size())
 				? editor_state.editor_content_lines[new_line + 1] - new_line_start
 				: editor_state.fileContent.size() - new_line_start;
 
-		editor_state.cursor_index =
-			new_line_start + std::min(original_cursor_offset, new_line_length);
-
-		// Update state
-		editor_state.selection_active = false;
-		editor_state.text_changed = true;
-		editor_state.ensure_cursor_visible = {true, true};
-		return;
+		editor_state.cursor_index = new_line_start + std::min(cursor_offset, new_line_length);
 	}
-	//upword  line swap...
-	const int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-															  editor_state.cursor_index);
-	const int target_line = current_line - 1; // Always move up
+	// Handle line movement up
+	else if (direction == -1)
+	{
+		const int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
+																  editor_state.cursor_index);
+		const int target_line = current_line - 1;
 
-	// Validate movement boundaries
-	if (target_line < 0)
-		return;
+		// Boundary check: Can't move up from first line
+		if (target_line < 0)
+			return;
 
-	// Store original positions before any modifications
-	const size_t original_cursor_offset =
-		editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		// Get current line boundaries and content
+		const size_t line_start = editor_state.editor_content_lines[current_line];
+		const size_t line_end = (current_line + 1 < editor_state.editor_content_lines.size())
+									? editor_state.editor_content_lines[current_line + 1]
+									: editor_state.fileContent.size();
+		const std::string line_content =
+			editor_state.fileContent.substr(line_start, line_end - line_start);
+		const size_t cursor_offset = editor_state.cursor_index - line_start;
 
-	// Get original line content including newline
-	const size_t line_start = editor_state.editor_content_lines[current_line];
-	const size_t line_end = (current_line + 1 < editor_state.editor_content_lines.size())
-								? editor_state.editor_content_lines[current_line + 1]
-								: editor_state.fileContent.size();
-	const std::string line_content =
-		editor_state.fileContent.substr(line_start, line_end - line_start);
+		// Delete original line
+		editor_state.fileContent.erase(line_start, line_end - line_start);
+		editor_state.fileColors.erase(editor_state.fileColors.begin() + line_start,
+									  editor_state.fileColors.begin() + line_end);
 
-	// Remove original line
-	editor_state.fileContent.erase(line_start, line_end - line_start);
-	editor_state.fileColors.erase(editor_state.fileColors.begin() + line_start,
-								  editor_state.fileColors.begin() + line_end);
+		// Insert above target line
+		const size_t insert_pos = editor_state.editor_content_lines[target_line];
+		editor_state.fileContent.insert(insert_pos, line_content);
+		editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos,
+									   line_content.size(),
+									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-	// Calculate insertion point for moved line (above current position)
-	const size_t insert_pos = editor_state.editor_content_lines[target_line];
+		// Update line structure and cursor
+		gEditor.updateLineStarts();
+		const size_t new_line_start = editor_state.editor_content_lines[target_line];
+		const size_t new_line_length =
+			(target_line + 1 < editor_state.editor_content_lines.size())
+				? editor_state.editor_content_lines[target_line + 1] - new_line_start
+				: editor_state.fileContent.size() - new_line_start;
 
-	// Insert line at new position
-	editor_state.fileContent.insert(insert_pos, line_content);
-	editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos,
-								   line_content.size(),
-								   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+		editor_state.cursor_index = new_line_start + std::min(cursor_offset, new_line_length);
+	}
 
-	const int new_line = target_line;
-
-	// Calculate new cursor position
-	const size_t new_line_start = editor_state.editor_content_lines[new_line];
-	const bool is_last_line = new_line == editor_state.editor_content_lines.size() - 1;
-	const size_t new_line_length =
-		is_last_line ? editor_state.fileContent.size() - new_line_start
-					 : editor_state.editor_content_lines[new_line + 1] - new_line_start;
-
-	// Clamp cursor to valid position in new line
-	const size_t max_offset = is_last_line ? new_line_length : new_line_length - 1;
-	editor_state.cursor_index = new_line_start + std::min(original_cursor_offset, max_offset);
-
-	// Update editor state
+	// Common state updates
 	editor_state.selection_active = false;
 	editor_state.text_changed = true;
 	editor_state.ensure_cursor_visible = {true, true};
 }
-
-
-
 void EditorCursor::processCursorJump(std::string &text, CursorVisibility &ensure_cursor_visible)
 {
 	if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
