@@ -31,10 +31,14 @@ class FileFinder
 	bool isInitialSelection = true; // Track if this is the first selection after opening
 
 	int selectedIndex = 0;
+	void updateFilteredList();
+	std::thread workerThread;
+	std::mutex fileListMutex;
+	std::atomic<bool> stopThread{false};
+	std::string currentProjectDir;
 
-	void refreshFileList();	   // Refreshes the list of files
-	void updateFilteredList(); // Updates filtered list based on search
-
+	void backgroundRefresh();
+	void refreshFileListBackground(const std::string &projectDir);
 	// Helper functions to break up the renderWindow() logic:
 	void renderHeader();
 	bool renderSearchInput();
@@ -43,12 +47,19 @@ class FileFinder
 	void handleSelectionChange();
 	int orginal_cursor_index;
 
+	std::chrono::steady_clock::time_point lastSelectionTime;
+	std::string pendingFile;
+	bool hasPendingSelection = false;
+
+	void checkPendingSelection(); // Add this declaration
+
   public:
 	bool showFFWindow = false;
-	FileFinder() = default;
 	void toggleWindow();
 	bool isWindowOpen() const;
 	void renderWindow();
+	FileFinder();
+	~FileFinder();
 };
 
 extern FileFinder gFileFinder;
