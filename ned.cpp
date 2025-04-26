@@ -452,8 +452,6 @@ void Ned::renderFileExplorer(float explorerWidth)
 					  true,
 					  ImGuiWindowFlags_NoScrollbar);
 
-	ImGui::Text("File Explorer");
-	ImGui::Separator();
 	if (!gFileExplorer.selectedFolder.empty())
 	{
 		gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
@@ -488,7 +486,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
 			ImGui::SameLine();
 		}
-		ImGui::Text("Editor - %s", currentFile.c_str());
+		ImGui::Text("%s", currentFile.c_str());
 	}
 
 	// Right-aligned status area

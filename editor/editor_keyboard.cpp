@@ -1,4 +1,3 @@
-
 #include "editor_keyboard.h"
 #include "../ai/ai_tab.h"
 #include "../files/file_finder.h"
@@ -266,11 +265,7 @@ void EditorKeyboard::handleTextInput()
 	}
 }
 
-void EditorKeyboard::processFontSizeAdjustment()
-{
-	// moved to main ned class
-}
-
+void EditorKeyboard::processFontSizeAdjustment() {}
 void EditorKeyboard::processSelectAll()
 {
 	if (ImGui::IsKeyPressed(ImGuiKey_A))
@@ -318,6 +313,16 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	// Process bookmarks first
 	if (ImGui::GetIO().KeyAlt)
 	{
+		if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+		{
+			gEditorCursor.swapLines(-1);
+			return; // Prevent other Alt+Up handling
+		}
+		if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+		{
+			gEditorCursor.swapLines(1);
+			return; // Prevent other Alt+Down handling
+		}
 		gEditorCursor.processWordMovement(editor_state.fileContent,
 										  editor_state.ensure_cursor_visible);
 	}
@@ -338,9 +343,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			processSelectAll();
 			gEditorKeyboard.processUndoRedo();
 			gBookmarks.handleBookmarkInput(gFileExplorer);
-
 			gEditorCursor.processCursorJump(editor_state.fileContent,
 											editor_state.ensure_cursor_visible);
+
 			if (ImGui::IsKeyPressed(ImGuiKey_I))
 			{
 				gLSPSymbolInfo.fetchSymbolInfo(gFileExplorer.currentFile);
