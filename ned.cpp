@@ -39,6 +39,7 @@ Ned::~Ned()
 		cleanup();
 	}
 }
+
 void ApplySettings(ImGuiStyle &style);
 
 void Ned::ShaderQuad::initialize()

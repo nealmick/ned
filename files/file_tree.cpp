@@ -9,7 +9,10 @@
 
 FileTree gFileTree;
 
-FileTree::FileTree() {}
+FileTree::FileTree()
+	: initialRefreshDone(false), hasAutoOpenedReadme(false), shouldCheckForReadme(true)
+{
+}
 
 void FileTree::displayFileTree(FileNode &node)
 {
@@ -55,6 +58,27 @@ void FileTree::renderNodeText(const std::string &name, bool isCurrentFile)
 		ImGui::Text("%s", name.c_str());
 		ImGui::PopStyleColor();
 	}
+}
+std::string FileTree::findReadmeInRoot()
+{
+	if (!rootNode.isDirectory)
+		return "";
+
+	// Case-insensitive search for readme.md variations
+	for (const auto &child : rootNode.children)
+	{
+		if (!child.isDirectory)
+		{
+			std::string lowerName = child.name;
+			std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+
+			if (lowerName == "readme.md" || lowerName == "readme")
+			{
+				return child.fullPath;
+			}
+		}
+	}
+	return "";
 }
 
 void FileTree::displayDirectoryNode(const FileNode &node,
@@ -201,19 +225,30 @@ void FileTree::refreshFileTree()
 		}
 		lastFileTreeRefreshTime = currentTime;
 	}
-
 	if (!gFileExplorer.selectedFolder.empty())
 	{
 		FileNode oldRoot = rootNode;
 
+		// Rebuild root node
 		rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
 		rootNode.fullPath = gFileExplorer.selectedFolder;
 		rootNode.isDirectory = true;
-		rootNode.isOpen = true; // Root should stay open
+		rootNode.isOpen = true;
 
 		buildFileTree(gFileExplorer.selectedFolder, rootNode);
-
 		preserveOpenStates(oldRoot, rootNode);
+
+		// Auto-open README on first refresh
+		if (shouldCheckForReadme && initialRefreshDone)
+		{
+			std::string readmePath = findReadmeInRoot();
+			if (!readmePath.empty() && gFileExplorer.currentFile.empty())
+			{
+				gFileExplorer.loadFileContent(readmePath);
+				hasAutoOpenedReadme = true;
+			}
+			shouldCheckForReadme = false;
+		}
 	}
 }
 void FileTree::preserveOpenStates(const FileNode &oldNode, FileNode &newNode)
