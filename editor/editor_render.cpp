@@ -155,7 +155,8 @@ void EditorRender::renderLineBackground(int line_num,
 										size_t cursor_line,
 										const ImVec2 &line_start_draw_pos)
 {
-	if (static_cast<size_t>(line_num) != cursor_line)
+	if (static_cast<size_t>(line_num) != cursor_line ||
+		editor_state.selection_active && editor_state.selection_start != editor_state.selection_end)
 	{
 		return; // Not the cursor line
 	}

@@ -36,8 +36,8 @@ class FileTree
   private:
 	double lastFileTreeRefreshTime = 0.0;
 	const double FILE_TREE_REFRESH_INTERVAL = 1.0;
+	bool initialRefreshDone = false; // Track if initial refresh has occurred
 
-	// Display helper structs (moved from files.h)
 	struct TreeDisplayMetrics
 	{
 		float currentFontSize;
