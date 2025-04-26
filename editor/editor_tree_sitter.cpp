@@ -17,6 +17,9 @@ std::unordered_map<std::string, TSQuery *> TreeSitter::queryCache;
 TSTree *TreeSitter::previousTree = nullptr;
 std::string TreeSitter::previousContent;
 
+const TSLanguage *TreeSitter::currentLanguage = nullptr;
+std::string TreeSitter::currentExtension = "";
+
 // Declare language parser functions
 extern "C" TSLanguage *tree_sitter_cpp();
 extern "C" TSLanguage *tree_sitter_javascript();
@@ -48,7 +51,10 @@ TSParser *TreeSitter::getParser()
 std::pair<TSLanguage *, std::string>
 TreeSitter::detectLanguageAndQuery(const std::string &extension)
 {
-	if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
+	if (extension == ".c")
+	{
+		return {tree_sitter_c(), "editor/queries/c.scm"};
+	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
 	{
 		return {tree_sitter_cpp(), "editor/queries/cpp.scm"};
 	} else if (extension == ".js" || extension == ".jsx")
@@ -96,9 +102,6 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	} else if (extension == ".rb")
 	{
 		return {tree_sitter_ruby(), "editor/queries/rb.scm"};
-	} else if (extension == ".c")
-	{
-		return {tree_sitter_c(), "editor/queries/c.scm"};
 	}
 	return {tree_sitter_cpp(), "editor/queries/cpp.scm"};
 }
@@ -250,7 +253,6 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 
 	ts_query_cursor_delete(cursor);
 }
-
 void TreeSitter::parse(const std::string &fileContent,
 					   std::vector<ImVec4> &fileColors,
 					   const std::string &extension)
@@ -272,6 +274,19 @@ void TreeSitter::parse(const std::string &fileContent,
 	{
 		std::cerr << "No parser for extension: " << extension << "\n";
 		return;
+	}
+
+	// Reset state if language changed
+	if (currentLanguage != lang || currentExtension != extension)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		currentLanguage = lang;
+		currentExtension = extension;
 	}
 
 	bool initialParse = previousContent.empty();
