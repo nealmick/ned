@@ -79,6 +79,7 @@ class Settings
 	bool isBlockingInput() const { return blockInput; }
 
 	bool getRainbowMode() const { return settings["rainbow"].get<bool>(); }
+
 	bool getTreesitterMode() const { return settings["treesitter"].get<bool>(); }
 
   private:
