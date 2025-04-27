@@ -1,10 +1,5 @@
 /******************************************************************************
- * settings.cpp
- *
- *  - Now getAppResourcesPath() and getUserSettingsPath() are public static
- *    methods of the Settings class, so that Ned::loadFont() or other code
- *    can call Settings::getAppResourcesPath().
- *  - loadSettings() logic for copying .ned.json from Resources -> ~/ned/.
+ * settings.cpp *
  ******************************************************************************/
 
 #include "settings.h"
@@ -15,7 +10,7 @@
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 
-#include <cstdlib> // for getenv
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -27,10 +22,6 @@
 namespace fs = std::filesystem;
 Settings gSettings;
 
-/******************************************************************************
- * getAppResourcesPath()
- * e.g. /Applications/Ned.app/Contents/Resources
- ******************************************************************************/
 std::string Settings::getAppResourcesPath()
 {
 	char exePath[MAXPATHLEN];
@@ -104,17 +95,8 @@ std::string Settings::getUserSettingsPath()
 	return std::string(home) + "/ned/.ned.json";
 }
 
-/******************************************************************************
- * Constructor
- ******************************************************************************/
 Settings::Settings() : splitPos(0.3f) {}
 
-/******************************************************************************
- * loadSettings()
- * 1) If user file doesn't exist, copy from .app/Resources/.ned.json
- * 2) Load user file
- * 3) Fill defaults for missing keys
- ******************************************************************************/
 void Settings::loadSettings()
 {
 	// 1) Where to store & load user settings
@@ -221,10 +203,6 @@ void Settings::loadSettings()
 	}
 }
 
-/******************************************************************************
- * saveSettings()
- * Write current 'settings' JSON to userSettingsPath
- ******************************************************************************/
 void Settings::saveSettings()
 {
 	std::ofstream settingsFile(settingsPath);
@@ -234,10 +212,6 @@ void Settings::saveSettings()
 	}
 }
 
-/******************************************************************************
- * checkSettingsFile()
- * If user manually edits ~/ned/.ned.json, detect changes & reload
- ******************************************************************************/
 void Settings::checkSettingsFile()
 {
 	if (!fs::exists(settingsPath))
@@ -281,11 +255,6 @@ void Settings::checkSettingsFile()
 	}
 }
 
-/******************************************************************************
- * renderSettingsWindow()
- * The ImGui-based GUI for editing settings.
- * The user can open/close it with Cmd+, etc.
- ******************************************************************************/
 void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
@@ -325,23 +294,6 @@ void Settings::renderSettingsWindow()
 		std::cout << "Settings window gained focus!" << std::endl;
 	}
 	wasFocused = isFocused;
-
-	// Detect clicks outside this window
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-	{
-		ImVec2 mousePos = ImGui::GetMousePos();
-		ImVec2 currentWindowPos = ImGui::GetWindowPos();
-		ImVec2 currentWindowSize = ImGui::GetWindowSize();
-		if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) &&
-			(mousePos.x < currentWindowPos.x ||
-			 mousePos.x > currentWindowPos.x + currentWindowSize.x ||
-			 mousePos.y < currentWindowPos.y ||
-			 mousePos.y > currentWindowPos.y + currentWindowSize.y))
-		{
-			showSettingsWindow = false;
-			saveSettings();
-		}
-	}
 
 	// Start header group
 	ImGui::BeginGroup();
@@ -487,6 +439,24 @@ void Settings::renderSettingsWindow()
 	{
 		showSettingsWindow = false;
 		saveSettings();
+	}
+	// Detect clicks outside this window (only if no popups are open)
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+
+		bool isMouseOutside =
+			(mousePos.x < windowPos.x || mousePos.x > windowPos.x + windowSize.x ||
+			 mousePos.y < windowPos.y || mousePos.y > windowPos.y + windowSize.y);
+
+		if (isMouseOutside && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
+			!ImGui::IsAnyItemHovered())
+		{
+			showSettingsWindow = false;
+			saveSettings();
+		}
 	}
 
 	ImGui::End();
