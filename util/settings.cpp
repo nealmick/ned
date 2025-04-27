@@ -177,6 +177,26 @@ void Settings::loadSettings()
 	{
 		settings["scanline_intensity"] = 0.2;
 	}
+	if (!settings.contains("vignet_intensity"))
+	{
+		settings["vignet_intensity"] = 0.15;
+	}
+	if (!settings.contains("bloom_intensity"))
+	{
+		settings["bloom_intensity"] = 0.15;
+	}
+	if (!settings.contains("colorshift_intensity"))
+	{
+		settings["colorshift_intensity"] = 2.0;
+	}
+	if (!settings.contains("static_intensity"))
+	{
+		settings["static_intensity"] = 0.09;
+	}
+	if (!settings.contains("jitter_intensity"))
+	{
+		settings["jitter_intensity"] = 1.0;
+	}
 	if (!settings.contains("themes"))
 	{
 		settings["themes"] = {{"default",
@@ -242,6 +262,11 @@ void Settings::checkSettingsFile()
 			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
 			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
+			oldSettings["colorshift_intensity"] != settings["colorshift_intensity"] ||
+			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
+			oldSettings["static_intensity"] != settings["static_intensity"] ||
+			oldSettings["jitter_intensity"] != settings["jitter_intensity"] ||
+			oldSettings["vignet_intensity"] != settings["vignet_intensity"] ||
 			oldSettings["font"] != settings["font"])
 		{
 			settingsChanged = true;
@@ -468,7 +493,12 @@ void Settings::renderSettingsWindow()
 	// Scanline Intensity Slider
 	ImGui::Spacing();
 	static float tempScanlineIntensity = settings["scanline_intensity"].get<float>();
-	if (ImGui::SliderFloat("Scanline Intensity", &tempScanlineIntensity, 0.0f, 1.0f, "%.1f"))
+	if (ImGui::SliderFloat("Scanline Intensity",
+						   &tempScanlineIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed from %.01f to show 2 decimal places
+						   ImGuiSliderFlags_AlwaysClamp))
 	{
 		settings["scanline_intensity"] = tempScanlineIntensity;
 		settingsChanged = true;
@@ -477,6 +507,97 @@ void Settings::renderSettingsWindow()
 	{
 		saveSettings();
 	}
+
+	// Vignette Intensity Slider
+	ImGui::Spacing();
+	static float tempVignetIntensity = settings["vignet_intensity"].get<float>();
+	if (ImGui::SliderFloat("Vignette Intensity",
+						   &tempVignetIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed precision
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["vignet_intensity"] = tempVignetIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	// bloom Intensity Slider
+	ImGui::Spacing();
+	static float tempBloomIntensity = settings["bloom_intensity"].get<float>();
+	if (ImGui::SliderFloat("Bloom Intensity",
+						   &tempBloomIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed precision
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["bloom_intensity"] = tempBloomIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	// Add after vignette slider
+	ImGui::Spacing();
+	static float tempStaticIntensity = settings["static_intensity"].get<float>();
+	if (ImGui::SliderFloat("Static Intensity",
+						   &tempStaticIntensity,
+						   0.00f,
+						   0.5f, // Max 0.5 to prevent overwhelming effect
+						   "%.03f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["static_intensity"] = tempStaticIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+
+	static float tempColorShift = settings["colorshift_intensity"].get<float>();
+	if (ImGui::SliderFloat("RGB Shift Intensity",
+						   &tempColorShift,
+						   0.0f,  // Min
+						   10.0f, // Max (200% of original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["colorshift_intensity"] = tempColorShift;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
+	// In renderSettingsWindow() after other sliders:
+	ImGui::Spacing();
+	static float tempJitter = settings["jitter_intensity"].get<float>();
+	if (ImGui::SliderFloat("Jitter Intensity",
+						   &tempJitter,
+						   0.0f,  // Min (no jitter)
+						   10.0f, // Max (2x original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["jitter_intensity"] = tempJitter;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 
 	// ESC key closes the window
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
