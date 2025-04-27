@@ -759,7 +759,12 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
 
 	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
-
+	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
+	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
+	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+	crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
+	crtShader.setFloat("u_jitter_intensity",
+					   gSettings.getSettings()["jitter_intensity"].get<float>());
 	if (timeLocation != -1)
 		glUniform1f(timeLocation, currentTime);
 	if (screenTextureLocation != -1)

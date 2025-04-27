@@ -7,6 +7,11 @@ uniform vec2 resolution;
 
 
 uniform float u_scanline_intensity;
+uniform float u_vignet_intensity;
+uniform float u_bloom_intensity;
+uniform float u_static_intensity;
+uniform float u_colorshift_intensity;
+uniform float u_jitter_intensity;
 
 
 // Improved random function that avoids patterns
@@ -44,7 +49,8 @@ vec3 sampleBloom(vec2 uv, float offset) {
 
 vec2 addJitter(vec2 uv, float time) {
     float jitterSpeed = 2.0;
-    float jitterAmount = 0.0009;
+    float baseJitterAmount = 0.0009;
+    float jitterAmount = baseJitterAmount * u_jitter_intensity; // Apply intensity
     
     float jitterThreshold = 0.97;
     float rand = random(vec2(mod(time * 0.1, 100.0)));
@@ -57,6 +63,7 @@ vec2 addJitter(vec2 uv, float time) {
     }
     return uv;
 }
+
 
 float generateStatic(vec2 uv, float time) {
     // Use modulo to keep time values from growing too large
@@ -81,23 +88,28 @@ void main() {
     vec2 uv = TexCoords;
     uv = addJitter(uv, time);
     
-    float shiftAmount = 0.001;
+    float baseShiftAmount = 0.001;
+
+    float shiftAmount = baseShiftAmount * u_colorshift_intensity;
     float shiftSpeed = 0.5;
     float shift = sin(time * shiftSpeed) * shiftAmount;
-    
+
+    // Then modify the color channel sampling:
     vec3 color;
-    color.r = texture(screenTexture, uv + vec2(shift, 0.0)).r;
-    color.g = texture(screenTexture, uv).g;
-    color.b = texture(screenTexture, uv - vec2(shift, 0.0)).b;
+    color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
+    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;  // Slight variation
+    color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
+
+
+    
     
     vec3 bloom = sampleBloom(uv, 2.0);
-    float bloomStrength = 0.3;
-    color += bloom * bloomStrength;
+    color += bloom * u_bloom_intensity;
     
     vec2 vigUV = uv;
     vigUV *= 1.0 - vigUV.yx;
     float vignette = vigUV.x * vigUV.y * 15.0;
-    vignette = pow(vignette, 0.15);
+    vignette = pow(vignette, u_vignet_intensity);
     
     float scanSpeed = 0.2;
     float pauseDuration = 3.0;
@@ -125,7 +137,7 @@ void main() {
     
     vec2 staticUV = gl_FragCoord.xy / resolution;
     float staticNoise = generateStatic(staticUV, time);
-    color += (staticNoise - 0.5) * 0.09; // Slightly reduced intensity
+    color += (staticNoise - 0.5) * u_static_intensity; // Slightly reduced intensity
     
     float pulseSpeed = 0.5;
     float pulseStrength = 0.05;
