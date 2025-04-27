@@ -5,6 +5,10 @@ uniform sampler2D screenTexture;
 uniform float time;
 uniform vec2 resolution;
 
+
+uniform float u_scanline_intensity;
+
+
 // Improved random function that avoids patterns
 float random(vec2 co) {
     float a = 12.9898;
@@ -113,7 +117,7 @@ void main() {
             float fadeIn = min(scanDist / fadeInLength, 1.0);
             fadeIn = smoothstep(0.0, 1.0, fadeIn);
             float combinedFade = fadeIn * fadeOut;
-            scanline = mix(1.0, 1.7, combinedFade * 0.2);
+            scanline = mix(1.0, 1.7, combinedFade * u_scanline_intensity);
         }
     }
     

@@ -173,6 +173,10 @@ void Settings::loadSettings()
 	{
 		settings["shader_toggle"] = true; // default to shader enabled
 	}
+	if (!settings.contains("scanline_intensity"))
+	{
+		settings["scanline_intensity"] = 0.2;
+	}
 	if (!settings.contains("themes"))
 	{
 		settings["themes"] = {{"default",
@@ -237,6 +241,7 @@ void Settings::checkSettingsFile()
 			oldSettings["rainbow"] != settings["rainbow"] ||
 			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
+			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
 			oldSettings["font"] != settings["font"])
 		{
 			settingsChanged = true;
@@ -259,17 +264,24 @@ void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
 		return;
+	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
+
+	// Calculate proportional size
+	ImVec2 window_size(main_viewport_size.x * 0.75f, // 75% of screen width
+					   main_viewport_size.y * 0.85f	 // 85% of screen height
+	);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
-	ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
 								   ImGui::GetIO().DisplaySize.y * 0.5f),
 							ImGuiCond_Always,
 							ImVec2(0.5f, 0.5f));
 
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-								   ImGuiWindowFlags_Modal;
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_Modal;
 
 	// Push custom styles
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
@@ -278,6 +290,12 @@ void Settings::renderSettingsWindow()
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.15f, 0.15f, 0.15f, 0.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
 	// Handle focus detection
@@ -327,7 +345,10 @@ void Settings::renderSettingsWindow()
 	ImGui::EndGroup();
 	ImGui::Separator();
 	ImGui::Spacing();
-
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 	// Show a slider for font size
 	static float tempFontSize = currentFontSize;
 	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
@@ -380,6 +401,9 @@ void Settings::renderSettingsWindow()
 	};
 
 	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 	ImGui::TextUnformatted("Syntax Colors");
 	ImGui::Separator();
 	ImGui::Spacing();
@@ -394,7 +418,10 @@ void Settings::renderSettingsWindow()
 	editThemeColor("Variables", "variable");
 
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Toggle");
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("Toggle Settings");
 	ImGui::Separator();
 	ImGui::Spacing();
 
@@ -420,6 +447,13 @@ void Settings::renderSettingsWindow()
 	ImGui::SameLine();
 	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Syntax Highlighting)");
 
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("GL Shaders");
+	ImGui::Separator();
+	ImGui::Spacing();
 	// Shader
 	bool shaderEnabled = settings["shader_toggle"].get<bool>();
 	if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled))
@@ -431,8 +465,18 @@ void Settings::renderSettingsWindow()
 	ImGui::SameLine();
 	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(CRT & visual effects)");
 
-	ImGui::Separator();
-	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");
+	// Scanline Intensity Slider
+	ImGui::Spacing();
+	static float tempScanlineIntensity = settings["scanline_intensity"].get<float>();
+	if (ImGui::SliderFloat("Scanline Intensity", &tempScanlineIntensity, 0.0f, 1.0f, "%.1f"))
+	{
+		settings["scanline_intensity"] = tempScanlineIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
 
 	// ESC key closes the window
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
@@ -462,6 +506,6 @@ void Settings::renderSettingsWindow()
 	ImGui::End();
 
 	// Pop style
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar(3);
+	ImGui::PopStyleColor(7);
+	ImGui::PopStyleVar(5);
 }
