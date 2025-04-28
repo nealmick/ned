@@ -5,7 +5,6 @@ uniform sampler2D screenTexture;
 uniform float time;
 uniform vec2 resolution;
 
-
 uniform float u_scanline_intensity;
 uniform float u_vignet_intensity;
 uniform float u_bloom_intensity;
@@ -13,8 +12,7 @@ uniform float u_static_intensity;
 uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
 
-
-// Improved random function that avoids patterns
+// Helper functions
 float random(vec2 co) {
     float a = 12.9898;
     float b = 78.233;
@@ -24,9 +22,8 @@ float random(vec2 co) {
     return fract(sin(sn) * c);
 }
 
-// Additional random function for variety
 float random2(vec2 co) {
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453123);
+    return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
 vec3 sampleBloom(vec2 uv, float offset) {
@@ -43,14 +40,13 @@ vec3 sampleBloom(vec2 uv, float offset) {
             }
         }
     }
-    
     return bloom / total;
 }
 
 vec2 addJitter(vec2 uv, float time) {
     float jitterSpeed = 2.0;
     float baseJitterAmount = 0.0009;
-    float jitterAmount = baseJitterAmount * u_jitter_intensity; // Apply intensity
+    float jitterAmount = baseJitterAmount * u_jitter_intensity;
     
     float jitterThreshold = 0.97;
     float rand = random(vec2(mod(time * 0.1, 100.0)));
@@ -64,53 +60,46 @@ vec2 addJitter(vec2 uv, float time) {
     return uv;
 }
 
-
 float generateStatic(vec2 uv, float time) {
-    // Use modulo to keep time values from growing too large
     float t1 = mod(time * 60.0, 10.0);
     float t2 = mod(time * 55.0, 10.0);
     float t3 = mod(time * 0.1, 5.0);
     
-    // Create multiple layers of noise at different frequencies
     float noise1 = random(uv * 2.5 + vec2(t1));
     float noise2 = random2(uv * 3.7 + vec2(t2));
     float noise3 = random((uv + vec2(t3)) * 1.5);
     
-    // Combine the noise layers with different weights
     float staticNoise = (noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.2);
-    
-    // Add time-based modulation to control the intensity
     float intensityMod = mix(0.8, 1.0, sin(time * 0.5) * 0.5 + 0.5);
     return staticNoise * intensityMod;
 }
 
-void main() {
-    vec2 uv = TexCoords;
-    uv = addJitter(uv, time);
-    
+// Effect functions
+vec3 applyColorShift(vec2 uv, float time) {
     float baseShiftAmount = 0.001;
-
     float shiftAmount = baseShiftAmount * u_colorshift_intensity;
     float shiftSpeed = 0.5;
     float shift = sin(time * shiftSpeed) * shiftAmount;
 
-    // Then modify the color channel sampling:
     vec3 color;
     color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
-    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;  // Slight variation
+    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;
     color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
+    return color;
+}
 
+vec3 getBloom(vec2 uv) {
+    return sampleBloom(uv, 2.0) * u_bloom_intensity;
+}
 
-    
-    
-    vec3 bloom = sampleBloom(uv, 2.0);
-    color += bloom * u_bloom_intensity;
-    
+float applyVignette(vec2 uv) {
     vec2 vigUV = uv;
     vigUV *= 1.0 - vigUV.yx;
     float vignette = vigUV.x * vigUV.y * 15.0;
-    vignette = pow(vignette, u_vignet_intensity);
-    
+    return pow(vignette, u_vignet_intensity);
+}
+
+float calculateScanline(vec2 uv, float time) {
     float scanSpeed = 0.2;
     float pauseDuration = 3.0;
     float cycleTime = mod(time, 1.0/scanSpeed + pauseDuration);
@@ -132,17 +121,32 @@ void main() {
             scanline = mix(1.0, 1.7, combinedFade * u_scanline_intensity);
         }
     }
-    
-    color *= vignette * scanline;
-    
+    return scanline;
+}
+
+vec3 applyStaticNoise(vec3 color, float time) {
     vec2 staticUV = gl_FragCoord.xy / resolution;
     float staticNoise = generateStatic(staticUV, time);
-    color += (staticNoise - 0.5) * u_static_intensity; // Slightly reduced intensity
-    
+    return color + (staticNoise - 0.5) * u_static_intensity;
+}
+
+vec3 applyPulse(vec3 color, float time) {
     float pulseSpeed = 0.5;
     float pulseStrength = 0.05;
     float pulse = sin(time * pulseSpeed) * pulseStrength + 1.0;
-    color *= pulse;
+    return color * pulse;
+}
+
+void main() {
+    vec2 uv = TexCoords;
+    uv = addJitter(uv, time);
+    
+    vec3 color = applyColorShift(uv, time);
+    color += getBloom(uv);
+    
+    color *= applyVignette(uv) * calculateScanline(uv, time);
+    color = applyStaticNoise(color, time);
+    color = applyPulse(color, time);
     
     FragColor = vec4(color, 1.0);
 }
