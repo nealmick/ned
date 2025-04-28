@@ -300,7 +300,6 @@ void Ned::handleEvents()
 		scrollYAccumulator = 0.0;
 	}
 
-	// Rest of existing code...
 	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
@@ -765,6 +764,9 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 	crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
 	crtShader.setFloat("u_jitter_intensity",
 					   gSettings.getSettings()["jitter_intensity"].get<float>());
+	crtShader.setFloat("u_curvature_intensity",
+					   gSettings.getSettings()["curvature_intensity"].get<float>());
+
 	if (timeLocation != -1)
 		glUniform1f(timeLocation, currentTime);
 	if (screenTextureLocation != -1)

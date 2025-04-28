@@ -177,6 +177,10 @@ void Settings::loadSettings()
 	{
 		settings["scanline_intensity"] = 0.2;
 	}
+	if (!settings.contains("curvature_intensity"))
+	{
+		settings["curvature_intensity"] = 0.2;
+	}
 	if (!settings.contains("vignet_intensity"))
 	{
 		settings["vignet_intensity"] = 0.15;
@@ -262,6 +266,7 @@ void Settings::checkSettingsFile()
 			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
 			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
+			oldSettings["curvature_intensity"] != settings["curvature_intensity"] ||
 			oldSettings["colorshift_intensity"] != settings["colorshift_intensity"] ||
 			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
 			oldSettings["static_intensity"] != settings["static_intensity"] ||
@@ -570,6 +575,23 @@ void Settings::renderSettingsWindow()
 						   ImGuiSliderFlags_AlwaysClamp))
 	{
 		settings["colorshift_intensity"] = tempColorShift;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+
+	static float tempcurvature = settings["curvature_intensity"].get<float>();
+	if (ImGui::SliderFloat("Curvature Intensity",
+						   &tempcurvature,
+						   0.0f, // Min
+						   0.5f, // Max (200% of original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["curvature_intensity"] = tempcurvature;
 		settingsChanged = true;
 	}
 	if (ImGui::IsItemDeactivatedAfterEdit())

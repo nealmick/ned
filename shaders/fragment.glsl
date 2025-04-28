@@ -11,6 +11,7 @@ uniform float u_bloom_intensity;
 uniform float u_static_intensity;
 uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
+uniform float u_curvature_intensity;
 
 // Helper functions
 float random(vec2 co) {
@@ -136,11 +137,31 @@ vec3 applyPulse(vec3 color, float time) {
     float pulse = sin(time * pulseSpeed) * pulseStrength + 1.0;
     return color * pulse;
 }
-
+vec2 applyCurvature(vec2 uv, float intensity) {
+    // Convert to polar coordinates
+    vec2 center = uv - 0.5;
+    float radius = length(center);
+    float angle = atan(center.y, center.x);
+    
+    // Create proper outward bulge distortion
+    float distortion = intensity * 0.25 * pow(radius, 2.0);
+    radius *= 1.0 + distortion;
+    
+    // Convert back to Cartesian coordinates
+    vec2 distorted = 0.5 + radius * vec2(cos(angle), sin(angle));
+    
+    // Maintain valid texture coordinates
+    return clamp(distorted, 0.001, 0.999);
+}
+// Modified main function with curvature
 void main() {
     vec2 uv = TexCoords;
+    
+    // Apply curvature first to simulate physical screen shape
+    uv = applyCurvature(uv, u_curvature_intensity);
     uv = addJitter(uv, time);
     
+    // [Rest of the pipeline remains the same...]
     vec3 color = applyColorShift(uv, time);
     color += getBloom(uv);
     

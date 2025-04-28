@@ -6,15 +6,16 @@
         1.0000001192092896
     ],
     "bloom_intensity": 0.33000001311302185,
-    "colorshift_intensity": 1.3300000429153442,
+    "colorshift_intensity": 1.2300000190734863,
+    "curvature_intensity": 0.14000000059604645,
     "font": "SourceCodePro-Regular",
     "fontSize": 20.0,
     "jitter_intensity": 2.390000104904175,
     "rainbow": true,
     "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
-    "splitPos": 0.2710926830768585,
-    "static_intensity": 0.16500000655651093,
+    "splitPos": 0.20282186567783356,
+    "static_intensity": 0.17900000512599945,
     "theme": "default",
     "themes": {
         "default": {
@@ -75,5 +76,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.25999999046325684
+    "vignet_intensity": 0.2199999988079071
 }
