@@ -177,6 +177,11 @@ void Settings::loadSettings()
 	{
 		settings["scanline_intensity"] = 0.2;
 	}
+	if (!settings.contains("burnin_intensity"))
+	{
+		settings["burnin_intensity"] = 0.95;
+	}
+
 	if (!settings.contains("curvature_intensity"))
 	{
 		settings["curvature_intensity"] = 0.2;
@@ -266,6 +271,7 @@ void Settings::checkSettingsFile()
 			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
 			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
+			oldSettings["burnin_intensity"] != settings["burnin_intensity"] ||
 			oldSettings["curvature_intensity"] != settings["curvature_intensity"] ||
 			oldSettings["colorshift_intensity"] != settings["colorshift_intensity"] ||
 			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
@@ -584,7 +590,7 @@ void Settings::renderSettingsWindow()
 	ImGui::Spacing();
 
 	static float tempcurvature = settings["curvature_intensity"].get<float>();
-	if (ImGui::SliderFloat("Curvature Intensity",
+	if (ImGui::SliderFloat("Curvature (bugged)",
 						   &tempcurvature,
 						   0.0f, // Min
 						   0.5f, // Max (200% of original)
@@ -598,7 +604,23 @@ void Settings::renderSettingsWindow()
 	{
 		saveSettings();
 	}
+	ImGui::Spacing();
 
+	static float tempburnin = settings["burnin_intensity"].get<float>();
+	if (ImGui::SliderFloat("Burn-in Intensity",
+						   &tempburnin,
+						   0.9f,  // Min
+						   0.99f, // Max (200% of original)
+						   "%.005f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["burnin_intensity"] = tempburnin;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
 	// In renderSettingsWindow() after other sliders:
 	ImGui::Spacing();
 	static float tempJitter = settings["jitter_intensity"].get<float>();

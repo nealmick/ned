@@ -10,7 +10,7 @@ void main() {
     vec3 current = texture(currentFrame, TexCoords).rgb;
     vec3 accum = texture(previousFrame, TexCoords).rgb;
     
-    // Use max to prevent additive brightness, allowing trails to fade
-    vec3 result = max(current, accum * decay);
+    // Exponential decay with adjustable power (4.0 for steep initial drop)
+    vec3 result = max(current, accum * pow(decay, 4.0));
     FragColor = vec4(clamp(result, vec3(0.0), vec3(1.0)), 1.0);
 }
