@@ -731,26 +731,48 @@ void Ned::renderFrame()
 	int display_w, display_h;
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
-	// [STEP 1] Render UI to your framebuffer texture (fb.renderTexture)
-	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer); // Bind your FBO
+	// [STEP 1] Render UI to framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
 	glViewport(0, 0, display_w, display_h);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	// Render ImGui to fb.renderTexture
 	renderMainWindow();
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	// [STEP 2] Apply shaders to fb.renderTexture
+	// [STEP 2] Handle final output
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
 	if (shader_toggle)
 	{
 		renderWithShader(display_w, display_h, glfwGetTime());
+	} else
+	{
+		// Reset accumulation buffers to prevent lingering trails
+		accum.accum[0].initialized = false;
+		accum.accum[1].initialized = false;
+
+		// Directly render the original framebuffer
+		crtShader.useShader(); // Use CRT shader with disabled effects
+		crtShader.setFloat("u_scanline_intensity", 0.0f);
+		crtShader.setFloat("u_vignet_intensity", 0.0f);
+		crtShader.setFloat("u_bloom_intensity", 0.0f);
+		crtShader.setFloat("u_static_intensity", 0.0f);
+		crtShader.setFloat("u_colorshift_intensity", 0.0f);
+		crtShader.setFloat("u_jitter_intensity", 0.0f);
+		crtShader.setFloat("u_curvature_intensity", 0.0f);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+		glBindVertexArray(quad.VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
-	// [STEP 3] Swap buffers to display the final result
+	// [STEP 3] Swap buffers
 	glfwSwapBuffers(window);
 }
 void Ned::handleFileDialog()
@@ -784,7 +806,8 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 	// Set texture units and uniforms
 	accum.burnInShader.setInt("currentFrame", 0);
 	accum.burnInShader.setInt("previousFrame", 1);
-	accum.burnInShader.setFloat("decay", 0.95f); // Optimal decay value
+	accum.burnInShader.setFloat("decay",
+								gSettings.getSettings()["burnin_intensity"]); // Optimal decay value
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
