@@ -121,43 +121,53 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
 	if (!success)
 	{
+		char infoLog[512];
 		glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Shader program linking failed\n" << infoLog << std::endl;
+		std::cerr << "🔴 SHADER LINK ERROR: " << infoLog << std::endl;
 		glDeleteShader(vertexShader);
 		glDeleteShader(fragmentShader);
 		return false;
 	}
 
-	// Clean up
+	// Debug output for uniforms
+	GLint numUniforms = 0;
+	glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &numUniforms);
+	std::cout << "\n🟢 Shader Program: " << vertexShaderPath << " + " << fragmentShaderPath
+			  << "\n🔷 Active Uniforms (" << numUniforms << "):\n";
+
+	for (GLint i = 0; i < numUniforms; i++)
+	{
+		char uniformName[256];
+		GLsizei length;
+		GLint size;
+		GLenum type;
+
+		glGetActiveUniform(
+			shaderProgram, i, sizeof(uniformName), &length, &size, &type, uniformName);
+		GLint location = glGetUniformLocation(shaderProgram, uniformName);
+
+		std::cout << "  " << i << ": " << uniformName << " (Type: " << type
+				  << ", Location: " << location << ")\n";
+	}
+
+	// Cleanup shaders
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
-	int uniformCount;
-	glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &uniformCount);
 
-	char uniformName[256];
-	for (int i = 0; i < uniformCount; i++)
-	{
-		int length, size;
-		GLenum type;
-		glGetActiveUniform(
-			shaderProgram, (GLuint)i, sizeof(uniformName), &length, &size, &type, uniformName);
-
-		GLint location = glGetUniformLocation(shaderProgram, uniformName);
-	}
+	// Specifically check for screenTexture uniform
+	GLint screenTexLoc = glGetUniformLocation(shaderProgram, "screenTexture");
 
 	return true;
 }
-
 void Shader::useShader()
 {
 	glUseProgram(shaderProgram);
 
-	// Debug uniform locations
-	GLint textureLocation = glGetUniformLocation(shaderProgram, "screenTexture");
-	if (textureLocation == -1)
-	{
-		std::cerr << "🔴 Failed to find 'screenTexture' uniform" << std::endl;
-	}
+	// Remove this check entirely - not all shaders need 'screenTexture'
+	// GLint textureLocation = glGetUniformLocation(shaderProgram, "screenTexture");
+	// if (textureLocation == -1) {
+	//     std::cerr << "🔴 Failed to find 'screenTexture' uniform" << std::endl;
+	// }
 }
 
 void Shader::setFloat(const std::string &name, float value)

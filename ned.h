@@ -105,6 +105,15 @@ class Ned
 
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 	double scrollYAccumulator = 0.0;
+
+	struct AccumulationBuffers
+	{
+		FramebufferState accum[2];
+		bool swap = false;
+		Shader burnInShader;
+	};
+
+	AccumulationBuffers accum;
 };
 
 // Global scope

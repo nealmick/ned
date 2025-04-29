@@ -13,6 +13,8 @@ uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
 uniform float u_curvature_intensity;
 
+
+
 // Helper functions
 float random(vec2 co) {
     float a = 12.9898;
@@ -170,4 +172,5 @@ void main() {
     color = applyPulse(color, time);
     
     FragColor = vec4(color, 1.0);
+    
 }
