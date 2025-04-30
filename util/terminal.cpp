@@ -1295,6 +1295,13 @@ void Terminal::handleCSI(const CSIEscape &csi)
 				if (state.c.state & CURSOR_ORIGIN)
 					moveTo(0, state.top);
 			}
+		} else
+		{
+			// Reset to full screen when no args
+			state.top = 0;
+			state.bot = state.row - 1;
+			if (state.c.state & CURSOR_ORIGIN)
+				moveTo(0, state.top);
 		}
 		break;
 
@@ -2105,6 +2112,10 @@ void Terminal::resize(int cols, int rows)
 		// Update terminal state
 		state.row = rows;
 		state.col = cols;
+		state.top = 0;
+		state.bot = rows - 1;
+
+		// Then clamp to ensure validity
 		state.top = std::clamp(state.top, 0, rows - 1);
 		state.bot = std::clamp(state.bot, state.top, rows - 1);
 		if (state.bot < state.top)
@@ -2121,17 +2132,16 @@ void Terminal::resize(int cols, int rows)
 		state.c.y = std::min(state.c.y, rows - 1);
 
 		// Update PTY size if valid
-		if (ptyFd >= 0)
-		{
-			struct winsize ws = {};
-			ws.ws_row = rows;
-			ws.ws_col = cols;
-			ioctl(ptyFd, TIOCSWINSZ, &ws);
-		}
+		struct winsize ws = {};
+		ws.ws_row = state.row;
+		ws.ws_col = state.col;
+		ioctl(ptyFd, TIOCSWINSZ, &ws); // Set master side size
+
 	} catch (const std::exception &e)
 	{
 		std::cerr << "Error during resize: " << e.what() << std::endl;
 	}
+	std::cout << "Resized to " << cols << "x" << rows << std::endl;
 }
 
 void Terminal::enableBracketedPaste()
