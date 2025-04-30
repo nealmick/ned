@@ -207,7 +207,8 @@ void Terminal::handleScrollback(const ImGuiIO &io, int new_rows)
 		if (io.MouseWheel != 0.0f)
 		{
 			int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
-			scrollOffset -= static_cast<int>(io.MouseWheel * 3);
+			// Reverse the scroll direction by changing subtraction to addition
+			scrollOffset += static_cast<int>(io.MouseWheel * 3);
 			scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
 		}
 	}
