@@ -103,7 +103,7 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	{
 		return {tree_sitter_ruby(), "editor/queries/rb.scm"};
 	}
-	return {tree_sitter_cpp(), "editor/queries/cpp.scm"};
+	return {};
 }
 
 void TreeSitter::computeEditRange(const std::string &newContent,
