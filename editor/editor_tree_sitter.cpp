@@ -213,12 +213,14 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 {
 	TSQueryCursor *cursor = ts_query_cursor_new();
 
+	/*
 	if (!initialParse)
 	{
 		ts_query_cursor_set_byte_range(cursor,
 									   static_cast<uint32_t>(start),
 									   static_cast<uint32_t>(end));
 	}
+	*/
 
 	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
 
