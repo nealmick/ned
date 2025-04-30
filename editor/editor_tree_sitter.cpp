@@ -1,4 +1,5 @@
 #include "editor_tree_sitter.h"
+#include "../files/files.h"
 #include "editor.h"
 #include <fstream>
 #include <iostream>
@@ -265,6 +266,17 @@ void TreeSitter::parse(const std::string &fileContent,
 		return;
 	}
 
+	static std::string lastFile;
+	if (lastFile != gFileExplorer.currentFile)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		lastFile = gFileExplorer.currentFile;
+	}
 	updateThemeColors();
 	TSParser *parser = getParser();
 
@@ -381,11 +393,16 @@ void TreeSitter::setColors(const std::string &content,
 	{
 		return;
 	}
-	start = std::clamp(start, 0, (int)colors.size() - 1);
-	end = std::clamp(end, 0, (int)colors.size());
+	// Use content.size() for clamping instead of colors.size()
+	start = std::clamp(start, 0, static_cast<int>(content.size()) - 1);
+	end = std::clamp(end, 0, static_cast<int>(content.size()));
 
 	for (int i = start; i < end; ++i)
 	{
-		colors[i] = color;
+		// Ensure colors vector is accessed safely
+		if (i < colors.size())
+		{
+			colors[i] = color;
+		}
 	}
 }

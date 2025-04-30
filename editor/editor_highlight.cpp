@@ -107,8 +107,11 @@ void EditorHighlight::highlightContent()
 						   }
 						   if (gSettings.getTreesitterMode())
 						   {
+							   // Resize colors_copy to match content_copy size (crucial for new
+							   // files)
+							   colors_copy.resize(content_copy.size(),
+												  TreeSitter::cachedColors.text);
 							   TreeSitter::parse(content_copy, colors_copy, extension);
-
 						   } else
 						   {
 							   // use custom lexers....
