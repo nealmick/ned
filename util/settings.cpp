@@ -1,10 +1,5 @@
 /******************************************************************************
- * settings.cpp
- *
- *  - Now getAppResourcesPath() and getUserSettingsPath() are public static
- *    methods of the Settings class, so that Ned::loadFont() or other code
- *    can call Settings::getAppResourcesPath().
- *  - loadSettings() logic for copying .ned.json from Resources -> ~/ned/.
+ * settings.cpp *
  ******************************************************************************/
 
 #include "settings.h"
@@ -15,7 +10,7 @@
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 
-#include <cstdlib> // for getenv
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -27,10 +22,6 @@
 namespace fs = std::filesystem;
 Settings gSettings;
 
-/******************************************************************************
- * getAppResourcesPath()
- * e.g. /Applications/Ned.app/Contents/Resources
- ******************************************************************************/
 std::string Settings::getAppResourcesPath()
 {
 	char exePath[MAXPATHLEN];
@@ -104,17 +95,8 @@ std::string Settings::getUserSettingsPath()
 	return std::string(home) + "/ned/.ned.json";
 }
 
-/******************************************************************************
- * Constructor
- ******************************************************************************/
 Settings::Settings() : splitPos(0.3f) {}
 
-/******************************************************************************
- * loadSettings()
- * 1) If user file doesn't exist, copy from .app/Resources/.ned.json
- * 2) Load user file
- * 3) Fill defaults for missing keys
- ******************************************************************************/
 void Settings::loadSettings()
 {
 	// 1) Where to store & load user settings
@@ -191,6 +173,39 @@ void Settings::loadSettings()
 	{
 		settings["shader_toggle"] = true; // default to shader enabled
 	}
+	if (!settings.contains("scanline_intensity"))
+	{
+		settings["scanline_intensity"] = 0.2;
+	}
+	if (!settings.contains("burnin_intensity"))
+	{
+		settings["burnin_intensity"] = 0.95;
+	}
+
+	if (!settings.contains("curvature_intensity"))
+	{
+		settings["curvature_intensity"] = 0.2;
+	}
+	if (!settings.contains("vignet_intensity"))
+	{
+		settings["vignet_intensity"] = 0.15;
+	}
+	if (!settings.contains("bloom_intensity"))
+	{
+		settings["bloom_intensity"] = 0.15;
+	}
+	if (!settings.contains("colorshift_intensity"))
+	{
+		settings["colorshift_intensity"] = 2.0;
+	}
+	if (!settings.contains("static_intensity"))
+	{
+		settings["static_intensity"] = 0.09;
+	}
+	if (!settings.contains("jitter_intensity"))
+	{
+		settings["jitter_intensity"] = 1.0;
+	}
 	if (!settings.contains("themes"))
 	{
 		settings["themes"] = {{"default",
@@ -221,10 +236,6 @@ void Settings::loadSettings()
 	}
 }
 
-/******************************************************************************
- * saveSettings()
- * Write current 'settings' JSON to userSettingsPath
- ******************************************************************************/
 void Settings::saveSettings()
 {
 	std::ofstream settingsFile(settingsPath);
@@ -234,10 +245,6 @@ void Settings::saveSettings()
 	}
 }
 
-/******************************************************************************
- * checkSettingsFile()
- * If user manually edits ~/ned/.ned.json, detect changes & reload
- ******************************************************************************/
 void Settings::checkSettingsFile()
 {
 	if (!fs::exists(settingsPath))
@@ -263,6 +270,14 @@ void Settings::checkSettingsFile()
 			oldSettings["rainbow"] != settings["rainbow"] ||
 			oldSettings["treesitter"] != settings["treesitter"] ||
 			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
+			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
+			oldSettings["burnin_intensity"] != settings["burnin_intensity"] ||
+			oldSettings["curvature_intensity"] != settings["curvature_intensity"] ||
+			oldSettings["colorshift_intensity"] != settings["colorshift_intensity"] ||
+			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
+			oldSettings["static_intensity"] != settings["static_intensity"] ||
+			oldSettings["jitter_intensity"] != settings["jitter_intensity"] ||
+			oldSettings["vignet_intensity"] != settings["vignet_intensity"] ||
 			oldSettings["font"] != settings["font"])
 		{
 			settingsChanged = true;
@@ -281,26 +296,28 @@ void Settings::checkSettingsFile()
 	}
 }
 
-/******************************************************************************
- * renderSettingsWindow()
- * The ImGui-based GUI for editing settings.
- * The user can open/close it with Cmd+, etc.
- ******************************************************************************/
 void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
 		return;
+	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
+
+	// Calculate proportional size
+	ImVec2 window_size(main_viewport_size.x * 0.75f, // 75% of screen width
+					   main_viewport_size.y * 0.85f	 // 85% of screen height
+	);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
-	ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
 								   ImGui::GetIO().DisplaySize.y * 0.5f),
 							ImGuiCond_Always,
 							ImVec2(0.5f, 0.5f));
 
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-								   ImGuiWindowFlags_Modal;
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_Modal;
 
 	// Push custom styles
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
@@ -309,6 +326,12 @@ void Settings::renderSettingsWindow()
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.15f, 0.15f, 0.15f, 0.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
 	// Handle focus detection
@@ -325,23 +348,6 @@ void Settings::renderSettingsWindow()
 		std::cout << "Settings window gained focus!" << std::endl;
 	}
 	wasFocused = isFocused;
-
-	// Detect clicks outside this window
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-	{
-		ImVec2 mousePos = ImGui::GetMousePos();
-		ImVec2 currentWindowPos = ImGui::GetWindowPos();
-		ImVec2 currentWindowSize = ImGui::GetWindowSize();
-		if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) &&
-			(mousePos.x < currentWindowPos.x ||
-			 mousePos.x > currentWindowPos.x + currentWindowSize.x ||
-			 mousePos.y < currentWindowPos.y ||
-			 mousePos.y > currentWindowPos.y + currentWindowSize.y))
-		{
-			showSettingsWindow = false;
-			saveSettings();
-		}
-	}
 
 	// Start header group
 	ImGui::BeginGroup();
@@ -375,7 +381,10 @@ void Settings::renderSettingsWindow()
 	ImGui::EndGroup();
 	ImGui::Separator();
 	ImGui::Spacing();
-
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 	// Show a slider for font size
 	static float tempFontSize = currentFontSize;
 	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
@@ -428,6 +437,9 @@ void Settings::renderSettingsWindow()
 	};
 
 	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 	ImGui::TextUnformatted("Syntax Colors");
 	ImGui::Separator();
 	ImGui::Spacing();
@@ -442,7 +454,10 @@ void Settings::renderSettingsWindow()
 	editThemeColor("Variables", "variable");
 
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Toggle");
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("Toggle Settings");
 	ImGui::Separator();
 	ImGui::Spacing();
 
@@ -468,6 +483,13 @@ void Settings::renderSettingsWindow()
 	ImGui::SameLine();
 	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(Syntax Highlighting)");
 
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("GL Shaders");
+	ImGui::Separator();
+	ImGui::Spacing();
 	// Shader
 	bool shaderEnabled = settings["shader_toggle"].get<bool>();
 	if (ImGui::Checkbox("Enable Shader Effects", &shaderEnabled))
@@ -479,8 +501,147 @@ void Settings::renderSettingsWindow()
 	ImGui::SameLine();
 	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(CRT & visual effects)");
 
-	ImGui::Separator();
-	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Cmd+, to close this window");
+	// Scanline Intensity Slider
+	ImGui::Spacing();
+	static float tempScanlineIntensity = settings["scanline_intensity"].get<float>();
+	if (ImGui::SliderFloat("Scanline Intensity",
+						   &tempScanlineIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed from %.01f to show 2 decimal places
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["scanline_intensity"] = tempScanlineIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
+	// Vignette Intensity Slider
+	ImGui::Spacing();
+	static float tempVignetIntensity = settings["vignet_intensity"].get<float>();
+	if (ImGui::SliderFloat("Vignette Intensity",
+						   &tempVignetIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed precision
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["vignet_intensity"] = tempVignetIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	// bloom Intensity Slider
+	ImGui::Spacing();
+	static float tempBloomIntensity = settings["bloom_intensity"].get<float>();
+	if (ImGui::SliderFloat("Bloom Intensity",
+						   &tempBloomIntensity,
+						   0.00f,
+						   1.00f,
+						   "%.02f", // Changed precision
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["bloom_intensity"] = tempBloomIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	// Add after vignette slider
+	ImGui::Spacing();
+	static float tempStaticIntensity = settings["static_intensity"].get<float>();
+	if (ImGui::SliderFloat("Static Intensity",
+						   &tempStaticIntensity,
+						   0.00f,
+						   0.5f, // Max 0.5 to prevent overwhelming effect
+						   "%.03f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["static_intensity"] = tempStaticIntensity;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+
+	static float tempColorShift = settings["colorshift_intensity"].get<float>();
+	if (ImGui::SliderFloat("RGB Shift Intensity",
+						   &tempColorShift,
+						   0.0f,  // Min
+						   10.0f, // Max (200% of original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["colorshift_intensity"] = tempColorShift;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+
+	static float tempcurvature = settings["curvature_intensity"].get<float>();
+	if (ImGui::SliderFloat("Curvature (bugged)",
+						   &tempcurvature,
+						   0.0f, // Min
+						   0.5f, // Max (200% of original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["curvature_intensity"] = tempcurvature;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+
+	static float tempburnin = settings["burnin_intensity"].get<float>();
+	if (ImGui::SliderFloat("Burn-in Intensity",
+						   &tempburnin,
+						   0.9f,  // Min
+						   0.99f, // Max (200% of original)
+						   "%.005f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["burnin_intensity"] = tempburnin;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	// In renderSettingsWindow() after other sliders:
+	ImGui::Spacing();
+	static float tempJitter = settings["jitter_intensity"].get<float>();
+	if (ImGui::SliderFloat("Jitter Intensity",
+						   &tempJitter,
+						   0.0f,  // Min (no jitter)
+						   10.0f, // Max (2x original)
+						   "%.02f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["jitter_intensity"] = tempJitter;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
 
 	// ESC key closes the window
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
@@ -488,10 +649,28 @@ void Settings::renderSettingsWindow()
 		showSettingsWindow = false;
 		saveSettings();
 	}
+	// Detect clicks outside this window (only if no popups are open)
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+
+		bool isMouseOutside =
+			(mousePos.x < windowPos.x || mousePos.x > windowPos.x + windowSize.x ||
+			 mousePos.y < windowPos.y || mousePos.y > windowPos.y + windowSize.y);
+
+		if (isMouseOutside && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
+			!ImGui::IsAnyItemHovered())
+		{
+			showSettingsWindow = false;
+			saveSettings();
+		}
+	}
 
 	ImGui::End();
 
 	// Pop style
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar(3);
+	ImGui::PopStyleColor(7);
+	ImGui::PopStyleVar(5);
 }

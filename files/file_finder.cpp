@@ -8,42 +8,79 @@
 
 FileFinder gFileFinder;
 
-void FileFinder::refreshFileList()
+FileFinder::FileFinder() : stopThread(false), lastSelectionTime(std::chrono::steady_clock::now())
 {
-	fileList.clear();
-	filteredList.clear();
-	selectedIndex = 0;
-
-	std::string projectDir = gFileExplorer.selectedFolder;
-	if (projectDir.empty())
-		return;
-
-	for (const auto &entry : fs::recursive_directory_iterator(projectDir))
-	{
-		if (entry.is_regular_file())
-		{
-			fs::path fullPath = entry.path();
-			fs::path relativePath = fs::relative(fullPath, projectDir);
-
-			std::string filenameLower = relativePath.filename().string();
-			std::transform(filenameLower.begin(),
-						   filenameLower.end(),
-						   filenameLower.begin(),
-						   ::tolower);
-
-			std::string fullPathStr = fullPath.string();
-			std::string fullPathLower = fullPathStr;
-			std::transform(fullPathLower.begin(),
-						   fullPathLower.end(),
-						   fullPathLower.begin(),
-						   ::tolower);
-
-			fileList.push_back({fullPathStr, relativePath.string(), fullPathLower, filenameLower});
-		}
-	}
-	filteredList = fileList;
+	workerThread = std::thread(&FileFinder::backgroundRefresh, this);
 }
 
+FileFinder::~FileFinder()
+{
+	stopThread = true;
+	if (workerThread.joinable())
+	{
+		workerThread.join();
+	}
+}
+
+void FileFinder::backgroundRefresh()
+{
+	while (!stopThread)
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(3));
+
+		std::string projectDir = gFileExplorer.selectedFolder;
+		if (projectDir.empty())
+			continue;
+
+		if (projectDir != currentProjectDir)
+		{
+			currentProjectDir = projectDir;
+		}
+
+		refreshFileListBackground(projectDir);
+	}
+}
+
+void FileFinder::refreshFileListBackground(const std::string &projectDir)
+{
+	std::vector<FileEntry> newFileList;
+
+	try
+	{
+		for (const auto &entry : fs::recursive_directory_iterator(projectDir))
+		{
+			if (entry.is_regular_file())
+			{
+				fs::path fullPath = entry.path();
+				fs::path relativePath = fs::relative(fullPath, projectDir);
+
+				std::string filenameLower = relativePath.filename().string();
+				std::transform(filenameLower.begin(),
+							   filenameLower.end(),
+							   filenameLower.begin(),
+							   ::tolower);
+
+				std::string fullPathStr = fullPath.string();
+				std::string fullPathLower = fullPathStr;
+				std::transform(fullPathLower.begin(),
+							   fullPathLower.end(),
+							   fullPathLower.begin(),
+							   ::tolower);
+
+				newFileList.push_back(
+					{fullPathStr, relativePath.string(), fullPathLower, filenameLower});
+			}
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(fileListMutex);
+			fileList = std::move(newFileList);
+		}
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error refreshing file list: " << e.what() << std::endl;
+	}
+}
 void FileFinder::updateFilteredList()
 {
 	std::string searchTerm(searchBuffer);
@@ -56,18 +93,20 @@ void FileFinder::updateFilteredList()
 	}
 
 	filteredList.clear();
-	// For each file, filter based on the relative path (from the project
-	// folder)
-	for (const auto &file : fileList)
+
+	std::vector<FileEntry> localFileList;
+	{
+		std::lock_guard<std::mutex> lock(fileListMutex);
+		localFileList = fileList;
+	}
+
+	for (const auto &file : localFileList)
 	{
 		std::string relativeLower = file.relativePath;
 		std::transform(relativeLower.begin(), relativeLower.end(), relativeLower.begin(), ::tolower);
 
-		// Only add if the relative path contains the search term
 		if (relativeLower.find(searchTerm) != std::string::npos)
 		{
-			// If the search term doesn't include a dot, skip files whose
-			// filename begins with '.'
 			if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() &&
 				file.filenameLower[0] == '.')
 			{
@@ -77,12 +116,10 @@ void FileFinder::updateFilteredList()
 		}
 	}
 
-	// (Optional) Sort by the length of the relative path (shortest first)
 	std::sort(filteredList.begin(), filteredList.end(), [](const FileEntry &a, const FileEntry &b) {
 		return a.relativePath.size() < b.relativePath.size();
 	});
 }
-
 void FileFinder::handleSelectionChange()
 {
 	if (!filteredList.empty() && selectedIndex >= 0 &&
@@ -90,14 +127,29 @@ void FileFinder::handleSelectionChange()
 	{
 		const std::string &selectedFile = filteredList[selectedIndex].fullPath;
 
-		// Only load if it's not the initial selection and the file isn't
-		// already loaded AND we've had some user interaction (arrow keys or
-		// search)
 		if (!isInitialSelection && selectedFile != currentlyLoadedFile)
 		{
-			currentlyLoadedFile = selectedFile;
-			gFileExplorer.loadFileContent(selectedFile);
+			// Update timestamp and store pending file
+			lastSelectionTime = std::chrono::steady_clock::now();
+			pendingFile = selectedFile;
+			hasPendingSelection = true;
 		}
+	}
+}
+
+void FileFinder::checkPendingSelection()
+{
+	if (!hasPendingSelection)
+		return;
+
+	auto now = std::chrono::steady_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSelectionTime);
+
+	if (elapsed.count() >= 50) // 0.3 seconds
+	{
+		hasPendingSelection = false;
+		currentlyLoadedFile = pendingFile;
+		gFileExplorer.loadFileContent(pendingFile);
 	}
 }
 void FileFinder::toggleWindow()
@@ -108,12 +160,12 @@ void FileFinder::toggleWindow()
 	if (showFFWindow)
 	{
 		originalFile = gFileExplorer.currentFile;
-		currentlyLoadedFile = originalFile; // Initialize with original file
+		currentlyLoadedFile = originalFile;
 		memset(searchBuffer, 0, sizeof(searchBuffer));
-		previousSearch = ""; // Initialize this to empty string
+		previousSearch = "";
 		wasKeyboardFocusSet = false;
 		isInitialSelection = true;
-		refreshFileList();
+		updateFilteredList(); // Populate filteredList using current fileList
 		std::cout << "\033[36mFileFinder:\033[0m Window opened" << std::endl;
 	} else
 	{
@@ -139,7 +191,10 @@ void FileFinder::renderHeader()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
+	// background
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+	// window styles...
+
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 	ImGui::Begin("FileFinder", nullptr, windowFlags);
@@ -194,7 +249,8 @@ void FileFinder::renderFileList()
 	ImGui::BeginChild("SearchResults",
 					  ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
 					  false,
-					  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+					  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+						  ImGuiWindowFlags_NoMouseInputs);
 
 	// Push styling for list items.
 	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
@@ -281,6 +337,18 @@ void FileFinder::renderWindow()
 			handleSelectionChange(); // Load file when moving down
 		}
 	}
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+		if (mousePos.x < windowPos.x || mousePos.x > (windowPos.x + windowSize.x) ||
+			mousePos.y < windowPos.y || mousePos.y > (windowPos.y + windowSize.y))
+		{
+			toggleWindow();
+		}
+	}
 
 	// Render search input; if Enter is pressed, load the selected file.
 	bool enterPressed = renderSearchInput();
@@ -313,6 +381,7 @@ void FileFinder::renderWindow()
 	ImGui::Spacing();
 	ImGui::Dummy(ImVec2(0, 10.0f));
 
+	checkPendingSelection();
 	// Render the file list with manual clipping.
 	renderFileList();
 

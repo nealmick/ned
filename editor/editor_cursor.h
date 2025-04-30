@@ -57,6 +57,7 @@ class EditorCursor
 	void updateBlinkTime();
 
 	void renderCursor();
+	void swapLines(int direction);
 
   private:
 	void calculateVisualColumn();
