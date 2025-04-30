@@ -147,7 +147,8 @@ void Ned::initializeImGui()
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
 	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
-	app->scrollYAccumulator += yoffset * 0.3; // Adjust 0.3 to control speed
+	app->scrollXAccumulator += xoffset * 0.3; // Same multiplier as vertical
+	app->scrollYAccumulator += yoffset * 0.3;
 }
 // In Ned::initializeResources()
 void Ned::initializeResources()
@@ -295,13 +296,16 @@ void Ned::run()
 
 void Ned::handleEvents()
 {
-	// Add this at the start of the function
-	if (scrollYAccumulator != 0.0)
+	// Handle scroll accumulators at the start
+	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
 	{
-		ImGui::GetIO().MouseWheel += scrollYAccumulator;
+		ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
+		ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
+		scrollXAccumulator = 0.0;
 		scrollYAccumulator = 0.0;
 	}
 
+	// Rest of your existing code...
 	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
