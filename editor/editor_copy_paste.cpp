@@ -20,6 +20,9 @@ void EditorCopyPaste::processClipboardShortcuts()
 			gEditorCopyPaste.cutWholeLine();
 		editor_state.ensure_cursor_visible.vertical = true;
 		editor_state.ensure_cursor_visible.horizontal = true;
+		editor_state.selection_active = false;
+		editor_state.selection_start = editor_state.cursor_index;
+		editor_state.selection_end = editor_state.cursor_index;
 	}
 	if (ImGui::IsKeyPressed(ImGuiKey_V, false))
 	{
