@@ -110,7 +110,6 @@ void EditorMouse::handleMouseRelease()
 	is_dragging = false;
 	anchor_pos = -1;
 }
-
 void EditorMouse::handleContextMenu()
 {
 	// For debugging
@@ -209,29 +208,8 @@ void EditorMouse::handleContextMenu()
 		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Menu");
 		ImGui::Separator();
 
-		// Simple function to draw a menu item with a shortcut in a fixed-width
-		// manner
-		auto MenuItemWithAlignedShortcut =
-			[](const char *label, const char *shortcut, bool *selected, bool enabled) -> bool {
-			float contentWidth = ImGui::GetContentRegionAvail().x;
-			float labelWidth = ImGui::CalcTextSize(label).x;
-			float shortcutWidth = ImGui::CalcTextSize(shortcut).x;
-
-			// Create the basic menu item
-			bool activated = ImGui::MenuItem(label, nullptr, selected, enabled);
-
-			// Draw the shortcut aligned to the right
-			if (shortcut && shortcut[0])
-			{
-				ImGui::SameLine(contentWidth - shortcutWidth);
-				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "%s", shortcut);
-			}
-
-			return activated;
-		};
-
 		// Cut action
-		if (MenuItemWithAlignedShortcut("Cut", "cmd x", nullptr, editor_state.selection_active))
+		if (ImGui::MenuItem("Cut", nullptr, nullptr, editor_state.selection_active))
 		{
 			gEditorCopyPaste.cutSelectedText();
 			show_context_menu = false;
@@ -239,7 +217,7 @@ void EditorMouse::handleContextMenu()
 		}
 
 		// Copy action
-		if (MenuItemWithAlignedShortcut("Copy", "cmd c", nullptr, editor_state.selection_active))
+		if (ImGui::MenuItem("Copy", nullptr, nullptr, editor_state.selection_active))
 		{
 			gEditorCopyPaste.copySelectedText(editor_state.fileContent);
 			show_context_menu = false;
@@ -247,7 +225,7 @@ void EditorMouse::handleContextMenu()
 		}
 
 		// Paste action
-		if (MenuItemWithAlignedShortcut("Paste", "cmd v", nullptr, true))
+		if (ImGui::MenuItem("Paste", nullptr, nullptr, true))
 		{
 			gEditorCopyPaste.pasteText();
 			show_context_menu = false;
@@ -258,7 +236,7 @@ void EditorMouse::handleContextMenu()
 		ImGui::Separator();
 
 		// Save file action
-		if (MenuItemWithAlignedShortcut("Save", "cmd s", nullptr, true))
+		if (ImGui::MenuItem("Save", nullptr, nullptr, true))
 		{
 			gFileExplorer.saveCurrentFile();
 			show_context_menu = false;
@@ -269,7 +247,7 @@ void EditorMouse::handleContextMenu()
 		ImGui::Separator();
 
 		// Select All
-		if (MenuItemWithAlignedShortcut("Select All", "cmd a", nullptr, true))
+		if (ImGui::MenuItem("Select All", nullptr, nullptr, true))
 		{
 			editor_state.selection_active = true;
 			editor_state.selection_start = 0;
@@ -281,45 +259,31 @@ void EditorMouse::handleContextMenu()
 		ImGui::Separator();
 
 		// Go to Definition
-		if (MenuItemWithAlignedShortcut("Goto Def", "cmd d", nullptr, true))
+		if (ImGui::MenuItem("Goto Def", nullptr, nullptr, true))
 		{
-			// Get current line number from editor_state
 			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-			// Get character offset in current line
 			int line_start = editor_state.editor_content_lines[current_line];
 			int char_offset = editor_state.cursor_index - line_start;
-
-			// Call LSP goto definition
 			gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
-
 			show_context_menu = false;
 			ImGui::CloseCurrentPopup();
 		}
 
-		// --- ADD FIND REFERENCES OPTION HERE ---
-		if (MenuItemWithAlignedShortcut("Find Ref", "cmd r", nullptr, true))
-		{ // Using Shift+F12 as a common shortcut
-			// Get current line number from editor_state (same as
-			// above)
+		// Find References
+		if (ImGui::MenuItem("Find Ref", nullptr, nullptr, true))
+		{
 			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-			// Get character offset in current line (same as above)
-			int line_start = 0; // Default to 0
+			int line_start = 0;
 			if (current_line >= 0 && current_line < editor_state.editor_content_lines.size())
 			{
 				line_start = editor_state.editor_content_lines[current_line];
 			}
 			int char_offset = editor_state.cursor_index - line_start;
-			char_offset = std::max(0, char_offset); // Ensure non-negative
-
-			// Call LSP find references using the new global instance
+			char_offset = std::max(0, char_offset);
 			gLSPGotoRef.findReferences(gFileExplorer.currentFile, current_line, char_offset);
-
 			show_context_menu = false;
 			ImGui::CloseCurrentPopup();
 		}
-		// --- END OF ADDED OPTION ---
 
 		ImGui::EndPopup();
 	} else
@@ -336,7 +300,6 @@ void EditorMouse::handleContextMenu()
 	ImGui::PopStyleColor(5);
 	ImGui::PopStyleVar(6);
 }
-
 int EditorMouse::getCharIndexFromCoords()
 {
 	ImVec2 mouse_pos = ImGui::GetMousePos();

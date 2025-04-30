@@ -36,8 +36,8 @@ class FileTree
   private:
 	double lastFileTreeRefreshTime = 0.0;
 	const double FILE_TREE_REFRESH_INTERVAL = 1.0;
+	bool initialRefreshDone = false; // Track if initial refresh has occurred
 
-	// Display helper structs (moved from files.h)
 	struct TreeDisplayMetrics
 	{
 		float currentFontSize;
@@ -68,6 +68,11 @@ class FileTree
 	void displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth);
 	ImTextureID getFolderIcon(bool isOpen);
 	void renderNodeText(const std::string &name, bool isCurrentFile);
+
+	bool hasAutoOpenedReadme = false;
+	bool shouldCheckForReadme = true;
+
+	std::string findReadmeInRoot();
 };
 
 extern FileTree gFileTree;

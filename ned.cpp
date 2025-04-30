@@ -39,6 +39,7 @@ Ned::~Ned()
 		cleanup();
 	}
 }
+
 void ApplySettings(ImGuiStyle &style);
 
 void Ned::ShaderQuad::initialize()
@@ -119,7 +120,9 @@ bool Ned::initializeGraphics()
 	}
 	glGetError(); // Clear any GLEW startup errors
 
-	if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl"))
+	// Load both shaders
+	if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl") ||
+		!accum.burnInShader.loadShader("shaders/vertex.glsl", "shaders/burn_in.frag"))
 	{
 		std::cerr << "🔴 Shader load failed" << std::endl;
 		glfwTerminate();
@@ -138,6 +141,14 @@ void Ned::initializeImGui()
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
+	glfwSetScrollCallback(window, Ned::scrollCallback);
+}
+
+void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
+	app->scrollXAccumulator += xoffset * 0.3; // Same multiplier as vertical
+	app->scrollYAccumulator += yoffset * 0.3;
 }
 // In Ned::initializeResources()
 void Ned::initializeResources()
@@ -285,12 +296,22 @@ void Ned::run()
 
 void Ned::handleEvents()
 {
+	// Handle scroll accumulators at the start
+	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
+	{
+		ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
+		ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
+		scrollXAccumulator = 0.0;
+		scrollYAccumulator = 0.0;
+	}
+
+	// Rest of your existing code...
 	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
 	} else
 	{
-		glfwWaitEventsTimeout(0.016); // 16ms ~60Hz timeout
+		glfwWaitEventsTimeout(0.016);
 	}
 }
 
@@ -308,43 +329,73 @@ void Ned::handleBackgroundUpdates(double currentTime)
 		timing.lastFileTreeRefresh = currentTime;
 	}
 }
-
 void Ned::handleFramebuffer(int width, int height)
 {
-	if (width == fb.last_display_w && height == fb.last_display_h && fb.initialized)
+	auto initFB = [](FramebufferState &fb, int w, int h) {
+		if (fb.initialized && w == fb.last_display_w && h == fb.last_display_h)
+			return;
+
+		// Delete old resources if they exist
+		if (fb.initialized)
+		{
+			glDeleteFramebuffers(1, &fb.framebuffer);
+			glDeleteTextures(1, &fb.renderTexture);
+			glDeleteRenderbuffers(1, &fb.rbo);
+		}
+
+		// Create new framebuffer
+		glGenFramebuffers(1, &fb.framebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
+
+		// Create texture
+		glGenTextures(1, &fb.renderTexture);
+		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(
+			GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb.renderTexture, 0);
+
+		// Create renderbuffer
+		glGenRenderbuffers(1, &fb.rbo);
+		glBindRenderbuffer(GL_RENDERBUFFER, fb.rbo);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+								  GL_DEPTH_STENCIL_ATTACHMENT,
+								  GL_RENDERBUFFER,
+								  fb.rbo);
+
+		// Check completeness
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		{
+			std::cerr << "🔴 Framebuffer not complete!" << std::endl;
+		}
+
+		fb.last_display_w = w;
+		fb.last_display_h = h;
+		fb.initialized = true;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+		if (fb.renderTexture)
+		{
+			glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		}
+	};
+
+	initFB(fb, width, height);
+	initFB(accum.accum[0], width, height);
+	initFB(accum.accum[1], width, height);
+
+	// Add debug checks after initialization
+	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[0].framebuffer);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	{
-		return;
+		std::cerr << "🔴 Accumulation buffer 0 incomplete!" << std::endl;
 	}
-
-	if (fb.initialized)
-	{
-		glDeleteFramebuffers(1, &fb.framebuffer);
-		glDeleteTextures(1, &fb.renderTexture);
-		glDeleteRenderbuffers(1, &fb.rbo);
-	}
-
-	glGenFramebuffers(1, &fb.framebuffer);
-	glGenTextures(1, &fb.renderTexture);
-	glGenRenderbuffers(1, &fb.rbo);
-
-	// Setup texture
-	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-	glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb.renderTexture, 0);
-
-	// Setup renderbuffer
-	glBindRenderbuffer(GL_RENDERBUFFER, fb.rbo);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb.rbo);
-
-	fb.last_display_w = width;
-	fb.last_display_h = height;
-	fb.initialized = true;
-}
-
+};
 void Ned::setupImGuiFrame()
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -437,8 +488,6 @@ void Ned::renderFileExplorer(float explorerWidth)
 					  true,
 					  ImGuiWindowFlags_NoScrollbar);
 
-	ImGui::Text("File Explorer");
-	ImGui::Separator();
 	if (!gFileExplorer.selectedFolder.empty())
 	{
 		gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
@@ -473,7 +522,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
 			ImGui::SameLine();
 		}
-		ImGui::Text("Editor - %s", currentFile.c_str());
+		ImGui::Text("%s", currentFile.c_str());
 	}
 
 	// Right-aligned status area
@@ -547,22 +596,76 @@ void Ned::renderSettingsIcon(float iconSize)
 
 void Ned::renderSplitter(float padding, float availableWidth)
 {
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.9f, 0.9f, 0.9f, 0.2f));
 	ImGui::SameLine(0, 0);
-	float splitterWidth = 2.0f;
-	ImGui::Button("##vsplitter", ImVec2(splitterWidth, -1));
-	ImGui::PopStyleColor();
 
-	if (ImGui::IsItemActive())
+	// Interaction settings
+	const float visible_width = 1.0f;	// Rendered width at rest
+	const float hover_width = 6.0f;		// Invisible hitbox size
+	const float hover_expansion = 3.0f; // Expanded visual width
+	const float hover_delay = 0.15f;	// Seconds before hover effect
+
+	ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
+
+	// Create invisible button with larger hitbox
+	ImGui::Button("##vsplitter", ImVec2(hover_width, -1));
+
+	// Hover delay logic
+	static float hover_start_time = -1.0f;
+	bool visual_hover = false;
+	const bool is_hovered = ImGui::IsItemHovered();
+	const bool is_active = ImGui::IsItemActive();
+
+	if (is_hovered && !is_active)
 	{
-		float mousePosInWindow = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
-		float leftPadding = padding * 2;
-		float rightPadding = padding * 2 + 6;
-		float newSplitPos =
-			(mousePosInWindow - leftPadding) / (availableWidth - leftPadding - rightPadding);
-		newSplitPos = clamp(newSplitPos, 0.1f, 0.9f);
-		gSettings.setSplitPos(newSplitPos);
+		if (hover_start_time < 0)
+		{
+			hover_start_time = ImGui::GetTime();
+		}
+		float elapsed = ImGui::GetTime() - hover_start_time;
+		visual_hover = elapsed >= hover_delay;
+	} else
+	{
+		hover_start_time = -1.0f;
 	}
+
+	// Calculate dimensions
+	ImVec2 min = ImGui::GetItemRectMin();
+	ImVec2 max = ImGui::GetItemRectMax();
+	const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
+
+	// Center the visible splitter in the hover zone
+	min.x += (hover_width - width) * 0.5f;
+	max.x = min.x + width;
+
+	// Color setup
+	const ImU32 color_base = IM_COL32(134, 134, 134, 140);
+	const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
+	const ImU32 color_active = IM_COL32(11, 94, 215, 255);
+
+	// Determine color
+	ImU32 current_color = color_base;
+	if (is_active)
+	{
+		current_color = color_active;
+	} else if (visual_hover)
+	{
+		current_color = color_hover;
+	}
+
+	// Draw the splitter
+	ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
+
+	// Handle dragging
+	if (is_active)
+	{
+		const float mouse_x = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
+		const float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
+		gSettings.setSplitPos(clamp(new_split, 0.1f, 0.9f));
+	}
+
+	ImGui::PopStyleColor(3);
 }
 
 void Ned::renderEditor(ImFont *currentFont, float editorWidth)
@@ -603,56 +706,79 @@ void Ned::renderMainWindow()
 				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
 					 ImGuiWindowFlags_NoResize);
 
-	ImGui::PopFont();
-
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
-	float splitterWidth = 2.0f;
-	float availableWidth = windowWidth - padding * 3 - splitterWidth;
+	float availableWidth = windowWidth - padding * 3 - 4.0f; // Account for splitter width
 
 	if (showSidebar)
 	{
 		explorerWidth = availableWidth * gSettings.getSplitPos();
-		editorWidth = availableWidth - explorerWidth - 6;
+		editorWidth = availableWidth - explorerWidth - 4.0f;
 
+		// Render elements in correct z-order
 		renderFileExplorer(explorerWidth);
+		ImGui::SameLine(0, 0);
 		renderSplitter(padding, availableWidth);
+		ImGui::SameLine(0, 0);
+		renderEditor(currentFont, editorWidth);
 	} else
 	{
 		editorWidth = availableWidth;
+		renderEditor(currentFont, editorWidth);
 	}
-	renderEditor(currentFont, editorWidth);
 
 	ImGui::End();
+	ImGui::PopFont();
 }
 void Ned::renderFrame()
 {
 	int display_w, display_h;
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// [STEP 1] Render UI to framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
 	glViewport(0, 0, display_w, display_h);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	// Render the main window content.
 	renderMainWindow();
-	// Render the pop-up windows.
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
-
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	// If shader post-processing is enabled, run the shader pass.
+	// [STEP 2] Handle final output
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
 	if (shader_toggle)
 	{
 		renderWithShader(display_w, display_h, glfwGetTime());
+	} else
+	{
+		// Reset accumulation buffers to prevent lingering trails
+		accum.accum[0].initialized = false;
+		accum.accum[1].initialized = false;
+
+		// Directly render the original framebuffer
+		crtShader.useShader(); // Use CRT shader with disabled effects
+		crtShader.setFloat("u_scanline_intensity", 0.0f);
+		crtShader.setFloat("u_vignet_intensity", 0.0f);
+		crtShader.setFloat("u_bloom_intensity", 0.0f);
+		crtShader.setFloat("u_static_intensity", 0.0f);
+		crtShader.setFloat("u_colorshift_intensity", 0.0f);
+		crtShader.setFloat("u_jitter_intensity", 0.0f);
+		crtShader.setFloat("u_curvature_intensity", 0.0f);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+		glBindVertexArray(quad.VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
+	// [STEP 3] Swap buffers
 	glfwSwapBuffers(window);
 }
-
 void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())
@@ -671,33 +797,65 @@ void Ned::handleFileDialog()
 		}
 	}
 }
-
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.framebuffer);
-	glBlitFramebuffer(
-		0, 0, display_w, display_h, 0, 0, display_w, display_h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	// Get current accumulation buffers
+	int prev = accum.swap ? 1 : 0;
+	int curr = accum.swap ? 0 : 1;
 
+	// First pass: Burn-in accumulation
+	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
+	accum.burnInShader.useShader();
+
+	// Set texture units and uniforms
+	accum.burnInShader.setInt("currentFrame", 0);
+	accum.burnInShader.setInt("previousFrame", 1);
+	accum.burnInShader.setFloat("decay",
+								gSettings.getSettings()["burnin_intensity"]); // Optimal decay value
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, fb.renderTexture); // Current frame
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture); // Previous accumulation
+
+	// Clear accumulation buffer before drawing
+	glClear(GL_COLOR_BUFFER_BIT);
+	glBindVertexArray(quad.VAO);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	accum.swap = !accum.swap;
+
+	// Second pass: CRT effects
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glUseProgram(crtShader.shaderProgram);
+	crtShader.useShader();
 
+	// Set CRT shader uniforms
+	crtShader.setInt("screenTexture", 0); // This was missing!
+	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
+	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
+	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
+	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+	crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
+	crtShader.setFloat("u_jitter_intensity",
+					   gSettings.getSettings()["jitter_intensity"].get<float>());
+	crtShader.setFloat("u_curvature_intensity",
+					   gSettings.getSettings()["curvature_intensity"].get<float>());
+
+	// Set time and resolution uniforms
 	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-	GLint screenTextureLocation = glGetUniformLocation(crtShader.shaderProgram, "screenTexture");
 	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
-
 	if (timeLocation != -1)
 		glUniform1f(timeLocation, currentTime);
-	if (screenTextureLocation != -1)
-		glUniform1i(screenTextureLocation, 0);
 	if (resolutionLocation != -1)
-		glUniform2f(resolutionLocation,
-					static_cast<float>(display_w),
-					static_cast<float>(display_h));
+		glUniform2f(resolutionLocation, display_w, display_h);
 
+	// Bind accumulated texture
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+	glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture); // Use current accum buffer
+
+	// Draw final quad
 	glBindVertexArray(quad.VAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -770,6 +928,16 @@ void Ned::cleanup()
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
+	if (accum.accum[0].initialized)
+	{
+		glDeleteFramebuffers(1, &accum.accum[0].framebuffer);
+		glDeleteTextures(1, &accum.accum[0].renderTexture);
+	}
+	if (accum.accum[1].initialized)
+	{
+		glDeleteFramebuffers(1, &accum.accum[1].framebuffer);
+		glDeleteTextures(1, &accum.accum[1].renderTexture);
+	}
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

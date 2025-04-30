@@ -102,6 +102,21 @@ class Ned
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
+
+	// slow scrolling momentum accumulator
+	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+	double scrollXAccumulator = 0.0;
+	double scrollYAccumulator = 0.0;
+
+	// burn in accumlation buffer
+	struct AccumulationBuffers
+	{
+		FramebufferState accum[2];
+		bool swap = false;
+		Shader burnInShader;
+	};
+
+	AccumulationBuffers accum;
 };
 
 // Global scope

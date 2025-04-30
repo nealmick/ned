@@ -64,4 +64,6 @@ class TreeSitter
 										 bool initialParse,
 										 size_t start,
 										 size_t end);
+	static const TSLanguage *currentLanguage;
+	static std::string currentExtension;
 };
