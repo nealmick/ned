@@ -231,6 +231,7 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 		{"comment", cachedColors.comment},
 		{"type", cachedColors.type},
 		{"function", cachedColors.function},
+		{"text", cachedColors.text},
 		{"variable", cachedColors.variable}};
 
 	TSQueryMatch match;
@@ -258,7 +259,8 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 }
 void TreeSitter::parse(const std::string &fileContent,
 					   std::vector<ImVec4> &fileColors,
-					   const std::string &extension)
+					   const std::string &extension,
+					   bool fullRehighlight)
 {
 	std::lock_guard<std::mutex> lock(parserMutex);
 
@@ -267,7 +269,6 @@ void TreeSitter::parse(const std::string &fileContent,
 		std::cerr << "No content to parse!\n";
 		return;
 	}
-
 	static std::string lastFile;
 	if (lastFile != gFileExplorer.currentFile)
 	{
@@ -278,6 +279,16 @@ void TreeSitter::parse(const std::string &fileContent,
 		}
 		previousContent.clear();
 		lastFile = gFileExplorer.currentFile;
+	}
+	if (fullRehighlight)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		lastFile.clear(); // Force reinitialization
 	}
 	updateThemeColors();
 	TSParser *parser = getParser();
