@@ -212,7 +212,7 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 {
 	TSQueryCursor *cursor = ts_query_cursor_new();
 	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
-	
+
 	// Get theme colors once
 	const ImVec4 text_color = cachedColors.text;
 
@@ -327,8 +327,8 @@ void TreeSitter::parse(const std::string &fileContent,
 
 	// Create new parse tree
 	TSTree *newTree = createNewTree(parser, initialParse, fileContent);
-
-	// Update state
+	// printAST(newTree, fileContent); // <-- This line replaces the lambda
+	//  Update state
 	if (previousTree)
 		ts_tree_delete(previousTree);
 	previousTree = newTree;
@@ -340,6 +340,59 @@ void TreeSitter::parse(const std::string &fileContent,
 		return;
 
 	executeQueryAndHighlight(query, newTree, fileContent, fileColors, initialParse, start, newEnd);
+}
+
+void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
+{
+	if (!tree)
+		return;
+
+	std::cout << std::endl << "🌳 \033[1;34mABSTRACT SYNTAX TREE\033[0m 🌳" << std::endl;
+	printASTNode(ts_tree_root_node(tree), fileContent);
+	std::cout << "──────────────────────────────────────" << std::endl << std::endl;
+}
+
+void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int depth)
+{
+	if (ts_node_is_null(node))
+		return;
+
+	TSPoint start = ts_node_start_point(node);
+	TSPoint end = ts_node_end_point(node);
+	uint32_t start_byte = ts_node_start_byte(node);
+	uint32_t end_byte = ts_node_end_byte(node);
+
+	// Skip punctuation nodes
+	std::string_view code(fileContent.c_str() + start_byte, end_byte - start_byte);
+	if (code.empty() || code.find_first_not_of("(){};,") == std::string_view::npos)
+		return;
+
+	// Tree visualization
+	std::string indent;
+	for (int i = 0; i < depth; i++)
+	{
+		indent += (i == depth - 1) ? "└─ " : "│  ";
+	}
+
+	// Code preview
+	std::string preview(code);
+	preview = preview.substr(0, preview.find('\n'));
+	if (preview.length() > 40)
+		preview = preview.substr(0, 37) + "...";
+
+	// Print node
+	std::cout << indent << "├─ \033[33m" << ts_node_type(node) << "\033[0m "
+			  << "\033[90m(L" << start.row + 1 << ":" << start.column << "-L" << end.row + 1 << ":"
+			  << end.column << ")\033[0m\n"
+			  << indent << "│  \033[37m" << preview << "\033[0m" << std::endl;
+
+	// Recursive children
+	uint32_t child_count = ts_node_child_count(node);
+	for (uint32_t i = 0; i < child_count; i++)
+	{
+		TSNode child = ts_node_child(node, i);
+		printASTNode(child, fileContent, depth + 1);
+	}
 }
 
 void TreeSitter::updateThemeColors()
