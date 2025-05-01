@@ -217,7 +217,7 @@
 
 ;; Identifiers (General Fallback)
 (identifier) @variable
-(field_identifier) @variable.member
+(field_identifier) @function
 
 ;; Constants (Enum members)
 (enumerator (identifier) @constant)

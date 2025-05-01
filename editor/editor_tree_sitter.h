@@ -67,4 +67,8 @@ class TreeSitter
 										 size_t end);
 	static const TSLanguage *currentLanguage;
 	static std::string currentExtension;
+	static void printAST(TSTree *tree, const std::string &fileContent);
+
+  private:
+	static void printASTNode(TSNode node, const std::string &fileContent, int depth = 0);
 };
