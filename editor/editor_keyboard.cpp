@@ -476,7 +476,7 @@ void EditorKeyboard::processUndoRedo()
 
 		editor_state.cursor_index = lineStart + std::min(oldColumn, lineLength);
 		editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
-		editor_state.text_changed = true;
+		// editor_state.text_changed = true;
 		editor_state.ensure_cursor_visible.vertical = true;
 		editor_state.ensure_cursor_visible.horizontal = true;
 

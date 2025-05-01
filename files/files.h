@@ -146,7 +146,7 @@ class FileExplorer
 
 	// Undo/Redo helpers
 	void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
-	void adjustColorBuffer(int changeStart, int lengthDiff);
+	void resetColorBuffer();
 
 	// Find box helpers
 	void renderEditor(bool &text_changed);
