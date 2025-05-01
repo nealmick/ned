@@ -324,7 +324,6 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
 		currentUndoManager->addState(editor_state.fileContent, changeStart, changeEnd);
 	}
 }
-
 void FileExplorer::renderFileContent()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
@@ -339,6 +338,12 @@ void FileExplorer::renderFileContent()
 	bool text_changed;
 	renderEditor(text_changed);
 
+	// Process debounced undo states
+	if (currentUndoManager)
+	{
+		currentUndoManager->update();
+	}
+
 	ImGui::PopStyleVar();
 }
 
@@ -351,52 +356,49 @@ void FileExplorer::renderEditor(bool &text_changed)
 		_unsavedChanges = true;
 	}
 }
-
-void FileExplorer::adjustColorBuffer(int changeStart, int lengthDiff)
+void FileExplorer::resetColorBuffer()
 {
-	if (lengthDiff > 0)
-	{
-		editor_state.fileColors.insert(editor_state.fileColors.begin() + changeStart,
-									   lengthDiff,
-									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-	} else if (lengthDiff < 0)
-	{
-		editor_state.fileColors.erase(editor_state.fileColors.begin() + changeStart,
-									  editor_state.fileColors.begin() + changeStart - lengthDiff);
-	}
-	editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-}
+	// Get the current content size
+	const size_t new_size = editor_state.fileContent.size();
 
+	// Completely clear existing colors
+	editor_state.fileColors.clear();
+
+	// Resize and fill ALL elements with white
+	editor_state.fileColors.resize(new_size, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+
+	// Alternative: Use assign() for atomic operation
+	// editor_state.fileColors.assign(new_size, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+	std::cout << "Reset " << new_size << " colors to white\n";
+}
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
 {
+	gEditorHighlight.cancelHighlighting();
+
 	if (preAllocate)
 	{
+		// Pre-allocate memory to prevent frequent reallocations (unchanged)
 		editor_state.fileContent.reserve(
 			std::max(editor_state.fileContent.capacity(), state.content.length() + 1024 * 1024));
 		editor_state.fileColors.reserve(
 			std::max(editor_state.fileColors.capacity(), state.content.length() + 1024 * 1024));
 	}
 
-	int changeStart =
-		std::min(state.changeStart, static_cast<int>(editor_state.fileContent.length()));
-	int changeEnd = std::min(state.changeEnd, static_cast<int>(editor_state.fileContent.length()));
-
-	int lengthDiff = state.content.length() - editor_state.fileContent.length();
 	editor_state.fileContent = state.content;
 
-	adjustColorBuffer(changeStart, lengthDiff);
-	gEditorHighlight.highlightContent();
+	resetColorBuffer();
+
+	gEditorHighlight.highlightContent(true);
 
 	_unsavedChanges = true;
 }
-
 void FileExplorer::handleUndo()
 {
 	if (currentUndoManager)
 	{
 		auto state = currentUndoManager->undo(editor_state.fileContent);
 		applyContentChange(state);
-		gEditorHighlight.highlightContent(true); // Trigger full rehighlight
 	}
 }
 
@@ -406,7 +408,6 @@ void FileExplorer::handleRedo()
 	{
 		auto state = currentUndoManager->redo(editor_state.fileContent);
 		applyContentChange(state, true);
-		gEditorHighlight.highlightContent(true); // Trigger full rehighlight
 	}
 }
 

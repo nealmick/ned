@@ -202,7 +202,6 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::strin
 	queryCache[query_path] = query;
 	return query;
 }
-
 void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 										  TSTree *tree,
 										  const std::string &content,
@@ -212,18 +211,15 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 										  size_t end)
 {
 	TSQueryCursor *cursor = ts_query_cursor_new();
-
-	/*
-	if (!initialParse)
-	{
-		ts_query_cursor_set_byte_range(cursor,
-									   static_cast<uint32_t>(start),
-									   static_cast<uint32_t>(end));
-	}
-	*/
-
 	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
 
+	// Get theme colors once
+	const ImVec4 text_color = cachedColors.text;
+
+	// FIRST: Set ALL text to default color
+	std::fill(colors.begin(), colors.end(), text_color);
+
+	// THEN apply syntax highlights
 	const std::unordered_map<std::string, ImVec4> capture_colors = {
 		{"keyword", cachedColors.keyword},
 		{"string", cachedColors.string},
@@ -231,7 +227,6 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 		{"comment", cachedColors.comment},
 		{"type", cachedColors.type},
 		{"function", cachedColors.function},
-		{"text", cachedColors.text},
 		{"variable", cachedColors.variable}};
 
 	TSQueryMatch match;
@@ -245,25 +240,25 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 				ts_query_capture_name_for_id(query, match.captures[i].index, &name_length);
 			std::string name(name_ptr, name_length);
 
-			auto it = capture_colors.find(name);
-			if (it != capture_colors.end())
-			{
-				uint32_t start = ts_node_start_byte(node);
-				uint32_t end = ts_node_end_byte(node);
-				setColors(content, colors, start, end, it->second);
-			}
+			const ImVec4 color = capture_colors.count(name) ? capture_colors.at(name)
+															: text_color; // Fallback to text color
+
+			const uint32_t start = ts_node_start_byte(node);
+			const uint32_t end = ts_node_end_byte(node);
+			setColors(content, colors, start, end, color);
 		}
 	}
 
 	ts_query_cursor_delete(cursor);
 }
+
 void TreeSitter::parse(const std::string &fileContent,
 					   std::vector<ImVec4> &fileColors,
 					   const std::string &extension,
 					   bool fullRehighlight)
 {
 	std::lock_guard<std::mutex> lock(parserMutex);
-
+	std::cout << "highlighting file " << std::endl;
 	if (fileContent.empty())
 	{
 		std::cerr << "No content to parse!\n";
