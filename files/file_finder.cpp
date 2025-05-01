@@ -24,20 +24,29 @@ FileFinder::~FileFinder()
 
 void FileFinder::backgroundRefresh()
 {
+	using namespace std::chrono;
+	auto lastScanTime = steady_clock::now();
+
 	while (!stopThread)
 	{
-		std::this_thread::sleep_for(std::chrono::seconds(3));
-
+		auto now = steady_clock::now();
 		std::string projectDir = gFileExplorer.selectedFolder;
-		if (projectDir.empty())
-			continue;
 
-		if (projectDir != currentProjectDir)
+		if (!projectDir.empty())
 		{
-			currentProjectDir = projectDir;
+			bool directoryChanged = (projectDir != currentProjectDir);
+			bool timeForScan = (duration_cast<seconds>(now - lastScanTime).count() >= 3);
+
+			if (directoryChanged || timeForScan)
+			{
+				currentProjectDir = projectDir;
+				refreshFileListBackground(projectDir);
+				lastScanTime = now;
+			}
 		}
 
-		refreshFileListBackground(projectDir);
+		// Check every 100ms instead of waiting full 3 seconds
+		std::this_thread::sleep_for(milliseconds(100));
 	}
 }
 
