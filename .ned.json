@@ -10,12 +10,12 @@
     "colorshift_intensity": 1.25,
     "curvature_intensity": 0.10999999940395355,
     "font": "SourceCodePro-Regular",
-    "fontSize": 23.0,
+    "fontSize": 19.0,
     "jitter_intensity": 3.7699999809265137,
     "rainbow": true,
     "scanline_intensity": 0.12999999523162842,
     "shader_toggle": true,
-    "splitPos": 0.27954143285751343,
+    "splitPos": 0.2557319104671478,
     "static_intensity": 0.11500000208616257,
     "theme": "default",
     "themes": {
@@ -57,9 +57,9 @@
                 1.0
             ],
             "text": [
-                0.7088892459869385,
-                0.7088892459869385,
-                0.7088892459869385,
+                0.8443769216537476,
+                0.8033130168914795,
+                0.8033130168914795,
                 1.0
             ],
             "type": [

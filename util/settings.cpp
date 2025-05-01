@@ -451,7 +451,7 @@ void Settings::renderSettingsWindow()
 	editThemeColor("Comments", "comment");
 	editThemeColor("Functions", "function");
 	editThemeColor("Types", "type");
-	editThemeColor("Variables", "variable");
+	editThemeColor("Identifier", "variable");
 
 	ImGui::Spacing();
 	ImGui::Spacing();
