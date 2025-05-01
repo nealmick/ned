@@ -54,8 +54,6 @@ xattr -dr com.apple.quarantine Ned.app
 
 ```
 
-
-
 Contributions are welcome! 
 
 TODO:

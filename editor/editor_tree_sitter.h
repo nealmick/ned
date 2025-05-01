@@ -26,7 +26,8 @@ class TreeSitter
   public:
 	static void parse(const std::string &fileContent,
 					  std::vector<ImVec4> &fileColors,
-					  const std::string &extension);
+					  const std::string &extension,
+					  bool fullRehighlight = false);
 
 	static void updateThemeColors();
 	static void refreshColors() { colorsNeedUpdate = true; };

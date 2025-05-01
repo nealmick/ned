@@ -396,6 +396,7 @@ void FileExplorer::handleUndo()
 	{
 		auto state = currentUndoManager->undo(editor_state.fileContent);
 		applyContentChange(state);
+		gEditorHighlight.highlightContent(true); // Trigger full rehighlight
 	}
 }
 
@@ -404,7 +405,8 @@ void FileExplorer::handleRedo()
 	if (currentUndoManager)
 	{
 		auto state = currentUndoManager->redo(editor_state.fileContent);
-		applyContentChange(state, true); // Pre-allocate memory for redo
+		applyContentChange(state, true);
+		gEditorHighlight.highlightContent(true); // Trigger full rehighlight
 	}
 }
 
