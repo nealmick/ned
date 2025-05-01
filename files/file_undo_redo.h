@@ -20,9 +20,10 @@ class UndoRedoManager
 		std::string content;
 		int changeStart;
 		int changeEnd;
+		int cursor_index;
 	};
 
-	void addState(const std::string &state, int changeStart, int changeEnd)
+	void addState(const std::string &state, int changeStart, int changeEnd, int cursor_index)
 	{
 		if (changeStart < 0 || changeEnd < changeStart ||
 			changeEnd > static_cast<int>(state.length()))
@@ -33,7 +34,7 @@ class UndoRedoManager
 		}
 
 		// Update pending state and reset timer
-		pendingState = {state, changeStart, changeEnd};
+		pendingState = {state, changeStart, changeEnd, cursor_index};
 		hasPending = true;
 		lastAddTime = std::chrono::steady_clock::now();
 	}

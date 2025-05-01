@@ -268,7 +268,10 @@ void FileExplorer::setupUndoManager(const std::string &path)
 		std::cout << "Created new UndoRedoManager for " << path << std::endl;
 	}
 	currentUndoManager = &(it->second);
-	currentUndoManager->addState(editor_state.fileContent, 0, editor_state.fileContent.size());
+	currentUndoManager->addState(editor_state.fileContent,
+								 0,
+								 editor_state.fileContent.size(),
+								 editor_state.cursor_index);
 }
 
 void FileExplorer::handleLoadError()
@@ -321,7 +324,10 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
 {
 	if (currentUndoManager)
 	{
-		currentUndoManager->addState(editor_state.fileContent, changeStart, changeEnd);
+		currentUndoManager->addState(editor_state.fileContent,
+									 changeStart,
+									 changeEnd,
+									 editor_state.cursor_index);
 	}
 }
 void FileExplorer::renderFileContent()
@@ -362,7 +368,7 @@ void FileExplorer::resetColorBuffer()
 	const size_t new_size = editor_state.fileContent.size();
 
 	// Completely clear existing colors
-	editor_state.fileColors.clear();
+	// editor_state.fileColors.clear();
 
 	// Resize and fill ALL elements with white
 	editor_state.fileColors.resize(new_size, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
@@ -386,7 +392,7 @@ void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool 
 	}
 
 	editor_state.fileContent = state.content;
-
+	editor_state.cursor_index = state.cursor_index;
 	resetColorBuffer();
 
 	gEditorHighlight.highlightContent(true);
