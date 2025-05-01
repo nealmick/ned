@@ -223,8 +223,8 @@
 (enumerator (identifier) @constant)
 
 ;; Attributes
-(attribute_specifier) @attribute
-(attribute (identifier) @attribute)
+(attribute_specifier) @function
+(attribute (identifier) @function)
 
 ;; Concepts (C++20)
 (concept_definition name: (identifier) @type)

@@ -212,7 +212,7 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 {
 	TSQueryCursor *cursor = ts_query_cursor_new();
 	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
-
+	
 	// Get theme colors once
 	const ImVec4 text_color = cachedColors.text;
 
