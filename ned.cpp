@@ -870,13 +870,17 @@ void Ned::handleSettingsChanges()
 	if (gSettings.hasSettingsChanged())
 	{
 		ImGuiStyle &style = ImGui::GetStyle();
+
+		// Add this line to re-apply all style settings:
+		ApplySettings(style); // <-- This is the critical fix
+
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][1].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][3].get<float>());
 
-		// Update shader toggle here:
+		// Rest of existing code...
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
 		if (gSettings.hasThemeChanged())
@@ -895,7 +899,6 @@ void Ned::handleSettingsChanges()
 		gSettings.resetSettingsChanged();
 	}
 }
-
 void Ned::handleFontReload()
 {
 	if (needFontReload)
