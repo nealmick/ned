@@ -249,6 +249,7 @@ target_link_libraries(ned PRIVATE
 if(APPLE)
   target_link_libraries(ned PRIVATE
     "-framework Cocoa"
+    "-framework QuartzCore" 
     "-framework IOKit"
     "-framework CoreVideo"
     "-framework OpenGL"
