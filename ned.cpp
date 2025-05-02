@@ -813,7 +813,9 @@ void Ned::renderMainWindow()
 	ImGui::Begin("Main Window",
 				 nullptr,
 				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-					 ImGuiWindowFlags_NoResize);
+					 ImGuiWindowFlags_NoResize |
+					 ImGuiWindowFlags_NoScrollWithMouse | // Prevent window from scrolling
+					 ImGuiWindowFlags_NoScrollbar);
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
