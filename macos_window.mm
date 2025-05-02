@@ -23,7 +23,7 @@ void configureMacOSWindow(void* window) {
     // Get the content view and configure layer
     NSView* contentView = nswindow.contentView;
     contentView.wantsLayer = YES;
-    
+      
     // Rounded corners
     contentView.layer.cornerRadius = 8.0f;
     contentView.layer.masksToBounds = YES;
