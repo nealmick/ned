@@ -2,10 +2,14 @@
 File: ned.cpp
 Description: Main application class implementation for NED text editor.
 */
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "imgui_internal.h"
+// ned.cpp
+#ifdef __APPLE__
+#include "macos_window.h"
+#endif
 
 #include "../ai/ai_tab.h"
 #include "ned.h"
@@ -64,7 +68,6 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
-
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -72,16 +75,116 @@ bool Ned::initialize()
 		return false;
 	}
 
-	// Set up the scroll callback for smooth scrolling
-	glfwSetWindowUserPointer(window, this);
+#ifdef __APPLE__
+	// Now properly declared via macos_window.h
+	configureMacOSWindow(window);
+#endif
 
+	// Rest of initialization...
+	glfwSetWindowUserPointer(window, this);
 	initializeImGui();
 	initializeResources();
-
 	quad.initialize();
 	initialized = true;
-
 	return true;
+}
+void Ned::renderResizeHandles()
+{
+	const float resizeBorder = 10.0f;
+	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
+	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
+
+	// Right edge
+
+	ImGui::PushID("resize_right");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
+	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y));
+	bool hoverRight = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Bottom edge
+	ImGui::PushID("resize_bottom");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
+	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder));
+	bool hoverBottom = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Corner
+	ImGui::PushID("resize_corner");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder,
+									 windowPos.y + windowSize.y - resizeBorder));
+	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder));
+	bool hoverCorner = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Update cursors based on hover state first
+	if (hoverCorner || resizingCorner)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNWSE);
+	} else if (hoverRight || resizingRight)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+	} else if (hoverBottom || resizingBottom)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+	}
+}
+
+void Ned::handleManualResizing()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	int screenWidth, screenHeight;
+	glfwGetWindowSize(window, &screenWidth, &screenHeight);
+
+	double mouseX, mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+
+	const float resizeBorder = 10.0f;
+	bool hoverRight = mouseX >= (screenWidth - resizeBorder);
+	bool hoverBottom = mouseY >= (screenHeight - resizeBorder);
+	bool hoverCorner = hoverRight && hoverBottom;
+
+	// Handle drag start
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		resizingRight = hoverRight || hoverCorner;
+		resizingBottom = hoverBottom || hoverCorner;
+		resizingCorner = hoverCorner;
+
+		if (resizingRight || resizingBottom || resizingCorner)
+		{
+			dragStart = ImVec2(mouseX, mouseY);
+			initialWindowSize = ImVec2(screenWidth, screenHeight);
+		}
+	}
+
+	// Handle dragging
+	if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+	{
+		if (resizingRight || resizingBottom || resizingCorner)
+		{
+			int newWidth = screenWidth;
+			int newHeight = screenHeight;
+
+			if (resizingRight || resizingCorner)
+				newWidth = initialWindowSize.x + (mouseX - dragStart.x);
+			if (resizingBottom || resizingCorner)
+				newHeight = initialWindowSize.y + (mouseY - dragStart.y);
+
+			newWidth = std::max(newWidth, 100);
+			newHeight = std::max(newHeight, 100);
+
+			glfwSetWindowSize(window, newWidth, newHeight);
+		}
+	}
+
+	// Handle drag end
+	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+	{
+		resizingRight = false;
+		resizingBottom = false;
+		resizingCorner = false;
+	}
 }
 
 bool Ned::initializeGraphics()
@@ -95,11 +198,15 @@ bool Ned::initializeGraphics()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+
 	if (!window)
 	{
 		std::cerr << "Failed to create GLFW window" << std::endl;
@@ -684,7 +791,9 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 }
 void Ned::renderMainWindow()
 {
+
 	handleKeyboardShortcuts();
+
 	if (gTerminal.isTerminalVisible())
 	{
 		gTerminal.render();
@@ -726,7 +835,8 @@ void Ned::renderMainWindow()
 		editorWidth = availableWidth;
 		renderEditor(currentFont, editorWidth);
 	}
-
+	renderResizeHandles();
+	handleManualResizing();
 	ImGui::End();
 	ImGui::PopFont();
 }

@@ -187,6 +187,34 @@ add_executable(ned
   ${IMGUI_SOURCES}
 )
 
+
+
+# =====================
+# macOS Window Management
+# =====================
+if(APPLE)
+  # Find GLFW headers using standard CMake path
+  find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h
+    PATHS
+    /usr/local/include
+    /opt/homebrew/include
+    ${GLFW3_INCLUDE_DIRS}
+  )
+  
+  # Add Objective-C++ support
+  set(CMAKE_OBJCXX_STANDARD 11)
+  add_library(macos_window OBJECT macos_window.mm)
+  
+  # Add GLFW includes with verified path
+  target_include_directories(macos_window PRIVATE
+    ${GLFW_INCLUDE_DIR}
+  )
+  
+  target_sources(ned PRIVATE $<TARGET_OBJECTS:macos_window>)
+  
+endif()
+
+
 # =====================
 # Include Directories
 # =====================

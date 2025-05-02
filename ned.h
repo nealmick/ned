@@ -117,6 +117,17 @@ class Ned
 	};
 
 	AccumulationBuffers accum;
+
+	// custom menu bar
+	void renderResizeHandles();
+	void handleManualResizing();
+
+	// Add these variables
+	bool resizingRight = false;
+	bool resizingBottom = false;
+	bool resizingCorner = false;
+	ImVec2 dragStart;
+	ImVec2 initialWindowSize;
 };
 
 // Global scope
