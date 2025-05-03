@@ -307,8 +307,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	std::string resourcePath = Settings::getAppResourcesPath();
 	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
 	// Always print the path, before existence check
-	std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size "
-			  << fontSize << std::endl;
+	// std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size "
+	//		  << fontSize << std::endl;
 
 	if (!std::filesystem::exists(fontPath))
 	{
@@ -359,8 +359,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	ImGui_ImplOpenGL3_DestroyFontsTexture();
 	ImGui_ImplOpenGL3_CreateFontsTexture();
 
-	std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath
-			  << " at size " << fontSize << std::endl;
+	// std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath
+	//		  << " at size " << fontSize << std::endl;
 
 	return font;
 }

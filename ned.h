@@ -118,11 +118,9 @@ class Ned
 
 	AccumulationBuffers accum;
 
-	// custom menu bar
+	// custom resizing logic
 	void renderResizeHandles();
 	void handleManualResizing();
-
-	// Add these variables
 	bool resizingRight = false;
 	bool resizingBottom = false;
 	bool resizingCorner = false;
