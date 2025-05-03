@@ -201,6 +201,8 @@ bool Ned::initializeGraphics()
 
 	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+	glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
@@ -395,6 +397,10 @@ void Ned::handleWindowDragging()
 void Ned::renderTopLeftMenu()
 {
 	const float padding = 1.0f;
+	const float iconSize = 14.0f;
+	const float spacing = 4.0f;
+	static bool wasMenuOpen = false;
+	static bool closeHovered = false, minimizeHovered = false, maximizeHovered = false;
 
 	// Get absolute screen coordinates
 	ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -424,13 +430,14 @@ void Ned::renderTopLeftMenu()
 	if (menuOpen)
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 6));
-		ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(80, 80, 80, 255)); // Grey background
+		ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(80, 80, 80, 255));
 
 		// Custom rounding for bottom-right corner only
 		const float rounding = 8.0f;
+		const float border_size = 1.0f; // Set border thickness
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, rounding);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-		
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, border_size);	  // Enable borders
+		ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(120, 120, 120, 255)); // Border color
 		if (ImGui::Begin("TopMenu",
 						 nullptr,
 						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
@@ -439,7 +446,7 @@ void Ned::renderTopLeftMenu()
 			// Set window size and force bottom-right rounding
 			ImGui::SetWindowSize(ImVec2(120, 40));
 
-			// Manual background draw with bottom-right rounding
+			// Manual background draw
 			ImDrawList *bg_draw_list = ImGui::GetWindowDrawList();
 			ImVec2 p_min = ImGui::GetWindowPos();
 			ImVec2 p_max = ImVec2(p_min.x + 120, p_min.y + 40);
@@ -449,24 +456,87 @@ void Ned::renderTopLeftMenu()
 										rounding,
 										ImDrawFlags_RoundCornersBottomRight);
 
-			// Menu content
-			ImGui::Text("Menuasdfasdf");
+			// Centered icons group
+			ImGui::SetCursorPosY((ImGui::GetWindowHeight() - iconSize) * 0.5f);
+			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (iconSize * 3 + spacing * 2)) * 0.32f);
+
+			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
+
+			// Close button
+			ImTextureID closeIcon =
+				gFileExplorer.getIcon(closeHovered ? "close-mac-hover" : "close-mac");
+			if (ImGui::ImageButton("##Close", closeIcon, ImVec2(iconSize, iconSize)))
+			{
+				glfwSetWindowShouldClose(window, GLFW_TRUE); // Close the window
+				std::cout << "Clicked close icon" << std::endl;
+			}
+			closeHovered = ImGui::IsItemHovered();
+
+			ImGui::SameLine(0, spacing);
+
+			// Minimize button
+			ImTextureID minimizeIcon =
+				gFileExplorer.getIcon(minimizeHovered ? "minimize-mac-hover" : "minimize-mac");
+			if (ImGui::ImageButton("##Min", minimizeIcon, ImVec2(iconSize, iconSize)))
+			{
+				glfwIconifyWindow(window);
+				std::cout << "Clicked minimize icon" << std::endl;
+			}
+			minimizeHovered = ImGui::IsItemHovered();
+
+			ImGui::SameLine(0, spacing);
+
+			// Maximize button
+			ImTextureID maximizeIcon =
+				gFileExplorer.getIcon(maximizeHovered ? "maximize-mac-hover" : "maximize-mac");
+			if (ImGui::ImageButton("##Max", maximizeIcon, ImVec2(iconSize, iconSize)))
+			{
+				static bool isFullscreen = false;
+				static int prevWidth, prevHeight, prevX, prevY;
+
+				if (!isFullscreen)
+				{
+					// Store current window position and size
+					glfwGetWindowPos(window, &prevX, &prevY);
+					glfwGetWindowSize(window, &prevWidth, &prevHeight);
+
+					// Get primary monitor resolution
+					GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+					const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+					// Switch to fullscreen
+					glfwSetWindowMonitor(
+						window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+					isFullscreen = true;
+				} else
+				{
+					// Restore window
+					glfwSetWindowMonitor(
+						window, nullptr, prevX, prevY, prevWidth, prevHeight, GLFW_DONT_CARE);
+					isFullscreen = false;
+				}
+			}
+			maximizeHovered = ImGui::IsItemHovered();
+
+			ImGui::PopStyleColor(3);
 
 			// Close logic
 			if (!ImGui::IsWindowHovered() && !isHovered)
 			{
 				menuOpen = false;
 			}
-			bool isClicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
-			int winX, winY;
-			glfwGetWindowPos(window, &winX, &winY);
-			// Start dragging when clicked
+
+			// Window dragging logic
+			bool isClicked =
+				ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 			if (isClicked)
 			{
 				std::cout << "Dragging window...." << std::endl;
 				isDraggingWindow = true;
 
-				// Store initial positions in screen coordinates using GLFW
+				// Store initial positions
 				double mouseX, mouseY;
 				glfwGetCursorPos(window, &mouseX, &mouseY);
 				int winX, winY;
@@ -474,18 +544,32 @@ void Ned::renderTopLeftMenu()
 				dragStartMousePos = ImVec2(winX + mouseX, winY + mouseY);
 				dragStartWindowPos = ImVec2(winX, winY);
 
-				// Reset mouse delta to prevent jumps
 				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
 			}
+
 			ImGui::End();
+			wasMenuOpen = true;
+		} else
+		{
+			wasMenuOpen = false;
 		}
 
 		// Cleanup styles
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+	} else
+	{
+		// Reset hover states when menu closes
+		if (wasMenuOpen)
+		{
+			closeHovered = minimizeHovered = maximizeHovered = false;
+			wasMenuOpen = false;
+		}
 	}
 }
+
 void Ned::run()
 {
 	if (!initialized)
