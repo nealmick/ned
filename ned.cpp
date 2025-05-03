@@ -364,7 +364,128 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 
 	return font;
 }
+void Ned::handleWindowDragging()
+{
+	if (isDraggingWindow)
+	{
+		if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		{
+			// Get current mouse position in screen coordinates
+			double currentMouseX, currentMouseY;
+			glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
+			int windowX, windowY;
+			glfwGetWindowPos(window, &windowX, &windowY);
+			ImVec2 currentScreenPos(windowX + currentMouseX, windowY + currentMouseY);
 
+			// Calculate delta from initial position
+			ImVec2 delta(currentScreenPos.x - dragStartMousePos.x,
+						 currentScreenPos.y - dragStartMousePos.y);
+
+			// Update window position
+			glfwSetWindowPos(window,
+							 static_cast<int>(dragStartWindowPos.x + delta.x),
+							 static_cast<int>(dragStartWindowPos.y + delta.y));
+		} else
+		{
+			isDraggingWindow = false;
+		}
+	}
+}
+
+void Ned::renderTopLeftMenu()
+{
+	const float padding = 1.0f;
+
+	// Get absolute screen coordinates
+	ImGuiViewport *viewport = ImGui::GetMainViewport();
+	ImVec2 screenPos = viewport->Pos;
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	// Calculate button position
+	ImVec2 buttonPos = ImVec2(screenPos.x + padding, screenPos.y + padding);
+	ImRect buttonRect(buttonPos, ImVec2(buttonPos.x + 120, buttonPos.y + 40));
+
+	// Draw visible button (transparent hitbox)
+	ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+	draw_list->AddRectFilled(buttonRect.Min, buttonRect.Max, IM_COL32(0, 0, 0, 0));
+
+	// Check hover state manually
+	bool isHovered = buttonRect.Contains(mousePos);
+
+	// Update hover state
+	static bool menuOpen = false;
+	if (isHovered)
+	{
+		menuOpen = true;
+		ImGui::SetNextWindowPos(buttonPos);
+	}
+
+	// Show popup when hovered
+	if (menuOpen)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 6));
+		ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(80, 80, 80, 255)); // Grey background
+
+		// Custom rounding for bottom-right corner only
+		const float rounding = 8.0f;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, rounding);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+		
+		if (ImGui::Begin("TopMenu",
+						 nullptr,
+						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+							 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+		{
+			// Set window size and force bottom-right rounding
+			ImGui::SetWindowSize(ImVec2(120, 40));
+
+			// Manual background draw with bottom-right rounding
+			ImDrawList *bg_draw_list = ImGui::GetWindowDrawList();
+			ImVec2 p_min = ImGui::GetWindowPos();
+			ImVec2 p_max = ImVec2(p_min.x + 120, p_min.y + 40);
+			bg_draw_list->AddRectFilled(p_min,
+										p_max,
+										IM_COL32(80, 80, 80, 255),
+										rounding,
+										ImDrawFlags_RoundCornersBottomRight);
+
+			// Menu content
+			ImGui::Text("Menuasdfasdf");
+
+			// Close logic
+			if (!ImGui::IsWindowHovered() && !isHovered)
+			{
+				menuOpen = false;
+			}
+			bool isClicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
+			int winX, winY;
+			glfwGetWindowPos(window, &winX, &winY);
+			// Start dragging when clicked
+			if (isClicked)
+			{
+				std::cout << "Dragging window...." << std::endl;
+				isDraggingWindow = true;
+
+				// Store initial positions in screen coordinates using GLFW
+				double mouseX, mouseY;
+				glfwGetCursorPos(window, &mouseX, &mouseY);
+				int winX, winY;
+				glfwGetWindowPos(window, &winX, &winY);
+				dragStartMousePos = ImVec2(winX + mouseX, winY + mouseY);
+				dragStartWindowPos = ImVec2(winX, winY);
+
+				// Reset mouse delta to prevent jumps
+				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+			}
+			ImGui::End();
+		}
+
+		// Cleanup styles
+		ImGui::PopStyleVar(2);
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
+	}
+}
 void Ned::run()
 {
 	if (!initialized)
@@ -379,6 +500,7 @@ void Ned::run()
 
 		// Handle events and updates
 		handleEvents();
+		handleWindowDragging();
 		double currentTime = glfwGetTime();
 		handleBackgroundUpdates(currentTime);
 
@@ -400,7 +522,6 @@ void Ned::run()
 		handleFrameTiming(frame_start);
 	}
 }
-
 void Ned::handleEvents()
 {
 	// Handle scroll accumulators at the start
@@ -412,8 +533,11 @@ void Ned::handleEvents()
 		scrollYAccumulator = 0.0;
 	}
 
-	// Rest of your existing code...
-	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
+	// Always poll events if resizing
+	if (resizingRight || resizingBottom || resizingCorner)
+	{
+		glfwPollEvents();
+	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
 	} else
@@ -421,7 +545,6 @@ void Ned::handleEvents()
 		glfwWaitEventsTimeout(0.016);
 	}
 }
-
 void Ned::handleBackgroundUpdates(double currentTime)
 {
 	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
@@ -436,6 +559,7 @@ void Ned::handleBackgroundUpdates(double currentTime)
 		timing.lastFileTreeRefresh = currentTime;
 	}
 }
+
 void Ned::handleFramebuffer(int width, int height)
 {
 	auto initFB = [](FramebufferState &fb, int w, int h) {
@@ -503,6 +627,7 @@ void Ned::handleFramebuffer(int width, int height)
 		std::cerr << "🔴 Accumulation buffer 0 incomplete!" << std::endl;
 	}
 };
+
 void Ned::setupImGuiFrame()
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -792,6 +917,8 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 void Ned::renderMainWindow()
 {
 
+	renderTopLeftMenu();
+
 	handleKeyboardShortcuts();
 
 	if (gTerminal.isTerminalVisible())
@@ -868,12 +995,28 @@ void Ned::renderFrame()
 		renderWithShader(display_w, display_h, glfwGetTime());
 	} else
 	{
-		// Reset accumulation buffers to prevent lingering trails
-		accum.accum[0].initialized = false;
-		accum.accum[1].initialized = false;
+		for (int i = 0; i < 2; ++i)
+		{
+			if (accum.accum[i].framebuffer != 0)
+			{
+				glDeleteFramebuffers(1, &accum.accum[i].framebuffer);
+				accum.accum[i].framebuffer = 0;
+			}
+			if (accum.accum[i].renderTexture != 0)
+			{
+				glDeleteTextures(1, &accum.accum[i].renderTexture);
+				accum.accum[i].renderTexture = 0;
+			}
+			if (accum.accum[i].rbo != 0)
+			{
+				glDeleteRenderbuffers(1, &accum.accum[i].rbo);
+				accum.accum[i].rbo = 0;
+			}
+			accum.accum[i].initialized = false;
+		}
 
 		// Directly render the original framebuffer
-		crtShader.useShader(); // Use CRT shader with disabled effects
+		crtShader.useShader();
 		crtShader.setFloat("u_scanline_intensity", 0.0f);
 		crtShader.setFloat("u_vignet_intensity", 0.0f);
 		crtShader.setFloat("u_bloom_intensity", 0.0f);
@@ -891,6 +1034,7 @@ void Ned::renderFrame()
 	// [STEP 3] Swap buffers
 	glfwSwapBuffers(window);
 }
+
 void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())

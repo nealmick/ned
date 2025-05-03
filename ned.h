@@ -126,6 +126,14 @@ class Ned
 	bool resizingCorner = false;
 	ImVec2 dragStart;
 	ImVec2 initialWindowSize;
+
+	void renderTopLeftMenu();
+	bool menuHovered = false;
+
+	bool isDraggingWindow = false;
+	ImVec2 dragStartMousePos;
+	ImVec2 dragStartWindowPos;
+	void handleWindowDragging();
 };
 
 // Global scope
