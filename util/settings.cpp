@@ -50,22 +50,28 @@ std::string Settings::getAppResourcesPath()
 			std::string resourcesPath = p + "/Resources";
 			if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath))
 			{
+				/*
 				std::cout << "[Settings::getAppResourcesPath] Found .app "
 							 "Resources at: "
 						  << resourcesPath << std::endl;
+				*/
 				return resourcesPath;
 			} else
 			{
 				// If no Resources folder, fallback to p
+				/*
 				std::cout << "[Settings::getAppResourcesPath] No /Resources "
 							 "folder at "
 						  << resourcesPath << "; using " << p << std::endl;
+				*/
 				return p;
 			}
 		} else
 		{
+			/*
 			std::cerr << "[Settings::getAppResourcesPath] realpath() failed, "
 						 "using exePath.\n";
+			*/
 			// fallback to single or double dirname calls as well
 			std::string p = exePath;
 			p = dirname((char *)p.c_str());
@@ -76,7 +82,7 @@ std::string Settings::getAppResourcesPath()
 	}
 
 	// Fallback if _NSGetExecutablePath failed
-	std::cerr << "[Settings::getAppResourcesPath] _NSGetExecutablePath failed.\n";
+	// std::cerr << "[Settings::getAppResourcesPath] _NSGetExecutablePath failed.\n";
 	return ".";
 }
 
@@ -340,12 +346,10 @@ void Settings::renderSettingsWindow()
 
 	if (wasFocused && !isFocused)
 	{
-		std::cout << "Settings window lost focus!" << std::endl;
 		showSettingsWindow = false;
 		saveSettings();
 	} else if (!wasFocused && isFocused)
 	{
-		std::cout << "Settings window gained focus!" << std::endl;
 	}
 	wasFocused = isFocused;
 

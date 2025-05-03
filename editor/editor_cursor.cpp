@@ -205,13 +205,11 @@ void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 		calculateVisualColumn();
 	}
 
-	// Set the new cursor position using preferred visual column
 	int new_line_start = editor_state.editor_content_lines[target_line];
 	int new_line_end = (target_line + 1 < editor_state.editor_content_lines.size())
 						   ? editor_state.editor_content_lines[target_line + 1] - 1
 						   : text.size();
 
-	// Find position in new line that corresponds to our visual column
 	findPositionFromVisualColumn(new_line_start, new_line_end);
 }
 
@@ -225,53 +223,36 @@ void EditorCursor::moveWordForward(const std::string &text)
 		return; // Already at or past the end
 	}
 
-	// Phase 1: Skip any non-word characters immediately at or after the cursor.
-	// This ensures that if we start in whitespace like "word1 | word2",
-	// we move past the whitespace first.
 	while (pos < len && !isWordChar(text[pos]))
 	{
 		++pos;
 	}
 
-	// Phase 2: Skip the word characters of the word we just landed on
-	// (or the word we were already in if Phase 1 didn't move).
-	// This moves the cursor to the position *after* the end of the word.
 	while (pos < len && isWordChar(text[pos]))
 	{
 		++pos;
 	}
 
-	// The final position 'pos' is where the cursor should land.
 	editor_state.cursor_index = pos - 1;
 }
 
 void EditorCursor::moveWordBackward(const std::string &text)
 {
 	size_t pos = editor_state.cursor_index;
-	// No need to check text.length() here, pos == 0 check handles empty string
 
 	if (pos == 0)
 	{
 		return; // Already at the beginning
 	}
-
-	// Phase 1: Skip any non-word characters immediately *before* the cursor.
-	// We look at text[pos - 1]. This ensures that if we start like
-	// "word1 |word2" (cursor at '|') we skip the space first.
 	while (pos > 0 && !isWordChar(text[pos - 1]))
 	{
 		--pos;
 	}
-
-	// Phase 2: Skip the word characters of the word we just landed before
-	// (or the word we were already in if Phase 1 didn't move).
-	// This moves the cursor to the position *at the beginning* of that word.
 	while (pos > 0 && isWordChar(text[pos - 1]))
 	{
 		--pos;
 	}
 
-	// The final position 'pos' is the beginning of the word we skipped over.
 	editor_state.cursor_index = pos + 1;
 }
 

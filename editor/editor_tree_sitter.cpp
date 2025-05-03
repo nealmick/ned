@@ -258,7 +258,6 @@ void TreeSitter::parse(const std::string &fileContent,
 					   bool fullRehighlight)
 {
 	std::lock_guard<std::mutex> lock(parserMutex);
-	std::cout << "highlighting file " << std::endl;
 	if (fileContent.empty())
 	{
 		std::cerr << "No content to parse!\n";
@@ -292,7 +291,7 @@ void TreeSitter::parse(const std::string &fileContent,
 	auto [lang, query_path] = detectLanguageAndQuery(extension);
 	if (!lang)
 	{
-		std::cerr << "No parser for extension: " << extension << "\n";
+		// std::cerr << "No parser for extension: " << extension << std::endl;
 		return;
 	}
 
@@ -399,7 +398,6 @@ void TreeSitter::updateThemeColors()
 {
 	if (!colorsNeedUpdate)
 		return;
-	std::cout << "inside updated colors" << std::endl;
 
 	auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 
@@ -441,7 +439,6 @@ void TreeSitter::updateThemeColors()
 	cachedColors.variable = newColor;
 
 	colorsNeedUpdate = false;
-	std::cout << "--- Theme Colors Updated ---" << std::endl;
 }
 
 void TreeSitter::setColors(const std::string &content,

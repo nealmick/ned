@@ -146,7 +146,6 @@ void FileExplorer::openFolderDialog()
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
-	std::cout << "Reading file: " << path << std::endl;
 
 	try
 	{
@@ -226,8 +225,6 @@ bool FileExplorer::readFileContent(const std::string &path)
 		}
 
 		editor_state.fileContent = std::move(content);
-		std::cout << "Successfully read file" << (isTruncated ? " (truncated)" : "")
-				  << ", content length: " << editor_state.fileContent.length() << std::endl;
 		return true;
 	} catch (const std::exception &e)
 	{
@@ -265,7 +262,6 @@ void FileExplorer::setupUndoManager(const std::string &path)
 	if (it == fileUndoManagers.end())
 	{
 		it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-		std::cout << "Created new UndoRedoManager for " << path << std::endl;
 	}
 	currentUndoManager = &(it->second);
 	currentUndoManager->addState(editor_state.fileContent,
@@ -312,7 +308,6 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 			afterLoadCallback();
 		}
 
-		std::cout << "Loaded file: " << path << std::endl;
 	} catch (const std::exception &e)
 	{
 		std::cerr << "Error loading file: " << e.what() << std::endl;
@@ -436,8 +431,8 @@ void FileExplorer::saveCurrentFile()
 			file << editor_state.fileContent;
 			file.close();
 			_unsavedChanges = false;
-			std::cout << "File saved: " << currentFile << std::endl;
-			// Track document version - start at 1 and increment on each save
+			// std::cout << "File saved: " << currentFile << std::endl;
+			//  Track document version - start at 1 and increment on each save
 			int &version = _documentVersions[currentFile];
 			version = version == 0 ? 1 : version + 1;
 
@@ -452,6 +447,5 @@ void FileExplorer::saveCurrentFile()
 
 void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 {
-	std::cout << "\033[35mLSP:\033[0m Notifying file open: " << filePath << std::endl;
 	gEditorLSP.didOpen(filePath, editor_state.fileContent);
 }

@@ -175,10 +175,10 @@ void FileFinder::toggleWindow()
 		wasKeyboardFocusSet = false;
 		isInitialSelection = true;
 		updateFilteredList(); // Populate filteredList using current fileList
-		std::cout << "\033[36mFileFinder:\033[0m Window opened" << std::endl;
+		// std::cout << "\033[36mFileFinder:\033[0m Window opened" << std::endl;
 	} else
 	{
-		std::cout << "\033[36mFileFinder:\033[0m Window closed" << std::endl;
+		// std::cout << "\033[36mFileFinder:\033[0m Window closed" << std::endl;
 	}
 }
 
