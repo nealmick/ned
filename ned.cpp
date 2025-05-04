@@ -434,10 +434,9 @@ void Ned::renderTopLeftMenu()
 
 		// Custom rounding for bottom-right corner only
 		const float rounding = 8.0f;
-		const float border_size = 1.0f; // Set border thickness
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, rounding);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, border_size);	  // Enable borders
-		ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(120, 120, 120, 255)); // Border color
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
 		if (ImGui::Begin("TopMenu",
 						 nullptr,
 						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
@@ -452,13 +451,22 @@ void Ned::renderTopLeftMenu()
 			ImVec2 p_max = ImVec2(p_min.x + 120, p_min.y + 40);
 			bg_draw_list->AddRectFilled(p_min,
 										p_max,
-										IM_COL32(80, 80, 80, 255),
+										IM_COL32(80, 80, 80, 255), // Dark grey fill
 										rounding,
 										ImDrawFlags_RoundCornersBottomRight);
 
+			// Add grey border
+			bg_draw_list->AddRect(p_min,
+								  p_max,
+								  IM_COL32(120, 120, 120, 255), // Border color (light grey)
+								  rounding,
+								  ImDrawFlags_RoundCornersBottomRight,
+								  1.0f // Border thickness (1 pixel)
+			);
+
 			// Centered icons group
 			ImGui::SetCursorPosY((ImGui::GetWindowHeight() - iconSize) * 0.5f);
-			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (iconSize * 3 + spacing * 2)) * 0.32f);
+			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (iconSize * 3 + spacing * 2)) * 0.35f);
 
 			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
@@ -558,7 +566,6 @@ void Ned::renderTopLeftMenu()
 		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
-		ImGui::PopStyleColor();
 	} else
 	{
 		// Reset hover states when menu closes
