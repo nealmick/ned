@@ -183,6 +183,14 @@ void Settings::loadSettings()
 	{
 		settings["scanline_intensity"] = 0.2;
 	}
+	if (!settings.contains("pixelation_intensity"))
+	{
+		settings["pixelation_intensity"] = 0.1;
+	}
+	if (!settings.contains("pixel_width"))
+	{
+		settings["pixel_width"] = 750;
+	}
 	if (!settings.contains("burnin_intensity"))
 	{
 		settings["burnin_intensity"] = 0.95;
@@ -283,6 +291,8 @@ void Settings::checkSettingsFile()
 			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
 			oldSettings["static_intensity"] != settings["static_intensity"] ||
 			oldSettings["jitter_intensity"] != settings["jitter_intensity"] ||
+			oldSettings["pixelation_intensity"] != settings["pixelation_intensity"] ||
+			oldSettings["pixel_width"] != settings["pixel_width"] ||
 			oldSettings["vignet_intensity"] != settings["vignet_intensity"] ||
 			oldSettings["font"] != settings["font"])
 		{
@@ -642,6 +652,37 @@ void Settings::renderSettingsWindow()
 	{
 		saveSettings();
 	}
+
+	ImGui::Spacing();
+	static float tempPixelWidth = settings["pixel_width"].get<float>();
+	if (ImGui::SliderFloat(
+			"Pixel Width", &tempPixelWidth, 250.0f, 1500.0f, "%1f", ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["pixel_width"] = tempPixelWidth;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
+	ImGui::Spacing();
+	static float tempPixelelation = settings["pixelation_intensity"].get<float>();
+	if (ImGui::SliderFloat("Pixelation Intensity",
+						   &tempPixelelation,
+						   -1.00f,
+						   1.00f,
+						   "%.002f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["pixelation_intensity"] = tempPixelelation;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
 	ImGui::Spacing();
 	ImGui::Spacing();
 	ImGui::Spacing();

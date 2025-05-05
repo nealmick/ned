@@ -1115,6 +1115,8 @@ void Ned::renderFrame()
 		crtShader.setFloat("u_colorshift_intensity", 0.0f);
 		crtShader.setFloat("u_jitter_intensity", 0.0f);
 		crtShader.setFloat("u_curvature_intensity", 0.0f);
+		crtShader.setFloat("u_pixelation_intensity", 0.0f);
+		crtShader.setFloat("u_pixel_width", 750.0f);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
@@ -1189,7 +1191,9 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 					   gSettings.getSettings()["jitter_intensity"].get<float>());
 	crtShader.setFloat("u_curvature_intensity",
 					   gSettings.getSettings()["curvature_intensity"].get<float>());
-
+	crtShader.setFloat("u_pixelation_intensity",
+					   gSettings.getSettings()["pixelation_intensity"].get<float>());
+	crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
 	// Set time and resolution uniforms
 	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
 	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
