@@ -1077,54 +1077,10 @@ void Ned::renderFrame()
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	// [STEP 2] Handle final output
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
+	renderWithShader(display_w, display_h, glfwGetTime());
 
-	if (shader_toggle)
-	{
-		renderWithShader(display_w, display_h, glfwGetTime());
-	} else
-	{
-		for (int i = 0; i < 2; ++i)
-		{
-			if (accum.accum[i].framebuffer != 0)
-			{
-				glDeleteFramebuffers(1, &accum.accum[i].framebuffer);
-				accum.accum[i].framebuffer = 0;
-			}
-			if (accum.accum[i].renderTexture != 0)
-			{
-				glDeleteTextures(1, &accum.accum[i].renderTexture);
-				accum.accum[i].renderTexture = 0;
-			}
-			if (accum.accum[i].rbo != 0)
-			{
-				glDeleteRenderbuffers(1, &accum.accum[i].rbo);
-				accum.accum[i].rbo = 0;
-			}
-			accum.accum[i].initialized = false;
-		}
-
-		// Directly render the original framebuffer
-		crtShader.useShader();
-		crtShader.setFloat("u_scanline_intensity", 0.0f);
-		crtShader.setFloat("u_vignet_intensity", 0.0f);
-		crtShader.setFloat("u_bloom_intensity", 0.0f);
-		crtShader.setFloat("u_static_intensity", 0.0f);
-		crtShader.setFloat("u_colorshift_intensity", 0.0f);
-		crtShader.setFloat("u_jitter_intensity", 0.0f);
-		crtShader.setFloat("u_curvature_intensity", 0.0f);
-		crtShader.setFloat("u_pixelation_intensity", 0.0f);
-		crtShader.setFloat("u_pixel_width", 750.0f);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-		glBindVertexArray(quad.VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-	}
-
-	// [STEP 3] Swap buffers
 	glfwSwapBuffers(window);
 }
 
@@ -1181,7 +1137,14 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 	crtShader.useShader();
 
 	// Set CRT shader uniforms
-	crtShader.setInt("screenTexture", 0); // This was missing!
+	crtShader.setInt("screenTexture", 0);
+	if (shader_toggle)
+	{
+		crtShader.setFloat("u_effects_enabled", 1.0f);
+	} else
+	{
+		crtShader.setFloat("u_effects_enabled", 0.0f);
+	}
 	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
 	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
 	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
@@ -1295,7 +1258,6 @@ void Ned::cleanup()
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
-
 void ApplySettings(ImGuiStyle &style)
 {
 	// Set the window background color from settings.
@@ -1320,12 +1282,12 @@ void ApplySettings(ImGuiStyle &style)
 
 	// Hide scrollbars by setting their alpha to 0.
 	style.ScrollbarSize = 30.0f;
-	style.ScaleAllSizes(1.0f);
+	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
 	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
 
 	// Set the global font scale.
-	ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+	// ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }

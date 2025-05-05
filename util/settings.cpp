@@ -656,7 +656,7 @@ void Settings::renderSettingsWindow()
 	ImGui::Spacing();
 	static float tempPixelWidth = settings["pixel_width"].get<float>();
 	if (ImGui::SliderFloat(
-			"Pixel Width", &tempPixelWidth, 250.0f, 1500.0f, "%1f", ImGuiSliderFlags_AlwaysClamp))
+			"Pixel Width", &tempPixelWidth, 250.0f, 5000.0f, "%1f", ImGuiSliderFlags_AlwaysClamp))
 	{
 		settings["pixel_width"] = tempPixelWidth;
 		settingsChanged = true;

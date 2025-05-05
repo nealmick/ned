@@ -1,24 +1,24 @@
 {
     "backgroundColor": [
-        0.06546975672245026,
-        0.29243004322052,
-        0.3515704274177551,
+        0.18860720098018646,
+        0.3184523582458496,
+        0.2999030351638794,
         1.0000001192092896
     ],
-    "bloom_intensity": 0.699999988079071,
-    "burnin_intensity": 0.9398199915885925,
+    "bloom_intensity": 1.0,
+    "burnin_intensity": 0.9497500061988831,
     "colorshift_intensity": 1.25,
-    "curvature_intensity": 0.07999999821186066,
+    "curvature_intensity": 0.10999999940395355,
     "font": "SourceCodePro-Regular",
-    "fontSize": 22.0,
-    "jitter_intensity": 1.1799999475479126,
-    "pixel_width": 1500.0,
-    "pixelation_intensity": 0.07999999821186066,
+    "fontSize": 25.0,
+    "jitter_intensity": 2.9700000286102295,
+    "pixel_width": 5000.0,
+    "pixelation_intensity": 0.1599999964237213,
     "rainbow": true,
-    "scanline_intensity": 0.10999999940395355,
+    "scanline_intensity": 0.05999999865889549,
     "shader_toggle": true,
-    "splitPos": 0.2918871343135834,
-    "static_intensity": 0.12300000339746475,
+    "splitPos": 0.28423237800598145,
+    "static_intensity": 0.2619999945163727,
     "theme": "default",
     "themes": {
         "default": {
@@ -79,5 +79,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.15000000596046448
+    "vignet_intensity": 0.20000000298023224
 }
