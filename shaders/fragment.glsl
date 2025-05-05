@@ -12,6 +12,8 @@ uniform float u_static_intensity;
 uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
 uniform float u_curvature_intensity;
+uniform float u_pixelation_intensity;   //currently set to 50.0
+uniform float u_pixel_width;   //currently set to 50.0
 
 
 
@@ -155,22 +157,60 @@ vec2 applyCurvature(vec2 uv, float intensity) {
     // Maintain valid texture coordinates
     return clamp(distorted, 0.001, 0.999);
 }
-// Modified main function with curvature
+
+
+// Modified color shift that works with existing colors
+vec3 applyColorShift(vec3 baseColor, float time) {
+    float shift = sin(time * 0.5) * 0.01 * u_colorshift_intensity;
+    return vec3(
+        baseColor.r + shift,
+        baseColor.g,
+        baseColor.b - shift
+    );
+}
+
+vec3 pixelate(vec2 uv) {
+    // Fixed grid size of 250 cells
+    vec2 cellSizeUV = vec2(1.0) / vec2(u_pixel_width);
+    vec2 cell = floor(uv * u_pixel_width);
+    vec2 centerUV = (cell + 0.5) * cellSizeUV;
+    return texture(screenTexture, centerUV).rgb;
+}
+
+vec3 applyGrid(vec3 color) {
+    // Grid calculations in screen space
+    vec2 cellSize = resolution / 250.0;
+    vec2 gridPos = mod(gl_FragCoord.xy, cellSize);
+    float lineThickness = 1.0;
+    
+    // Draw grid lines using pixelation intensity for opacity
+    if (gridPos.x < lineThickness || gridPos.y < lineThickness) {
+        color = mix(color, vec3(0.0), u_pixelation_intensity);
+    }
+    
+    return color;
+}
+
 void main() {
     vec2 uv = TexCoords;
-    
-    // Apply curvature first to simulate physical screen shape
+
+    // Apply distortions first
     uv = applyCurvature(uv, u_curvature_intensity);
     uv = addJitter(uv, time);
+
+    // Get pixelated base color
+    vec3 color = pixelate(uv);
     
-    // [Rest of the pipeline remains the same...]
-    vec3 color = applyColorShift(uv, time);
+    // Apply post-processing effects
+    color = applyColorShift(color, time);
     color += getBloom(uv);
-    
     color *= applyVignette(uv) * calculateScanline(uv, time);
     color = applyStaticNoise(color, time);
     color = applyPulse(color, time);
-    
+
+    // Apply grid OVERLAY last
+    color = applyGrid(color);
+
     FragColor = vec4(color, 1.0);
-    
 }
+
