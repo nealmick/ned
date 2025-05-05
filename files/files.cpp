@@ -282,6 +282,8 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 {
 	saveCurrentFile(); // Save current before loading new
 	editor_state.cursor_index = 0;
+	editor_state.ensure_cursor_visible.horizontal = true;
+	editor_state.ensure_cursor_visible.vertical = true;
 
 	try
 	{

@@ -12,9 +12,9 @@ uniform float u_static_intensity;
 uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
 uniform float u_curvature_intensity;
-uniform float u_pixelation_intensity;   //currently set to 50.0
-uniform float u_pixel_width;   //currently set to 50.0
-
+uniform float u_pixelation_intensity;
+uniform float u_pixel_width;
+uniform float u_effects_enabled;
 
 
 // Helper functions
@@ -192,25 +192,32 @@ vec3 applyGrid(vec3 color) {
 }
 
 void main() {
-    vec2 uv = TexCoords;
+    if (u_effects_enabled > 0.5) { // Check if effects are ON
+        // --- Apply Full Effect Chain ---
+        vec2 uv = TexCoords; // Start with original UVs for effects path
 
-    // Apply distortions first
-    uv = applyCurvature(uv, u_curvature_intensity);
-    uv = addJitter(uv, time);
+        // Apply distortions first
+        uv = applyCurvature(uv, u_curvature_intensity);
+        uv = addJitter(uv, time);
 
-    // Get pixelated base color
-    vec3 color = pixelate(uv);
-    
-    // Apply post-processing effects
-    color = applyColorShift(color, time);
-    color += getBloom(uv);
-    color *= applyVignette(uv) * calculateScanline(uv, time);
-    color = applyStaticNoise(color, time);
-    color = applyPulse(color, time);
+        // Get pixelated base color
+        vec3 color = pixelate(uv);
 
-    // Apply grid OVERLAY last
-    color = applyGrid(color);
+        // Apply post-processing effects
+        color = applyColorShift(color, time); // Pass color if needed
+        color += getBloom(uv);
+        color *= applyVignette(uv) * calculateScanline(uv, time);
+        color = applyStaticNoise(color, time);
+        color = applyPulse(color, time);
 
-    FragColor = vec4(color, 1.0);
+        // Apply grid OVERLAY last
+        color = applyGrid(color);
+
+        FragColor = vec4(color, 1.0);
+
+    } else {
+        // --- Passthrough Mode ---
+        // Just sample the original texture with original coordinates
+        FragColor = texture(screenTexture, TexCoords);
+    }
 }
-
