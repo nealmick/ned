@@ -51,9 +51,9 @@ class FileTree
 	struct TreeStyleSettings
 	{
 		static constexpr float FRAME_ROUNDING = 6.0f;
-		static constexpr float HORIZONTAL_PADDING = 8.0f;
-		static constexpr float TEXT_PADDING = 14.0f;
-		static constexpr float LEFT_MARGIN = 3.0f;
+		static constexpr float HORIZONTAL_PADDING = 4.0f;
+		static constexpr float TEXT_PADDING = 7.0f;
+		static constexpr float LEFT_MARGIN = 0.0f;
 		static constexpr ImVec2 FRAME_PADDING = ImVec2(4, 2);
 		static constexpr ImVec2 ITEM_SPACING = ImVec2(1, 3);
 		static constexpr ImVec4 TRANSPARENT_BG = ImVec4(0, 0, 0, 0);
