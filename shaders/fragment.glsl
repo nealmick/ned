@@ -79,19 +79,7 @@ float generateStatic(vec2 uv, float time) {
     return staticNoise * intensityMod;
 }
 
-// Effect functions
-vec3 applyColorShift(vec2 uv, float time) {
-    float baseShiftAmount = 0.001;
-    float shiftAmount = baseShiftAmount * u_colorshift_intensity;
-    float shiftSpeed = 0.5;
-    float shift = sin(time * shiftSpeed) * shiftAmount;
 
-    vec3 color;
-    color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
-    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;
-    color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
-    return color;
-}
 
 vec3 getBloom(vec2 uv) {
     return sampleBloom(uv, 2.0) * u_bloom_intensity;
@@ -159,17 +147,6 @@ vec2 applyCurvature(vec2 uv, float intensity) {
 }
 
 
-// Modified color shift that works with existing colors
-vec3 applyColorShift(vec3 baseColor, float time) {
-    float shift = sin(time * 0.5) * 0.01 * u_colorshift_intensity;
-    return vec3(
-        baseColor.r + shift,
-        baseColor.g,
-        baseColor.b - shift
-    );
-}
-/*
-old color shift
 vec3 applyColorShift(vec2 uv, float time) {
     float baseShiftAmount = 0.001;
     float shiftAmount = baseShiftAmount * u_colorshift_intensity;
@@ -182,7 +159,6 @@ vec3 applyColorShift(vec2 uv, float time) {
     color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
     return color;
 }
-
 
 
 
@@ -210,32 +186,27 @@ vec3 applyGrid(vec3 color) {
 }
 
 void main() {
-    if (u_effects_enabled > 0.5) { // Check if effects are ON
-        // --- Apply Full Effect Chain ---
-        vec2 uv = TexCoords; // Start with original UVs for effects path
+    if (u_effects_enabled > 0.5) {
+        vec2 uv = TexCoords;
 
-        // Apply distortions first
+        // Apply distortions
         uv = applyCurvature(uv, u_curvature_intensity);
         uv = addJitter(uv, time);
 
-        // Get pixelated base color
-        vec3 color = pixelate(uv);
 
-        // Apply post-processing effects
-        color = applyColorShift(color, time); // Pass color if needed
+        // Apply pixelation to the color-shifted result
+        vec3 color = pixelate(uv); // Pixelate after color shift (modify if needed)
+        color = applyColorShift(uv, time);
+
+        // Post-processing effects
         color += getBloom(uv);
         color *= applyVignette(uv) * calculateScanline(uv, time);
         color = applyStaticNoise(color, time);
         color = applyPulse(color, time);
-
-        // Apply grid OVERLAY last
         color = applyGrid(color);
 
         FragColor = vec4(color, 1.0);
-
     } else {
-        // --- Passthrough Mode ---
-        // Just sample the original texture with original coordinates
         FragColor = texture(screenTexture, TexCoords);
     }
 }
