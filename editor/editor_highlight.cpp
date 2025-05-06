@@ -71,9 +71,8 @@ void EditorHighlight::highlightContent(bool fullRehighlight)
 
 	{
 		std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
-
 		// Handle large files quickly
-		const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
+		const size_t LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 100;
 		if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD)
 		{
 			editor_state.fileColors.resize(editor_state.fileContent.size(),

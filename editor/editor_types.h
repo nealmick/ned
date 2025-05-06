@@ -25,6 +25,7 @@ struct ScrollAnimationState
 	float current_velocity_x = 0.0f;
 	float current_velocity_y = 0.0f;
 };
+
 struct EditorState
 {
 	// Content of file being edited as string
