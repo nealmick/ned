@@ -827,6 +827,109 @@ void Ned::renderFileExplorer(float explorerWidth)
 	ImGui::PopStyleVar(2);
 }
 
+std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFont *font)
+{
+	if (path.empty())
+	{
+		return "";
+	}
+
+	fs::path p(path);
+	std::string root_part;
+	std::vector<std::string> components;
+
+	// Split into root and components
+	if (p.has_root_path())
+	{
+		root_part = p.root_path().string();
+		// Iterate over components after the root
+		for (auto it = ++p.begin(); it != p.end(); ++it)
+		{
+			if (!it->empty())
+			{
+				components.push_back(it->string());
+			}
+		}
+	} else
+	{
+		for (const auto &part : p)
+		{
+			if (!part.empty())
+			{
+				components.push_back(part.string());
+			}
+		}
+	}
+
+	if (components.empty())
+	{
+		return root_part.empty() ? path : root_part;
+	}
+
+	// Check full path first
+	std::string fullPath =
+		root_part + std::accumulate(components.begin(),
+									components.end(),
+									std::string(),
+									[](const std::string &a, const std::string &b) {
+										return a.empty() ? b : a + "/" + b;
+									});
+	if (ImGui::CalcTextSize(fullPath.c_str()).x <= maxWidth)
+	{
+		return fullPath;
+	}
+
+	// Try removing directories from the front
+	for (size_t start = 0; start < components.size(); ++start)
+	{
+		std::string candidate;
+
+		if (start == 0)
+		{
+			candidate = fullPath;
+		} else
+		{
+			std::string middle =
+				".../" + std::accumulate(components.begin() + start,
+										 components.end(),
+										 std::string(),
+										 [](const std::string &a, const std::string &b) {
+											 return a.empty() ? b : a + "/" + b;
+										 });
+			candidate = root_part + middle;
+		}
+
+		float width = ImGui::CalcTextSize(candidate.c_str()).x;
+		if (width <= maxWidth)
+		{
+			return candidate;
+		}
+	}
+
+	// Only filename left (with root if applicable)
+	std::string filename = root_part + components.back();
+	if (ImGui::CalcTextSize(filename.c_str()).x <= maxWidth)
+	{
+		return filename;
+	}
+
+	// Truncate filename
+	std::string truncated = components.back();
+	int maxLength = truncated.length();
+	while (maxLength > 0)
+	{
+		std::string temp = truncated.substr(0, maxLength) + "...";
+		std::string candidate = root_part + temp;
+		if (ImGui::CalcTextSize(candidate.c_str()).x <= maxWidth)
+		{
+			return candidate;
+		}
+		maxLength--;
+	}
+
+	// Minimum case
+	return root_part + "...";
+}
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
 	ImGui::BeginGroup();
@@ -852,7 +955,17 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
 			ImGui::SameLine();
 		}
-		ImGui::Text("%s", currentFile.c_str());
+
+		// Calculate available width for the text
+		float x_cursor = ImGui::GetCursorPosX();
+		float x_right_group = ImGui::GetWindowWidth();
+		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - 60.0f;
+
+		// Truncate the file path to fit available space
+		std::string truncatedText =
+			truncateFilePath(currentFile, available_width, ImGui::GetFont());
+
+		ImGui::Text("%s", truncatedText.c_str());
 	}
 
 	// Right-aligned status area

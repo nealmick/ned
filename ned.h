@@ -94,6 +94,7 @@ class Ned
 	void renderMainWindow();
 	void renderFileExplorer(float explorerWidth);
 	void renderEditorHeader(ImFont *currentFont);
+	std::string truncateFilePath(const std::string &path, float maxWidth, ImFont *font);
 	void renderSettingsIcon(float iconSize);
 	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
