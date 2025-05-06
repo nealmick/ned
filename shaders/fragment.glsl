@@ -162,7 +162,6 @@ vec3 applyColorShift(vec2 uv, float time) {
 
 
 
-*/
 vec3 pixelate(vec2 uv) {
     // Fixed grid size of 250 cells
     vec2 cellSizeUV = vec2(1.0) / vec2(u_pixel_width);

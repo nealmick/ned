@@ -24326,7 +24326,6 @@ inline nlohmann::json::json_pointer operator "" _json_pointer(const char* s, std
 }  // namespace json_literals
 }  // namespace literals
 NLOHMANN_JSON_NAMESPACE_END
-
 ///////////////////////
 // nonmember support //
 ///////////////////////

@@ -267,15 +267,18 @@ float EditorCursor::getCursorXPosition(const ImVec2 &text_pos,
 									   const std::string &text,
 									   int cursor_pos)
 {
-	// Find line start position
-	int line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, cursor_pos);
-	size_t line_start = editor_state.editor_content_lines[line];
-
-	// Calculate X position using substring measurement
-	const char *line_start_ptr = text.c_str() + line_start;
-	const char *cursor_ptr = text.c_str() + cursor_pos;
-
-	return text_pos.x + ImGui::CalcTextSize(line_start_ptr, cursor_ptr).x;
+	float x = text_pos.x;
+	for (int i = 0; i < cursor_pos; i++)
+	{
+		if (text[i] == '\n')
+		{
+			x = text_pos.x;
+		} else
+		{
+			x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+		}
+	}
+	return x;
 }
 
 void EditorCursor::handleCursorMovement(const std::string &text,

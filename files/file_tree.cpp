@@ -336,7 +336,7 @@ FileTree::TreeDisplayMetrics FileTree::calculateDisplayMetrics()
 	metrics.folderIconSize = metrics.currentFontSize * 0.8f;
 	metrics.fileIconSize = metrics.currentFontSize * 1.2f;
 	metrics.itemHeight = ImGui::GetFrameHeight();
-	metrics.indentWidth = 28.0f;
+	metrics.indentWidth = 18.0f;
 	metrics.cursorPos = ImGui::GetCursorPos();
 	return metrics;
 }
