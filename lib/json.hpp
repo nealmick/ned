@@ -19993,7 +19993,6 @@ class basic_json // NOLINT(cppcoreguidelines-special-member-functions,hicpp-spec
     {
         assert_invariant();
     }
-
     /// @brief create a JSON value from compatible types
     /// @sa https://json.nlohmann.me/api/basic_json/basic_json/
     template < typename CompatibleType,
@@ -24381,7 +24380,6 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #endif
 
 }  // namespace std
-
 #if JSON_USE_GLOBAL_UDLS
     using nlohmann::literals::json_literals::operator "" _json; // NOLINT(misc-unused-using-decls,google-global-names-in-headers)
     using nlohmann::literals::json_literals::operator "" _json_pointer; //NOLINT(misc-unused-using-decls,google-global-names-in-headers)
@@ -24591,8 +24589,4 @@ inline void swap(nlohmann::NLOHMANN_BASIC_JSON_TPL& j1, nlohmann::NLOHMANN_BASIC
 #undef JSON_HEDLEY_WARN_UNUSED_RESULT_MSG
 #undef JSON_HEDLEY_FALL_THROUGH
 
-
-
 #endif  // INCLUDE_NLOHMANN_JSON_HPP_
-
-

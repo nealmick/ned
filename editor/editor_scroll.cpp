@@ -154,21 +154,48 @@ void EditorScroll::processMouseWheelScrolling()
 
 float EditorScroll::calculateCursorXPosition()
 {
-	float x = editor_state.text_pos.x;
-	for (int i = 0; i < editor_state.cursor_index; i++)
-	{
-		if (editor_state.fileContent[i] == '\n')
-		{
-			x = editor_state.text_pos.x;
-		} else
-		{
-			x += ImGui::CalcTextSize(&editor_state.fileContent[i], &editor_state.fileContent[i + 1])
-					 .x;
-		}
-	}
-	return x;
-}
+	// Get the line number for the current cursor_index
+	// You can use the helper getLineFromPosition from this class if it exists,
+	// or EditorUtils::GetLineFromPosition, or gEditor.getLineFromPos.
+	// Let's use EditorUtils as it seems to be a common pattern.
+	int current_cursor_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
+															   editor_state.cursor_index);
 
+	// Basic validation
+	if (current_cursor_line < 0 || editor_state.editor_content_lines.empty() ||
+		static_cast<size_t>(current_cursor_line) >= editor_state.editor_content_lines.size())
+	{
+		// This case should ideally not be hit if cursor_index and line_starts are consistent.
+		// Return base X position as a fallback.
+		return editor_state.text_pos.x;
+	}
+
+	size_t line_start_char_index = editor_state.editor_content_lines[current_cursor_line];
+
+	// Ensure cursor_index is not before the calculated line_start_char_index
+	// (could happen if there's an issue with line_starts or cursor_index update logic elsewhere)
+	if (editor_state.cursor_index < static_cast<int>(line_start_char_index))
+	{
+		// Fallback for inconsistent state.
+		return editor_state.text_pos.x;
+	}
+
+	const char *line_start_ptr = editor_state.fileContent.c_str() + line_start_char_index;
+	const char *cursor_ptr = editor_state.fileContent.c_str() + editor_state.cursor_index;
+
+	float relative_x_offset_on_line = 0.0f;
+	// Only calculate if cursor_ptr is actually after line_start_ptr (i.e., not at the very start of
+	// the line) and cursor_ptr does not exceed fileContent bounds (though cursor_index should be <
+	// fileContent.size())
+	if (cursor_ptr > line_start_ptr &&
+		static_cast<size_t>(editor_state.cursor_index) <= editor_state.fileContent.size())
+	{
+		relative_x_offset_on_line = ImGui::CalcTextSize(line_start_ptr, cursor_ptr).x;
+	}
+
+	// The X position is the editor's text starting X plus the offset on the current line.
+	return editor_state.text_pos.x + relative_x_offset_on_line;
+}
 ScrollChange EditorScroll::ensureCursorVisible()
 {
 	// Get current scroll offsets
