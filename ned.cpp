@@ -201,8 +201,6 @@ bool Ned::initializeGraphics()
 
 	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
-	glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
@@ -401,7 +399,7 @@ void Ned::renderTopLeftMenu()
 	const float spacing = 4.0f;
 	static bool wasMenuOpen = false;
 	static bool closeHovered = false, minimizeHovered = false, maximizeHovered = false;
-
+	controllsDisplayFrame += 1;
 	// Get absolute screen coordinates
 	ImGuiViewport *viewport = ImGui::GetMainViewport();
 	ImVec2 screenPos = viewport->Pos;
@@ -417,8 +415,12 @@ void Ned::renderTopLeftMenu()
 
 	// Check hover state manually
 	bool isHovered = buttonRect.Contains(mousePos);
-
-	// Update hover state
+	if (controllsDisplayFrame < 120)
+	{
+		isHovered = true;
+	}
+	// isHovered = true;
+	//  Update hover state
 	static bool menuOpen = false;
 	if (isHovered)
 	{
@@ -444,8 +446,13 @@ void Ned::renderTopLeftMenu()
 		{
 			// Set window size and force bottom-right rounding
 			ImGui::SetWindowSize(ImVec2(120, 40));
+			if (controllsDisplayFrame < 120)
+			{
+				isHovered = true;
+				ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+			}
 
-			// Manual background draw
+			//  Manual background draw
 			ImDrawList *bg_draw_list = ImGui::GetWindowDrawList();
 			ImVec2 p_min = ImGui::GetWindowPos();
 			ImVec2 p_max = ImVec2(p_min.x + 120, p_min.y + 40);

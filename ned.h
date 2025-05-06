@@ -129,7 +129,7 @@ class Ned
 
 	void renderTopLeftMenu();
 	bool menuHovered = false;
-
+	int controllsDisplayFrame = 0;
 	bool isDraggingWindow = false;
 	ImVec2 dragStartMousePos;
 	ImVec2 dragStartWindowPos;

@@ -168,7 +168,25 @@ vec3 applyColorShift(vec3 baseColor, float time) {
         baseColor.b - shift
     );
 }
+/*
+old color shift
+vec3 applyColorShift(vec2 uv, float time) {
+    float baseShiftAmount = 0.001;
+    float shiftAmount = baseShiftAmount * u_colorshift_intensity;
+    float shiftSpeed = 0.5;
+    float shift = sin(time * shiftSpeed) * shiftAmount;
 
+    vec3 color;
+    color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
+    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;
+    color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
+    return color;
+}
+
+
+
+
+*/
 vec3 pixelate(vec2 uv) {
     // Fixed grid size of 250 cells
     vec2 cellSizeUV = vec2(1.0) / vec2(u_pixel_width);
