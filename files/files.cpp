@@ -12,17 +12,22 @@
 
 #include "../editor/editor_highlight.h"
 #include "../editor/editor_line_jump.h"
+#include "../lib/json.hpp"
 #include "../util/close_popper.h"
 #include "../util/icon_definitions.h"
 #include "../util/settings.h"
 #include "files.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
+#include <fstream>
+using json = nlohmann::json;
 
 #define NANOSVG_IMPLEMENTATION
 #include "lib/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
+
+const std::string UNDO_FILE = ".undo-redo-ned.json";
 
 FileExplorer gFileExplorer;
 
@@ -134,6 +139,7 @@ void FileExplorer::openFolderDialog()
 		free(outPath);
 		_showFileDialog = false;
 		showWelcomeScreen = false;
+		loadUndoRedoState();
 	} else if (result == NFD_CANCEL)
 	{
 		std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
@@ -325,6 +331,7 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
 									 changeStart,
 									 changeEnd,
 									 editor_state.cursor_index);
+		saveUndoRedoState();
 	}
 }
 void FileExplorer::renderFileContent()
@@ -402,6 +409,7 @@ void FileExplorer::handleUndo()
 	{
 		auto state = currentUndoManager->undo(editor_state.fileContent);
 		applyContentChange(state);
+		saveUndoRedoState();
 	}
 }
 
@@ -411,6 +419,58 @@ void FileExplorer::handleRedo()
 	{
 		auto state = currentUndoManager->redo(editor_state.fileContent);
 		applyContentChange(state, true);
+		saveUndoRedoState();
+	}
+}
+
+// In files.cpp
+void FileExplorer::saveUndoRedoState()
+{
+	if (selectedFolder.empty())
+	{
+		std::cerr << "Cannot save undo state - no project folder selected\n";
+		return;
+	}
+
+	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
+
+	json root;
+	for (const auto &[path, manager] : fileUndoManagers)
+	{
+		root["files"][path] = manager.toJson();
+	}
+
+	std::ofstream file(undoPath);
+	if (file)
+	{
+		file << root.dump(4);
+	} else
+	{
+		std::cerr << "Failed to save undo/redo state to " << undoPath << "\n";
+	}
+}
+
+void FileExplorer::loadUndoRedoState()
+{
+	if (selectedFolder.empty())
+		return;
+
+	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
+	std::ifstream file(undoPath);
+	if (!file)
+		return;
+
+	try
+	{
+		json root;
+		file >> root;
+		for (auto &[key, value] : root["files"].items())
+		{
+			fileUndoManagers[key].fromJson(value);
+		}
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error loading undo/redo state: " << e.what() << "\n";
 	}
 }
 

@@ -5,12 +5,13 @@
 */
 
 #pragma once
+#include "../lib/json.hpp"
 #include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <string>
 #include <vector>
-
+using json = nlohmann::json;
 class UndoRedoManager
 {
 
@@ -22,6 +23,54 @@ class UndoRedoManager
 		int changeEnd;
 		int cursor_index;
 	};
+
+	json toJson() const
+	{
+		json j;
+		j["maxStackSize"] = maxStackSize;
+		j["undoStack"] = json::array();
+		j["redoStack"] = json::array();
+
+		for (const auto &state : undoStack)
+		{
+			j["undoStack"].push_back({{"content", state.content},
+									  {"changeStart", state.changeStart},
+									  {"changeEnd", state.changeEnd},
+									  {"cursor_index", state.cursor_index}});
+		}
+
+		for (const auto &state : redoStack)
+		{
+			j["redoStack"].push_back({{"content", state.content},
+									  {"changeStart", state.changeStart},
+									  {"changeEnd", state.changeEnd},
+									  {"cursor_index", state.cursor_index}});
+		}
+		return j;
+	}
+
+	void fromJson(const json &j)
+	{
+		maxStackSize = j.value("maxStackSize", 100);
+		undoStack.clear();
+		redoStack.clear();
+
+		for (const auto &item : j["undoStack"])
+		{
+			undoStack.push_back({item["content"].get<std::string>(),
+								 item["changeStart"].get<int>(),
+								 item["changeEnd"].get<int>(),
+								 item["cursor_index"].get<int>()});
+		}
+
+		for (const auto &item : j["redoStack"])
+		{
+			redoStack.push_back({item["content"].get<std::string>(),
+								 item["changeStart"].get<int>(),
+								 item["changeEnd"].get<int>(),
+								 item["cursor_index"].get<int>()});
+		}
+	}
 
 	void addState(const std::string &state, int changeStart, int changeEnd, int cursor_index)
 	{

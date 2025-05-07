@@ -64,4 +64,3 @@ TODO:
  - Add more lexers, the JSX lexer need to be fixed, next to add: GO,Java, and C#
  - fix many bugs...
 
-
