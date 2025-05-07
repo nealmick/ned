@@ -44,6 +44,8 @@ class FileExplorer
 	void handleUndo();
 	void handleRedo();
 	void addUndoState(int changeStart, int changeEnd);
+	void saveUndoRedoState();
+	void loadUndoRedoState();
 
 	// UI functions
 	void openFolderDialog();
