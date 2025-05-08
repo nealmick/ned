@@ -19,7 +19,6 @@ class EditorSelection
 
 	// Core selection operations
 	void startSelection();
-	void updateSelection();
 	void endSelection();
 
 	// Selection utilities
@@ -28,10 +27,6 @@ class EditorSelection
 
 	// Special selection operations
 	void selectAllText(const std::string &text);
-
-	// Selection status checks
-	bool hasSelection();
-	int getSelectionLength();
 };
 
 // Global instance

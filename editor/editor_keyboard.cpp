@@ -74,6 +74,31 @@ void EditorKeyboard::handleCharacterInput()
 									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		editor_state.cursor_index += input.size();
 
+		std::vector<int> sorted_multi_cursor_indices;
+		sorted_multi_cursor_indices = editor_state.multi_cursor_indices;
+		std::sort(sorted_multi_cursor_indices.begin(), sorted_multi_cursor_indices.end());
+		for (size_t i = 0; i < sorted_multi_cursor_indices.size(); ++i)
+		{
+			int cursor_val = sorted_multi_cursor_indices[i];
+			// std::cout << "Index in sorted_multi_cursor_indices: " << i << ", Value: " <<
+			// cursor_val << std::endl;
+			editor_state.fileContent.insert(cursor_val + 1, input);
+			editor_state.fileColors.insert(editor_state.fileColors.begin() + cursor_val + 1,
+										   input.size(),
+										   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+			if (editor_state.cursor_index > cursor_val)
+			{
+				editor_state.cursor_index += input.size();
+			}
+			sorted_multi_cursor_indices[i] += input.size();
+			for (size_t j = i; j < sorted_multi_cursor_indices.size(); ++j)
+			{
+				sorted_multi_cursor_indices[j] += input.size();
+			}
+		}
+
+		editor_state.multi_cursor_indices = sorted_multi_cursor_indices;
+
 		// Reset selection state
 		editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 		editor_state.selection_active = false;
