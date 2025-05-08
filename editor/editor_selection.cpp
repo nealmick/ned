@@ -18,14 +18,6 @@ void EditorSelection::startSelection()
 	editor_state.selection_end = editor_state.cursor_index;
 }
 
-void EditorSelection::updateSelection()
-{
-	if (editor_state.selection_active)
-	{
-		editor_state.selection_end = editor_state.cursor_index;
-	}
-}
-
 void EditorSelection::endSelection() { editor_state.selection_active = false; }
 
 int EditorSelection::getSelectionStart()
@@ -47,11 +39,3 @@ void EditorSelection::selectAllText(const std::string &text)
 	editor_state.selection_end = editor_state.cursor_index;
 	editor_state.full_text_selected = true;
 }
-
-bool EditorSelection::hasSelection()
-{
-	return editor_state.selection_active &&
-		   (editor_state.selection_start != editor_state.selection_end);
-}
-
-int EditorSelection::getSelectionLength() { return getSelectionEnd() - getSelectionStart(); }

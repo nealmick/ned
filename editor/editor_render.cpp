@@ -197,6 +197,19 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 
 	bool is_selected = (static_cast<int>(char_index) >= selection_start &&
 						static_cast<int>(char_index) < selection_end);
+	if (!is_selected && editor_state.selection_active && !editor_state.multi_selections.empty())
+	{
+		for (const auto &multi_sel : editor_state.multi_selections)
+		{
+			if (static_cast<int>(char_index) >=
+					std::min(multi_sel.start_index, multi_sel.end_index) &&
+				static_cast<int>(char_index) < std::max(multi_sel.start_index, multi_sel.end_index))
+			{
+				is_selected = true;
+				break;
+			}
+		}
+	}
 	if (is_selected)
 	{
 		ImVec2 sel_start_pos = current_draw_pos;
