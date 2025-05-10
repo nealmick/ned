@@ -58,9 +58,6 @@ xattr -dr com.apple.quarantine Ned.app
 Contributions are welcome! 
 
 TODO:
- - Multi-cursor:  add keybind to create cursor at end of all find selection
  - Selection keybinds: currently cmd-a selects full file, but cmd-shift-a would be nice to select current indentation or current {} [] () "" '' `` blocks...
- - Jump to function definition with cmd click.
- - Add more lexers, the JSX lexer need to be fixed, next to add: GO,Java, and C#
- - fix many bugs...
+ - fix bugs...
 
