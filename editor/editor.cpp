@@ -51,6 +51,7 @@ void Editor::textEditor()
 	processEditorInput();
 
 	gEditorRender.renderEditorFrame();
+	/*
 	std::cout << "---- Multi-Selection Ranges (After Movement) ----" << std::endl;
 	for (size_t i = 0; i < editor_state.multi_selections.size(); ++i)
 	{
@@ -69,7 +70,7 @@ void Editor::textEditor()
 		}
 	}
 	std::cout << "--------------------------------------------------" << std::endl;
-	;
+	*/
 }
 
 void Editor::setupEditorDisplay()
