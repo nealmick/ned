@@ -1008,3 +1008,25 @@ void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensu
 	ensure_cursor_visible.horizontal = true;
 	ensure_cursor_visible.vertical = true;
 }
+
+int EditorCursor::CalculateVisualColumnForPosition(int position,
+												   const std::string &content,
+												   const std::vector<int> &content_lines)
+{
+	const int TAB_WIDTH = 4;
+	int visual_column = 0;
+	int current_line = EditorUtils::GetLineFromPosition(content_lines, position);
+	int line_start = content_lines[current_line];
+
+	for (int i = line_start; i < position && i < content.length(); i++)
+	{
+		if (content[i] == '\t')
+		{
+			visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
+		} else
+		{
+			visual_column++;
+		}
+	}
+	return visual_column;
+}
