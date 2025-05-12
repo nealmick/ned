@@ -11,11 +11,121 @@
 EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
+void EditorCursor::spawnCursorAbove()
+{
+
+	// Store original cursor state
+	const int original_cursor = editor_state.cursor_index;
+	int original_visual_column = editor_state.cursor_column_prefered;
+
+	// Calculate original visual column if not set
+	if (original_visual_column == -1)
+	{
+		calculateVisualColumn();
+		original_visual_column = editor_state.cursor_column_prefered;
+	}
+
+	// Find current line
+	int current_line = -1;
+	for (int i = 0; i < editor_state.editor_content_lines.size(); i++)
+	{
+		const int line_end = (i + 1 < editor_state.editor_content_lines.size())
+								 ? editor_state.editor_content_lines[i + 1] - 1
+								 : editor_state.fileContent.size();
+
+		if (editor_state.editor_content_lines[i] <= original_cursor && original_cursor <= line_end)
+		{
+			current_line = i;
+			break;
+		}
+	}
+
+	if (current_line == -1 || current_line == 0)
+		return;
+
+	// Calculate new cursor position
+	const int target_line = current_line - 1;
+	const int target_start = editor_state.editor_content_lines[target_line];
+	const int target_end = (target_line + 1 < editor_state.editor_content_lines.size())
+							   ? editor_state.editor_content_lines[target_line + 1] - 1
+							   : editor_state.fileContent.size();
+
+	// Find position in target line using visual column
+	editor_state.cursor_index = target_start;
+	editor_state.cursor_column_prefered = original_visual_column;
+	findPositionFromVisualColumn(target_start, target_end);
+	int new_cursor = std::clamp(editor_state.cursor_index, target_start, target_end);
+
+	// Swap positions: move main cursor up, keep original as multi-cursor
+	editor_state.multi_cursor_indices.push_back(original_cursor);
+	editor_state.multi_cursor_prefered_columns.push_back(original_visual_column);
+
+	// Update main cursor to new position
+	editor_state.cursor_index = new_cursor;
+	calculateVisualColumn(); // Update preferred column for new position
+}
+void EditorCursor::spawnCursorBelow()
+{
+
+	// Store original cursor state
+	const int original_cursor = editor_state.cursor_index;
+	int original_visual_column = editor_state.cursor_column_prefered;
+
+	// Calculate original visual column if not set
+	if (original_visual_column == -1)
+	{
+		calculateVisualColumn();
+		original_visual_column = editor_state.cursor_column_prefered;
+	}
+
+	// Find current line
+	int current_line = -1;
+	for (int i = 0; i < editor_state.editor_content_lines.size(); i++)
+	{
+		const int line_end = (i + 1 < editor_state.editor_content_lines.size())
+								 ? editor_state.editor_content_lines[i + 1] - 1
+								 : editor_state.fileContent.size();
+
+		if (editor_state.editor_content_lines[i] <= original_cursor && original_cursor <= line_end)
+		{
+			current_line = i;
+			break;
+		}
+	}
+
+	if (current_line == -1 || current_line >= editor_state.editor_content_lines.size() - 1)
+	{
+		std::cout << "can't spawn below last line\n";
+		return;
+	}
+
+	// Calculate new cursor position
+	const int target_line = current_line + 1;
+	const int target_start = editor_state.editor_content_lines[target_line];
+	const int target_end = (target_line + 1 < editor_state.editor_content_lines.size())
+							   ? editor_state.editor_content_lines[target_line + 1] - 1
+							   : editor_state.fileContent.size();
+
+	// Find position in target line using visual column
+	editor_state.cursor_index = target_start;
+	editor_state.cursor_column_prefered = original_visual_column;
+	findPositionFromVisualColumn(target_start, target_end);
+	int new_cursor = std::clamp(editor_state.cursor_index, target_start, target_end);
+
+	// Swap positions: move main cursor down, keep original as multi-cursor
+	editor_state.multi_cursor_indices.push_back(original_cursor);
+	editor_state.multi_cursor_prefered_columns.push_back(original_visual_column);
+
+	// Update main cursor to new position
+	editor_state.cursor_index = new_cursor;
+	calculateVisualColumn(); // Update preferred column for new position
+}
 void EditorCursor::renderCursor()
 {
 	ImDrawList *draw_list = ImGui::GetWindowDrawList();
 	const float cursor_thickness = 2.0f;
 	bool rainbow_mode = gSettings.getRainbowMode();
+	bool has_multiple = !editor_state.multi_cursor_indices.empty();
 
 	// Render main cursor first
 	if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
@@ -32,14 +142,23 @@ void EditorCursor::renderCursor()
 		ImVec2 main_cursor_end(main_cursor_start.x,
 							   main_cursor_start.y + editor_state.line_height - 1);
 
-		// Main cursor color calculations
+		// Color calculations
 		float blink_alpha = (sinf(editor_state.cursor_blink_time * 4.0f) + 1.0f) * 0.5f;
-		ImU32 main_cursor_color =
-			rainbow_mode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor())
-						 : IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
+
+		// Main cursor color (red if multiple, else normal)
+		ImU32 main_color =
+			has_multiple
+				? IM_COL32(255, 0, 0, 255) // Solid red
+				: (rainbow_mode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor())
+								: IM_COL32(255, 255, 255, (int)(blink_alpha * 255)));
+
+		// Multi-cursor color (always rainbow or white based on setting)
+		ImU32 multi_color = rainbow_mode
+								? ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor())
+								: IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
 
 		// Draw main cursor
-		draw_list->AddLine(main_cursor_start, main_cursor_end, main_cursor_color, cursor_thickness);
+		draw_list->AddLine(main_cursor_start, main_cursor_end, main_color, cursor_thickness);
 
 		// Render multi-cursors
 		for (int cursor_idx : editor_state.multi_cursor_indices)
@@ -53,7 +172,7 @@ void EditorCursor::renderCursor()
 			cursor_start.y += cursor_line * editor_state.line_height;
 			ImVec2 cursor_end(cursor_start.x, cursor_start.y + editor_state.line_height - 1);
 
-			draw_list->AddLine(cursor_start, cursor_end, main_cursor_color, cursor_thickness);
+			draw_list->AddLine(cursor_start, cursor_end, multi_color, cursor_thickness);
 		}
 	}
 }

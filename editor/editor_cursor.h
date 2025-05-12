@@ -58,6 +58,8 @@ class EditorCursor
 
 	void renderCursor();
 	void swapLines(int direction);
+	void spawnCursorBelow();
+	void spawnCursorAbove();
 
   private:
 	void calculateVisualColumn();

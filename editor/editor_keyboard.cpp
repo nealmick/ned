@@ -877,7 +877,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	}
 
 	// Process bookmarks first
-	if (ImGui::GetIO().KeyAlt)
+	if (ImGui::GetIO().KeyAlt && !ImGui::GetIO().KeyCtrl)
 	{
 		if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
 		{
@@ -888,6 +888,22 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		{
 			gEditorCursor.swapLines(1);
 			return; // Prevent other Alt+Down handling
+		}
+		gEditorCursor.processWordMovement(editor_state.fileContent,
+										  editor_state.ensure_cursor_visible);
+	}
+	// Process bookmarks first
+	if (ImGui::GetIO().KeyAlt && ImGui::GetIO().KeyCtrl)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+		{
+			gEditorCursor.spawnCursorAbove();
+			return;
+		}
+		if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+		{
+			gEditorCursor.spawnCursorBelow();
+			return;
 		}
 		gEditorCursor.processWordMovement(editor_state.fileContent,
 										  editor_state.ensure_cursor_visible);
