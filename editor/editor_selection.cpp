@@ -11,25 +11,6 @@
 // Global instance
 EditorSelection gEditorSelection;
 
-void EditorSelection::startSelection()
-{
-	editor_state.selection_active = true;
-	editor_state.selection_start = editor_state.cursor_index;
-	editor_state.selection_end = editor_state.cursor_index;
-}
-
-void EditorSelection::endSelection() { editor_state.selection_active = false; }
-
-int EditorSelection::getSelectionStart()
-{
-	return std::min(editor_state.selection_start, editor_state.selection_end);
-}
-
-int EditorSelection::getSelectionEnd()
-{
-	return std::max(editor_state.selection_start, editor_state.selection_end);
-}
-
 void EditorSelection::selectAllText(const std::string &text)
 {
 	const size_t MAX_SELECTION_SIZE = 100000; // Limit for very large files

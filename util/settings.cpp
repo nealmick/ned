@@ -654,6 +654,7 @@ void Settings::renderSettingsWindow()
 	}
 
 	ImGui::Spacing();
+	/*
 	static float tempPixelWidth = settings["pixel_width"].get<float>();
 	if (ImGui::SliderFloat(
 			"Pixel Width", &tempPixelWidth, 250.0f, 5000.0f, "%1f", ImGuiSliderFlags_AlwaysClamp))
@@ -667,8 +668,9 @@ void Settings::renderSettingsWindow()
 	}
 
 	ImGui::Spacing();
+	*/
 	static float tempPixelelation = settings["pixelation_intensity"].get<float>();
-	if (ImGui::SliderFloat("Pixelation Intensity",
+	if (ImGui::SliderFloat("Pixelation Lines",
 						   &tempPixelelation,
 						   -1.00f,
 						   1.00f,

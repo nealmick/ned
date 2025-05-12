@@ -790,8 +790,8 @@ void EditorKeyboard::handleTextInput()
 	if (editor_state.selection_start != editor_state.selection_end &&
 		ImGui::IsKeyPressed(ImGuiKey_Enter))
 	{
-		int start = gEditorSelection.getSelectionStart();
-		int end = gEditorSelection.getSelectionEnd();
+		int start = editor_state.selection_start;
+		int end = editor_state.selection_end;
 		editor_state.fileContent.erase(start, end - start);
 		editor_state.fileColors.erase(editor_state.fileColors.begin() + start,
 									  editor_state.fileColors.begin() + end);
