@@ -195,8 +195,15 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 							   : nullptr;
 	float char_width = ImGui::CalcTextSize(char_start, char_end).x;
 
-	bool is_selected = (static_cast<int>(char_index) >= selection_start &&
-						static_cast<int>(char_index) < selection_end);
+	int s_start = selection_start; // Or editor_state.selection_start
+	int s_end = selection_end;	   // Or editor_state.selection_end
+	int current_char_idx = static_cast<int>(char_index);
+
+	bool is_selected = (s_start <= s_end && // Normal order: start <= end
+						current_char_idx >= s_start && current_char_idx < s_end) ||
+					   (s_start > s_end && // Inverse order: start > end
+						current_char_idx >= s_end && current_char_idx < s_start);
+
 	if (!is_selected && editor_state.selection_active && !editor_state.multi_selections.empty())
 	{
 		for (const auto &multi_sel : editor_state.multi_selections)
@@ -318,8 +325,8 @@ void EditorRender::renderText()
 			// This character is (at least partially) horizontally visible.
 			renderCharacterAndSelection(
 				char_idx_in_file,
-				gEditorSelection.getSelectionStart(),
-				gEditorSelection.getSelectionEnd(),
+				editor_state.selection_start,
+				editor_state.selection_end,
 				current_draw_pos); // This function advances current_draw_pos.x
 
 			if (editor_state.fileContent[char_idx_in_file] == '\n')

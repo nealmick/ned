@@ -125,6 +125,7 @@ void EditorMouse::handleMouseDrag(int char_index)
 		// Normal drag selection without shift: use the initial click as the
 		// anchor.
 		editor_state.selection_active = true;
+
 		if (anchor_pos == -1)
 		{
 			anchor_pos = editor_state.cursor_index;

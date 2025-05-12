@@ -17,14 +17,6 @@ class EditorSelection
 	EditorSelection() = default;
 	~EditorSelection() = default;
 
-	// Core selection operations
-	void startSelection();
-	void endSelection();
-
-	// Selection utilities
-	int getSelectionStart();
-	int getSelectionEnd();
-
 	// Special selection operations
 	void selectAllText(const std::string &text);
 };

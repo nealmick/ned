@@ -5,20 +5,20 @@
         0.324840784072876,
         1.0000001192092896
     ],
-    "bloom_intensity": 0.7400000095367432,
-    "burnin_intensity": 0.9442999958992004,
-    "colorshift_intensity": 1.6299999952316284,
-    "curvature_intensity": 0.0,
+    "bloom_intensity": 0.6800000071525574,
+    "burnin_intensity": 0.9428600072860718,
+    "colorshift_intensity": 0.0,
+    "curvature_intensity": 0.019999999552965164,
     "font": "SourceCodePro-Regular",
     "fontSize": 21.0,
-    "jitter_intensity": 1.2400000095367432,
+    "jitter_intensity": 2.0,
     "pixel_width": 5000.0,
-    "pixelation_intensity": 0.07000000029802322,
+    "pixelation_intensity": 0.10999999940395355,
     "rainbow": true,
-    "scanline_intensity": 0.10999999940395355,
+    "scanline_intensity": 0.12999999523162842,
     "shader_toggle": true,
-    "splitPos": 0.21148459613323212,
-    "static_intensity": 0.0,
+    "splitPos": 0.23280423879623413,
+    "static_intensity": 0.2930000126361847,
     "theme": "default",
     "themes": {
         "default": {
@@ -79,5 +79,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.1599999964237213
+    "vignet_intensity": 0.12999999523162842
 }
