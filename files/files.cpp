@@ -340,10 +340,7 @@ void FileExplorer::renderFileContent()
 
 	gFileContentSearch.handleFindBoxActivation();
 
-	if (editor_state.active_find_box)
-	{
-		gFileContentSearch.renderFindBox();
-	}
+	gFileContentSearch.renderFindBox();
 
 	bool text_changed;
 	renderEditor(text_changed);

@@ -19,6 +19,8 @@ class FileContentSearch
 	void handleFindBoxActivation();
 
 	std::vector<size_t> findAllOccurrences(bool ignoreCase);
+	bool needsInputUnblock;
+	int unblockDelayFrames;
 
   private:
 	// Core members

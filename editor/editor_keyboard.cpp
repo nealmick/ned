@@ -892,6 +892,14 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		gEditorCursor.processWordMovement(editor_state.fileContent,
 										  editor_state.ensure_cursor_visible);
 	}
+	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+	{
+		editor_state.multi_selections.clear();
+		editor_state.multi_cursor_indices.clear();
+		editor_state.selection_active = false;
+		editor_state.selection_end = 0;
+		editor_state.selection_start = 0;
+	}
 	// Process bookmarks first
 	if (ImGui::GetIO().KeyAlt && ImGui::GetIO().KeyCtrl)
 	{

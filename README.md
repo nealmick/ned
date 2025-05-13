@@ -1,20 +1,19 @@
 # A Simple Text Editor
-NED is a lightweight, feature-rich text editor built with C++ and ImGui. It offers syntax highlighting, LSP Support, Project file tree, and a customizable interface.
+NED is a lightweight retro-style text editor with cool shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
 
 
-<img src="https://i.imgur.com/Sb9geeH.png" alt="Ned Logo" width="100%" style="display: block; margin: auto; border-radius: 10px;">
+https://github.com/user-attachments/assets/d4358284-0fd3-41de-8f78-74172c7f3349
 
-#### Noteable Features
-- Text Bookmarks
-- Rainbow mode
-- OpenGL Shaders
-- LSP Adapters
-- Terminal Emulator
-- Resizable panes
-- Custom themes with JSON settings file
-- File Tree Explorer
-- Custom lexers and tokenizers
-- File type icons
+#### Notable Features
+- OpenGL Shaders with retro style effects, burn-in, static noise, pixelation
+- Text Bookmarks make editing multiple files with saved cursors a breeze
+- Rainbow mode cursor to never lose your cursor, and stand out
+- LSP Adapters for easy navigation and advanced language support
+- Terminal Emulator based on suckless st.c ported to C++ with multiplexer support
+- Optional Custom lexers and tokenizers for custom languages and obscure syntax patterns
+- Copilot-like auto complete using open router, choose the latest and best LLM models
+- Multi cursor support, easily find and replace strings with multi selection
+
 
 
 # Build from source
@@ -24,6 +23,7 @@ C++17 compatible compiler
 OpenGL
 GLFW3
 Glew
+Curl
 
 Clone the repository with its submodules:
 ```sh
@@ -55,9 +55,22 @@ xattr -dr com.apple.quarantine Ned.app
 
 ```
 
-Contributions are welcome! 
+# Language Support
 
-TODO:
- - Selection keybinds: currently cmd-a selects full file, but cmd-shift-a would be nice to select current indentation or current {} [] () "" '' `` blocks...
- - fix bugs...
-
+| Language | TreeSitter | LSP      |
+|----------|------------|----------|
+| Python   | ✅         | Pyright  |
+| C++      | ✅         | Clangd   |
+| C        | ✅         | ❌       |
+| C#       | ✅         | ❌       |
+| TypeScript | ✅         | ❌       |
+| JavaScript| ✅         | ❌       |
+| Go       | ✅         | ❌       |
+| Rust     | ✅         | ❌       |
+| Java     | ✅         | ❌       |
+| Kotlin   | ✅         | ❌       |
+| HCL      | ✅         | ❌       |
+| HTML     | ✅         | ❌       |
+| JSON     | ✅         | ❌       |
+| Ruby     | ✅         | ❌       |
+| Shell    | ✅         | ❌       |
