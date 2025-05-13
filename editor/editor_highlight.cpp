@@ -57,7 +57,7 @@ bool EditorHighlight::validateHighlightContentParams()
 	return true;
 }
 
-void EditorHighlight::highlightContent()
+void EditorHighlight::highlightContent(bool fullRehighlight)
 {
 	std::lock_guard<std::mutex> lock(highlight_mutex);
 
@@ -71,9 +71,8 @@ void EditorHighlight::highlightContent()
 
 	{
 		std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
-
 		// Handle large files quickly
-		const size_t LARGE_FILE_THRESHOLD = 100 * 1024;
+		const size_t LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 100;
 		if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD)
 		{
 			editor_state.fileColors.resize(editor_state.fileContent.size(),
@@ -95,74 +94,73 @@ void EditorHighlight::highlightContent()
 	highlightingInProgress = true;
 	cancelHighlightFlag = false;
 
-	highlightFuture =
-		std::async(std::launch::async,
-				   [this, content_copy, colors_copy, currentFile, extension]() mutable {
-					   try
-					   {
-						   if (cancelHighlightFlag.load())
-						   {
-							   highlightingInProgress = false;
-							   return;
-						   }
-						   if (gSettings.getTreesitterMode())
-						   {
-							   // Resize colors_copy to match content_copy size (crucial for new
-							   // files)
-							   colors_copy.resize(content_copy.size(),
-												  TreeSitter::cachedColors.text);
-							   TreeSitter::parse(content_copy, colors_copy, extension);
-						   } else
-						   {
-							   // use custom lexers....
-							   if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
-							   {
-								   cppLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".py")
-							   {
-								   pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".html" || extension == ".cshtml")
-							   {
-								   htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".js" || extension == ".jsx")
-							   {
-								   jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".tsx" || extension == ".ts")
-							   {
-								   tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".java")
-							   {
-								   javaLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".cs")
-							   {
-								   csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else if (extension == ".css")
-							   {
-								   cssLexer.applyHighlighting(content_copy, colors_copy, 0);
-							   } else
-							   {
-								   // Set default color for entire content
-								   std::fill(colors_copy.begin(),
-											 colors_copy.end(),
-											 ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-							   }
-						   }
+	highlightFuture = std::async(
+		std::launch::async,
+		[this, content_copy, colors_copy, currentFile, extension, fullRehighlight]() mutable {
+			try
+			{
+				if (cancelHighlightFlag.load())
+				{
+					highlightingInProgress = false;
+					return;
+				}
+				if (gSettings.getTreesitterMode())
+				{
+					// Resize colors_copy to match content_copy size (crucial for new
+					// files)
+					colors_copy.resize(content_copy.size(), TreeSitter::cachedColors.text);
+					TreeSitter::parse(content_copy, colors_copy, extension, fullRehighlight);
+				} else
+				{
+					// use custom lexers....
+					if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
+					{
+						cppLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".py")
+					{
+						pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".html" || extension == ".cshtml")
+					{
+						htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".js" || extension == ".jsx")
+					{
+						jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".tsx" || extension == ".ts")
+					{
+						tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".java")
+					{
+						javaLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".cs")
+					{
+						csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else if (extension == ".css")
+					{
+						cssLexer.applyHighlighting(content_copy, colors_copy, 0);
+					} else
+					{
+						// Set default color for entire content
+						std::fill(colors_copy.begin(),
+								  colors_copy.end(),
+								  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+					}
+				}
 
-						   // Safely update colors if still valid
-						   std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
+				// Safely update colors if still valid
+				std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
 
-						   if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile &&
-							   content_copy == editor_state.fileContent &&
-							   colors_copy.size() == editor_state.fileColors.size())
-						   {
-							   editor_state.fileColors = colors_copy; // Copy, don't move
-						   }
-					   } catch (const std::exception &e)
-					   {
-						   std::cerr << "Highlighting error: " << e.what() << std::endl;
-					   }
-					   highlightingInProgress = false;
-				   });
+				if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile &&
+					content_copy == editor_state.fileContent &&
+					colors_copy.size() == editor_state.fileColors.size())
+				{
+					editor_state.fileColors = colors_copy; // Copy, don't move
+				}
+			} catch (const std::exception &e)
+			{
+				std::cerr << "Highlighting error: " << e.what() << std::endl;
+			}
+			highlightingInProgress = false;
+		});
 }
 
 void EditorHighlight::setTheme(const std::string &themeName) { loadTheme(themeName); }

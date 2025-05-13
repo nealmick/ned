@@ -49,7 +49,6 @@ bool LSPManager::initialize(const std::string &path)
 
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager:\033[0m No adapter selected to initialize" << std::endl;
 		return false;
 	}
 
@@ -76,9 +75,7 @@ bool LSPManager::selectAdapterForFile(const std::string &filePath)
 	size_t dot_pos = filePath.find_last_of(".");
 	if (dot_pos == std::string::npos)
 	{
-		std::cout << "\033[33mLSP Manager:\033[0m File has no extension, "
-					 "defaulting to no adapter"
-				  << std::endl;
+
 		activeAdapter = NONE;
 		return false;
 	}
@@ -96,9 +93,6 @@ bool LSPManager::selectAdapterForFile(const std::string &filePath)
 		return true;
 	}
 
-	// No appropriate adapter found
-	std::cout << "\033[33mLSP Manager:\033[0m No adapter available for extension: " << ext
-			  << std::endl;
 	activeAdapter = NONE;
 	return false;
 }
@@ -113,7 +107,6 @@ bool LSPManager::sendRequest(const std::string &request)
 		return pyrightAdapter->sendRequest(request);
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager:\033[0m No active adapter to send request" << std::endl;
 		return false;
 	}
 }
@@ -128,7 +121,6 @@ std::string LSPManager::readResponse(int *contentLength)
 		return pyrightAdapter->readResponse(contentLength);
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager:\033[0m No active adapter to read response" << std::endl;
 		return "";
 	}
 }

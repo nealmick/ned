@@ -10,7 +10,7 @@ Ned.dmg
 # LSP specific files
 compile_commands.json
 .cache/
-
+.undo-redo-ned.json
 # macOS system files
 .DS_Store
 .AppleDouble

@@ -25,6 +25,13 @@ struct ScrollAnimationState
 	float current_velocity_x = 0.0f;
 	float current_velocity_y = 0.0f;
 };
+struct MultiSelectionRange
+{
+	int start_index;
+	int end_index;
+
+	MultiSelectionRange(int start = 0, int end = 0) : start_index(start), end_index(end) {}
+};
 struct EditorState
 {
 	// Content of file being edited as string
@@ -45,6 +52,7 @@ struct EditorState
 
 	// Cursor State
 	int cursor_index; // content index of curent cursor
+	std::vector<int> multi_cursor_indices;
 
 	/*
 	 * cursor_column_prefered
@@ -52,13 +60,14 @@ struct EditorState
 	 * It will go to end while returning to preferred column for longer lines.
 	 */
 	int cursor_column_prefered;
+	std::vector<int> multi_cursor_prefered_columns;
 
 	// Selection State
 	int selection_start; // Character index of selection start
 	int selection_end;	 // Character index of selection end
 	bool selection_active;
 	bool full_text_selected;
-
+	std::vector<MultiSelectionRange> multi_selections;
 	/*
 	 * Editor Content Lines
 	 * The first entry (index 0) is always 0, representing the start of the

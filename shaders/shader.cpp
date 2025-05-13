@@ -29,7 +29,6 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	// std::cout << "Attempting to load vertex shader from: " <<
 	// vertexShaderPath << std::endl; std::cout << "Attempting to load fragment
 	// shader from: " << fragmentShaderPath << std::endl;
-	std::cout << "\033[32mShaders:\033[0m  Loading Shaders  " << std::endl;
 
 	// Read vertex shader
 	std::string vertexShaderCode;
@@ -132,8 +131,6 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	// Debug output for uniforms
 	GLint numUniforms = 0;
 	glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &numUniforms);
-	std::cout << "\n🟢 Shader Program: " << vertexShaderPath << " + " << fragmentShaderPath
-			  << "\n🔷 Active Uniforms (" << numUniforms << "):\n";
 
 	for (GLint i = 0; i < numUniforms; i++)
 	{
@@ -145,9 +142,6 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 		glGetActiveUniform(
 			shaderProgram, i, sizeof(uniformName), &length, &size, &type, uniformName);
 		GLint location = glGetUniformLocation(shaderProgram, uniformName);
-
-		std::cout << "  " << i << ": " << uniformName << " (Type: " << type
-				  << ", Location: " << location << ")\n";
 	}
 
 	// Cleanup shaders

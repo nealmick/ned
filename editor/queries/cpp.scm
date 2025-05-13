@@ -213,25 +213,25 @@
   name: (field_identifier) @function)
 
 ;; Namespaces
-(using_declaration (qualified_identifier) @namespace)
+(using_declaration (qualified_identifier) @type)
 
 ;; Identifiers (General Fallback)
 (identifier) @variable
-(field_identifier) @variable.member
+(field_identifier) @function
 
 ;; Constants (Enum members)
 (enumerator (identifier) @constant)
 
 ;; Attributes
-(attribute_specifier) @attribute
-(attribute (identifier) @attribute)
+(attribute_specifier) @function
+(attribute (identifier) @function)
 
 ;; Concepts (C++20)
 (concept_definition name: (identifier) @type)
 
 ;; Qualified Identifiers (Refinement)
 (qualified_identifier
-  scope: (namespace_identifier) @namespace
+  scope: (namespace_identifier) @type
   name: (identifier) @variable)
 (qualified_identifier
   name: (identifier) @variable)

@@ -70,8 +70,6 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
 	// Select the appropriate adapter for this file
 	if (!gLSPManager.selectAdapterForFile(filePath))
 	{
-		std::cout << "\033[31mLSP:\033[0m No LSP adapter available for file: " << filePath
-				  << std::endl;
 		return;
 	}
 
@@ -111,7 +109,7 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
         })";
 
 	gLSPManager.sendRequest(notification);
-	std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;
+	// std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;
 }
 
 void EditorLSP::didChange(const std::string &filePath, int version)
@@ -119,8 +117,6 @@ void EditorLSP::didChange(const std::string &filePath, int version)
 	// Select the appropriate adapter for this file
 	if (!gLSPManager.selectAdapterForFile(filePath))
 	{
-		std::cout << "\033[31mLSP:\033[0m No LSP adapter available for file: " << filePath
-				  << std::endl;
 		return;
 	}
 

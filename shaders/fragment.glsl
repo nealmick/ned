@@ -12,7 +12,9 @@ uniform float u_static_intensity;
 uniform float u_colorshift_intensity;
 uniform float u_jitter_intensity;
 uniform float u_curvature_intensity;
-
+uniform float u_pixelation_intensity;
+uniform float u_pixel_width;
+uniform float u_effects_enabled;
 
 
 // Helper functions
@@ -77,19 +79,7 @@ float generateStatic(vec2 uv, float time) {
     return staticNoise * intensityMod;
 }
 
-// Effect functions
-vec3 applyColorShift(vec2 uv, float time) {
-    float baseShiftAmount = 0.001;
-    float shiftAmount = baseShiftAmount * u_colorshift_intensity;
-    float shiftSpeed = 0.5;
-    float shift = sin(time * shiftSpeed) * shiftAmount;
 
-    vec3 color;
-    color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
-    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;
-    color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
-    return color;
-}
 
 vec3 getBloom(vec2 uv) {
     return sampleBloom(uv, 2.0) * u_bloom_intensity;
@@ -155,22 +145,67 @@ vec2 applyCurvature(vec2 uv, float intensity) {
     // Maintain valid texture coordinates
     return clamp(distorted, 0.001, 0.999);
 }
-// Modified main function with curvature
+
+
+vec3 applyColorShift(vec2 uv, float time) {
+    float baseShiftAmount = 0.001;
+    float shiftAmount = baseShiftAmount * u_colorshift_intensity;
+    float shiftSpeed = 0.5;
+    float shift = sin(time * shiftSpeed) * shiftAmount;
+
+    vec3 color;
+    color.r = texture(screenTexture, uv + vec2(shift * 1.0, 0.0)).r;
+    color.g = texture(screenTexture, uv + vec2(shift * 0.3, 0.0)).g;
+    color.b = texture(screenTexture, uv - vec2(shift * 1.0, 0.0)).b;
+    return color;
+}
+
+
+
+vec3 pixelate(vec2 uv) {
+    // Fixed grid size of 250 cells
+    vec2 cellSizeUV = vec2(1.0) / vec2(u_pixel_width);
+    vec2 cell = floor(uv * u_pixel_width);
+    vec2 centerUV = (cell + 0.5) * cellSizeUV;
+    return texture(screenTexture, centerUV).rgb;
+}
+
+vec3 applyGrid(vec3 color) {
+    // Grid calculations in screen space
+    vec2 cellSize = resolution / 250.0;
+    vec2 gridPos = mod(gl_FragCoord.xy, cellSize);
+    float lineThickness = 1.0;
+    
+    // Draw grid lines using pixelation intensity for opacity
+    if (gridPos.x < lineThickness || gridPos.y < lineThickness) {
+        color = mix(color, vec3(0.0), u_pixelation_intensity);
+    }
+    
+    return color;
+}
+
 void main() {
-    vec2 uv = TexCoords;
-    
-    // Apply curvature first to simulate physical screen shape
-    uv = applyCurvature(uv, u_curvature_intensity);
-    uv = addJitter(uv, time);
-    
-    // [Rest of the pipeline remains the same...]
-    vec3 color = applyColorShift(uv, time);
-    color += getBloom(uv);
-    
-    color *= applyVignette(uv) * calculateScanline(uv, time);
-    color = applyStaticNoise(color, time);
-    color = applyPulse(color, time);
-    
-    FragColor = vec4(color, 1.0);
-    
+    if (u_effects_enabled > 0.5) {
+        vec2 uv = TexCoords;
+
+        // Apply distortions
+        uv = applyCurvature(uv, u_curvature_intensity);
+        uv = addJitter(uv, time);
+
+
+        // Apply pixelation to the color-shifted result
+        vec3 color = pixelate(uv); // Pixelate after color shift (modify if needed)
+        color = applyColorShift(uv, time);
+
+        // Post-processing effects
+        color += getBloom(uv);
+        color *= applyVignette(uv) * calculateScanline(uv, time);
+        color = applyStaticNoise(color, time);
+        color = applyPulse(color, time);
+        color = applyGrid(color);
+
+        FragColor = vec4(color, 1.0);
+    } else {
+        FragColor = texture(screenTexture, TexCoords);
+    }
 }

@@ -23,7 +23,7 @@ namespace fs = std::filesystem;
 class FileExplorer
 {
   public:
-	const size_t MAX_FILE_SIZE = 1 * 1024 * 1024; // 1mb
+	const size_t MAX_FILE_SIZE = 1 * 1024 * 1024 * 1; // 1mb
 
 	UndoRedoManager *currentUndoManager = nullptr;
 	std::map<std::string, UndoRedoManager> fileUndoManagers;
@@ -44,6 +44,8 @@ class FileExplorer
 	void handleUndo();
 	void handleRedo();
 	void addUndoState(int changeStart, int changeEnd);
+	void saveUndoRedoState();
+	void loadUndoRedoState();
 
 	// UI functions
 	void openFolderDialog();
@@ -146,7 +148,7 @@ class FileExplorer
 
 	// Undo/Redo helpers
 	void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
-	void adjustColorBuffer(int changeStart, int lengthDiff);
+	void resetColorBuffer();
 
 	// Find box helpers
 	void renderEditor(bool &text_changed);

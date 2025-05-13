@@ -2,10 +2,14 @@
 File: ned.cpp
 Description: Main application class implementation for NED text editor.
 */
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "imgui_internal.h"
+// ned.cpp
+#ifdef __APPLE__
+#include "macos_window.h"
+#endif
 
 #include "../ai/ai_tab.h"
 #include "ned.h"
@@ -64,7 +68,6 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
-
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -72,16 +75,116 @@ bool Ned::initialize()
 		return false;
 	}
 
-	// Set up the scroll callback for smooth scrolling
-	glfwSetWindowUserPointer(window, this);
+#ifdef __APPLE__
+	// Now properly declared via macos_window.h
+	configureMacOSWindow(window);
+#endif
 
+	// Rest of initialization...
+	glfwSetWindowUserPointer(window, this);
 	initializeImGui();
 	initializeResources();
-
 	quad.initialize();
 	initialized = true;
-
 	return true;
+}
+void Ned::renderResizeHandles()
+{
+	const float resizeBorder = 10.0f;
+	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
+	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
+
+	// Right edge
+
+	ImGui::PushID("resize_right");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
+	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y));
+	bool hoverRight = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Bottom edge
+	ImGui::PushID("resize_bottom");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
+	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder));
+	bool hoverBottom = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Corner
+	ImGui::PushID("resize_corner");
+	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder,
+									 windowPos.y + windowSize.y - resizeBorder));
+	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder));
+	bool hoverCorner = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// Update cursors based on hover state first
+	if (hoverCorner || resizingCorner)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNWSE);
+	} else if (hoverRight || resizingRight)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+	} else if (hoverBottom || resizingBottom)
+	{
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+	}
+}
+
+void Ned::handleManualResizing()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	int screenWidth, screenHeight;
+	glfwGetWindowSize(window, &screenWidth, &screenHeight);
+
+	double mouseX, mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+
+	const float resizeBorder = 10.0f;
+	bool hoverRight = mouseX >= (screenWidth - resizeBorder);
+	bool hoverBottom = mouseY >= (screenHeight - resizeBorder);
+	bool hoverCorner = hoverRight && hoverBottom;
+
+	// Handle drag start
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		resizingRight = hoverRight || hoverCorner;
+		resizingBottom = hoverBottom || hoverCorner;
+		resizingCorner = hoverCorner;
+
+		if (resizingRight || resizingBottom || resizingCorner)
+		{
+			dragStart = ImVec2(mouseX, mouseY);
+			initialWindowSize = ImVec2(screenWidth, screenHeight);
+		}
+	}
+
+	// Handle dragging
+	if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+	{
+		if (resizingRight || resizingBottom || resizingCorner)
+		{
+			int newWidth = screenWidth;
+			int newHeight = screenHeight;
+
+			if (resizingRight || resizingCorner)
+				newWidth = initialWindowSize.x + (mouseX - dragStart.x);
+			if (resizingBottom || resizingCorner)
+				newHeight = initialWindowSize.y + (mouseY - dragStart.y);
+
+			newWidth = std::max(newWidth, 100);
+			newHeight = std::max(newHeight, 100);
+
+			glfwSetWindowSize(window, newWidth, newHeight);
+		}
+	}
+
+	// Handle drag end
+	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+	{
+		resizingRight = false;
+		resizingBottom = false;
+		resizingCorner = false;
+	}
 }
 
 bool Ned::initializeGraphics()
@@ -95,11 +198,15 @@ bool Ned::initializeGraphics()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+
 	if (!window)
 	{
 		std::cerr << "Failed to create GLFW window" << std::endl;
@@ -200,8 +307,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	std::string resourcePath = Settings::getAppResourcesPath();
 	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
 	// Always print the path, before existence check
-	std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size "
-			  << fontSize << std::endl;
+	// std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size "
+	//		  << fontSize << std::endl;
 
 	if (!std::filesystem::exists(fontPath))
 	{
@@ -252,10 +359,229 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	ImGui_ImplOpenGL3_DestroyFontsTexture();
 	ImGui_ImplOpenGL3_CreateFontsTexture();
 
-	std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath
-			  << " at size " << fontSize << std::endl;
+	// std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath
+	//		  << " at size " << fontSize << std::endl;
 
 	return font;
+}
+void Ned::handleWindowDragging()
+{
+	if (isDraggingWindow)
+	{
+		if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		{
+			// Get current mouse position in screen coordinates
+			double currentMouseX, currentMouseY;
+			glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
+			int windowX, windowY;
+			glfwGetWindowPos(window, &windowX, &windowY);
+			ImVec2 currentScreenPos(windowX + currentMouseX, windowY + currentMouseY);
+
+			// Calculate delta from initial position
+			ImVec2 delta(currentScreenPos.x - dragStartMousePos.x,
+						 currentScreenPos.y - dragStartMousePos.y);
+
+			// Update window position
+			glfwSetWindowPos(window,
+							 static_cast<int>(dragStartWindowPos.x + delta.x),
+							 static_cast<int>(dragStartWindowPos.y + delta.y));
+		} else
+		{
+			isDraggingWindow = false;
+		}
+	}
+}
+
+void Ned::renderTopLeftMenu()
+{
+	const float padding = 1.0f;
+	const float iconSize = 14.0f;
+	const float spacing = 4.0f;
+	static bool wasMenuOpen = false;
+	static bool closeHovered = false, minimizeHovered = false, maximizeHovered = false;
+	controllsDisplayFrame += 1;
+	// Get absolute screen coordinates
+	ImGuiViewport *viewport = ImGui::GetMainViewport();
+	ImVec2 screenPos = viewport->Pos;
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	// Calculate button position
+	ImVec2 buttonPos = ImVec2(screenPos.x + padding, screenPos.y + padding);
+	ImRect buttonRect(buttonPos, ImVec2(buttonPos.x + 120, buttonPos.y + 40));
+
+	// Draw visible button (transparent hitbox)
+	ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+	draw_list->AddRectFilled(buttonRect.Min, buttonRect.Max, IM_COL32(0, 0, 0, 0));
+
+	// Check hover state manually
+	bool isHovered = buttonRect.Contains(mousePos);
+	if (controllsDisplayFrame < 120)
+	{
+		isHovered = true;
+	}
+	// isHovered = true;
+	//  Update hover state
+	static bool menuOpen = false;
+	if (isHovered)
+	{
+		menuOpen = true;
+		ImGui::SetNextWindowPos(buttonPos);
+	}
+
+	// Show popup when hovered
+	if (menuOpen)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 6));
+		ImGui::PushStyleColor(ImGuiCol_PopupBg, IM_COL32(80, 80, 80, 255));
+
+		// Custom rounding for bottom-right corner only
+		const float rounding = 8.0f;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, rounding);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+		if (ImGui::Begin("TopMenu",
+						 nullptr,
+						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+							 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+		{
+			// Set window size and force bottom-right rounding
+			ImGui::SetWindowSize(ImVec2(120, 40));
+			if (controllsDisplayFrame < 120)
+			{
+				isHovered = true;
+				ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+			}
+
+			//  Manual background draw
+			ImDrawList *bg_draw_list = ImGui::GetWindowDrawList();
+			ImVec2 p_min = ImGui::GetWindowPos();
+			ImVec2 p_max = ImVec2(p_min.x + 120, p_min.y + 40);
+			bg_draw_list->AddRectFilled(p_min,
+										p_max,
+										IM_COL32(80, 80, 80, 255), // Dark grey fill
+										rounding,
+										ImDrawFlags_RoundCornersBottomRight);
+
+			// Add grey border
+			bg_draw_list->AddRect(p_min,
+								  p_max,
+								  IM_COL32(120, 120, 120, 255), // Border color (light grey)
+								  rounding,
+								  ImDrawFlags_RoundCornersBottomRight,
+								  1.0f // Border thickness (1 pixel)
+			);
+
+			// Centered icons group
+			ImGui::SetCursorPosY((ImGui::GetWindowHeight() - iconSize) * 0.5f);
+			ImGui::SetCursorPosX((ImGui::GetWindowWidth() - (iconSize * 3 + spacing * 2)) * 0.35f);
+
+			ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
+
+			// Close button
+			ImTextureID closeIcon =
+				gFileExplorer.getIcon(closeHovered ? "close-mac-hover" : "close-mac");
+			if (ImGui::ImageButton("##Close", closeIcon, ImVec2(iconSize, iconSize)))
+			{
+				glfwSetWindowShouldClose(window, GLFW_TRUE); // Close the window
+				std::cout << "Clicked close icon" << std::endl;
+			}
+			closeHovered = ImGui::IsItemHovered();
+
+			ImGui::SameLine(0, spacing);
+
+			// Minimize button
+			ImTextureID minimizeIcon =
+				gFileExplorer.getIcon(minimizeHovered ? "minimize-mac-hover" : "minimize-mac");
+			if (ImGui::ImageButton("##Min", minimizeIcon, ImVec2(iconSize, iconSize)))
+			{
+				glfwIconifyWindow(window);
+				std::cout << "Clicked minimize icon" << std::endl;
+			}
+			minimizeHovered = ImGui::IsItemHovered();
+
+			ImGui::SameLine(0, spacing);
+
+			// Maximize button
+			ImTextureID maximizeIcon =
+				gFileExplorer.getIcon(maximizeHovered ? "maximize-mac-hover" : "maximize-mac");
+			if (ImGui::ImageButton("##Max", maximizeIcon, ImVec2(iconSize, iconSize)))
+			{
+				static bool isFullscreen = false;
+				static int prevWidth, prevHeight, prevX, prevY;
+
+				if (!isFullscreen)
+				{
+					// Store current window position and size
+					glfwGetWindowPos(window, &prevX, &prevY);
+					glfwGetWindowSize(window, &prevWidth, &prevHeight);
+
+					// Get primary monitor resolution
+					GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+					const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+					// Switch to fullscreen
+					glfwSetWindowMonitor(
+						window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+					isFullscreen = true;
+				} else
+				{
+					// Restore window
+					glfwSetWindowMonitor(
+						window, nullptr, prevX, prevY, prevWidth, prevHeight, GLFW_DONT_CARE);
+					isFullscreen = false;
+				}
+			}
+			maximizeHovered = ImGui::IsItemHovered();
+
+			ImGui::PopStyleColor(3);
+
+			// Close logic
+			if (!ImGui::IsWindowHovered() && !isHovered)
+			{
+				menuOpen = false;
+			}
+
+			// Window dragging logic
+			bool isClicked =
+				ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+			if (isClicked)
+			{
+				std::cout << "Dragging window...." << std::endl;
+				isDraggingWindow = true;
+
+				// Store initial positions
+				double mouseX, mouseY;
+				glfwGetCursorPos(window, &mouseX, &mouseY);
+				int winX, winY;
+				glfwGetWindowPos(window, &winX, &winY);
+				dragStartMousePos = ImVec2(winX + mouseX, winY + mouseY);
+				dragStartWindowPos = ImVec2(winX, winY);
+
+				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+			}
+
+			ImGui::End();
+			wasMenuOpen = true;
+		} else
+		{
+			wasMenuOpen = false;
+		}
+
+		// Cleanup styles
+		ImGui::PopStyleVar(2);
+		ImGui::PopStyleColor();
+		ImGui::PopStyleVar();
+	} else
+	{
+		// Reset hover states when menu closes
+		if (wasMenuOpen)
+		{
+			closeHovered = minimizeHovered = maximizeHovered = false;
+			wasMenuOpen = false;
+		}
+	}
 }
 
 void Ned::run()
@@ -272,6 +598,7 @@ void Ned::run()
 
 		// Handle events and updates
 		handleEvents();
+		handleWindowDragging();
 		double currentTime = glfwGetTime();
 		handleBackgroundUpdates(currentTime);
 
@@ -293,7 +620,6 @@ void Ned::run()
 		handleFrameTiming(frame_start);
 	}
 }
-
 void Ned::handleEvents()
 {
 	// Handle scroll accumulators at the start
@@ -305,8 +631,11 @@ void Ned::handleEvents()
 		scrollYAccumulator = 0.0;
 	}
 
-	// Rest of your existing code...
-	if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
+	// Always poll events if resizing
+	if (resizingRight || resizingBottom || resizingCorner)
+	{
+		glfwPollEvents();
+	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
 	} else
@@ -314,7 +643,6 @@ void Ned::handleEvents()
 		glfwWaitEventsTimeout(0.016);
 	}
 }
-
 void Ned::handleBackgroundUpdates(double currentTime)
 {
 	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
@@ -329,6 +657,7 @@ void Ned::handleBackgroundUpdates(double currentTime)
 		timing.lastFileTreeRefresh = currentTime;
 	}
 }
+
 void Ned::handleFramebuffer(int width, int height)
 {
 	auto initFB = [](FramebufferState &fb, int w, int h) {
@@ -396,6 +725,7 @@ void Ned::handleFramebuffer(int width, int height)
 		std::cerr << "🔴 Accumulation buffer 0 incomplete!" << std::endl;
 	}
 };
+
 void Ned::setupImGuiFrame()
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -497,6 +827,109 @@ void Ned::renderFileExplorer(float explorerWidth)
 	ImGui::PopStyleVar(2);
 }
 
+std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFont *font)
+{
+	if (path.empty())
+	{
+		return "";
+	}
+
+	fs::path p(path);
+	std::string root_part;
+	std::vector<std::string> components;
+
+	// Split into root and components
+	if (p.has_root_path())
+	{
+		root_part = p.root_path().string();
+		// Iterate over components after the root
+		for (auto it = ++p.begin(); it != p.end(); ++it)
+		{
+			if (!it->empty())
+			{
+				components.push_back(it->string());
+			}
+		}
+	} else
+	{
+		for (const auto &part : p)
+		{
+			if (!part.empty())
+			{
+				components.push_back(part.string());
+			}
+		}
+	}
+
+	if (components.empty())
+	{
+		return root_part.empty() ? path : root_part;
+	}
+
+	// Check full path first
+	std::string fullPath =
+		root_part + std::accumulate(components.begin(),
+									components.end(),
+									std::string(),
+									[](const std::string &a, const std::string &b) {
+										return a.empty() ? b : a + "/" + b;
+									});
+	if (ImGui::CalcTextSize(fullPath.c_str()).x <= maxWidth)
+	{
+		return fullPath;
+	}
+
+	// Try removing directories from the front
+	for (size_t start = 0; start < components.size(); ++start)
+	{
+		std::string candidate;
+
+		if (start == 0)
+		{
+			candidate = fullPath;
+		} else
+		{
+			std::string middle =
+				".../" + std::accumulate(components.begin() + start,
+										 components.end(),
+										 std::string(),
+										 [](const std::string &a, const std::string &b) {
+											 return a.empty() ? b : a + "/" + b;
+										 });
+			candidate = root_part + middle;
+		}
+
+		float width = ImGui::CalcTextSize(candidate.c_str()).x;
+		if (width <= maxWidth)
+		{
+			return candidate;
+		}
+	}
+
+	// Only filename left (with root if applicable)
+	std::string filename = root_part + components.back();
+	if (ImGui::CalcTextSize(filename.c_str()).x <= maxWidth)
+	{
+		return filename;
+	}
+
+	// Truncate filename
+	std::string truncated = components.back();
+	int maxLength = truncated.length();
+	while (maxLength > 0)
+	{
+		std::string temp = truncated.substr(0, maxLength) + "...";
+		std::string candidate = root_part + temp;
+		if (ImGui::CalcTextSize(candidate.c_str()).x <= maxWidth)
+		{
+			return candidate;
+		}
+		maxLength--;
+	}
+
+	// Minimum case
+	return root_part + "...";
+}
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
 	ImGui::BeginGroup();
@@ -522,7 +955,17 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
 			ImGui::SameLine();
 		}
-		ImGui::Text("%s", currentFile.c_str());
+
+		// Calculate available width for the text
+		float x_cursor = ImGui::GetCursorPosX();
+		float x_right_group = ImGui::GetWindowWidth();
+		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - 60.0f;
+
+		// Truncate the file path to fit available space
+		std::string truncatedText =
+			truncateFilePath(currentFile, available_width, ImGui::GetFont());
+
+		ImGui::Text("%s", truncatedText.c_str());
 	}
 
 	// Right-aligned status area
@@ -684,7 +1127,11 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 }
 void Ned::renderMainWindow()
 {
+
+	renderTopLeftMenu();
+
 	handleKeyboardShortcuts();
+
 	if (gTerminal.isTerminalVisible())
 	{
 		gTerminal.render();
@@ -704,7 +1151,9 @@ void Ned::renderMainWindow()
 	ImGui::Begin("Main Window",
 				 nullptr,
 				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-					 ImGuiWindowFlags_NoResize);
+					 ImGuiWindowFlags_NoResize |
+					 ImGuiWindowFlags_NoScrollWithMouse | // Prevent window from scrolling
+					 ImGuiWindowFlags_NoScrollbar);
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
@@ -726,7 +1175,8 @@ void Ned::renderMainWindow()
 		editorWidth = availableWidth;
 		renderEditor(currentFont, editorWidth);
 	}
-
+	renderResizeHandles();
+	handleManualResizing();
 	ImGui::End();
 	ImGui::PopFont();
 }
@@ -747,38 +1197,13 @@ void Ned::renderFrame()
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	// [STEP 2] Handle final output
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
+	renderWithShader(display_w, display_h, glfwGetTime());
 
-	if (shader_toggle)
-	{
-		renderWithShader(display_w, display_h, glfwGetTime());
-	} else
-	{
-		// Reset accumulation buffers to prevent lingering trails
-		accum.accum[0].initialized = false;
-		accum.accum[1].initialized = false;
-
-		// Directly render the original framebuffer
-		crtShader.useShader(); // Use CRT shader with disabled effects
-		crtShader.setFloat("u_scanline_intensity", 0.0f);
-		crtShader.setFloat("u_vignet_intensity", 0.0f);
-		crtShader.setFloat("u_bloom_intensity", 0.0f);
-		crtShader.setFloat("u_static_intensity", 0.0f);
-		crtShader.setFloat("u_colorshift_intensity", 0.0f);
-		crtShader.setFloat("u_jitter_intensity", 0.0f);
-		crtShader.setFloat("u_curvature_intensity", 0.0f);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-		glBindVertexArray(quad.VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-	}
-
-	// [STEP 3] Swap buffers
 	glfwSwapBuffers(window);
 }
+
 void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())
@@ -832,7 +1257,14 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 	crtShader.useShader();
 
 	// Set CRT shader uniforms
-	crtShader.setInt("screenTexture", 0); // This was missing!
+	crtShader.setInt("screenTexture", 0);
+	if (shader_toggle)
+	{
+		crtShader.setFloat("u_effects_enabled", 1.0f);
+	} else
+	{
+		crtShader.setFloat("u_effects_enabled", 0.0f);
+	}
 	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
 	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
 	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
@@ -842,7 +1274,9 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 					   gSettings.getSettings()["jitter_intensity"].get<float>());
 	crtShader.setFloat("u_curvature_intensity",
 					   gSettings.getSettings()["curvature_intensity"].get<float>());
-
+	crtShader.setFloat("u_pixelation_intensity",
+					   gSettings.getSettings()["pixelation_intensity"].get<float>());
+	crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
 	// Set time and resolution uniforms
 	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
 	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
@@ -870,13 +1304,17 @@ void Ned::handleSettingsChanges()
 	if (gSettings.hasSettingsChanged())
 	{
 		ImGuiStyle &style = ImGui::GetStyle();
+
+		// Add this line to re-apply all style settings:
+		ApplySettings(style); // <-- This is the critical fix
+
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][1].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][3].get<float>());
 
-		// Update shader toggle here:
+		// Rest of existing code...
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
 		if (gSettings.hasThemeChanged())
@@ -895,7 +1333,6 @@ void Ned::handleSettingsChanges()
 		gSettings.resetSettingsChanged();
 	}
 }
-
 void Ned::handleFontReload()
 {
 	if (needFontReload)
@@ -941,7 +1378,6 @@ void Ned::cleanup()
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
-
 void ApplySettings(ImGuiStyle &style)
 {
 	// Set the window background color from settings.
@@ -966,12 +1402,12 @@ void ApplySettings(ImGuiStyle &style)
 
 	// Hide scrollbars by setting their alpha to 0.
 	style.ScrollbarSize = 30.0f;
-	style.ScaleAllSizes(1.0f);
+	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
 	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
 	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
 
 	// Set the global font scale.
-	ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+	// ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }
