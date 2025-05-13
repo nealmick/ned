@@ -159,6 +159,15 @@ void FileContentSearch::handleFindBoxActivation()
 
 void FileContentSearch::renderFindBox()
 {
+	if (needsInputUnblock)
+	{
+		if (--unblockDelayFrames <= 0)
+		{
+			editor_state.block_input = false;
+			needsInputUnblock = false;
+		}
+	}
+
 	// Only render if the find box is active.
 	if (!editor_state.active_find_box)
 		return;
@@ -279,6 +288,15 @@ void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
 				// Ensure visibility
 				editor_state.ensure_cursor_visible = {true, true};
 				std::cout << "Added " << positions.size() << " cursors\n";
+
+				if (!positions.empty())
+				{
+					// Schedule input unblock
+					needsInputUnblock = true;
+					unblockDelayFrames = 2; // Wait 2 frames
+					editor_state.active_find_box = false;
+					// Keep block_input true for now
+				}
 			}
 		} else if (io.KeyShift)
 		{
