@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../editor/editor.h"
+#include "../editor/editor_cursor.h"
 #include "imgui.h"
 #include <string>
 
@@ -17,7 +18,9 @@ class FileContentSearch
 	void renderFindBox();
 	void handleFindBoxActivation();
 
-	// Getters/Setters
+	std::vector<size_t> findAllOccurrences(bool ignoreCase);
+	bool needsInputUnblock;
+	int unblockDelayFrames;
 
   private:
 	// Core members

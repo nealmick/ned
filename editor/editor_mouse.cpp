@@ -49,6 +49,36 @@ void EditorMouse::handleMouseInput()
 
 void EditorMouse::handleMouseClick(int char_index)
 {
+	bool cmd_pressed = ImGui::GetIO().KeyCtrl;
+	if (cmd_pressed)
+	{
+		// Add to multi-cursor (ensure no duplicates)
+		auto &cursors = editor_state.multi_cursor_indices;
+		auto &pref_cols = editor_state.multi_cursor_prefered_columns;
+		int current_line = gEditor.getLineFromPos(char_index);
+
+		int new_preferred_col = char_index - editor_state.editor_content_lines[current_line];
+
+		if (std::find(cursors.begin(), cursors.end(), char_index) == cursors.end())
+		{
+			cursors.push_back(char_index);
+			pref_cols.push_back(new_preferred_col);
+			editor_state.multi_selections.emplace_back(char_index, char_index);
+		}
+		std::cout << "Multi-cursors: ";
+		for (int idx : cursors)
+			std::cout << idx << " ";
+		std::cout << "\n";
+		editor_state.selection_start = 0;
+		editor_state.selection_end = 0;
+		editor_state.selection_active = false;
+		return;
+	} else
+	{
+		editor_state.multi_cursor_indices.clear();
+		editor_state.multi_cursor_prefered_columns.clear();
+		editor_state.multi_selections.clear();
+	}
 	if (ImGui::GetIO().KeyShift)
 	{
 		// If shift is held and we're not already selecting, set the anchor to
@@ -95,6 +125,7 @@ void EditorMouse::handleMouseDrag(int char_index)
 		// Normal drag selection without shift: use the initial click as the
 		// anchor.
 		editor_state.selection_active = true;
+
 		if (anchor_pos == -1)
 		{
 			anchor_pos = editor_state.cursor_index;

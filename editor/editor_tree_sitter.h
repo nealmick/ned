@@ -26,7 +26,8 @@ class TreeSitter
   public:
 	static void parse(const std::string &fileContent,
 					  std::vector<ImVec4> &fileColors,
-					  const std::string &extension);
+					  const std::string &extension,
+					  bool fullRehighlight = false);
 
 	static void updateThemeColors();
 	static void refreshColors() { colorsNeedUpdate = true; };
@@ -66,4 +67,8 @@ class TreeSitter
 										 size_t end);
 	static const TSLanguage *currentLanguage;
 	static std::string currentExtension;
+	static void printAST(TSTree *tree, const std::string &fileContent);
+
+  private:
+	static void printASTNode(TSNode node, const std::string &fileContent, int depth = 0);
 };

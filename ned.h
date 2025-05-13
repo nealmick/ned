@@ -94,6 +94,7 @@ class Ned
 	void renderMainWindow();
 	void renderFileExplorer(float explorerWidth);
 	void renderEditorHeader(ImFont *currentFont);
+	std::string truncateFilePath(const std::string &path, float maxWidth, ImFont *font);
 	void renderSettingsIcon(float iconSize);
 	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
@@ -117,6 +118,23 @@ class Ned
 	};
 
 	AccumulationBuffers accum;
+
+	// custom resizing logic
+	void renderResizeHandles();
+	void handleManualResizing();
+	bool resizingRight = false;
+	bool resizingBottom = false;
+	bool resizingCorner = false;
+	ImVec2 dragStart;
+	ImVec2 initialWindowSize;
+
+	void renderTopLeftMenu();
+	bool menuHovered = false;
+	int controllsDisplayFrame = 0;
+	bool isDraggingWindow = false;
+	ImVec2 dragStartMousePos;
+	ImVec2 dragStartWindowPos;
+	void handleWindowDragging();
 };
 
 // Global scope

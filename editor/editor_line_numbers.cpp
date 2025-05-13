@@ -119,7 +119,7 @@ ImU32 EditorLineNumbers::determineLineNumberColor(int line_index,
 	// Selected line takes precedence
 	if (line_index >= selection_start_line && line_index < selection_end_line && is_selecting)
 	{
-		return SELECTED_LINE_COLOR;
+		return rainbow_color;
 	}
 	// Current line comes next
 	else if (line_index == current_line)

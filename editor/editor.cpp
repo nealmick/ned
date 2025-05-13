@@ -51,8 +51,26 @@ void Editor::textEditor()
 	processEditorInput();
 
 	gEditorRender.renderEditorFrame();
-
-	// std::cout << editor_state.cursor_index << std::endl;
+	/*
+	std::cout << "---- Multi-Selection Ranges (After Movement) ----" << std::endl;
+	for (size_t i = 0; i < editor_state.multi_selections.size(); ++i)
+	{
+		// Ensure we don't go out of bounds if multi_selections wasn't perfectly synced
+		// (though the logic now aims to keep them synced)
+		if (i < editor_state.multi_selections.size())
+		{
+			const auto &selection = editor_state.multi_selections[i];
+			std::cout << "  Cursor " << i << " (idx "
+					  << (i < editor_state.multi_cursor_indices.size()
+							  ? editor_state.multi_cursor_indices[i]
+							  : -1)
+					  << "): "
+					  << "Sel Start = " << selection.start_index
+					  << ", Sel End = " << selection.end_index << std::endl;
+		}
+	}
+	std::cout << "--------------------------------------------------" << std::endl;
+	*/
 }
 
 void Editor::setupEditorDisplay()

@@ -12,17 +12,22 @@
 
 #include "../editor/editor_highlight.h"
 #include "../editor/editor_line_jump.h"
+#include "../lib/json.hpp"
 #include "../util/close_popper.h"
 #include "../util/icon_definitions.h"
 #include "../util/settings.h"
 #include "files.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
+#include <fstream>
+using json = nlohmann::json;
 
 #define NANOSVG_IMPLEMENTATION
 #include "lib/nanosvg.h"
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
+
+const std::string UNDO_FILE = ".undo-redo-ned.json";
 
 FileExplorer gFileExplorer;
 
@@ -134,6 +139,7 @@ void FileExplorer::openFolderDialog()
 		free(outPath);
 		_showFileDialog = false;
 		showWelcomeScreen = false;
+		loadUndoRedoState();
 	} else if (result == NFD_CANCEL)
 	{
 		std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
@@ -146,7 +152,6 @@ void FileExplorer::openFolderDialog()
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
-	std::cout << "Reading file: " << path << std::endl;
 
 	try
 	{
@@ -226,8 +231,6 @@ bool FileExplorer::readFileContent(const std::string &path)
 		}
 
 		editor_state.fileContent = std::move(content);
-		std::cout << "Successfully read file" << (isTruncated ? " (truncated)" : "")
-				  << ", content length: " << editor_state.fileContent.length() << std::endl;
 		return true;
 	} catch (const std::exception &e)
 	{
@@ -265,10 +268,12 @@ void FileExplorer::setupUndoManager(const std::string &path)
 	if (it == fileUndoManagers.end())
 	{
 		it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-		std::cout << "Created new UndoRedoManager for " << path << std::endl;
 	}
 	currentUndoManager = &(it->second);
-	currentUndoManager->addState(editor_state.fileContent, 0, editor_state.fileContent.size());
+	currentUndoManager->addState(editor_state.fileContent,
+								 0,
+								 editor_state.fileContent.size(),
+								 editor_state.cursor_index);
 }
 
 void FileExplorer::handleLoadError()
@@ -283,6 +288,8 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 {
 	saveCurrentFile(); // Save current before loading new
 	editor_state.cursor_index = 0;
+	editor_state.ensure_cursor_visible.horizontal = true;
+	editor_state.ensure_cursor_visible.vertical = true;
 
 	try
 	{
@@ -309,7 +316,6 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 			afterLoadCallback();
 		}
 
-		std::cout << "Loaded file: " << path << std::endl;
 	} catch (const std::exception &e)
 	{
 		std::cerr << "Error loading file: " << e.what() << std::endl;
@@ -321,23 +327,29 @@ void FileExplorer::addUndoState(int changeStart, int changeEnd)
 {
 	if (currentUndoManager)
 	{
-		currentUndoManager->addState(editor_state.fileContent, changeStart, changeEnd);
+		currentUndoManager->addState(editor_state.fileContent,
+									 changeStart,
+									 changeEnd,
+									 editor_state.cursor_index);
+		saveUndoRedoState();
 	}
 }
-
 void FileExplorer::renderFileContent()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
 	gFileContentSearch.handleFindBoxActivation();
 
-	if (editor_state.active_find_box)
-	{
-		gFileContentSearch.renderFindBox();
-	}
+	gFileContentSearch.renderFindBox();
 
 	bool text_changed;
 	renderEditor(text_changed);
+
+	// Process debounced undo states
+	if (currentUndoManager)
+	{
+		currentUndoManager->update();
+	}
 
 	ImGui::PopStyleVar();
 }
@@ -351,51 +363,50 @@ void FileExplorer::renderEditor(bool &text_changed)
 		_unsavedChanges = true;
 	}
 }
-
-void FileExplorer::adjustColorBuffer(int changeStart, int lengthDiff)
+void FileExplorer::resetColorBuffer()
 {
-	if (lengthDiff > 0)
-	{
-		editor_state.fileColors.insert(editor_state.fileColors.begin() + changeStart,
-									   lengthDiff,
-									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-	} else if (lengthDiff < 0)
-	{
-		editor_state.fileColors.erase(editor_state.fileColors.begin() + changeStart,
-									  editor_state.fileColors.begin() + changeStart - lengthDiff);
-	}
-	editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-}
+	// Get the current content size
+	const size_t new_size = editor_state.fileContent.size();
 
+	// Completely clear existing colors
+	// editor_state.fileColors.clear();
+
+	// Resize and fill ALL elements with white
+	editor_state.fileColors.resize(new_size, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+
+	// Alternative: Use assign() for atomic operation
+	// editor_state.fileColors.assign(new_size, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+	std::cout << "Reset " << new_size << " colors to white\n";
+}
 void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
 {
+	gEditorHighlight.cancelHighlighting();
+
 	if (preAllocate)
 	{
+		// Pre-allocate memory to prevent frequent reallocations (unchanged)
 		editor_state.fileContent.reserve(
 			std::max(editor_state.fileContent.capacity(), state.content.length() + 1024 * 1024));
 		editor_state.fileColors.reserve(
 			std::max(editor_state.fileColors.capacity(), state.content.length() + 1024 * 1024));
 	}
 
-	int changeStart =
-		std::min(state.changeStart, static_cast<int>(editor_state.fileContent.length()));
-	int changeEnd = std::min(state.changeEnd, static_cast<int>(editor_state.fileContent.length()));
-
-	int lengthDiff = state.content.length() - editor_state.fileContent.length();
 	editor_state.fileContent = state.content;
+	editor_state.cursor_index = state.cursor_index;
+	resetColorBuffer();
 
-	adjustColorBuffer(changeStart, lengthDiff);
-	gEditorHighlight.highlightContent();
+	gEditorHighlight.highlightContent(true);
 
 	_unsavedChanges = true;
 }
-
 void FileExplorer::handleUndo()
 {
 	if (currentUndoManager)
 	{
 		auto state = currentUndoManager->undo(editor_state.fileContent);
 		applyContentChange(state);
+		saveUndoRedoState();
 	}
 }
 
@@ -404,7 +415,59 @@ void FileExplorer::handleRedo()
 	if (currentUndoManager)
 	{
 		auto state = currentUndoManager->redo(editor_state.fileContent);
-		applyContentChange(state, true); // Pre-allocate memory for redo
+		applyContentChange(state, true);
+		saveUndoRedoState();
+	}
+}
+
+// In files.cpp
+void FileExplorer::saveUndoRedoState()
+{
+	if (selectedFolder.empty())
+	{
+		std::cerr << "Cannot save undo state - no project folder selected\n";
+		return;
+	}
+
+	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
+
+	json root;
+	for (const auto &[path, manager] : fileUndoManagers)
+	{
+		root["files"][path] = manager.toJson();
+	}
+
+	std::ofstream file(undoPath);
+	if (file)
+	{
+		file << root.dump(4);
+	} else
+	{
+		std::cerr << "Failed to save undo/redo state to " << undoPath << "\n";
+	}
+}
+
+void FileExplorer::loadUndoRedoState()
+{
+	if (selectedFolder.empty())
+		return;
+
+	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
+	std::ifstream file(undoPath);
+	if (!file)
+		return;
+
+	try
+	{
+		json root;
+		file >> root;
+		for (auto &[key, value] : root["files"].items())
+		{
+			fileUndoManagers[key].fromJson(value);
+		}
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error loading undo/redo state: " << e.what() << "\n";
 	}
 }
 
@@ -427,8 +490,8 @@ void FileExplorer::saveCurrentFile()
 			file << editor_state.fileContent;
 			file.close();
 			_unsavedChanges = false;
-			std::cout << "File saved: " << currentFile << std::endl;
-			// Track document version - start at 1 and increment on each save
+			// std::cout << "File saved: " << currentFile << std::endl;
+			//  Track document version - start at 1 and increment on each save
 			int &version = _documentVersions[currentFile];
 			version = version == 0 ? 1 : version + 1;
 
@@ -443,6 +506,5 @@ void FileExplorer::saveCurrentFile()
 
 void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 {
-	std::cout << "\033[35mLSP:\033[0m Notifying file open: " << filePath << std::endl;
 	gEditorLSP.didOpen(filePath, editor_state.fileContent);
 }

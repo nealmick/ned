@@ -195,8 +195,28 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 							   : nullptr;
 	float char_width = ImGui::CalcTextSize(char_start, char_end).x;
 
-	bool is_selected = (static_cast<int>(char_index) >= selection_start &&
-						static_cast<int>(char_index) < selection_end);
+	int s_start = selection_start; // Or editor_state.selection_start
+	int s_end = selection_end;	   // Or editor_state.selection_end
+	int current_char_idx = static_cast<int>(char_index);
+
+	bool is_selected = (s_start <= s_end && // Normal order: start <= end
+						current_char_idx >= s_start && current_char_idx < s_end) ||
+					   (s_start > s_end && // Inverse order: start > end
+						current_char_idx >= s_end && current_char_idx < s_start);
+
+	if (!is_selected && editor_state.selection_active && !editor_state.multi_selections.empty())
+	{
+		for (const auto &multi_sel : editor_state.multi_selections)
+		{
+			if (static_cast<int>(char_index) >=
+					std::min(multi_sel.start_index, multi_sel.end_index) &&
+				static_cast<int>(char_index) < std::max(multi_sel.start_index, multi_sel.end_index))
+			{
+				is_selected = true;
+				break;
+			}
+		}
+	}
 	if (is_selected)
 	{
 		ImVec2 sel_start_pos = current_draw_pos;
@@ -236,69 +256,86 @@ bool EditorRender::skipLineIfAboveVisible(size_t &char_index,
 	}
 	return false;
 }
-
 void EditorRender::renderText()
 {
-	ImVec2 base_text_pos = editor_state.text_pos;
-	ImVec2 current_draw_pos = base_text_pos;
+	ImVec2 base_text_pos = editor_state.text_pos; // Base screen position for text area
 
-	int sel_start = gEditorSelection.getSelectionStart();
-	int sel_end = gEditorSelection.getSelectionEnd();
+	const float scroll_x = ImGui::GetScrollX(); // Current horizontal scroll
+	const float scroll_y = ImGui::GetScrollY(); // Current vertical scroll
+	// Use ImGui::GetContentRegionAvail().y for window_height if you are inside a child window
+	// or ImGui::GetWindowHeight() if 'this' is the main editor window.
+	// For a child window like "##editor", ImGui::GetWindowHeight() refers to child window height.
+	const float window_height = ImGui::GetWindowHeight();
+	const float window_width = ImGui::GetWindowWidth();
+	const float line_height = editor_state.line_height;
 
-	float scroll_y = gEditorScroll.getScrollPosition().y;
-	float window_height = ImGui::GetWindowHeight();
-	int start_line = static_cast<int>(scroll_y / editor_state.line_height);
-	int end_line =
-		start_line + static_cast<int>(ceil(window_height / editor_state.line_height)) + 1;
-	start_line = std::max(0, start_line - 1); // Buffer one line above
-
-	size_t cursor_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-														  editor_state.cursor_index);
-
-	int current_line_num = 0;
-
-	for (size_t i = 0; i <= editor_state.fileContent.size(); ++i)
+	if (line_height <= 0.0f || editor_state.editor_content_lines.empty())
 	{
-		bool is_start_of_line = (i == 0 || (i > 0 && editor_state.fileContent[i - 1] == '\n'));
+		return; // Nothing to render or invalid state
+	}
 
-		if (is_start_of_line)
+	// 1. Calculate the range of line numbers that are visible.
+	//    `start_line_idx` is the 0-based index for editor_content_lines.
+	const int VIRTUAL_RENDER_BUFFER_LINES = 2; // Render a few lines above/below viewport
+	int start_line_idx = static_cast<int>(scroll_y / line_height);
+	start_line_idx = std::max(0, start_line_idx - VIRTUAL_RENDER_BUFFER_LINES);
+
+	int end_line_idx = static_cast<int>((scroll_y + window_height) / line_height);
+	end_line_idx = std::min(static_cast<int>(editor_state.editor_content_lines.size() - 1),
+							end_line_idx + VIRTUAL_RENDER_BUFFER_LINES);
+
+	if (start_line_idx > end_line_idx)
+	{
+		return; // No lines in the visible range
+	}
+
+	// Horizontal culling values (for characters on a visible line)
+	const float visible_x_start_cull = scroll_x - 100.0f; // Cull chars starting before this
+	const float visible_x_end_cull =
+		scroll_x + window_width + 100.0f; // Cull chars starting after this
+
+	ImVec2 current_draw_pos; // Will be set for each line
+
+	// 2. Iterate *only* through the visible lines using editor_content_lines.
+	for (int line_num = start_line_idx; line_num <= end_line_idx; ++line_num)
+	{
+		// Determine the character range for the current line_num
+		size_t line_char_start_idx = editor_state.editor_content_lines[line_num];
+		size_t line_char_end_idx; // Exclusive: points to the newline or end of file
+
+		if (static_cast<size_t>(line_num + 1) < editor_state.editor_content_lines.size())
 		{
-			renderLineBackground(
-				current_line_num, start_line, end_line, cursor_line, current_draw_pos);
+			line_char_end_idx = editor_state.editor_content_lines[line_num + 1];
+		} else // This is the last line of the file
+		{
+			line_char_end_idx = editor_state.fileContent.size();
+		}
 
-			if (skipLineIfAboveVisible(i, current_line_num, start_line, current_draw_pos))
+		// Set the drawing position for the start of this line.
+		// The Y position is relative to the top of the document, ImGui handles scrolling it into
+		// view.
+		current_draw_pos.x = base_text_pos.x;
+		current_draw_pos.y = base_text_pos.y + (static_cast<float>(line_num) * line_height);
+
+		// 3. Iterate through characters *of this specific line*.
+		for (size_t char_idx_in_file = line_char_start_idx; char_idx_in_file < line_char_end_idx;
+			 ++char_idx_in_file)
+		{
+
+			// This character is (at least partially) horizontally visible.
+			renderCharacterAndSelection(
+				char_idx_in_file,
+				editor_state.selection_start,
+				editor_state.selection_end,
+				current_draw_pos); // This function advances current_draw_pos.x
+
+			if (editor_state.fileContent[char_idx_in_file] == '\n')
 			{
-				current_line_num++;
-				current_draw_pos.x = base_text_pos.x;
-				current_draw_pos.y += editor_state.line_height;
-				continue; // Let the main loop handle incrementing i past the
-						  // newline
-			}
-
-			if (current_line_num > end_line)
-			{
-				break;
+				break; // Reached end of current line's content (before line_char_end_idx if
+					   // line_char_end_idx pointed to newline itself)
 			}
 		}
-
-		if (i == editor_state.fileContent.size())
-		{
-			break;
-		}
-
-		char current_char = editor_state.fileContent[i];
-
-		if (current_char == '\n')
-		{
-			current_line_num++;
-			current_draw_pos.x = base_text_pos.x;
-			current_draw_pos.y += editor_state.line_height;
-			continue;
-		}
-
-		if (current_line_num >= start_line && current_line_num <= end_line)
-		{
-			renderCharacterAndSelection(i, sel_start, sel_end, current_draw_pos);
-		}
+		// If the line ended without a newline char (e.g., last line of file),
+		// the inner loop completes when char_idx_in_file == line_char_end_idx.
 	}
 }

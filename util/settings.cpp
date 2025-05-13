@@ -50,22 +50,28 @@ std::string Settings::getAppResourcesPath()
 			std::string resourcesPath = p + "/Resources";
 			if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath))
 			{
+				/*
 				std::cout << "[Settings::getAppResourcesPath] Found .app "
 							 "Resources at: "
 						  << resourcesPath << std::endl;
+				*/
 				return resourcesPath;
 			} else
 			{
 				// If no Resources folder, fallback to p
+				/*
 				std::cout << "[Settings::getAppResourcesPath] No /Resources "
 							 "folder at "
 						  << resourcesPath << "; using " << p << std::endl;
+				*/
 				return p;
 			}
 		} else
 		{
+			/*
 			std::cerr << "[Settings::getAppResourcesPath] realpath() failed, "
 						 "using exePath.\n";
+			*/
 			// fallback to single or double dirname calls as well
 			std::string p = exePath;
 			p = dirname((char *)p.c_str());
@@ -76,7 +82,7 @@ std::string Settings::getAppResourcesPath()
 	}
 
 	// Fallback if _NSGetExecutablePath failed
-	std::cerr << "[Settings::getAppResourcesPath] _NSGetExecutablePath failed.\n";
+	// std::cerr << "[Settings::getAppResourcesPath] _NSGetExecutablePath failed.\n";
 	return ".";
 }
 
@@ -176,6 +182,14 @@ void Settings::loadSettings()
 	if (!settings.contains("scanline_intensity"))
 	{
 		settings["scanline_intensity"] = 0.2;
+	}
+	if (!settings.contains("pixelation_intensity"))
+	{
+		settings["pixelation_intensity"] = 0.1;
+	}
+	if (!settings.contains("pixel_width"))
+	{
+		settings["pixel_width"] = 750;
 	}
 	if (!settings.contains("burnin_intensity"))
 	{
@@ -277,6 +291,8 @@ void Settings::checkSettingsFile()
 			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
 			oldSettings["static_intensity"] != settings["static_intensity"] ||
 			oldSettings["jitter_intensity"] != settings["jitter_intensity"] ||
+			oldSettings["pixelation_intensity"] != settings["pixelation_intensity"] ||
+			oldSettings["pixel_width"] != settings["pixel_width"] ||
 			oldSettings["vignet_intensity"] != settings["vignet_intensity"] ||
 			oldSettings["font"] != settings["font"])
 		{
@@ -340,12 +356,10 @@ void Settings::renderSettingsWindow()
 
 	if (wasFocused && !isFocused)
 	{
-		std::cout << "Settings window lost focus!" << std::endl;
 		showSettingsWindow = false;
 		saveSettings();
 	} else if (!wasFocused && isFocused)
 	{
-		std::cout << "Settings window gained focus!" << std::endl;
 	}
 	wasFocused = isFocused;
 
@@ -451,7 +465,7 @@ void Settings::renderSettingsWindow()
 	editThemeColor("Comments", "comment");
 	editThemeColor("Functions", "function");
 	editThemeColor("Types", "type");
-	editThemeColor("Variables", "variable");
+	editThemeColor("Identifier", "variable");
 
 	ImGui::Spacing();
 	ImGui::Spacing();
@@ -638,6 +652,39 @@ void Settings::renderSettingsWindow()
 	{
 		saveSettings();
 	}
+
+	ImGui::Spacing();
+	/*
+	static float tempPixelWidth = settings["pixel_width"].get<float>();
+	if (ImGui::SliderFloat(
+			"Pixel Width", &tempPixelWidth, 250.0f, 5000.0f, "%1f", ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["pixel_width"] = tempPixelWidth;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
+	ImGui::Spacing();
+	*/
+	static float tempPixelelation = settings["pixelation_intensity"].get<float>();
+	if (ImGui::SliderFloat("Pixelation Lines",
+						   &tempPixelelation,
+						   -1.00f,
+						   1.00f,
+						   "%.002f",
+						   ImGuiSliderFlags_AlwaysClamp))
+	{
+		settings["pixelation_intensity"] = tempPixelelation;
+		settingsChanged = true;
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		saveSettings();
+	}
+
 	ImGui::Spacing();
 	ImGui::Spacing();
 	ImGui::Spacing();

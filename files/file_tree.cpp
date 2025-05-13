@@ -271,9 +271,13 @@ void FileTree::preserveOpenStates(const FileNode &oldNode, FileNode &newNode)
 		}
 	}
 }
-
 void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 {
+	// Helper function to check if file should be skipped
+	auto shouldSkipFile = [](const std::string &filename) {
+		return filename == ".DS_Store" || filename == "thumbs.db";
+	};
+
 	// Don't clear children if they already exist and the node is open
 	if (!node.isOpen && !node.children.empty())
 	{
@@ -285,8 +289,15 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 	{
 		for (const auto &entry : fs::directory_iterator(path))
 		{
+			// Skip hidden system files and specific unwanted files
+			std::string filename = entry.path().filename().string();
+			if (shouldSkipFile(filename))
+			{
+				continue;
+			}
+
 			FileNode child;
-			child.name = entry.path().filename().string();
+			child.name = filename;
 			child.fullPath = entry.path().string();
 			child.isDirectory = entry.is_directory();
 
@@ -317,7 +328,7 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 		std::cerr << "Error accessing directory " << path << ": " << e.what() << std::endl;
 	}
 
-	// Sort directories first, then files by name
+	// Sort directories first, then files by name (existing code)
 	std::sort(newChildren.begin(), newChildren.end(), [](const FileNode &a, const FileNode &b) {
 		if (a.isDirectory != b.isDirectory)
 		{
@@ -336,7 +347,7 @@ FileTree::TreeDisplayMetrics FileTree::calculateDisplayMetrics()
 	metrics.folderIconSize = metrics.currentFontSize * 0.8f;
 	metrics.fileIconSize = metrics.currentFontSize * 1.2f;
 	metrics.itemHeight = ImGui::GetFrameHeight();
-	metrics.indentWidth = 28.0f;
+	metrics.indentWidth = 18.0f;
 	metrics.cursorPos = ImGui::GetCursorPos();
 	return metrics;
 }

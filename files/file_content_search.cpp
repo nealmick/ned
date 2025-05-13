@@ -159,6 +159,15 @@ void FileContentSearch::handleFindBoxActivation()
 
 void FileContentSearch::renderFindBox()
 {
+	if (needsInputUnblock)
+	{
+		if (--unblockDelayFrames <= 0)
+		{
+			editor_state.block_input = false;
+			needsInputUnblock = false;
+		}
+	}
+
 	// Only render if the find box is active.
 	if (!editor_state.active_find_box)
 		return;
@@ -212,24 +221,88 @@ void FileContentSearch::renderFindBox()
 	handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
 }
 
+std::vector<size_t> FileContentSearch::findAllOccurrences(bool ignoreCase)
+{
+	std::vector<size_t> positions;
+	if (findText.empty())
+		return positions;
+
+	size_t startPos = 0;
+	while (true)
+	{
+		size_t foundPos;
+		if (ignoreCase)
+		{
+			std::string fileContentLower = toLower(editor_state.fileContent);
+			std::string findTextLower = toLower(findText);
+			foundPos = fileContentLower.find(findTextLower, startPos);
+		} else
+		{
+			foundPos = editor_state.fileContent.find(findText, startPos);
+		}
+
+		if (foundPos == std::string::npos)
+			break;
+
+		positions.push_back(foundPos);
+		startPos = foundPos + 1;
+
+		if (startPos >= editor_state.fileContent.length())
+			break;
+	}
+
+	return positions;
+}
 void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
 {
 	ImGuiIO &io = ImGui::GetIO();
 	if (ImGui::IsKeyPressed(ImGuiKey_Enter, false))
 	{
-		if (io.KeyShift)
+		if (io.KeyCtrl)
 		{
-			std::cout << "Searching previous";
-			if (ignoreCaseCheckbox)
-				std::cout << " (case-insensitive)";
-			std::cout << std::endl;
+			// Handle Ctrl+Enter - add multi-cursors
+			std::vector<size_t> positions = findAllOccurrences(ignoreCaseCheckbox);
+			if (!positions.empty())
+			{
+				// Clear existing cursors
+				editor_state.multi_cursor_indices.clear();
+				editor_state.multi_cursor_prefered_columns.clear();
+
+				// Set main cursor to first occurrence
+				editor_state.cursor_index = positions[0];
+				editor_state.selection_start = 0;
+				editor_state.selection_end = 0;
+				editor_state.selection_active = false;
+				gEditorCursor.calculateVisualColumn();
+
+				// Add multi-cursors for remaining positions
+				for (size_t i = 1; i < positions.size(); ++i)
+				{
+					int pos = positions[i];
+					editor_state.multi_cursor_indices.push_back(pos);
+					editor_state.multi_cursor_prefered_columns.push_back(
+						EditorCursor::CalculateVisualColumnForPosition(
+							pos, editor_state.fileContent, editor_state.editor_content_lines));
+				}
+
+				// Ensure visibility
+				editor_state.ensure_cursor_visible = {true, true};
+				std::cout << "Added " << positions.size() << " cursors\n";
+
+				if (!positions.empty())
+				{
+					// Schedule input unblock
+					needsInputUnblock = true;
+					unblockDelayFrames = 2; // Wait 2 frames
+					editor_state.active_find_box = false;
+					// Keep block_input true for now
+				}
+			}
+		} else if (io.KeyShift)
+		{
 			findPrevious(ignoreCaseCheckbox);
 		} else
 		{
-			std::cout << "Searching next";
-			if (ignoreCaseCheckbox)
-				std::cout << " (case-insensitive)";
-			std::cout << std::endl;
 			findNext(ignoreCaseCheckbox);
 		}
 	}

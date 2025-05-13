@@ -58,10 +58,14 @@ class EditorCursor
 
 	void renderCursor();
 	void swapLines(int direction);
-
-  private:
+	void spawnCursorBelow();
+	void spawnCursorAbove();
+	static int CalculateVisualColumnForPosition(int position,
+												const std::string &content,
+												const std::vector<int> &content_lines);
 	void calculateVisualColumn();
 
+  private:
 	void findPositionFromVisualColumn(int line_start, int line_end);
 
 	static bool isWordChar(char c)
