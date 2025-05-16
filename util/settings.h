@@ -82,6 +82,20 @@ class Settings
 
 	bool getTreesitterMode() const { return settings["treesitter"].get<bool>(); }
 
+	std::vector<std::string> fontNames = {
+		"IBM_MDA",
+		"SourceCodePro-Regular",
+		"NotoSansMono-Regular",
+		"NotoSansMono-Thin",
+		"NotoSansMono-Light",
+		"VT323-Regular",
+		"VT100",
+		"Commodore64",
+		"Apple2",
+
+	};
+	std::string currentFontName; // Helper to track display name
+
   private:
 	json settings;
 	std::string settingsPath;

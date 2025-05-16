@@ -105,10 +105,9 @@ Settings::Settings() : splitPos(0.3f) {}
 
 void Settings::loadSettings()
 {
-	// 1) Where to store & load user settings
 	std::string userSettingsPath = getUserSettingsPath();
 
-	// 2) If user file doesn't exist, copy from the .app resources
+	// Handle missing settings file
 	if (!fs::exists(userSettingsPath))
 	{
 		fs::create_directories(fs::path(userSettingsPath).parent_path());
@@ -118,136 +117,78 @@ void Settings::loadSettings()
 		{
 			fs::copy_file(bundleDefaults, userSettingsPath, fs::copy_options::overwrite_existing);
 			std::cout << "[Settings] Copied default .ned.json -> " << userSettingsPath << std::endl;
-		} else
-		{
-			std::cout << "[Settings] No default .ned.json found in app bundle. "
-						 "Using empty defaults.\n";
 		}
 	}
 
-	// Actually load from userSettingsPath
+	// Load or initialize settings
 	settingsPath = userSettingsPath;
-	std::ifstream settingsFile(settingsPath);
-	if (settingsFile.is_open())
+	try
 	{
-		try
+		std::ifstream settingsFile(settingsPath);
+		if (settingsFile.is_open())
 		{
 			settingsFile >> settings;
 			std::cout << "[Settings] Loaded from: " << settingsPath << std::endl;
-		} catch (json::parse_error &e)
-		{
-			std::cerr << "[Settings] Parse error: " << e.what() << std::endl;
-			settings = json::object(); // Reset to empty object
 		}
-	} else
+	} catch (const std::exception &e)
 	{
-		std::cout << "[Settings] Could not open user settings file. "
-					 "Using empty defaults.\n";
+		std::cerr << "[Settings] Load error: " << e.what() << std::endl;
 		settings = json::object();
 	}
 
-	// Fill in any missing keys with code defaults:
-	if (!settings.contains("font"))
+	const std::vector<std::pair<std::string, json>> defaults = {{"font", "default"},
+																{"backgroundColor",
+																 {0.45f, 0.55f, 0.60f, 1.00f}},
+																{"fontSize", 16.0f},
+																{"splitPos", 0.3f},
+																{"theme", "default"},
+																{"treesitter", true},
+																{"rainbow", true},
+																{"shader_toggle", true},
+																{"scanline_intensity", 0.2},
+																{"pixelation_intensity", 0.1},
+																{"pixel_width", 750},
+																{"burnin_intensity", 0.95},
+																{"curvature_intensity", 0.2},
+																{"vignet_intensity", 0.15},
+																{"bloom_intensity", 0.15},
+																{"colorshift_intensity", 2.0},
+																{"static_intensity", 0.09},
+																{"jitter_intensity", 1.0}};
+
+	for (const auto &[key, value] : defaults)
 	{
-		settings["font"] = "default";
-	}
-	if (!settings.contains("backgroundColor"))
-	{
-		settings["backgroundColor"] = {0.45f, 0.55f, 0.60f, 1.00f};
-	}
-	if (!settings.contains("fontSize"))
-	{
-		settings["fontSize"] = 16.0f; // safe default
-	}
-	if (!settings.contains("splitPos"))
-	{
-		settings["splitPos"] = 0.3f;
-	}
-	if (!settings.contains("theme"))
-	{
-		settings["theme"] = "default";
-	}
-	if (!settings.contains("treesitter"))
-	{
-		settings["treesitter"] = true;
-	}
-	if (!settings.contains("rainbow"))
-	{
-		settings["rainbow"] = true; // default to true
-	}
-	if (!settings.contains("shader_toggle"))
-	{
-		settings["shader_toggle"] = true; // default to shader enabled
-	}
-	if (!settings.contains("scanline_intensity"))
-	{
-		settings["scanline_intensity"] = 0.2;
-	}
-	if (!settings.contains("pixelation_intensity"))
-	{
-		settings["pixelation_intensity"] = 0.1;
-	}
-	if (!settings.contains("pixel_width"))
-	{
-		settings["pixel_width"] = 750;
-	}
-	if (!settings.contains("burnin_intensity"))
-	{
-		settings["burnin_intensity"] = 0.95;
+		if (!settings.contains(key))
+		{
+			settings[key] = value;
+		}
 	}
 
-	if (!settings.contains("curvature_intensity"))
-	{
-		settings["curvature_intensity"] = 0.2;
-	}
-	if (!settings.contains("vignet_intensity"))
-	{
-		settings["vignet_intensity"] = 0.15;
-	}
-	if (!settings.contains("bloom_intensity"))
-	{
-		settings["bloom_intensity"] = 0.15;
-	}
-	if (!settings.contains("colorshift_intensity"))
-	{
-		settings["colorshift_intensity"] = 2.0;
-	}
-	if (!settings.contains("static_intensity"))
-	{
-		settings["static_intensity"] = 0.09;
-	}
-	if (!settings.contains("jitter_intensity"))
-	{
-		settings["jitter_intensity"] = 1.0;
-	}
+	// Special case for font name
+	currentFontName = settings.value("font", "default");
+
+	// Handle theme defaults
 	if (!settings.contains("themes"))
 	{
 		settings["themes"] = {{"default",
-							   {
-								   {"function", {1.0f, 1.0f, 1.0f, 1.0f}},
-								   {"text", {1.0f, 1.0f, 1.0f, 1.0f}},
-								   {"type", {0.4f, 0.8f, 0.4f, 1.0f}},
-								   {"variable", {0.8f, 0.6f, 0.7f, 1.0f}},
-								   {"background", {0.2f, 0.2f, 0.2f, 1.0f}},
-								   {"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
-								   {"string", {0.87f, 0.87f, 0.0f, 1.0f}},
-								   {"number", {0.0f, 0.8f, 0.8f, 1.0f}},
-								   {"comment", {0.5f, 0.5f, 0.5f, 1.0f}},
-							   }}};
+							   {{"function", {1.0f, 1.0f, 1.0f, 1.0f}},
+								{"text", {1.0f, 1.0f, 1.0f, 1.0f}},
+								{"type", {0.4f, 0.8f, 0.4f, 1.0f}},
+								{"variable", {0.8f, 0.6f, 0.7f, 1.0f}},
+								{"background", {0.2f, 0.2f, 0.2f, 1.0f}},
+								{"keyword", {0.0f, 0.4f, 1.0f, 1.0f}},
+								{"string", {0.87f, 0.87f, 0.0f, 1.0f}},
+								{"number", {0.0f, 0.8f, 0.8f, 1.0f}},
+								{"comment", {0.5f, 0.5f, 0.5f, 1.0f}}}}};
 	}
 
-	// Pull out a few keys into your members
-	currentFontSize = settings["fontSize"].get<float>();
-	splitPos = settings["splitPos"].get<float>();
+	// Update member variables
+	currentFontSize = settings.value("fontSize", 16.0f);
+	splitPos = settings.value("splitPos", 0.3f);
 
-	// Track last modification time
-	if (fs::exists(settingsPath))
-	{
-		lastSettingsModification = fs::last_write_time(settingsPath);
-	} else
-	{
-		lastSettingsModification = fs::file_time_type::min();
-	}
+	// Track modification time
+	lastSettingsModification =
+		fs::exists(settingsPath) ? fs::last_write_time(settingsPath) : fs::file_time_type::min();
 }
 
 void Settings::saveSettings()
@@ -257,8 +198,12 @@ void Settings::saveSettings()
 	{
 		settingsFile << std::setw(4) << settings << std::endl;
 	}
-}
 
+	if (fs::exists(settingsPath))
+	{
+		lastSettingsModification = fs::last_write_time(settingsPath);
+	}
+}
 void Settings::checkSettingsFile()
 {
 	if (!fs::exists(settingsPath))
@@ -268,50 +213,51 @@ void Settings::checkSettingsFile()
 	}
 
 	auto currentModification = fs::last_write_time(settingsPath);
-	if (currentModification > lastSettingsModification)
-	{
-		std::cout << "[Settings] .ned.json was modified externally, reloading" << std::endl;
-		json oldSettings = settings;
-		loadSettings();
-		lastSettingsModification = currentModification;
+	if (currentModification <= lastSettingsModification)
+		return;
 
-		// Check if certain keys changed so we can trigger appropriate flags
-		if (oldSettings["backgroundColor"] != settings["backgroundColor"] ||
-			oldSettings["fontSize"] != settings["fontSize"] ||
-			oldSettings["splitPos"] != settings["splitPos"] ||
-			oldSettings["theme"] != settings["theme"] ||
-			oldSettings["themes"] != settings["themes"] ||
-			oldSettings["rainbow"] != settings["rainbow"] ||
-			oldSettings["treesitter"] != settings["treesitter"] ||
-			oldSettings["shader_toggle"] != settings["shader_toggle"] ||
-			oldSettings["scanline_intensity"] != settings["scanline_intensity"] ||
-			oldSettings["burnin_intensity"] != settings["burnin_intensity"] ||
-			oldSettings["curvature_intensity"] != settings["curvature_intensity"] ||
-			oldSettings["colorshift_intensity"] != settings["colorshift_intensity"] ||
-			oldSettings["bloom_intensity"] != settings["bloom_intensity"] ||
-			oldSettings["static_intensity"] != settings["static_intensity"] ||
-			oldSettings["jitter_intensity"] != settings["jitter_intensity"] ||
-			oldSettings["pixelation_intensity"] != settings["pixelation_intensity"] ||
-			oldSettings["pixel_width"] != settings["pixel_width"] ||
-			oldSettings["vignet_intensity"] != settings["vignet_intensity"] ||
-			oldSettings["font"] != settings["font"])
-		{
-			settingsChanged = true;
-			// Check if theme changed
-			if (oldSettings["theme"] != settings["theme"] ||
-				oldSettings["themes"] != settings["themes"])
-			{
-				themeChanged = true;
-			}
-			// Check if font changed
-			if (oldSettings["font"] != settings["font"])
-			{
-				fontChanged = true;
-			}
-		}
+	std::cout << "[Settings] .ned.json was modified externally, reloading" << std::endl;
+	json oldSettings = settings;
+	loadSettings();
+	lastSettingsModification = currentModification;
+
+	// List of keys to check for changes
+	const std::vector<std::string> checkKeys = {"backgroundColor",
+												"fontSize",
+												"splitPos",
+												"rainbow",
+												"treesitter",
+												"shader_toggle",
+												"scanline_intensity",
+												"burnin_intensity",
+												"curvature_intensity",
+												"colorshift_intensity",
+												"bloom_intensity",
+												"static_intensity",
+												"jitter_intensity",
+												"pixelation_intensity",
+												"pixel_width",
+												"vignet_intensity",
+												"font"};
+
+	// Check for any changes in monitored keys
+	bool hasChanges = std::any_of(checkKeys.begin(), checkKeys.end(), [&](const auto &key) {
+		return oldSettings[key] != settings[key];
+	});
+
+	// Check theme-related changes
+	const std::vector<std::string> themeKeys = {"theme", "themes"};
+	bool themeChanges = std::any_of(themeKeys.begin(), themeKeys.end(), [&](const auto &key) {
+		return oldSettings[key] != settings[key];
+	});
+
+	if (hasChanges || themeChanges)
+	{
+		settingsChanged = true;
+		themeChanged = themeChanges;
+		fontChanged = (oldSettings["font"] != settings["font"]);
 	}
 }
-
 void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
@@ -412,6 +358,47 @@ void Settings::renderSettingsWindow()
 		saveSettings();
 	}
 
+	ImGui::Spacing();
+	std::string previewName = currentFontName;
+
+	// Clean up display name (remove extension and hyphens)
+	if (previewName != "System Default")
+	{
+		previewName = previewName.substr(0, previewName.find_last_of("."));
+		std::replace(previewName.begin(), previewName.end(), '-', ' ');
+	}
+
+	if (ImGui::BeginCombo("Editor Font", previewName.c_str()))
+	{
+		for (const auto &fontFile : fontNames)
+		{
+			bool isSelected = (fontFile == settings["font"]);
+			std::string displayName = fontFile;
+
+			// Format display name
+			if (fontFile != "System Default")
+			{
+				displayName = fontFile.substr(0, fontFile.find_last_of("."));
+				std::replace(displayName.begin(), displayName.end(), '-', ' ');
+			}
+
+			if (ImGui::Selectable(displayName.c_str(), isSelected))
+			{
+				settings["font"] = fontFile;
+				currentFontName = fontFile;
+				fontChanged = true;
+				settingsChanged = true;
+				saveSettings();
+			}
+			if (isSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::Spacing();
+	ImGui::Spacing();
 	ImGui::Spacing();
 
 	// Background Color
