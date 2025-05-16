@@ -260,6 +260,7 @@ endif()
 # Resources
 # ================
 file(COPY 
+  ${CMAKE_SOURCE_DIR}/settings
   ${CMAKE_SOURCE_DIR}/fonts
   ${CMAKE_SOURCE_DIR}/icons
   ${CMAKE_SOURCE_DIR}/shaders
