@@ -98,7 +98,7 @@ std::string Settings::getUserSettingsPath()
 		// If HOME is missing, fallback to current directory
 		return ".ned.json";
 	}
-	return std::string(home) + "/ned/.ned.json";
+	return std::string(home) + "/ned/settings/ned.json";
 }
 
 Settings::Settings() : splitPos(0.3f) {}
@@ -112,7 +112,7 @@ void Settings::loadSettings()
 	{
 		fs::create_directories(fs::path(userSettingsPath).parent_path());
 
-		std::string bundleDefaults = getAppResourcesPath() + "/.ned.json";
+		std::string bundleDefaults = getAppResourcesPath() + "/settings/ned.json";
 		if (fs::exists(bundleDefaults))
 		{
 			fs::copy_file(bundleDefaults, userSettingsPath, fs::copy_options::overwrite_existing);

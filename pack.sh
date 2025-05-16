@@ -40,7 +40,7 @@ cp .build/ned "$MACOS/$APP_NAME"
 cp -r fonts "$RESOURCES/"
 cp -r icons "$RESOURCES/"
 cp -r shaders "$RESOURCES/"
-cp .ned.json "$RESOURCES/"
+cp -r settings "$RESOURCES/"
 
 echo "Adding app icon..."
 cp -r icons/ned.icns "$RESOURCES/ned.icns"
