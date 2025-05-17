@@ -1188,7 +1188,10 @@ void Ned::renderFrame()
 	// [STEP 1] Render UI to framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
 	glViewport(0, 0, display_w, display_h);
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+	// Get background color from settings
+	auto &bg = gSettings.getSettings()["backgroundColor"];
+	glClearColor(bg[0], bg[1], bg[2], bg[3]); // Use settings color
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	renderMainWindow();
