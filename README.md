@@ -23,7 +23,7 @@ C++17 compatible compiler
 OpenGL
 GLFW3
 Glew
-Curl
+Curl	
 
 Clone the repository with its submodules:
 ```sh
