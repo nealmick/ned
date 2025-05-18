@@ -1,6 +1,7 @@
 #pragma once
 #include "lsp_adapter_clangd.h"
 #include "lsp_adapter_pyright.h"
+#include "lsp_adapter_typescript.h" // <<< ADD THIS
 #include <memory>
 #include <string>
 
@@ -31,9 +32,9 @@ class LSPManager
 	// LSP adapter instances
 	std::unique_ptr<LSPAdapterClangd> clangdAdapter;
 	std::unique_ptr<LSPAdapterPyright> pyrightAdapter;
+	std::unique_ptr<LSPAdapterTypescript> typescriptAdapter;
 
-	// Track which adapter is currently active
-	enum AdapterType { NONE, CLANGD, PYRIGHT };
+	enum AdapterType { NONE, CLANGD, PYRIGHT, TYPESCRIPT };
 
 	AdapterType activeAdapter;
 	std::string workspacePath;
