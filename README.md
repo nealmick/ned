@@ -63,8 +63,8 @@ xattr -dr com.apple.quarantine Ned.app
 | C++      | ✅         | Clangd   |
 | C        | ✅         | ❌       |
 | C#       | ✅         | ❌       |
-| TypeScript | ✅         | ❌       |
-| JavaScript| ✅         | ❌       |
+| TypeScript | ✅         | Microsoft      |
+| JavaScript| ✅         | Microsoft       |
 | Go       | ✅         | ❌       |
 | Rust     | ✅         | ❌       |
 | Java     | ✅         | ❌       |
