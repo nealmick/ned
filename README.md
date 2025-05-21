@@ -23,7 +23,7 @@ C++17 compatible compiler
 OpenGL
 GLFW3
 Glew
-Curl
+Curl	
 
 Clone the repository with its submodules:
 ```sh
@@ -61,11 +61,11 @@ xattr -dr com.apple.quarantine Ned.app
 |----------|------------|----------|
 | Python   | ✅         | Pyright  |
 | C++      | ✅         | Clangd   |
-| C        | ✅         | ❌       |
+| C        | ✅         | Clangd   |
 | C#       | ✅         | ❌       |
-| TypeScript | ✅         | ❌       |
-| JavaScript| ✅         | ❌       |
-| Go       | ✅         | ❌       |
+| TypeScript | ✅         | Microsoft      |
+| JavaScript| ✅         | Microsoft       |
+| Go       | ✅         | GoPls       |
 | Rust     | ✅         | ❌       |
 | Java     | ✅         | ❌       |
 | Kotlin   | ✅         | ❌       |
