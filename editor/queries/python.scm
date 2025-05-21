@@ -40,7 +40,7 @@
 [
   ":" ","
   "(" ")" "[" "]" "{" "}"
-] @function
+] @default
 
 
 ; Function Definition

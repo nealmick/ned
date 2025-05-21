@@ -656,7 +656,7 @@ void Settings::renderSettingsWindow()
 	}
 	ImGui::SameLine();
 
-	ImGui::TextUnformatted(" Profile");
+	ImGui::TextUnformatted("Profile");
 
 	ImGui::Spacing();
 	// Editor Font
@@ -674,7 +674,7 @@ void Settings::renderSettingsWindow()
 		std::replace(displayPreviewName.begin(), displayPreviewName.end(), '-', ' ');
 	}
 
-	if (ImGui::BeginCombo(" Font", displayPreviewName.c_str()))
+	if (ImGui::BeginCombo("Font", displayPreviewName.c_str()))
 	{
 		for (const auto &fontFile : fontNames)
 		{
@@ -709,7 +709,7 @@ void Settings::renderSettingsWindow()
 	{
 		tempFontSize = getFontSize();
 	}
-	if (ImGui::SliderFloat(" Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
+	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
 	{
 		// No immediate save, only set settingsChanged if value differs
 		if (settings.value("fontSize", 0.0f) != tempFontSize)
@@ -748,7 +748,7 @@ void Settings::renderSettingsWindow()
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
-	if (ImGui::ColorEdit4(" Background Color", (float *)&bgColor))
+	if (ImGui::ColorEdit4("Background Color", (float *)&bgColor))
 	{
 		settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
 		settingsChanged = true;

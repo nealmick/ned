@@ -61,11 +61,11 @@ xattr -dr com.apple.quarantine Ned.app
 |----------|------------|----------|
 | Python   | ✅         | Pyright  |
 | C++      | ✅         | Clangd   |
-| C        | ✅         | ❌       |
+| C        | ✅         | Clangd   |
 | C#       | ✅         | ❌       |
 | TypeScript | ✅         | Microsoft      |
 | JavaScript| ✅         | Microsoft       |
-| Go       | ✅         | ❌       |
+| Go       | ✅         | GoPls       |
 | Rust     | ✅         | ❌       |
 | Java     | ✅         | ❌       |
 | Kotlin   | ✅         | ❌       |
