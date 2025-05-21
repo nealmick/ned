@@ -67,7 +67,7 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	} else if (extension == ".cs")
 	{
 		return {tree_sitter_c_sharp(), "editor/queries/csharp.scm"};
-	} else if (extension == ".html")
+	} else if (extension == ".html" || extension == ".cshtml")
 	{
 		return {tree_sitter_html(), "editor/queries/html.scm"};
 	} else if (extension == ".tsx" || extension == ".ts")
