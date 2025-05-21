@@ -212,12 +212,9 @@ std::string LSPAdapterClangd::getLanguageId(const std::string &filePath) const
 	std::string ext = filePath.substr(dot_pos + 1);
 
 	// Map C/C++ extensions to language IDs
-	if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "hpp" || ext == "h")
+	if (ext == "cpp" || ext == "c" || ext == "cc" || ext == "cxx" || ext == "hpp" || ext == "h")
 	{
 		return "cpp";
-	} else if (ext == "c")
-	{
-		return "c";
 	}
 
 	// Default for unknown extensions

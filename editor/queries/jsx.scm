@@ -1,204 +1,54 @@
-; Variables
-;----------
+;; TSX Queries - Final Corrected
+;; =============================
 
-(identifier) @variable
+[
+  (string) @string
+  (template_string) @string
+  (template_substitution) @punctuation.special
+]
 
-; Properties
-;-----------
+;; JSX Elements =================================
+(jsx_opening_element
+  name: (identifier) @tag)  ;; Components as tags
 
-(property_identifier) @property
+(jsx_self_closing_element
+  name: (identifier) @tag)
 
-; Function and method definitions
-;--------------------------------
+(jsx_closing_element
+  name: (identifier) @tag)
 
-(function_expression
-  name: (identifier) @function)
-(function_declaration
-  name: (identifier) @function)
-(method_definition
-  name: (property_identifier) @function.method)
+(jsx_attribute
+  (property_identifier) @attribute)  ;; JSX specific attributes
 
+;; Object Properties & Methods ==================
 (pair
-  key: (property_identifier) @function.method
-  value: [(function_expression) (arrow_function)])
+  key: (property_identifier) @property)  ;; Object keys
 
-(assignment_expression
-  left: (member_expression
-    property: (property_identifier) @function.method)
-  right: [(function_expression) (arrow_function)])
+(shorthand_property_identifier) @property  ;; Destructured props
 
-(variable_declarator
-  name: (identifier) @function
-  value: [(function_expression) (arrow_function)])
-
-(assignment_expression
-  left: (identifier) @function
-  right: [(function_expression) (arrow_function)])
-
-; Function and method calls
-;--------------------------
-
+;; Function Calls ===============================
 (call_expression
   function: (identifier) @function)
 
+;; Special React Hooks ==========================
 (call_expression
-  function: (member_expression
-    property: (property_identifier) @function.method))
+  function: (identifier) @hook
+  (#match? @hook "^use[A-Z]"))
 
-; Special identifiers
-;--------------------
 
-((identifier) @constructor
- (#match? @constructor "^[A-Z]"))
 
-([
-    (identifier)
-    (shorthand_property_identifier)
-    (shorthand_property_identifier_pattern)
- ] @constant
- (#match? @constant "^[A-Z_][A-Z\\d_]+$"))
+;; Import/Export ================================
+(import_specifier
+  name: (identifier) @function)  ;; Imported functions
 
-((identifier) @variable.builtin
- (#match? @variable.builtin "^(arguments|module|console|window|document)$")
- (#is-not? local))
+(export_statement) @keyword
 
-((identifier) @function.builtin
- (#eq? @function.builtin "require")
- (#is-not? local))
-
-; Literals
-;---------
-
-(this) @variable.builtin
-(super) @variable.builtin
-
+;; Keywords =====================================
 [
-  (true)
-  (false)
-  (null)
-  (undefined)
-] @constant.builtin
-
-(comment) @comment
-
-[
-  (string)
-  (template_string)
-] @string
-
-(regex) @string.special
-(number) @number
-
-; Tokens
-;-------
-
-[
-  ";"
-  (optional_chain)
-  "."
-  ","
-] @punctuation.delimiter
-
-[
-  "-"
-  "--"
-  "-="
-  "+"
-  "++"
-  "+="
-  "*"
-  "*="
-  "**"
-  "**="
-  "/"
-  "/="
-  "%"
-  "%="
-  "<"
-  "<="
-  "<<"
-  "<<="
-  "="
-  "=="
-  "==="
-  "!"
-  "!="
-  "!=="
-  "=>"
-  ">"
-  ">="
-  ">>"
-  ">>="
-  ">>>"
-  ">>>="
-  "~"
-  "^"
-  "&"
-  "|"
-  "^="
-  "&="
-  "|="
-  "&&"
-  "||"
-  "??"
-  "&&="
-  "||="
-  "??="
-] @operator
-
-[
-  "("
-  ")"
-  "["
-  "]"
-  "{"
-  "}"
-]  @punctuation.bracket
-
-(template_substitution
-  "${" @punctuation.special
-  "}" @punctuation.special) @embedded
-
-[
-  "as"
-  "async"
-  "await"
-  "break"
-  "case"
-  "catch"
-  "class"
-  "const"
-  "continue"
-  "debugger"
-  "default"
-  "delete"
-  "do"
-  "else"
-  "export"
-  "extends"
-  "finally"
-  "for"
-  "from"
-  "function"
-  "get"
-  "if"
-  "import"
-  "in"
-  "instanceof"
-  "let"
-  "new"
-  "of"
-  "return"
-  "set"
-  "static"
-  "switch"
-  "target"
-  "throw"
-  "try"
-  "typeof"
-  "var"
-  "void"
-  "while"
-  "with"
-  "yield"
+  "if" "else" "for" "while" "do" "switch" "case" "default"
+  "break" "continue" "return" "try" "catch" "finally" "throw"
+  "const" "let" "var" "function" "class" "new" "import" "export"
+  "from" "async" "await" "yield" "typeof" "instanceof" "delete"
+  "void" "as" "extends" "static" "get" "set" 
+  "=>" "default"
 ] @keyword

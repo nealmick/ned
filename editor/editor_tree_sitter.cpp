@@ -67,7 +67,7 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	} else if (extension == ".cs")
 	{
 		return {tree_sitter_c_sharp(), "editor/queries/csharp.scm"};
-	} else if (extension == ".html")
+	} else if (extension == ".html" || extension == ".cshtml")
 	{
 		return {tree_sitter_html(), "editor/queries/html.scm"};
 	} else if (extension == ".tsx" || extension == ".ts")
@@ -227,7 +227,13 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 		{"comment", cachedColors.comment},
 		{"type", cachedColors.type},
 		{"function", cachedColors.function},
-		{"variable", cachedColors.variable}};
+		{"variable", cachedColors.variable},
+		{"tag", cachedColors.type},			 // Components
+		{"attribute", cachedColors.number},	 // JSX attributes
+		{"property", cachedColors.variable}, // Object properties
+		{"hook", cachedColors.function},	 // React hooks
+		{"variable.parameter", cachedColors.variable},
+		{"punctuation.special", cachedColors.string}};
 
 	TSQueryMatch match;
 	while (ts_query_cursor_next_match(cursor, &match))
@@ -327,7 +333,7 @@ void TreeSitter::parse(const std::string &fileContent,
 	// Create new parse tree
 	TSTree *newTree = createNewTree(parser, initialParse, fileContent);
 	// printAST(newTree, fileContent); // <-- This line replaces the lambda
-	//  Update state
+	//   Update state
 	if (previousTree)
 		ts_tree_delete(previousTree);
 	previousTree = newTree;
@@ -348,49 +354,82 @@ void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
 
 	std::cout << std::endl << "🌳 \033[1;34mABSTRACT SYNTAX TREE\033[0m 🌳" << std::endl;
 	printASTNode(ts_tree_root_node(tree), fileContent);
-	std::cout << "──────────────────────────────────────" << std::endl << std::endl;
+	std::cout << "──────────────────────────────────────" << std::endl;
 }
+#include <algorithm> // For std::min/max if needed
+#include <iostream>
+#include <string>
+#include <string_view>
+
+// Assuming TSPoint and TSNode are defined correctly from tree_sitter.h
+// and other necessary parts of your TreeSitter class are available.
 
 void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int depth)
 {
 	if (ts_node_is_null(node))
 		return;
 
-	TSPoint start = ts_node_start_point(node);
-	TSPoint end = ts_node_end_point(node);
 	uint32_t start_byte = ts_node_start_byte(node);
 	uint32_t end_byte = ts_node_end_byte(node);
+	std::string_view node_text_sv(fileContent.c_str() + start_byte, end_byte - start_byte);
 
-	// Skip punctuation nodes
-	std::string_view code(fileContent.c_str() + start_byte, end_byte - start_byte);
-	if (code.empty() || code.find_first_not_of("(){};,") == std::string_view::npos)
+	// Existing: Skip nodes that are purely punctuation or empty
+	if (node_text_sv.empty() || node_text_sv.find_first_not_of("(){};,") == std::string_view::npos)
 		return;
 
-	// Tree visualization
-	std::string indent;
-	for (int i = 0; i < depth; i++)
+	// --- Simplified Indentation ---
+	std::string simple_indent(depth * 2, ' '); // Each depth level is 2 spaces
+
+	// --- Snippet Preparation (same as before) ---
+	std::string inline_node_snippet = std::string(node_text_sv);
+	size_t pos = 0;
+	while ((pos = inline_node_snippet.find('\n', pos)) != std::string::npos)
 	{
-		indent += (i == depth - 1) ? "└─ " : "│  ";
+		inline_node_snippet.replace(pos, 1, " ");
+		pos += 1;
+	}
+	const char *whitespace_chars = " \t\r\n\v\f";
+	size_t first_char = inline_node_snippet.find_first_not_of(whitespace_chars);
+	if (std::string::npos == first_char)
+	{
+		inline_node_snippet.clear();
+	} else
+	{
+		size_t last_char = inline_node_snippet.find_last_not_of(whitespace_chars);
+		inline_node_snippet = inline_node_snippet.substr(first_char, (last_char - first_char + 1));
+	}
+	const size_t MAX_INLINE_SNIPPET_LENGTH = 35;
+	if (inline_node_snippet.length() > MAX_INLINE_SNIPPET_LENGTH)
+	{
+		inline_node_snippet = inline_node_snippet.substr(0, MAX_INLINE_SNIPPET_LENGTH - 3) + "...";
+	}
+	// --- End Snippet Preparation ---
+
+	// --- Second line preview (same as before) ---
+	std::string second_line_preview(node_text_sv);
+	second_line_preview = second_line_preview.substr(0, second_line_preview.find('\n'));
+	if (second_line_preview.length() > 40)
+	{
+		second_line_preview = second_line_preview.substr(0, 37) + "...";
+	}
+	// --- End Second line preview ---
+
+	// --- Simplified Print Output ---
+	std::cout << simple_indent << "\033[33m" << ts_node_type(node) << "\033[0m"
+			  << " \033[90m[\033[37m" << inline_node_snippet << "\033[90m]\033[0m" << std::endl;
+	// Optionally print the second line preview if you still find it useful
+	if (!second_line_preview.empty() && second_line_preview != inline_node_snippet)
+	{									   // Avoid redundant print
+		std::cout << simple_indent << "  " // Indent second line slightly more
+				  << "\033[37m" << second_line_preview << "\033[0m" << std::endl;
 	}
 
-	// Code preview
-	std::string preview(code);
-	preview = preview.substr(0, preview.find('\n'));
-	if (preview.length() > 40)
-		preview = preview.substr(0, 37) + "...";
-
-	// Print node
-	std::cout << indent << "├─ \033[33m" << ts_node_type(node) << "\033[0m "
-			  << "\033[90m(L" << start.row + 1 << ":" << start.column << "-L" << end.row + 1 << ":"
-			  << end.column << ")\033[0m\n"
-			  << indent << "│  \033[37m" << preview << "\033[0m" << std::endl;
-
-	// Recursive children
+	// Recursive children call (same as before)
 	uint32_t child_count = ts_node_child_count(node);
 	for (uint32_t i = 0; i < child_count; i++)
 	{
 		TSNode child = ts_node_child(node, i);
-		printASTNode(child, fileContent, depth + 1);
+		printASTNode(child, fileContent, depth + 1); // Depth is correctly incremented
 	}
 }
 

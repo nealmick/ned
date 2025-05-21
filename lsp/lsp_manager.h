@@ -1,11 +1,14 @@
 #pragma once
 #include "lsp_adapter_clangd.h"
+#include "lsp_adapter_go.h" // Your new Go adapter
 #include "lsp_adapter_pyright.h"
+#include "lsp_adapter_typescript.h"
+
 #include <memory>
 #include <string>
 
 // Forward declarations
-class EditorLSP;
+// class EditorLSP; // Not strictly needed in lsp_manager.h if not used directly
 
 class LSPManager
 {
@@ -31,9 +34,18 @@ class LSPManager
 	// LSP adapter instances
 	std::unique_ptr<LSPAdapterClangd> clangdAdapter;
 	std::unique_ptr<LSPAdapterPyright> pyrightAdapter;
+	std::unique_ptr<LSPAdapterTypescript> typescriptAdapter;
+	std::unique_ptr<LSPAdapterGo> goAdapter; // For Go
 
-	// Track which adapter is currently active
-	enum AdapterType { NONE, CLANGD, PYRIGHT };
+	// Make sure the enum matches all your adapters
+	enum AdapterType {
+		NONE,
+		CLANGD,
+		PYRIGHT,
+		TYPESCRIPT,
+		OMNISHARP, // For C#
+		GOADAPTER  // For Go
+	};
 
 	AdapterType activeAdapter;
 	std::string workspacePath;
