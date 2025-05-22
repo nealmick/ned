@@ -41,6 +41,8 @@ cp -r fonts "$RESOURCES/"
 cp -r icons "$RESOURCES/"
 cp -r shaders "$RESOURCES/"
 cp -r settings "$RESOURCES/"
+cp -r editor/queries "$RESOURCES/" 
+
 
 echo "Adding app icon..."
 cp -r icons/ned.icns "$RESOURCES/ned.icns"
