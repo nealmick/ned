@@ -7,6 +7,13 @@
 #include <sstream>
 #include <vector>
 
+#include <limits.h> // Or <climits> for C++ style
+#include <unistd.h> // For getcwd
+
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h> // For macOS bundle functions
+#endif
+
 // Define static members
 bool TreeSitter::colorsNeedUpdate = true;
 ThemeColors TreeSitter::cachedColors;
@@ -52,57 +59,70 @@ TSParser *TreeSitter::getParser()
 std::pair<TSLanguage *, std::string>
 TreeSitter::detectLanguageAndQuery(const std::string &extension)
 {
+
+	// First check if we're running in a bundle
+	static bool isBundle = []() {
+#ifdef __APPLE__
+		CFURLRef bundleURL = CFBundleCopyBundleURL(CFBundleGetMainBundle());
+		return bundleURL != nullptr;
+#else
+		return false;
+#endif
+	}();
+
+	std::string query_prefix = isBundle ? "queries/" : "editor/queries/";
+
 	if (extension == ".c")
 	{
-		return {tree_sitter_c(), "editor/queries/c.scm"};
+		return {tree_sitter_c(), query_prefix + "c.scm"};
 	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
 	{
-		return {tree_sitter_cpp(), "editor/queries/cpp.scm"};
+		return {tree_sitter_cpp(), query_prefix + "cpp.scm"};
 	} else if (extension == ".js" || extension == ".jsx")
 	{
-		return {tree_sitter_javascript(), "editor/queries/jsx.scm"};
+		return {tree_sitter_javascript(), query_prefix + "jsx.scm"};
 	} else if (extension == ".py")
 	{
-		return {tree_sitter_python(), "editor/queries/python.scm"};
+		return {tree_sitter_python(), query_prefix + "python.scm"};
 	} else if (extension == ".cs")
 	{
-		return {tree_sitter_c_sharp(), "editor/queries/csharp.scm"};
+		return {tree_sitter_c_sharp(), query_prefix + "csharp.scm"};
 	} else if (extension == ".html" || extension == ".cshtml")
 	{
-		return {tree_sitter_html(), "editor/queries/html.scm"};
+		return {tree_sitter_html(), query_prefix + "html.scm"};
 	} else if (extension == ".tsx" || extension == ".ts")
 	{
-		return {tree_sitter_tsx(), "editor/queries/tsx.scm"};
+		return {tree_sitter_tsx(), query_prefix + "tsx.scm"};
 	} else if (extension == ".css")
 	{
-		return {tree_sitter_css(), "editor/queries/css.scm"};
+		return {tree_sitter_css(), query_prefix + "css.scm"};
 	} else if (extension == ".java")
 	{
-		return {tree_sitter_java(), "editor/queries/java.scm"};
+		return {tree_sitter_java(), query_prefix + "java.scm"};
 	} else if (extension == ".go")
 	{
-		return {tree_sitter_go(), "editor/queries/go.scm"};
+		return {tree_sitter_go(), query_prefix + "go.scm"};
 	} else if (extension == ".tf")
 	{
-		return {tree_sitter_hcl(), "editor/queries/hcl.scm"};
+		return {tree_sitter_hcl(), query_prefix + "hcl.scm"};
 	} else if (extension == ".json")
 	{
-		return {tree_sitter_json(), "editor/queries/json.scm"};
+		return {tree_sitter_json(), query_prefix + "json.scm"};
 	} else if (extension == ".sh")
 	{
-		return {tree_sitter_bash(), "editor/queries/sh.scm"};
+		return {tree_sitter_bash(), query_prefix + "sh.scm"};
 	} else if (extension == ".kt")
 	{
-		return {tree_sitter_kotlin(), "editor/queries/kotlin.scm"};
+		return {tree_sitter_kotlin(), query_prefix + "kotlin.scm"};
 	} else if (extension == ".rs")
 	{
-		return {tree_sitter_rust(), "editor/queries/rs.scm"};
+		return {tree_sitter_rust(), query_prefix + "rs.scm"};
 	} else if (extension == ".toml")
 	{
-		return {tree_sitter_toml(), "editor/queries/toml.scm"};
+		return {tree_sitter_toml(), query_prefix + "toml.scm"};
 	} else if (extension == ".rb")
 	{
-		return {tree_sitter_ruby(), "editor/queries/rb.scm"};
+		return {tree_sitter_ruby(), query_prefix + "rb.scm"};
 	}
 	return {};
 }
@@ -171,15 +191,47 @@ TSTree *TreeSitter::createNewTree(TSParser *parser, bool initialParse, const std
 	}
 }
 
+std::string TreeSitter::getResourcePath(const std::string &relativePath)
+{
+#ifdef __APPLE__
+	CFBundleRef mainBundle = CFBundleGetMainBundle();
+	if (mainBundle)
+	{
+		CFStringRef relPath = CFStringCreateWithCString(kCFAllocatorDefault,
+														relativePath.c_str(),
+														kCFStringEncodingUTF8);
+		CFURLRef resourceURL = CFBundleCopyResourceURL(mainBundle, relPath, NULL, NULL);
+		if (resourceURL)
+		{
+			char path[PATH_MAX];
+			if (CFURLGetFileSystemRepresentation(resourceURL, true, (UInt8 *)path, PATH_MAX))
+			{
+				CFRelease(resourceURL);
+				CFRelease(relPath);
+				return std::string(path);
+			}
+			CFRelease(resourceURL);
+		}
+		CFRelease(relPath);
+	}
+#endif
+
+	// Fallback for development environment
+	return "editor/queries/" + relativePath;
+}
+
 TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path)
 {
-	auto cacheIt = queryCache.find(query_path);
+	std::string full_path = getResourcePath(query_path);
+
+	auto cacheIt = queryCache.find(full_path);
 	if (cacheIt != queryCache.end())
 	{
 		return cacheIt->second;
 	}
 
-	std::ifstream file(query_path);
+	std::ifstream file(full_path);
+
 	if (!file.is_open())
 	{
 		std::cerr << "Failed to open query file: " << query_path << "\n";

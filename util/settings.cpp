@@ -95,31 +95,45 @@ void Settings::loadSettings()
 	bool primaryJsonModified = false;
 	if (!fs::exists(primarySettingsFilePath))
 	{
-		std::cout << "[Settings] Primary settings file " << primarySettingsFilePath << " not found."
-				  << std::endl;
-		std::string bundleDefaultNedJsonPath = getAppResourcesPath() + "/settings/ned.json";
-		if (fs::exists(bundleDefaultNedJsonPath))
+		std::cout << "[Settings] Primary settings file " << primarySettingsFilePath
+				  << " not found.\n";
+
+		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
+		std::vector<std::string> filesToCopy = {"ned.json", "test.json"};
+
+		for (const auto &filename : filesToCopy)
 		{
-			try
+			std::string sourcePath = bundleSettingsDir + "/" + filename;
+			std::string destPath = fs::path(primarySettingsDir) / filename;
+
+			if (fs::exists(sourcePath))
 			{
-				fs::copy_file(bundleDefaultNedJsonPath,
-							  primarySettingsFilePath,
-							  fs::copy_options::overwrite_existing);
-				std::cout << "[Settings] Copied default ned.json from bundle to "
-						  << primarySettingsFilePath << std::endl;
-			} catch (const fs::filesystem_error &e)
+				try
+				{
+					fs::copy_file(sourcePath, destPath, fs::copy_options::overwrite_existing);
+					std::cout << "[Settings] Copied " << filename << " from bundle to " << destPath
+							  << "\n";
+				} catch (const fs::filesystem_error &e)
+				{
+					std::cerr << "[Settings] Error copying " << filename << ": " << e.what()
+							  << "\n";
+					// Only critical error for ned.json
+					if (filename == "ned.json")
+					{
+						std::cerr << "CRITICAL: Failed to copy primary settings file\n";
+					}
+				}
+			} else
 			{
-				std::cerr << "[Settings] Error copying bundle ned.json to "
-						  << primarySettingsFilePath << ": " << e.what() << std::endl;
+				std::cerr << (filename == "ned.json" ? "CRITICAL" : "WARNING") << ": Bundle file "
+						  << sourcePath << " not found\n";
+				if (filename == "ned.json")
+				{
+					return; // Can't proceed without primary
+				}
 			}
-		} else
-		{
-			std::cerr << "[Settings] CRITICAL: Default bundle ned.json missing at "
-					  << bundleDefaultNedJsonPath << ". Cannot create primary settings file."
-					  << std::endl;
 		}
 	}
-
 	if (fs::exists(primarySettingsFilePath))
 	{
 		try

@@ -1,8 +1,8 @@
 {
     "backgroundColor": [
-        0.10070794075727463,
-        0.1992882490158081,
-        0.1792915165424347,
+        0.31506848335266113,
+        0.31506848335266113,
+        0.31506848335266113,
         0.0
     ],
     "bloom_intensity": 0.7099999785423279,
@@ -10,7 +10,7 @@
     "colorshift_intensity": 0.8999999761581421,
     "curvature_intensity": 0.0,
     "font": "NotoSansMono-Regular",
-    "fontSize": 26.0,
+    "fontSize": 23.0,
     "jitter_intensity": 2.809999942779541,
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.10999999940395355,
