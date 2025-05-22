@@ -634,7 +634,6 @@ void Ned::handleEvents()
 	// Always poll events if resizing
 	if (resizingRight || resizingBottom || resizingCorner)
 	{
-		glfwPollEvents();
 	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();

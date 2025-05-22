@@ -264,5 +264,6 @@ file(COPY
   ${CMAKE_SOURCE_DIR}/fonts
   ${CMAKE_SOURCE_DIR}/icons
   ${CMAKE_SOURCE_DIR}/shaders
+  ${CMAKE_SOURCE_DIR}/editor/queries 
   DESTINATION ${CMAKE_BINARY_DIR}
 )

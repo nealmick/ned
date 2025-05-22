@@ -24,6 +24,8 @@ struct ThemeColors
 class TreeSitter
 {
   public:
+	static std::string getResourcePath(const std::string &relativePathToQuery);
+
 	static void parse(const std::string &fileContent,
 					  std::vector<ImVec4> &fileColors,
 					  const std::string &extension,
