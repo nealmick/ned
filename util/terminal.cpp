@@ -115,7 +115,7 @@ void Terminal::startShell()
 		if (!shell)
 			shell = "/bin/bash";
 
-		char *const args[] = {(char *)shell, NULL};
+		char *const args[] = {(char *)shell, "-i", NULL};
 		execvp(shell, args);
 		exit(1);
 	}

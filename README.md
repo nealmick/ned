@@ -3,7 +3,7 @@ NED is a lightweight retro-style text editor with cool shader effects. NED offer
 
 
 https://github.com/user-attachments/assets/d4358284-0fd3-41de-8f78-74172c7f3349
-
+# [📟 Download Here 📺](https://github.com/nealmick/ned/releases)
 #### Notable Features
 - OpenGL Shaders with retro style effects, burn-in, static noise, pixelation
 - Text Bookmarks make editing multiple files with saved cursors a breeze
@@ -16,7 +16,9 @@ https://github.com/user-attachments/assets/d4358284-0fd3-41de-8f78-74172c7f3349
 
 
 
-# Build from source
+
+
+## Build from source
 #### Prerequisites
 CMake (version 3.10 or higher)
 C++17 compatible compiler

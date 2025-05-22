@@ -11,7 +11,9 @@ jobs:
     runs-on: macos-14
     env:
       CI: true
-    
+    permissions:
+      contents: write  # Allows uploading to releases
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,11 +30,23 @@ jobs:
       - name: Package
         run: |
           ./pack.sh
-          # Rename or move the zip if desired, for example:
-          mv Ned.zip Ned-macOS-$(git rev-parse --short HEAD).zip
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          mv Ned.zip "Ned-macOS-${SHORT_SHA}.zip"
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
         
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v4
+      - name: Upload ZIP to Releases
+        # Only run on push to main or manual trigger (not pull requests)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
         with:
-          name: Ned-macOS
-          path: Ned-macOS-*.zip
+          # Match the generated ZIP file name
+          files: Ned-macOS-*.zip
+          # Tag name with short SHA for uniqueness
+          tag_name: "build-${{ env.SHORT_SHA }}"
+          # Release name/title
+          name: "Build (${{ env.SHORT_SHA }})"
+          # Auto-generate release notes (optional)
+          generate_release_notes: true
+          # Ensure this is NOT a draft or pre-release
+          draft: false
+          prerelease: false
