@@ -1,4 +1,5 @@
 #pragma once
+#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>

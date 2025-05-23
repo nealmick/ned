@@ -1,3 +1,4 @@
+#pragma once
 #include "settings.h"
 #include "../editor/editor.h"			// For editor_state if needed
 #include "../editor/editor_highlight.h" // For gEditorHighlight
@@ -12,18 +13,25 @@
 #include <fstream>
 #include <iomanip> // For std::setw
 #include <iostream>
-#include <libgen.h>		 // For dirname
+#include <libgen.h> // For dirname
+
+#ifdef __APPLE__
 #include <mach-o/dyld.h> // For _NSGetExecutablePath
-#include <map>			 // For std::map used in renderSettingsWindow
 #include <sys/param.h>	 // For MAXPATHLEN
-#include <unistd.h>		 // For realpath (though <cstdlib> might provide it on some systems)
+#endif
+#ifdef __linux__
+#include <linux/limits.h>
+#endif
+
+#include <map>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 Settings gSettings; // Global instance
 
-// getAppResourcesPath() remains unchanged (as provided)
 std::string Settings::getAppResourcesPath()
 {
+#ifdef __APPLE__
 	char exePath[MAXPATHLEN];
 	uint32_t size = sizeof(exePath);
 	if (_NSGetExecutablePath(exePath, &size) == 0)
@@ -51,7 +59,35 @@ std::string Settings::getAppResourcesPath()
 			return p;
 		}
 	}
+#elif defined(__linux__)
+	// Linux implementation
+	char exePath[PATH_MAX];
+	ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
+	if (count != -1)
+	{
+		exePath[count] = '\0';
+		std::string p = dirname(exePath);
+
+		// Look for resources in common Linux locations
+		std::vector<std::string> pathsToCheck = {
+			p + "/../share/ned", // Typical for system-wide install
+			p + "/resources",	 // Local build
+			p					 // Fallback
+		};
+
+		for (const auto &path : pathsToCheck)
+		{
+			if (fs::exists(path) && fs::is_directory(path))
+			{
+				return path;
+			}
+		}
+	}
 	return "."; // Fallback
+#else
+	// Windows or other platforms
+	return ".";
+#endif
 }
 
 // getUserSettingsPath() still points to the primary configuration file (ned.json)

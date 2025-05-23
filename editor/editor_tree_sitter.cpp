@@ -3,7 +3,6 @@
 #include "editor.h"
 #include <fstream>
 #include <iostream>
-#include <mutex>
 #include <sstream>
 #include <vector>
 

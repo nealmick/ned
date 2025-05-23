@@ -38,7 +38,7 @@ git submodule update
 brew install clang-format cmake llvm glfw glew pkg-config curl
 
 #Ubuntu may require patching logic, currently un-tested
-sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential curl
+sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
 
 ```
 
