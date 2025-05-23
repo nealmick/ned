@@ -5,7 +5,7 @@
 #include "file_finder.h"
 #include "../util/close_popper.h"
 #include "editor.h"
-
+#include <thread>
 FileFinder gFileFinder;
 
 FileFinder::FileFinder() : stopThread(false), lastSelectionTime(std::chrono::steady_clock::now())
