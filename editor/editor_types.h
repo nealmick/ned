@@ -1,6 +1,7 @@
 // editor_types.h global state, include editor.h for external access
 #pragma once
 #include "imgui.h"
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
