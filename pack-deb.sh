@@ -4,10 +4,6 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}❌ Please run as root${NC}"
-    exit 1
-fi
 
 echo -e "${BLUE}📦 Creating Debian package...${NC}"
 
