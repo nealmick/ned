@@ -4,17 +4,21 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Common environment variables for all jobs
+env:
+  RELEASE_TAG: "v$(date -u +'%Y.%m.%d.%H%M%S')"  # Year.Month.Day.HourMinuteSecond
+  RELEASE_NAME: "Build $(date -u +'%Y-%m-%d %H:%M UTC')"
+
 jobs:
   macos-arm:
     runs-on: macos-14
     permissions:
-      contents: write  # Required for releases
-    env:
-      CI: true
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0  # Get full commit history for accurate SHAs
           
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
@@ -25,31 +29,28 @@ jobs:
       - name: Package
         run: |
           ./pack-mac.sh
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          mv Ned.zip "Ned-macOS-ARM64-${SHORT_SHA}.zip"
-          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+          mv Ned.zip "Ned-macOS-ARM64-${RELEASE_TAG}.zip"
       
       - name: Upload ARM Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-macOS-ARM64-*.zip
-          tag_name: "build-${{ env.SHORT_SHA }}"
-          name: "Build ${{ env.SHORT_SHA }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
           generate_release_notes: true
           draft: false
           prerelease: false
+          update: true  # Critical for merging uploads
 
   macos-intel:
-    runs-on: macos-13  # Updated to supported runner
+    runs-on: macos-13
     permissions:
       contents: write
-    env:
-      CI: true
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
       
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
@@ -62,53 +63,49 @@ jobs:
       - name: Package
         run: |
           ./pack-mac.sh
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          mv Ned.zip "Ned-macOS-Intel-${SHORT_SHA}.zip"
-          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV  # Add this line
+          mv Ned.zip "Ned-macOS-Intel-${RELEASE_TAG}.zip"
       
       - name: Upload Intel Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-macOS-Intel-*.zip
-          tag_name: "build-${{ env.SHORT_SHA }}"
-          name: "Build ${{ env.SHORT_SHA }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
           draft: false
           prerelease: false
+          update: true
 
   debian:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-    env:
-      CI: true
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
       
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
+          sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
+            pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
       
       - name: Build
         run: ./build.sh
-            
+      
       - name: Package
         run: |
           chmod +x pack-deb.sh
           ./pack-deb.sh
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          mv Ned_*.deb "Ned-Debian-${SHORT_SHA}.deb"
-          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
-          
+          mv Ned_*.deb "Ned-Debian-${RELEASE_TAG}.deb"
+      
       - name: Upload Debian Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-Debian-*.deb
-          tag_name: "build-${{ env.SHORT_SHA }}"
-          name: "Build ${{ env.SHORT_SHA }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
           draft: false
           prerelease: false
+          update: true
