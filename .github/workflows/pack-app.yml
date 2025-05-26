@@ -1,52 +1,109 @@
-name: Build macOS App
+name: Build All Platforms
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-mac:
+  macos-arm:
     runs-on: macos-14
     env:
       CI: true
-    permissions:
-      contents: write  # Allows uploading to releases
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
         
       - name: Install dependencies
-        run: |
-          brew install clang-format cmake llvm glfw glew pkg-config
+        run: brew install clang-format cmake llvm glfw glew pkg-config
     
       - name: Build
+        run: ./build.sh
+        
+      - name: Package
         run: |
+          ./pack-mac.sh
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          mv Ned.zip "Ned-macOS-ARM64-${SHORT_SHA}.zip"
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+        
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          files: |
+            Ned-macOS-ARM64-*.zip
+          tag_name: "build-${{ env.SHORT_SHA }}"
+          name: "Build (${{ env.SHORT_SHA }})"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          update: true  # Critical for merging multiple uploads
+
+  macos-intel:
+    runs-on: macos-11
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+        
+      - name: Install dependencies
+        run: brew install clang-format cmake llvm glfw glew pkg-config
+    
+      - name: Build
+        run: ./build.sh
+        
+      - name: Package
+        run: |
+          ./pack-mac.sh
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          mv Ned.zip "Ned-macOS-Intel-${SHORT_SHA}.zip"
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+        
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          files: |
+            Ned-macOS-Intel-*.zip
+          tag_name: "build-${{ env.SHORT_SHA }}"
+          name: "Build (${{ env.SHORT_SHA }})"
+          draft: false
+          prerelease: false
+          update: true  # Append to existing release
+
+  debian:
+    runs-on: ubuntu-22.04
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+        
+      - name: Build
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake libglfw3-dev libglew-dev libcurl4-openssl-dev
           ./build.sh
         
       - name: Package
         run: |
-          ./pack.sh
+          ./pack-deb.sh
           SHORT_SHA=$(git rev-parse --short HEAD)
-          mv Ned.zip "Ned-macOS-${SHORT_SHA}.zip"
+          mv ned_*.deb "Ned-Debian-${SHORT_SHA}.deb"
           echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
         
-      - name: Upload ZIP to Releases
-        # Only run on push to main or manual trigger (not pull requests)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
+        if: success()
         with:
-          # Match the generated ZIP file name
-          files: Ned-macOS-*.zip
-          # Tag name with short SHA for uniqueness
+          files: |
+            Ned-Debian-*.deb
           tag_name: "build-${{ env.SHORT_SHA }}"
-          # Release name/title
           name: "Build (${{ env.SHORT_SHA }})"
-          # Auto-generate release notes (optional)
-          generate_release_notes: true
-          # Ensure this is NOT a draft or pre-release
           draft: false
           prerelease: false
+          update: true  # Append to existing release

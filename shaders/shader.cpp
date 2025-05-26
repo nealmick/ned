@@ -19,6 +19,7 @@ Shader::~Shader()
 		glDeleteProgram(shaderProgram);
 	}
 }
+
 bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath)
 {
 	char cwd[1024];
