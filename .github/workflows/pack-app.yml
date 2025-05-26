@@ -97,8 +97,8 @@ jobs:
             
       - name: Package
         run: |
-          chmod +x pack-deb.sh  # Add this line
-          ./pack-deb.sh
+          sudo chmod +x pack-deb.sh
+          sudo ./pack-deb.sh
           SHORT_SHA=$(git rev-parse --short HEAD)
           mv ned_*.deb "Ned-Debian-${SHORT_SHA}.deb"
           echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
