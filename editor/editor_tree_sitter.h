@@ -3,7 +3,6 @@
 #include "../util/settings.h"
 #include "imgui.h"
 #include <iostream>
-#include <mutex>
 #include <string>
 #include <tree_sitter/api.h>
 #include <unordered_map>
@@ -35,8 +34,8 @@ class TreeSitter
 	static void updateThemeColors();
 	static void refreshColors() { colorsNeedUpdate = true; };
 
-	static bool colorsNeedUpdate;	 // settings theme changed
-	static ThemeColors cachedColors; // <--- ADDED STATIC HERE!
+	static bool colorsNeedUpdate;
+	static ThemeColors cachedColors;
 
 	static void setColors(const std::string &fileContent,
 						  std::vector<ImVec4> &fileColors,

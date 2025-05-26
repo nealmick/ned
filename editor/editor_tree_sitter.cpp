@@ -6,6 +6,7 @@
 #include <sstream>
 #include <vector>
 
+#include <libgen.h> // For dirname
 #include <limits.h> // Or <climits> for C++ style
 #include <unistd.h> // For getcwd
 
@@ -70,7 +71,11 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	}();
 
 	std::string query_prefix = isBundle ? "queries/" : "editor/queries/";
-
+#ifdef __APPLE__
+	query_prefix = isBundle ? "queries/" : "editor/queries/";
+#else
+	query_prefix = "queries/";
+#endif
 	if (extension == ".c")
 	{
 		return {tree_sitter_c(), query_prefix + "c.scm"};
@@ -213,8 +218,26 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		}
 		CFRelease(relPath);
 	}
-#endif
+#else
+	// --- Linux/Ubuntu Fix ---
+	char exePath[PATH_MAX];
+	ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+	if (len != -1)
+	{
+		exePath[len] = '\0';
+		std::string exeDir = dirname(exePath);
 
+		// Construct path directly to "queries" folder (no "editor/queries" here)
+		std::string path = exeDir + "/" + relativePath;
+
+		// Debug
+		std::cout << "[DEBUG] Final Query Path: " << path << std::endl;
+
+		return path;
+	}
+	// Fallback (for development builds)
+	return "queries/" + relativePath; // Not "editor/queries"
+#endif
 	// Fallback for development environment
 	return "editor/queries/" + relativePath;
 }
