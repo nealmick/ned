@@ -40,7 +40,7 @@ count=$(find . \
    -not -path "./build/*" \
    -exec clang-format -i {} \; \
    -exec echo "." \; | wc -l)
-
+    
 echo -e "${GREEN}✨ Formatted ${count} files ${NC}"
 
 # Build steps
