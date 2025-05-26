@@ -4,21 +4,28 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Common environment variables for all jobs
-env:
-  RELEASE_TAG: "v$(date -u +'%Y.%m.%d.%H%M%S')"  # Year.Month.Day.HourMinuteSecond
-  RELEASE_NAME: "Build $(date -u +'%Y-%m-%d %H:%M UTC')"
-
 jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      timestamp: ${{ steps.tag.outputs.timestamp }}
+    steps:
+      - name: Generate timestamp
+        id: tag
+        run: |
+          TS=$(date -u +'%Y.%m.%d.%H%M%S')
+          echo "timestamp=v${TS}"
+          echo "timestamp=v${TS}" >> $GITHUB_OUTPUT
+
   macos-arm:
     runs-on: macos-14
+    needs: create-tag
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0  # Get full commit history for accurate SHAs
           
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
@@ -29,28 +36,27 @@ jobs:
       - name: Package
         run: |
           ./pack-mac.sh
-          mv Ned.zip "Ned-macOS-ARM64-${RELEASE_TAG}.zip"
+          mv Ned.zip "Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
       
       - name: Upload ARM Release
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-macOS-ARM64-*.zip
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ needs.create-tag.outputs.timestamp }}
+          name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           generate_release_notes: true
           draft: false
           prerelease: false
-          update: true  # Critical for merging uploads
 
   macos-intel:
     runs-on: macos-13
+    needs: create-tag
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
       
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
@@ -63,27 +69,26 @@ jobs:
       - name: Package
         run: |
           ./pack-mac.sh
-          mv Ned.zip "Ned-macOS-Intel-${RELEASE_TAG}.zip"
+          mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
       
       - name: Upload Intel Release
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-macOS-Intel-*.zip
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ needs.create-tag.outputs.timestamp }}
+          name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           draft: false
           prerelease: false
-          update: true
 
   debian:
     runs-on: ubuntu-22.04
+    needs: create-tag
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
       
       - name: Install dependencies
         run: |
@@ -98,14 +103,13 @@ jobs:
         run: |
           chmod +x pack-deb.sh
           ./pack-deb.sh
-          mv Ned_*.deb "Ned-Debian-${RELEASE_TAG}.deb"
+          mv Ned_*.deb "Ned-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
       
       - name: Upload Debian Release
         uses: softprops/action-gh-release@v1
         with:
           files: Ned-Debian-*.deb
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ needs.create-tag.outputs.timestamp }}
+          name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           draft: false
           prerelease: false
-          update: true
