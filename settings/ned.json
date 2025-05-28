@@ -13,7 +13,7 @@
     "fontSize": 23.0,
     "jitter_intensity": 0.0,
     "pixel_width": 5000.0,
-    "pixelation_intensity": -0.07599999755620956,
+    "pixelation_intensity": -0.057999998331069946,
     "rainbow": true,
     "scanline_intensity": 0.07999999821186066,
     "settings_file": "ned.json",

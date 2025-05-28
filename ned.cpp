@@ -1127,7 +1127,9 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 void Ned::renderMainWindow()
 {
 
+#ifdef __APPLE__
 	renderTopLeftMenu();
+#endif
 
 	handleKeyboardShortcuts();
 
@@ -1146,13 +1148,19 @@ void Ned::renderMainWindow()
 	ImGui::PushFont(currentFont);
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-
+#ifdef __APPLE__
 	ImGui::Begin("Main Window",
 				 nullptr,
 				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
 					 ImGuiWindowFlags_NoResize |
 					 ImGuiWindowFlags_NoScrollWithMouse | // Prevent window from scrolling
 					 ImGuiWindowFlags_NoScrollbar);
+#else
+	ImGui::Begin("Main Window",
+				 nullptr,
+				 ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
+
+#endif
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
