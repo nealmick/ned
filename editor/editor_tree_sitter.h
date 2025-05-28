@@ -3,7 +3,7 @@
 #include "../util/settings.h"
 #include "imgui.h"
 #include <iostream>
-#include <mutex>  
+#include <mutex>
 #include <string>
 #include <tree_sitter/api.h>
 #include <unordered_map>
