@@ -5,6 +5,7 @@
 
 #include "shaders/shader.h"
 #include <GL/glew.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -20,23 +21,73 @@ Shader::~Shader()
 	}
 }
 
-bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath)
+bool Shader::loadShader(const std::string &vertexShaderRelativePath,
+						const std::string &fragmentShaderRelativePath)
 {
-	char cwd[1024];
-	if (getcwd(cwd, sizeof(cwd)) != NULL)
+	std::string finalVertexShaderPath;
+	std::string finalFragmentShaderPath;
+
+	const std::string debian_package_base_path = "/usr/share/Ned/";
+
+	// --- Resolve Vertex Shader Path ---
+	if (std::filesystem::exists(vertexShaderRelativePath))
 	{
-		// std::cout << "Current working directory: " << cwd << std::endl;
+		finalVertexShaderPath = vertexShaderRelativePath;
+		// std::cout << "[Shader] Found vertex shader at primary path: " << finalVertexShaderPath <<
+		// std::endl;
+	} else
+	{
+		std::string packagedPath = debian_package_base_path + vertexShaderRelativePath;
+		if (std::filesystem::exists(packagedPath))
+		{
+			finalVertexShaderPath = packagedPath;
+			// std::cout << "[Shader] Found vertex shader at Debian package path: " <<
+			// finalVertexShaderPath << std::endl;
+		} else
+		{
+			std::cerr << "🔴 ERROR: Cannot find vertex shader. Tried:\n"
+					  << "  1. Relative/Dev path: " << vertexShaderRelativePath << "\n"
+					  << "  2. Debian package path: " << packagedPath << std::endl;
+			return false;
+		}
 	}
-	// std::cout << "Attempting to load vertex shader from: " <<
-	// vertexShaderPath << std::endl; std::cout << "Attempting to load fragment
-	// shader from: " << fragmentShaderPath << std::endl;
+
+	// --- Resolve Fragment Shader Path ---
+	if (std::filesystem::exists(fragmentShaderRelativePath))
+	{
+		finalFragmentShaderPath = fragmentShaderRelativePath;
+		// std::cout << "[Shader] Found fragment shader at primary path: " <<
+		// finalFragmentShaderPath << std::endl;
+	} else
+	{
+		std::string packagedPath = debian_package_base_path + fragmentShaderRelativePath;
+		if (std::filesystem::exists(packagedPath))
+		{
+			finalFragmentShaderPath = packagedPath;
+			// std::cout << "[Shader] Found fragment shader at Debian package path: " <<
+			// finalFragmentShaderPath << std::endl;
+		} else
+		{
+			std::cerr << "🔴 ERROR: Cannot find fragment shader. Tried:\n"
+					  << "  1. Relative/Dev path: " << fragmentShaderRelativePath << "\n"
+					  << "  2. Debian package path: " << packagedPath << std::endl;
+			return false;
+		}
+	}
+
+	// std::cout << "Attempting to load vertex shader from: " << finalVertexShaderPath << std::endl;
+	// std::cout << "Attempting to load fragment shader from: " << finalFragmentShaderPath <<
+	// std::endl;
 
 	// Read vertex shader
 	std::string vertexShaderCode;
-	std::ifstream vertexShaderFile(vertexShaderPath);
+	std::ifstream vertexShaderFile(finalVertexShaderPath);
 	if (!vertexShaderFile.is_open())
 	{
-		std::cerr << "🔴 ERROR: Cannot open vertex shader file: " << vertexShaderPath << std::endl;
+		// This should ideally not be reached if std::filesystem::exists passed, but good for
+		// robustness
+		std::cerr << "🔴 ERROR: Cannot open resolved vertex shader file: " << finalVertexShaderPath
+				  << std::endl;
 		return false;
 	}
 	std::stringstream vertexShaderStream;
@@ -44,17 +95,14 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	vertexShaderCode = vertexShaderStream.str();
 	vertexShaderFile.close();
 
-	// Print vertex shader code
-	// std::cout << "Vertex Shader Code:" << std::endl;
-	// std::cout << vertexShaderCode << std::endl;
-
 	// Read fragment shader
 	std::string fragmentShaderCode;
-	std::ifstream fragmentShaderFile(fragmentShaderPath);
+	std::ifstream fragmentShaderFile(finalFragmentShaderPath);
 	if (!fragmentShaderFile.is_open())
 	{
-		std::cerr << "🔴 ERROR: Cannot open fragment shader file: " << fragmentShaderPath
-				  << std::endl;
+		// This should ideally not be reached if std::filesystem::exists passed
+		std::cerr << "🔴 ERROR: Cannot open resolved fragment shader file: "
+				  << finalFragmentShaderPath << std::endl;
 		return false;
 	}
 	std::stringstream fragmentShaderStream;
@@ -62,19 +110,17 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	fragmentShaderCode = fragmentShaderStream.str();
 	fragmentShaderFile.close();
 
-	// Print fragment shader code
-	// std::cout << "Fragment Shader Code:" << std::endl;
-	// std::cout << fragmentShaderCode << std::endl;
-
 	// Check if shaders are empty
 	if (vertexShaderCode.empty())
 	{
-		std::cerr << "🔴 ERROR: Vertex shader is empty!" << std::endl;
+		std::cerr << "🔴 ERROR: Vertex shader is empty (from " << finalVertexShaderPath << ")!"
+				  << std::endl;
 		return false;
 	}
 	if (fragmentShaderCode.empty())
 	{
-		std::cerr << "🔴 ERROR: Fragment shader is empty!" << std::endl;
+		std::cerr << "🔴 ERROR: Fragment shader is empty (from " << finalFragmentShaderPath << ")!"
+				  << std::endl;
 		return false;
 	}
 
@@ -84,14 +130,15 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	glShaderSource(vertexShader, 1, &vertexShaderCodePtr, NULL);
 	glCompileShader(vertexShader);
 
-	// Check vertex shader compilation
 	int success = 0;
 	char infoLog[512];
 	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
 	if (!success)
 	{
 		glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Vertex shader compilation failed\n" << infoLog << std::endl;
+		std::cerr << "🔴 ERROR: Vertex shader compilation failed (from " << finalVertexShaderPath
+				  << ")\n"
+				  << infoLog << std::endl;
 		return false;
 	}
 
@@ -101,13 +148,14 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	glShaderSource(fragmentShader, 1, &fragmentShaderCodePtr, NULL);
 	glCompileShader(fragmentShader);
 
-	// Check fragment shader compilation
 	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
 	if (!success)
 	{
 		glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Fragment shader compilation failed\n" << infoLog << std::endl;
-		glDeleteShader(vertexShader); // Clean up vertex shader
+		std::cerr << "🔴 ERROR: Fragment shader compilation failed (from "
+				  << finalFragmentShaderPath << ")\n"
+				  << infoLog << std::endl;
+		glDeleteShader(vertexShader);
 		return false;
 	}
 
@@ -117,11 +165,9 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 	glAttachShader(shaderProgram, fragmentShader);
 	glLinkProgram(shaderProgram);
 
-	// Check program linking
 	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
 	if (!success)
 	{
-		char infoLog[512];
 		glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
 		std::cerr << "🔴 SHADER LINK ERROR: " << infoLog << std::endl;
 		glDeleteShader(vertexShader);
@@ -129,28 +175,24 @@ bool Shader::loadShader(const std::string &vertexShaderPath, const std::string &
 		return false;
 	}
 
-	// Debug output for uniforms
+	// Debug output for uniforms (optional)
 	GLint numUniforms = 0;
 	glGetProgramiv(shaderProgram, GL_ACTIVE_UNIFORMS, &numUniforms);
-
 	for (GLint i = 0; i < numUniforms; i++)
 	{
 		char uniformName[256];
 		GLsizei length;
 		GLint size;
 		GLenum type;
-
 		glGetActiveUniform(
 			shaderProgram, i, sizeof(uniformName), &length, &size, &type, uniformName);
-		GLint location = glGetUniformLocation(shaderProgram, uniformName);
+		// GLint location = glGetUniformLocation(shaderProgram, uniformName);
 	}
 
-	// Cleanup shaders
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-	// Specifically check for screenTexture uniform
-	GLint screenTexLoc = glGetUniformLocation(shaderProgram, "screenTexture");
+	// GLint screenTexLoc = glGetUniformLocation(shaderProgram, "screenTexture"); // Optional check
 
 	return true;
 }

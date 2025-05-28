@@ -194,16 +194,20 @@ bool Ned::initializeGraphics()
 		std::cerr << "Failed to initialize GLFW" << std::endl;
 		return false;
 	}
-
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 #ifdef __APPLE__
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // No OS decorations for macOS (custom handling)
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
+#else // For Linux/Ubuntu and other non-Apple platforms
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
 #endif
+	// GLFW_RESIZABLE should be TRUE for both.
+	// On Linux, the OS window manager handles resizing if DECORATED is TRUE.
+	// On macOS, your custom logic handles resizing.
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
 
@@ -1158,7 +1162,10 @@ void Ned::renderMainWindow()
 #else
 	ImGui::Begin("Main Window",
 				 nullptr,
-				 ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
+				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+					 ImGuiWindowFlags_NoResize |
+					 ImGuiWindowFlags_NoScrollWithMouse | // Prevent window from scrolling
+					 ImGuiWindowFlags_NoScrollbar);
 
 #endif
 
