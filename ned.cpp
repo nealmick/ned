@@ -21,6 +21,7 @@ Description: Main application class implementation for NED text editor.
 #include "util/terminal.h"
 #include "util/welcome.h"
 
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -1197,6 +1198,7 @@ void Ned::renderMainWindow()
 void Ned::renderFrame()
 {
 	int display_w, display_h;
+
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
 	// [STEP 1] Render UI to framebuffer
@@ -1211,16 +1213,70 @@ void Ned::renderFrame()
 	renderMainWindow();
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
+	handleUltraSimpleResizeOverlay();
+
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	renderWithShader(display_w, display_h, glfwGetTime());
-
 	glfwSwapBuffers(window);
 }
+void Ned::handleUltraSimpleResizeOverlay()
+{
+	if (!window)
+		return;
 
+	int currentWidth, currentHeight;
+	glfwGetWindowSize(window, &currentWidth, &currentHeight);
+
+	bool currentSizeIsValid = (currentWidth > 0 && currentHeight > 0);
+
+	if (m_sroLastWidth == 0 && m_sroLastHeight == 0 && currentSizeIsValid)
+	{
+		m_sroLastWidth = currentWidth;
+		m_sroLastHeight = currentHeight;
+		return;
+	}
+	if (currentWidth == 1200 && currentHeight == 750)
+	{
+		return;
+	}
+	if (currentSizeIsValid && (currentWidth != m_sroLastWidth || currentHeight != m_sroLastHeight))
+	{
+		m_sroFramesToShow = 35;
+		m_sroLastWidth = currentWidth;
+		m_sroLastHeight = currentHeight;
+	}
+	if (m_sroFramesToShow > 0)
+	{
+		ImDrawList *drawList = ImGui::GetForegroundDrawList();
+		ImGuiViewport *viewport = ImGui::GetMainViewport();
+		ImVec2 viewportPos = viewport->Pos;
+		ImVec2 viewportSize = viewport->Size;
+
+		drawList->AddRectFilled(viewportPos,
+								ImVec2(viewportPos.x + viewportSize.x,
+									   viewportPos.y + viewportSize.y),
+								IM_COL32(0, 0, 0, 128));
+
+		char buffer[64];
+		snprintf(buffer, sizeof(buffer), "%d x %d", m_sroLastWidth, m_sroLastHeight);
+
+		ImFont *font = ImGui::GetFont();
+		float targetFontSize = 52.0f;
+
+		ImVec2 textSize = font->CalcTextSizeA(targetFontSize, FLT_MAX, 0.0f, buffer);
+
+		ImVec2 textPos = ImVec2(viewportPos.x + (viewportSize.x - textSize.x) * 0.5f,
+								viewportPos.y + (viewportSize.y - textSize.y) * 0.5f);
+
+		drawList->AddText(font, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
+
+		m_sroFramesToShow--;
+	}
+}
 void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())
