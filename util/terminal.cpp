@@ -211,72 +211,85 @@ void Terminal::startShell()
 		const char *shell_exec_path = getenv("SHELL");
 		if (!shell_exec_path || shell_exec_path[0] == '\0')
 		{
-			// Fallback for macOS if SHELL is not set (unlikely for logged-in user)
-			// Modern macOS defaults to zsh
+			// Fallback for macOS if SHELL is not set
 			struct passwd *pw = getpwuid(getuid());
 			if (pw && pw->pw_shell && pw->pw_shell[0] != '\0')
 			{
 				shell_exec_path = pw->pw_shell;
 			} else
 			{
-				shell_exec_path = "/bin/zsh";
+				shell_exec_path = "/bin/zsh"; // Modern macOS default
 			}
 		}
+		// For execvp, argv[0] is typically the command name.
+		// shell_exec_path might be a full path or just a name if it's in PATH.
+		// execvp will search PATH if shell_exec_path is not a full path.
 		char *const args[] = {(char *)shell_exec_path, (char *)"-i", NULL};
 		execvp(shell_exec_path, args);
+		// If execvp returns, an error occurred.
 		perror("execvp failed (macOS)");
 		exit(1);
 #else
 		// New logic for Linux and other Unix-like systems
+		// Aim for a non-login interactive shell, similar to macOS behavior.
 		char shell_path_buf[PATH_MAX];
 		const char *shell_env_val = getenv("SHELL");
 
 		if (shell_env_val && shell_env_val[0] != '\0')
 		{
-			strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf) - 1);
+			// Copy SHELL environment variable to shell_path_buf
+			strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf));
+			// Ensure null termination, as strncpy might not if src is too long
+			shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
 		} else
 		{
 			// Fallback if SHELL is not set; query user's default shell
 			struct passwd *pw = getpwuid(getuid());
 			if (pw && pw->pw_shell && pw->pw_shell[0] != '\0')
 			{
-				strncpy(shell_path_buf, pw->pw_shell, sizeof(shell_path_buf) - 1);
+				strncpy(shell_path_buf, pw->pw_shell, sizeof(shell_path_buf));
+				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
 			} else
 			{
-				// Absolute fallback
-				strcpy(shell_path_buf, "/bin/bash");
+				// Absolute fallback to /bin/bash
+				// Use strncpy for safety, though strcpy is likely fine here.
+				strncpy(shell_path_buf, "/bin/bash", sizeof(shell_path_buf));
+				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
 			}
 		}
-		shell_path_buf[sizeof(shell_path_buf) - 1] = '\0'; // Ensure null termination
 
-		// To start a login shell, argv[0] should start with a '-'
-		char arg0_buf[PATH_MAX + 1]; // For '-' prefix + basename
+		// Determine argv[0] for the child shell process.
+		// This is typically the basename of the shell executable (e.g., "bash").
+		// Use PATH_MAX for buffer size, as shell_path_buf could be a long name without '/'
+		char shell_arg0_for_child[PATH_MAX];
 		const char *shell_basename_ptr = strrchr(shell_path_buf, '/');
+
 		if (shell_basename_ptr)
 		{
-			snprintf(arg0_buf, sizeof(arg0_buf), "-%s", shell_basename_ptr + 1);
+			// Found a '/', so use the part after it as basename
+			strncpy(shell_arg0_for_child, shell_basename_ptr + 1, sizeof(shell_arg0_for_child));
 		} else
 		{
-			snprintf(arg0_buf,
-					 sizeof(arg0_buf),
-					 "-%s",
-					 shell_path_buf); // If shell_path_buf is just "bash"
+			// No '/' in shell_path_buf, so use it as is (it's already a basename or a relative path)
+			strncpy(shell_arg0_for_child, shell_path_buf, sizeof(shell_arg0_for_child));
 		}
 
-		// A login shell started this way should also be interactive by default.
-		char *const new_argv[] = {arg0_buf, NULL};
+		shell_arg0_for_child[sizeof(shell_arg0_for_child) - 1] = '\0'; // Ensure null termination
 
-		// execv requires the full path for the first argument.
-		// new_argv[0] is what the program sees as its name.
+		// Arguments for interactive, non-login shell: {shell_name, "-i", NULL}
+		char *const new_argv[] = {shell_arg0_for_child, (char *)"-i", NULL};
+
+		// execv requires the full path to the executable as its first argument.
+		// new_argv[0] (shell_arg0_for_child) is what the new process sees as its own name.
 		execv(shell_path_buf, new_argv);
 
-		// If execv fails, print a more specific error
+		// If execv returns, an error occurred.
 		fprintf(stderr,
-				"Failed to execv shell '%s' as '%s': %s\n",
+				"Failed to execv shell '%s' (intended argv[0]='%s', with '-i'): %s\n",
 				shell_path_buf,
-				arg0_buf,
+				shell_arg0_for_child,
 				strerror(errno));
-		exit(127); // Common exit code for command not found / exec failure
+		exit(127); // Standard exit code for command not found / exec failure
 #endif
 	}
 
