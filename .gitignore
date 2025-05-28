@@ -90,3 +90,5 @@ Makefile
 .Trashes
 ehthumbs.db
 Thumbs.db
+# debian packages
+*.deb
