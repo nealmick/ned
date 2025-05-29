@@ -16,8 +16,8 @@
     "pixelation_intensity": -0.10999999940395355,
     "rainbow": true,
     "scanline_intensity": 0.800000011920929,
-    "shader_toggle": true,
-    "splitPos": 0.2142857164144516,
+    "shader_toggle": false,
+    "splitPos": 0.24162258207798004,
     "static_intensity": 0.20800000429153442,
     "theme": "default",
     "themes": {
