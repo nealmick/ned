@@ -1,23 +1,23 @@
 #pragma once
 #include "settings.h"
-#include "../editor/editor.h"			// For editor_state if needed
-#include "../editor/editor_highlight.h" // For gEditorHighlight
-#include "../files/files.h"				// For gFileExplorer
+#include "../editor/editor.h"
+#include "../editor/editor_highlight.h" 
+#include "../files/files.h"				
 #include "config.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 
-#include <algorithm> // For std::replace, std::any_of, std::sort
+#include <algorithm> //
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iomanip> // For std::setw
+#include <iomanip> 
 #include <iostream>
-#include <libgen.h> // For dirname
+#include <libgen.h> 
 
 #ifdef __APPLE__
-#include <mach-o/dyld.h> // For _NSGetExecutablePath
-#include <sys/param.h>	 // For MAXPATHLEN
+#include <mach-o/dyld.h>
+#include <sys/param.h>	 
 #endif
 #ifdef __linux__
 #include <linux/limits.h>
@@ -27,7 +27,7 @@
 #include <unistd.h>
 
 namespace fs = std::filesystem;
-Settings gSettings; // Global instance
+Settings gSettings; 
 
 std::string Settings::getAppResourcesPath()
 {
@@ -85,12 +85,10 @@ std::string Settings::getAppResourcesPath()
 	}
 	return "."; // Fallback
 #else
-	// Windows or other platforms
 	return ".";
 #endif
 }
 
-// getUserSettingsPath() still points to the primary configuration file (ned.json)
 std::string Settings::getUserSettingsPath()
 {
 	const char *home = getenv("HOME");
@@ -106,9 +104,6 @@ std::string Settings::getUserSettingsPath()
 
 Settings::Settings() : splitPos(0.3f) { currentFontSize = 20.0f; }
 
-// loadSettings() remains mostly the same (as previously provided)
-// with the understanding that it correctly loads the active file
-// based on ned.json's "settings_file" directive.
 void Settings::loadSettings()
 {
 	std::string primarySettingsFilePath = getUserSettingsPath();
@@ -453,15 +448,11 @@ void Settings::checkSettingsFile()
 		json oldSettings = settings;
 		loadSettings();
 
-		// After loadSettings, internal flags (fontSizeChanged etc.) are reset.
-		// We need to compare old with new to set them again if values actually changed.
 		if (oldSettings.contains("fontSize") && settings.contains("fontSize") &&
 			oldSettings["fontSize"] != settings["fontSize"])
 		{
 			if (settings["fontSize"].get<float>() != currentFontSize)
-			{ // currentFontSize was updated by loadSettings
-				// setFontSize(settings["fontSize"].get<float>()); // This would set fontSizeChanged
-				// = true
+			{ 
 				fontSizeChanged = true; // Simpler, as currentFontSize is already correct.
 			}
 		}
@@ -478,10 +469,8 @@ void Settings::checkSettingsFile()
 		if (oldSettings.contains("themes") && settings.contains("themes") &&
 			oldSettings["themes"] != settings["themes"])
 		{
-			themeChanged = true; // Also flag themeChanged if the whole themes object differs
+			themeChanged = true; 
 		}
-		// For other general settings, set settingsChanged = true
-		// This simple check assumes any difference in other keys implies a general settings change.
 		const std::vector<std::string> checkKeys = {"backgroundColor",
 													"splitPos",
 													"rainbow",
@@ -515,7 +504,7 @@ void Settings::checkSettingsFile()
 		if (settingsChanged || fontChanged || fontSizeChanged || themeChanged)
 		{
 			gSettings.profileJustSwitched =
-				true; // Treat external reload like a profile switch for UI refresh
+				true; 
 		}
 
 	} catch (const fs::filesystem_error &e)
@@ -528,14 +517,22 @@ void Settings::checkSettingsFile()
 				  << ": " << e.what() << std::endl;
 	}
 }
-
 void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
 		return;
 
 	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
-	ImVec2 window_size(main_viewport_size.x * 0.75f, main_viewport_size.y * 0.85f);
+	float settings_window_width;
+	if (main_viewport_size.x < 1000.0f)
+	{
+		settings_window_width = main_viewport_size.x * 0.95f;
+	} else
+	{
+		settings_window_width = main_viewport_size.x * 0.75f;
+	}
+	ImVec2 window_size(settings_window_width, main_viewport_size.y * 0.85f);
+
 	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
 	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
 	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
@@ -564,7 +561,7 @@ void Settings::renderSettingsWindow()
 	if (wasFocused && !isFocused && showSettingsWindow)
 	{
 		showSettingsWindow = false;
-		if (settingsChanged) // Only save if settingsChanged flag (from UI interactions) is true
+		if (settingsChanged)
 			saveSettings();
 	}
 	wasFocused = isFocused;
@@ -595,9 +592,8 @@ void Settings::renderSettingsWindow()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	// --- Settings Profile
 	std::vector<std::string> availableProfileFiles;
-	std::string currentActiveFilename = "ned.json"; // Default
+	std::string currentActiveFilename = "ned.json";
 	fs::path userSettingsDir = fs::path(getUserSettingsPath()).parent_path();
 
 	if (fs::exists(userSettingsDir) && fs::is_directory(userSettingsDir))
@@ -610,7 +606,7 @@ void Settings::renderSettingsWindow()
 			}
 		}
 		std::sort(availableProfileFiles.begin(),
-				  availableProfileFiles.end()); // Sort for consistent order
+				  availableProfileFiles.end());
 	}
 
 	if (!this->settingsPath.empty())
@@ -618,8 +614,6 @@ void Settings::renderSettingsWindow()
 		currentActiveFilename = fs::path(this->settingsPath).filename().string();
 	}
 
-	// Ensure currentActiveFilename is in the list, add if not (e.g. if ned.json was deleted but is
-	// active)
 	bool foundCurrentInList = false;
 	for (const auto &fname : availableProfileFiles)
 	{
@@ -632,7 +626,7 @@ void Settings::renderSettingsWindow()
 	if (!foundCurrentInList && !currentActiveFilename.empty())
 	{
 		availableProfileFiles.insert(availableProfileFiles.begin(),
-									 currentActiveFilename); // Add it to the list
+									 currentActiveFilename);
 	}
 
 	if (ImGui::BeginCombo("##ActiveSettingsFileCombo", currentActiveFilename.c_str()))
@@ -646,7 +640,6 @@ void Settings::renderSettingsWindow()
 				{
 					std::cout << "[Settings] User selected new profile: " << filename << std::endl;
 
-					// 1. Update primary ned.json to point to this new file
 					std::string primarySettingsFilePath = getUserSettingsPath();
 					json primaryJson;
 					std::ifstream primaryFileIn(primarySettingsFilePath);
@@ -660,14 +653,14 @@ void Settings::renderSettingsWindow()
 							std::cerr << "[Settings] Error parsing primary "
 									  << primarySettingsFilePath
 									  << " for profile switch: " << e.what() << std::endl;
-							primaryJson = json::object(); // Start fresh if parse error
+							primaryJson = json::object();
 						}
 						primaryFileIn.close();
 					} else
 					{
 						std::cerr << "[Settings] Could not open primary " << primarySettingsFilePath
 								  << " for profile switch." << std::endl;
-						primaryJson = json::object(); // Still try to proceed
+						primaryJson = json::object();
 					}
 
 					primaryJson["settings_file"] = filename;
@@ -685,14 +678,10 @@ void Settings::renderSettingsWindow()
 								  << " for profile switch." << std::endl;
 					}
 
-					// 2. Reload all settings based on the new profile
-					loadSettings(); // This will update settingsPath, settings object, member vars,
-									// and reset change flags
+					loadSettings();
 
-					// 3. Signal that UI elements need to refresh their static temporary states
 					profileJustSwitched = true;
-					settingsChanged = true; // Also consider general settings changed to potentially
-											// trigger saves if window is closed by click-outside.
+					settingsChanged = true;
 					fontChanged = true;
 					settingsChanged = true;
 				}
@@ -709,13 +698,10 @@ void Settings::renderSettingsWindow()
 	ImGui::TextUnformatted("Profile");
 
 	ImGui::Spacing();
-	// Editor Font
 	std::string displayPreviewName = getCurrentFont();
-	// currentFontName = getCurrentFont(); // Ensure currentFontName is also synced if it's used
-	// elsewhere for preview
 	if (ImGui::IsWindowAppearing() || fontChanged || profileJustSwitched)
-	{ // Re-evaluate preview name if font changed or profile switched
-		currentFontName = getCurrentFont(); // Sync internal currentFontName used for comparison
+	{
+		currentFontName = getCurrentFont();
 	}
 
 	if (displayPreviewName != "System Default" && displayPreviewName.find('.') != std::string::npos)
@@ -728,7 +714,7 @@ void Settings::renderSettingsWindow()
 	{
 		for (const auto &fontFile : fontNames)
 		{
-			bool isSelected = (fontFile == currentFontName); // Compare with synced currentFontName
+			bool isSelected = (fontFile == currentFontName);
 			std::string displayName = fontFile;
 			if (fontFile != "System Default" && fontFile.find('.') != std::string::npos)
 			{
@@ -753,7 +739,6 @@ void Settings::renderSettingsWindow()
 	}
 	ImGui::Spacing();
 
-	// Font Size
 	static float tempFontSize;
 	if (ImGui::IsWindowAppearing() || fontSizeChanged || profileJustSwitched)
 	{
@@ -761,29 +746,26 @@ void Settings::renderSettingsWindow()
 	}
 	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
 	{
-		// No immediate save, only set settingsChanged if value differs
 		if (settings.value("fontSize", 0.0f) != tempFontSize)
 		{
-			settingsChanged = true; // Mark general settings changed flag
+			settingsChanged = true;
 		}
 	}
 	if (ImGui::IsItemDeactivatedAfterEdit())
 	{
 		if (getFontSize() != tempFontSize)
-		{ // Check if it actually changed from current internal state
+		{
 			setFontSize(tempFontSize);
-			saveSettings(); // setFontSize sets settingsChanged = true and saves
+			saveSettings();
 		} else if (settingsChanged)
-		{					// If only general flag was set by dragging
-			saveSettings(); // Save general changes
+		{
+			saveSettings();
 		}
 	}
 
 	ImGui::Spacing();
 
-	// Background Color
 	ImVec4 bgColor;
-	// Always initialize bgColor from settings, not just on specific conditions
 	if (settings.contains("backgroundColor") && settings["backgroundColor"].is_array() &&
 		settings["backgroundColor"].size() == 4)
 	{
@@ -794,7 +776,6 @@ void Settings::renderSettingsWindow()
 						 bgArray[3].get<float>());
 	} else
 	{
-		// Fallback if data is missing/corrupt
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
@@ -805,12 +786,9 @@ void Settings::renderSettingsWindow()
 		saveSettings();
 	}
 
-	// Theme colors
 	std::string currentThemeName = getCurrentTheme();
 	if (ImGui::IsWindowAppearing() || themeChanged || profileJustSwitched)
 	{
-		// Theme object itself might have changed, so we re-check existence.
-		// The local 'themeColorsJson' will be re-fetched below.
 	}
 
 	if (settings.contains("themes") && settings["themes"].is_object() &&
@@ -907,15 +885,11 @@ void Settings::renderSettingsWindow()
 								 float default_val) {
 		static std::map<std::string, float> temp_shader_values;
 
-		// Re-initialize from settings if window appears or profile switched
 		if (ImGui::IsWindowAppearing() || profileJustSwitched)
 		{
-			// If profile switched, clear old map to ensure all values are refreshed
-			// from the new profile, not just the ones whose sliders are visible initially.
 			if (profileJustSwitched)
 				temp_shader_values.clear();
 		}
-		// Ensure key exists or initialize it
 		if (temp_shader_values.find(key) == temp_shader_values.end() || profileJustSwitched)
 		{
 			temp_shader_values[key] = settings.value(key, default_val);
@@ -927,7 +901,7 @@ void Settings::renderSettingsWindow()
 				label, &temp_val, min_val, max_val, format, ImGuiSliderFlags_AlwaysClamp))
 		{
 			if (settings.value(key, default_val) != temp_val)
-			{ // Check if value actually changed by dragging
+			{
 				settingsChanged = true;
 			}
 		}
@@ -936,25 +910,24 @@ void Settings::renderSettingsWindow()
 			if (settings.value(key, default_val) != temp_val)
 			{
 				settings[key] = temp_val;
-				settingsChanged = true; // This will be picked up by the saveSettings() if called
-				saveSettings();			// Save immediately for sliders
+				settingsChanged = true;
+				saveSettings();
 			} else if (settingsChanged)
-			{ // If dragging set the flag but value ended up same as original
-			  // saveSettings(); // Redundant if above condition handles it
+			{
 			}
 		}
 		ImGui::Spacing();
 	};
 
-	shaderFloatSlider("Scanline Intensity", "scanline_intensity", 0.00f, 1.00f, "%.02f", 0.20f);
-	shaderFloatSlider("Vignette Intensity", "vignet_intensity", 0.00f, 1.00f, "%.02f", 0.25f);
-	shaderFloatSlider("Bloom Intensity", "bloom_intensity", 0.00f, 1.00f, "%.02f", 0.75f);
-	shaderFloatSlider("Static Intensity", "static_intensity", 0.00f, 0.5f, "%.03f", 0.208f);
-	shaderFloatSlider("RGB Shift Intensity", "colorshift_intensity", 0.0f, 10.0f, "%.02f", 0.90f);
-	shaderFloatSlider("Curvature", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
-	shaderFloatSlider("Burn-in Intensity", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
-	shaderFloatSlider("Jitter Intensity", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
-	shaderFloatSlider("Pixelation Lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
+	shaderFloatSlider("Scanline", "scanline_intensity", 0.00f, 1.00f, "%.02f", 0.20f);
+	shaderFloatSlider("Vignette", "vignet_intensity", 0.00f, 1.00f, "%.02f", 0.25f);
+	shaderFloatSlider("Bloom", "bloom_intensity", 0.00f, 1.00f, "%.02f", 0.75f);
+	shaderFloatSlider("Static", "static_intensity", 0.00f, 0.5f, "%.03f", 0.208f);
+	shaderFloatSlider("RGB Shift", "colorshift_intensity", 0.0f, 10.0f, "%.02f", 0.90f);
+	shaderFloatSlider("Curvature(bugged)", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
+	shaderFloatSlider("Burn-in", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
+	shaderFloatSlider("Jitter", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
+	shaderFloatSlider("Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
 
 	ImGui::Spacing();
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
@@ -986,7 +959,6 @@ void Settings::renderSettingsWindow()
 	ImGui::PopStyleColor(7);
 	ImGui::PopStyleVar(5);
 
-	// Reset the profileJustSwitched flag at the end of rendering the settings window
 	if (profileJustSwitched)
 	{
 		profileJustSwitched = false;

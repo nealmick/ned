@@ -202,6 +202,7 @@ bool Ned::initializeGraphics()
 #ifdef __APPLE__
 	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // No OS decorations for macOS (custom handling)
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
 #else // For Linux/Ubuntu and other non-Apple platforms
 	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
 #endif
@@ -230,6 +231,8 @@ bool Ned::initializeGraphics()
 		glfwTerminate();
 		return false;
 	}
+	glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
 	glGetError(); // Clear any GLEW startup errors
 
 	// Load both shaders
@@ -1207,7 +1210,7 @@ void Ned::renderFrame()
 
 	// Get background color from settings
 	auto &bg = gSettings.getSettings()["backgroundColor"];
-	glClearColor(bg[0], bg[1], bg[2], bg[3]); // Use settings color
+	glClearColor(bg[0], bg[1], bg[2], 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	renderMainWindow();
@@ -1385,7 +1388,7 @@ void Ned::handleSettingsChanges()
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][1].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-				   gSettings.getSettings()["backgroundColor"][3].get<float>());
+				   0.0f);
 
 		// Rest of existing code...
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
