@@ -31,7 +31,11 @@ void EditorHighlight::forceColorUpdate()
 	tsxLexer.forceColorUpdate();
 
 	TreeSitter::refreshColors();
-	std::cout << "refrehsing colors for highlight" << std::endl;
+	TreeSitter::clearQueryCache(); 
+  	TreeSitter::colorsNeedUpdate = true;
+    if (!gFileExplorer.currentFile.empty()) {
+        highlightContent();
+    }
 }
 
 bool EditorHighlight::validateHighlightContentParams()

@@ -181,7 +181,10 @@ void FileContentSearch::renderFindBox()
 	ImGui::BeginGroup();
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, Style::FRAME_BG);
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
 	static char inputBuffer[256] = "";
@@ -210,7 +213,10 @@ void FileContentSearch::renderFindBox()
 	// Render the checkbox.
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, Style::FRAME_BG);
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
 	static bool ignoreCaseCheckbox = false;

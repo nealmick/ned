@@ -227,7 +227,10 @@ void LSPSymbolInfo::renderSymbolInfo()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.09f, 0.09f, 0.09f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+		   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.95f, 1.0f));
 

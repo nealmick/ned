@@ -1,13 +1,13 @@
 {
     "backgroundColor": [
-        0.16831684112548828,
-        0.1649838387966156,
-        0.1649838387966156,
+        0.0923076868057251,
+        0.0923076868057251,
+        0.0923076868057251,
         0.0
     ],
-    "bloom_intensity": 0.6000000238418579,
+    "bloom_intensity": 1.0,
     "burnin_intensity": 0.9649999737739563,
-    "colorshift_intensity": 0.0,
+    "colorshift_intensity": 0.5099999904632568,
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
     "fontSize": 24.0,
@@ -18,7 +18,7 @@
     "pixelation_intensity": -0.04800000041723251,
     "rainbow": true,
     "scanline_intensity": 0.2800000011920929,
-    "settings_file": "amber.json",
+    "settings_file": "test.json",
     "shader_toggle": true,
     "splitPos": 0.3203410506248474,
     "static_intensity": 0.08699999749660492,
