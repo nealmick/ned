@@ -130,7 +130,7 @@ void Settings::loadSettings()
 				  << " not found.\n";
 
 		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-		std::vector<std::string> filesToCopy = {"ned.json", "test.json"};
+		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json"};
 
 		for (const auto &filename : filesToCopy)
 		{
@@ -328,7 +328,9 @@ void Settings::loadSettings()
 		{"static_intensity", 0.20800000429153442},
 		{"theme", "default"},
 		{"treesitter", true},
-		{"vignet_intensity", 0.25}};
+		{"vignet_intensity", 0.25},
+	 	{"mac_background_opacity", 0.5},
+    	{"mac_blur_enabled", true},};
 	for (const auto &[key, value] : defaults)
 	{
 		if (!settings.contains(key))
@@ -471,21 +473,37 @@ void Settings::checkSettingsFile()
 		{
 			themeChanged = true; 
 		}
-		const std::vector<std::string> checkKeys = {"backgroundColor",
-													"splitPos",
-													"rainbow",
-													"treesitter",
-													"shader_toggle",
-													"scanline_intensity",
-													"burnin_intensity",
-													"curvature_intensity",
-													"colorshift_intensity",
-													"bloom_intensity",
-													"static_intensity",
-													"jitter_intensity",
-													"pixelation_intensity",
-													"pixel_width",
-													"vignet_intensity"};
+		if (oldSettings.contains("mac_background_opacity") && 
+		    settings.contains("mac_background_opacity") &&
+		    oldSettings["mac_background_opacity"] != settings["mac_background_opacity"]) 
+		{
+		    settingsChanged = true;
+		}
+
+		if (oldSettings.contains("mac_blur_enabled") && 
+		    settings.contains("mac_blur_enabled") &&
+		    oldSettings["mac_blur_enabled"] != settings["mac_blur_enabled"]) 
+		{
+		    settingsChanged = true;
+		}
+		const std::vector<std::string> checkKeys = {
+			"backgroundColor",
+			"splitPos",
+			"rainbow",
+			"treesitter",
+			"shader_toggle",
+			"scanline_intensity",
+			"burnin_intensity",
+			"curvature_intensity",
+			"colorshift_intensity",
+			"bloom_intensity",
+			"static_intensity",
+			"jitter_intensity",
+			"pixelation_intensity",
+			"pixel_width",
+			"vignet_intensity",
+			"mac_background_opacity",
+			"mac_blur_enabled",};
 		for (const auto &key : checkKeys)
 		{
 			if (oldSettings.contains(key) && settings.contains(key))
@@ -785,6 +803,34 @@ void Settings::renderSettingsWindow()
 		settingsChanged = true;
 		saveSettings();
 	}
+
+
+
+	#ifdef __APPLE__
+	ImGui::Spacing();
+	ImGui::TextUnformatted("macOS Settings");
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// Get current values
+	float currentOpacity = settings.value("mac_background_opacity", 0.5f);
+	bool currentBlurEnabled = settings.value("mac_blur_enabled", true);
+
+	// Opacity slider
+	if (ImGui::SliderFloat("Background Opacity", &currentOpacity, 0.0f, 1.0f, "%.2f")) {
+	    settings["mac_background_opacity"] = currentOpacity;
+	    settingsChanged = true;
+	    saveSettings();
+	}
+
+	// Blur checkbox
+	if (ImGui::Checkbox("Enable Background Blur", &currentBlurEnabled)) {
+	    settings["mac_blur_enabled"] = currentBlurEnabled;
+	    settingsChanged = true;
+	    saveSettings();
+	}
+	#endif
+
 
 	std::string currentThemeName = getCurrentTheme();
 	if (ImGui::IsWindowAppearing() || themeChanged || profileJustSwitched)

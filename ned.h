@@ -142,9 +142,14 @@ class Ned
 
 	// Declaration for the single overlay function
 	void handleUltraSimpleResizeOverlay(); // Renamed for clarity
+	float lastOpacity = 0.5f;
+   bool lastBlurEnabled = false;
+	        
 };
 
 // Global scope
 extern Bookmarks gBookmarks;
 extern bool shader_toggle;
 extern bool showSidebar;
+
+

@@ -75,10 +75,20 @@ bool Ned::initialize()
 	{
 		return false;
 	}
+	gSettings.loadSettings();
 
+
+	
 #ifdef __APPLE__
-	// Now properly declared via macos_window.h
-	configureMacOSWindow(window);
+	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
+	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+	
+	// Initial configuration
+	configureMacOSWindow(window, opacity, blurEnabled);
+	
+	// Initialize tracking variables
+	lastOpacity = opacity;
+	lastBlurEnabled = blurEnabled;
 #endif
 
 	// Rest of initialization...
@@ -269,7 +279,6 @@ void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 void Ned::initializeResources()
 {
 	gDebugConsole.toggleVisibility();
-	gSettings.loadSettings();
 	gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
 	// Save original font size
@@ -1381,8 +1390,8 @@ void Ned::handleSettingsChanges()
 	{
 		ImGuiStyle &style = ImGui::GetStyle();
 
-		// Add this line to re-apply all style settings:
-		ApplySettings(style); // <-- This is the critical fix
+		
+		ApplySettings(style); 
 
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
@@ -1390,7 +1399,7 @@ void Ned::handleSettingsChanges()
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 				   0.0f);
 
-		// Rest of existing code...
+		
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
 		if (gSettings.hasThemeChanged())
@@ -1406,6 +1415,18 @@ void Ned::handleSettingsChanges()
 		{
 			needFontReload = true;
 		}
+		 #ifdef __APPLE__
+            // Always update with current values
+            float currentOpacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
+            bool currentBlurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+            
+            updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
+            
+            // Update tracking variables
+            lastOpacity = currentOpacity;
+            lastBlurEnabled = currentBlurEnabled;
+        #endif
+		
 		gSettings.resetSettingsChanged();
 	}
 }

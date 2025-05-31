@@ -5,21 +5,23 @@
         0.1649838387966156,
         0.0
     ],
-    "bloom_intensity": 0.6200000047683716,
-    "burnin_intensity": 0.9539999961853027,
-    "colorshift_intensity": 5.650000095367432,
+    "bloom_intensity": 0.6000000238418579,
+    "burnin_intensity": 0.9649999737739563,
+    "colorshift_intensity": 0.0,
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
-    "fontSize": 20.0,
-    "jitter_intensity": 2.5799999237060547,
+    "fontSize": 24.0,
+    "jitter_intensity": 0.0,
+    "mac_background_opacity": 0.6299999952316284,
+    "mac_blur_enabled": true,
     "pixel_width": 5000.0,
-    "pixelation_intensity": -0.10700000077486038,
+    "pixelation_intensity": -0.04800000041723251,
     "rainbow": true,
-    "scanline_intensity": 0.4699999988079071,
-    "settings_file": "test.json",
+    "scanline_intensity": 0.2800000011920929,
+    "settings_file": "solarized-light.json",
     "shader_toggle": true,
-    "splitPos": 0.25700366497039795,
-    "static_intensity": 0.3100000023841858,
+    "splitPos": 0.3203410506248474,
+    "static_intensity": 0.08699999749660492,
     "theme": "default",
     "themes": {
         "default": {
@@ -80,5 +82,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.029999999329447746
+    "vignet_intensity": 0.18000000715255737
 }

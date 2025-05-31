@@ -6,6 +6,11 @@
 #include "macos_window.h"
 #import <QuartzCore/QuartzCore.h>
 
+// Static variables to track views and settings
+static NSView* appContainerView = nil;
+static NSVisualEffectView* blurView = nil;
+static NSWindow* configuredWindow = nil;
+
 // Custom view for draggable areas
 @interface DraggableView : NSView
 @end
@@ -16,9 +21,17 @@
 }
 @end
 
-void configureMacOSWindow(void* window) {
+void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     GLFWwindow* glfwWindow = (GLFWwindow*)window;
     NSWindow* nswindow = glfwGetCocoaWindow(glfwWindow);
+
+    // If already configured, just update settings
+    if (configuredWindow == nswindow) {
+        updateMacOSWindowProperties(opacity, blurEnabled);
+        return;
+    }
+    
+    configuredWindow = nswindow;
 
     // Window style configuration
     nswindow.styleMask = NSWindowStyleMaskBorderless | 
@@ -29,7 +42,7 @@ void configureMacOSWindow(void* window) {
     nswindow.titleVisibility = NSWindowTitleHidden;
     nswindow.hasShadow = YES;
     
-    // Turn off background dragging - we'll handle dragging ourselves
+    // Turn off background dragging
     nswindow.movableByWindowBackground = NO;
     
     // Base transparency setup
@@ -46,16 +59,16 @@ void configureMacOSWindow(void* window) {
     containerView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // Create blurred background view
-    NSVisualEffectView* blurView = [[NSVisualEffectView alloc] initWithFrame:containerView.bounds];
-    blurView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    blurView.state = NSVisualEffectStateActive;
-    blurView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    NSVisualEffectView* effectView = [[NSVisualEffectView alloc] initWithFrame:containerView.bounds];
+    effectView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    effectView.state = NSVisualEffectStateActive;
+    effectView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     
     // Strong blur material
     if (@available(macOS 10.14, *)) {
-        blurView.material = NSVisualEffectMaterialHUDWindow;
+        effectView.material = NSVisualEffectMaterialHUDWindow;
     } else {
-        blurView.material = NSVisualEffectMaterialDark;
+        effectView.material = NSVisualEffectMaterialDark;
     }
     
     // Create app content container
@@ -63,7 +76,7 @@ void configureMacOSWindow(void* window) {
     [appContainer setWantsLayer:YES];
     appContainer.layer.backgroundColor = [[NSColor clearColor] CGColor];
     appContainer.layer.opaque = NO;
-    appContainer.alphaValue = 0.55; // Semi-transparent app content
+    appContainer.alphaValue = opacity;
     appContainer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // Get original GLFW content
@@ -78,23 +91,59 @@ void configureMacOSWindow(void* window) {
     titleBarView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     
     // Rebuild view hierarchy:
-    // 1. Window's content view -> Container View (rounds corners)
-    // 2. Container View -> Blur View (background blur)
-    // 3. Container View -> App Container (semi-transparent layer for app content)
-    // 4. App Container -> Original GLFW Content
-    // 5. Container View -> Title Bar View (for dragging, on top)
     nswindow.contentView = containerView;
-    [containerView addSubview:blurView];
+    [containerView addSubview:effectView];
     [containerView addSubview:appContainer];
     [appContainer addSubview:originalGlfwContentView];
-    [containerView addSubview:titleBarView]; // Add on top
+    [containerView addSubview:titleBarView];
     
-    // Make sure views are positioned correctly
-    [blurView setFrameOrigin:NSMakePoint(0, 0)];
-    [appContainer setFrameOrigin:NSMakePoint(0, 0)];
-    [titleBarView setFrameOrigin:NSMakePoint(0, contentRect.size.height - titleBarHeight)];
+    // Apply initial blur setting
+    [effectView setHidden:!blurEnabled];
     
+    // --- FOCUS FIX STARTS HERE ---
+    [nswindow setInitialFirstResponder:originalGlfwContentView];
+    [nswindow makeFirstResponder:originalGlfwContentView];
+    [NSApp activateIgnoringOtherApps:YES];
+    [nswindow makeKeyAndOrderFront:nil];
+    // --- FOCUS FIX ENDS HERE ---
+    
+    // Store references for future updates
+    appContainerView = appContainer;
+    blurView = effectView;
+
     // Force window refresh
     [nswindow invalidateShadow];
     [nswindow display];
 }
+
+
+void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
+    // Ensure UI updates happen on main thread
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Update existing views if available
+        if (appContainerView) {
+            [appContainerView setAlphaValue:opacity];
+            // Force immediate redraw of this view
+            [appContainerView setNeedsDisplay:YES];
+        }
+        
+        if (blurView) {
+            [blurView setHidden:!blurEnabled];
+            [blurView setNeedsDisplay:YES];
+        }
+        
+        // Refresh window if configured
+        if (configuredWindow) {
+            // Invalidate window shadow to force refresh
+            [configuredWindow invalidateShadow];
+            
+            // Force immediate redraw of the entire window
+            [configuredWindow displayIfNeeded];
+            
+            // This additional call ensures the transparency is updated
+            [configuredWindow setHasShadow:NO];
+            [configuredWindow setHasShadow:YES];
+        }
+    });
+}
+
