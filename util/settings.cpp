@@ -467,11 +467,13 @@ void Settings::checkSettingsFile()
 			oldSettings["theme"] != settings["theme"])
 		{
 			themeChanged = true;
+			gEditorHighlight.forceColorUpdate(); 
 		}
 		if (oldSettings.contains("themes") && settings.contains("themes") &&
 			oldSettings["themes"] != settings["themes"])
 		{
 			themeChanged = true; 
+			gEditorHighlight.forceColorUpdate(); 
 		}
 		if (oldSettings.contains("mac_background_opacity") && 
 		    settings.contains("mac_background_opacity") &&
@@ -563,10 +565,28 @@ void Settings::renderSettingsWindow()
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+
+
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+				   1.0f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+			   1.0f));
+
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+			   1.0f));
+
+
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+	   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+	   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.15f, 0.15f, 0.15f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
@@ -702,6 +722,7 @@ void Settings::renderSettingsWindow()
 					settingsChanged = true;
 					fontChanged = true;
 					settingsChanged = true;
+					gEditorHighlight.forceColorUpdate();
 				}
 			}
 			if (isSelected)
@@ -1002,7 +1023,7 @@ void Settings::renderSettingsWindow()
 	}
 
 	ImGui::End();
-	ImGui::PopStyleColor(7);
+	ImGui::PopStyleColor(8);
 	ImGui::PopStyleVar(5);
 
 	if (profileJustSwitched)

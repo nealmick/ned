@@ -370,7 +370,14 @@ void LSPGotoRef::renderReferenceOptions()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+	
+
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+		   1.0f));
+
+
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
@@ -407,7 +414,7 @@ void LSPGotoRef::renderReferenceOptions()
 
 		// Fixed header
 		ImGui::BeginChild("##Header", ImVec2(0, titleHeight), false);
-		ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f),
+		ImGui::Text(
 						   "Find References (%zu)",
 						   referenceLocations.size());
 		ImGui::Separator();
@@ -483,7 +490,7 @@ void LSPGotoRef::renderReferenceOptions()
 		// Fixed footer
 		ImGui::BeginChild("##Footer", ImVec2(0, footerHeight), false);
 		ImGui::Separator();
-		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down Enter");
+		ImGui::Text("Up/Down Enter");
 		ImGui::EndChild();
 
 		// Handle Enter key

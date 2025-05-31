@@ -1307,77 +1307,84 @@ void Ned::handleFileDialog()
 		}
 	}
 }
+
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-	// Get current accumulation buffers
-	int prev = accum.swap ? 1 : 0;
-	int curr = accum.swap ? 0 : 1;
+    // Only run burn-in shader if shaders are enabled
+    if (shader_toggle) 
+    {
+        // Get current accumulation buffers
+        int prev = accum.swap ? 1 : 0;
+        int curr = accum.swap ? 0 : 1;
 
-	// First pass: Burn-in accumulation
-	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
-	accum.burnInShader.useShader();
+        // Burn-in accumulation pass
+        glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
+        accum.burnInShader.useShader();
+        accum.burnInShader.setInt("currentFrame", 0);
+        accum.burnInShader.setInt("previousFrame", 1);
+        accum.burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture);
+        
+        glClear(GL_COLOR_BUFFER_BIT);
+        glBindVertexArray(quad.VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// Set texture units and uniforms
-	accum.burnInShader.setInt("currentFrame", 0);
-	accum.burnInShader.setInt("previousFrame", 1);
-	accum.burnInShader.setFloat("decay",
-								gSettings.getSettings()["burnin_intensity"]); // Optimal decay value
+        accum.swap = !accum.swap;
+    }
 
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fb.renderTexture); // Current frame
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture); // Previous accumulation
+    // CRT effects pass
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    crtShader.useShader();
 
-	// Clear accumulation buffer before drawing
-	glClear(GL_COLOR_BUFFER_BIT);
-	glBindVertexArray(quad.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+    // Set CRT shader uniforms
+    crtShader.setInt("screenTexture", 0);
+    if (shader_toggle) {
+        crtShader.setFloat("u_effects_enabled", 1.0f);
+    } else {
+        crtShader.setFloat("u_effects_enabled", 0.0f);
+    }
+    crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
+    crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
+    crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
+    crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+    crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
+    crtShader.setFloat("u_jitter_intensity",
+                       gSettings.getSettings()["jitter_intensity"].get<float>());
+    crtShader.setFloat("u_curvature_intensity",
+                       gSettings.getSettings()["curvature_intensity"].get<float>());
+    crtShader.setFloat("u_pixelation_intensity",
+                       gSettings.getSettings()["pixelation_intensity"].get<float>());
+    crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
+    
+    // Set time and resolution uniforms
+    GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
+    GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
+    if (timeLocation != -1)
+        glUniform1f(timeLocation, currentTime);
+    if (resolutionLocation != -1)
+        glUniform2f(resolutionLocation, display_w, display_h);
 
-	accum.swap = !accum.swap;
+    // Bind appropriate texture based on shader toggle
+    glActiveTexture(GL_TEXTURE0);
+    if (shader_toggle) {
+        int curr = accum.swap ? 0 : 1; // Get current accumulation buffer
+        glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture);
+    } else {
+        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+    }
 
-	// Second pass: CRT effects
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	crtShader.useShader();
-
-	// Set CRT shader uniforms
-	crtShader.setInt("screenTexture", 0);
-	if (shader_toggle)
-	{
-		crtShader.setFloat("u_effects_enabled", 1.0f);
-	} else
-	{
-		crtShader.setFloat("u_effects_enabled", 0.0f);
-	}
-	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
-	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
-	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
-	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
-	crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
-	crtShader.setFloat("u_jitter_intensity",
-					   gSettings.getSettings()["jitter_intensity"].get<float>());
-	crtShader.setFloat("u_curvature_intensity",
-					   gSettings.getSettings()["curvature_intensity"].get<float>());
-	crtShader.setFloat("u_pixelation_intensity",
-					   gSettings.getSettings()["pixelation_intensity"].get<float>());
-	crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
-	// Set time and resolution uniforms
-	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
-	if (timeLocation != -1)
-		glUniform1f(timeLocation, currentTime);
-	if (resolutionLocation != -1)
-		glUniform2f(resolutionLocation, display_w, display_h);
-
-	// Bind accumulated texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture); // Use current accum buffer
-
-	// Draw final quad
-	glBindVertexArray(quad.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+    // Draw final quad
+    glBindVertexArray(quad.VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
+
+
 void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
 {
 	auto frame_end = std::chrono::high_resolution_clock::now();

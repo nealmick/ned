@@ -5,13 +5,17 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <algorithm> // For std::min/max if needed
-#include <string>
-#include <string_view>
 
 #include <libgen.h> // For dirname
 #include <limits.h> // Or <climits> for C++ style
 #include <unistd.h> // For getcwd
+
+#include <algorithm> 
+#include <iostream>
+#include <string>
+#include <string_view>
+
+
 
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h> // For macOS bundle functions
@@ -252,8 +256,6 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::strin
     // Use full_path as the cache key consistently
     auto cacheIt = queryCache.find(full_path);
     if (cacheIt != queryCache.end()) {
-    	std::cout << " cached" << std::endl;
-
         return cacheIt->second;
     }
 
@@ -278,136 +280,159 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::strin
     queryCache[full_path] = query;
     return query;
 }
-
-
-void TreeSitter::executeQueryAndHighlight(TSQuery *query,
-                                          TSTree *tree,
-                                          const std::string &content,
-                                          std::vector<ImVec4> &colors,
-                                          bool initialParse,
-                                          size_t start,
-                                          size_t end)
+void TreeSitter::clearQueryCache()
 {
-    // Only reset colors for initial parse or large changes
-    if (initialParse || (end - start) > 1000) {
-        std::fill(colors.begin(), colors.end(), cachedColors.text);
+    std::lock_guard<std::mutex> lock(parserMutex);
+    for (auto& [key, query] : queryCache) {
+        ts_query_delete(query);
     }
+    queryCache.clear();
+}
+void TreeSitter::executeQueryAndHighlight(TSQuery *query,
+										  TSTree *tree,
+										  const std::string &content,
+										  std::vector<ImVec4> &colors,
+										  bool initialParse,
+										  size_t start,
+										  size_t end)
+{
+	TSQueryCursor *cursor = ts_query_cursor_new();
+	ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
 
-    TSQueryCursor *cursor = ts_query_cursor_new();
-    ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
+	// Get theme colors once
+	const ImVec4 text_color = cachedColors.text;
 
-    const auto& capture_colors = [&]() -> const std::unordered_map<std::string, ImVec4>& {
-        static const std::unordered_map<std::string, ImVec4> colors = {
-            {"keyword", cachedColors.keyword},
-            {"string", cachedColors.string},
-            {"number", cachedColors.number},
-            {"comment", cachedColors.comment},
-            {"type", cachedColors.type},
-            {"function", cachedColors.function},
-            {"variable", cachedColors.variable},
-            {"tag", cachedColors.type},
-            {"attribute", cachedColors.number},
-            {"property", cachedColors.variable},
-            {"hook", cachedColors.function},
-            {"variable.parameter", cachedColors.variable},
-            {"punctuation.special", cachedColors.string}
-        };
-        return colors;
-    }();
+	// FIRST: Set ALL text to default color
+	std::fill(colors.begin(), colors.end(), text_color);
 
-    TSQueryMatch match;
-    while (ts_query_cursor_next_match(cursor, &match))
-    {
-        for (uint32_t i = 0; i < match.capture_count; ++i)
-        {
-            TSNode node = match.captures[i].node;
-            uint32_t name_length;
-            const char *name_ptr =
-                ts_query_capture_name_for_id(query, match.captures[i].index, &name_length);
-            std::string name(name_ptr, name_length);
+	// THEN apply syntax highlights
+	const std::unordered_map<std::string, ImVec4> capture_colors = {
+		{"keyword", cachedColors.keyword},
+		{"string", cachedColors.string},
+		{"number", cachedColors.number},
+		{"comment", cachedColors.comment},
+		{"type", cachedColors.type},
+		{"function", cachedColors.function},
+		{"variable", cachedColors.variable},
+		{"tag", cachedColors.type},			 // Components
+		{"attribute", cachedColors.number},	 // JSX attributes
+		{"property", cachedColors.variable}, // Object properties
+		{"hook", cachedColors.function},	 // React hooks
+		{"variable.parameter", cachedColors.variable},
+		{"punctuation.special", cachedColors.string}};
 
-            auto it = capture_colors.find(name);
-            if (it == capture_colors.end()) continue;
+	TSQueryMatch match;
+	while (ts_query_cursor_next_match(cursor, &match))
+	{
+		for (uint32_t i = 0; i < match.capture_count; ++i)
+		{
+			TSNode node = match.captures[i].node;
+			uint32_t name_length;
+			const char *name_ptr =
+				ts_query_capture_name_for_id(query, match.captures[i].index, &name_length);
+			std::string name(name_ptr, name_length);
 
-            const uint32_t node_start = ts_node_start_byte(node);
-            const uint32_t node_end = ts_node_end_byte(node);
-            
-            // Only update if within changed region
-            if (!initialParse && (node_end < start || node_start > end)) continue;
-            
-            setColors(content, colors, node_start, node_end, it->second);
-        }
-    }
+			const ImVec4 color = capture_colors.count(name) ? capture_colors.at(name)
+															: text_color; // Fallback to text color
 
-    ts_query_cursor_delete(cursor);
+			const uint32_t start = ts_node_start_byte(node);
+			const uint32_t end = ts_node_end_byte(node);
+			setColors(content, colors, start, end, color);
+		}
+	}
+
+	ts_query_cursor_delete(cursor);
 }
 
 void TreeSitter::parse(const std::string &fileContent,
-                       std::vector<ImVec4> &fileColors,
-                       const std::string &extension,
-                       bool fullRehighlight)
+					   std::vector<ImVec4> &fileColors,
+					   const std::string &extension,
+					   bool fullRehighlight)
 {
-    // Skip if content hasn't changed
-    if (fileContent == previousContent && !fullRehighlight) return;
-    
-    std::lock_guard<std::mutex> lock(parserMutex);
-    if (fileContent.empty()) return;
-    
-    static std::string lastFile;
-    if (lastFile != gFileExplorer.currentFile || fullRehighlight)
-    {
-        if (previousTree) ts_tree_delete(previousTree);
-        previousTree = nullptr;
-        previousContent.clear();
-        lastFile = gFileExplorer.currentFile;
-    }
+	std::lock_guard<std::mutex> lock(parserMutex);
+	if (fileContent.empty())
+	{
+		std::cerr << "No content to parse!\n";
+		return;
+	}
+	static std::string lastFile;
+	if (lastFile != gFileExplorer.currentFile)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		lastFile = gFileExplorer.currentFile;
+	}
+	if (fullRehighlight)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		lastFile.clear(); // Force reinitialization
+	}
+	updateThemeColors();
+	TSParser *parser = getParser();
 
-    updateThemeColors();
-    TSParser *parser = getParser();
+	// Language detection
+	auto [lang, query_path] = detectLanguageAndQuery(extension);
+	if (!lang)
+	{
+		// std::cerr << "No parser for extension: " << extension << std::endl;
+		return;
+	}
 
-    // Language detection
-    auto [lang, query_path] = detectLanguageAndQuery(extension);
-    if (!lang) return;
+	// Reset state if language changed
+	if (currentLanguage != lang || currentExtension != extension)
+	{
+		if (previousTree)
+		{
+			ts_tree_delete(previousTree);
+			previousTree = nullptr;
+		}
+		previousContent.clear();
+		currentLanguage = lang;
+		currentExtension = extension;
+	}
 
-    // Reset state if language changed
-    if (currentLanguage != lang || currentExtension != extension)
-    {
-        if (previousTree) ts_tree_delete(previousTree);
-        previousTree = nullptr;
-        previousContent.clear();
-        currentLanguage = lang;
-        currentExtension = extension;
-    }
+	bool initialParse = previousContent.empty();
+	ts_parser_set_language(parser, lang);
 
-    bool initialParse = previousContent.empty();
-    ts_parser_set_language(parser, lang);
+	// Handle incremental parsing
+	size_t start = 0;
+	size_t newEnd = fileContent.size();
+	size_t oldEnd = previousContent.size();
 
-    // Handle incremental parsing
-    size_t start = 0;
-    size_t newEnd = fileContent.size();
-    size_t oldEnd = previousContent.size();
+	if (!initialParse)
+	{
+		computeEditRange(fileContent, start, newEnd,
+						 oldEnd); // Pass new content
+		TSInputEdit edit = createEdit(start, oldEnd, newEnd);
+		ts_tree_edit(previousTree, &edit);
+	}
 
-    if (!initialParse)
-    {
-        computeEditRange(fileContent, start, newEnd, oldEnd);
-        TSInputEdit edit = createEdit(start, oldEnd, newEnd);
-        ts_tree_edit(previousTree, &edit);
-    }
+	// Create new parse tree
+	TSTree *newTree = createNewTree(parser, initialParse, fileContent);
+	// printAST(newTree, fileContent); // <-- This line replaces the lambda
+	//   Update state
+	if (previousTree)
+		ts_tree_delete(previousTree);
+	previousTree = newTree;
+	previousContent = fileContent;
 
-    // Create new parse tree
-    TSTree *newTree = createNewTree(parser, initialParse, fileContent);
-    
-    // Update state
-    if (previousTree) ts_tree_delete(previousTree);
-    previousTree = newTree;
-    previousContent = fileContent;
+	// Handle query execution
+	TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
+	if (!query)
+		return;
 
-    // Handle query execution
-    TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
-    if (!query) return;
-
-    executeQueryAndHighlight(query, newTree, fileContent, fileColors, initialParse, start, newEnd);
+	executeQueryAndHighlight(query, newTree, fileContent, fileColors, initialParse, start, newEnd);
 }
+
 void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
 {
 	if (!tree)
@@ -417,6 +442,8 @@ void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
 	printASTNode(ts_tree_root_node(tree), fileContent);
 	std::cout << "──────────────────────────────────────" << std::endl;
 }
+
+
 
 void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int depth)
 {

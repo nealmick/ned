@@ -376,7 +376,10 @@ void LSPGotoDef::renderDefinitionOptions()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f)); // Unused?
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
@@ -409,7 +412,7 @@ void LSPGotoDef::renderDefinitionOptions()
 			editor_state.block_input = false;
 		}
 
-		ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f),
+		ImGui::Text(
 						   "Go to Definition (%zu)",
 						   definitionLocations.size());
 		ImGui::Separator();
@@ -486,7 +489,7 @@ void LSPGotoDef::renderDefinitionOptions()
 		}
 
 		ImGui::Separator();
-		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Up/Down Enter");
+		ImGui::Text("Up/Down Enter");
 
 		if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 		{

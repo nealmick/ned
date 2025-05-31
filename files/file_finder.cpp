@@ -201,11 +201,18 @@ void FileFinder::renderHeader()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
 	// background
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			   1.0f));
 	// window styles...
 
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+				   1.0f));
+
 	ImGui::Begin("FileFinder", nullptr, windowFlags);
 
 	ImGui::TextUnformatted("Find File");
@@ -221,24 +228,41 @@ void FileFinder::renderHeader()
 }
 
 // Helper: Render the search input box and force keyboard focus.
+// Update in renderSearchInput() function
 bool FileFinder::renderSearchInput()
 {
-	float inputWidth = ImGui::GetContentRegionAvail().x;
-	ImGui::PushItemWidth(inputWidth);
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-	// Force keyboard focus each frame so the input stays focused
-	ImGui::SetKeyboardFocusHere();
-	bool enterPressed =
-		ImGui::InputText("##SearchInput",
-						 searchBuffer,
-						 sizeof(searchBuffer),
-						 ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue);
-	ImGui::PopStyleVar(2);
-	ImGui::PopItemWidth();
-	return enterPressed;
-}
+    float inputWidth = ImGui::GetContentRegionAvail().x;
+    ImGui::PushItemWidth(inputWidth);
+    
+    // Add border styling to match FileContentSearch
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+    
+    // Match border and background colors from FileContentSearch
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
+        gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
+        gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
+        gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
+        1.0f));
 
+    // Force keyboard focus each frame so the input stays focused
+    ImGui::SetKeyboardFocusHere();
+    bool enterPressed = ImGui::InputText(
+        "##SearchInput",
+        searchBuffer,
+        sizeof(searchBuffer),
+        ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue
+    );
+
+    // Clean up style changes
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+    
+    ImGui::PopItemWidth();
+    return enterPressed;
+}
 // Helper: Render the file list with manual clipping and no mouse hover effect.
 void FileFinder::renderFileList()
 {
@@ -395,7 +419,7 @@ void FileFinder::renderWindow()
 	renderFileList();
 
 	ImGui::Separator();
-	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Ctrl+P or ESC to close");
+	ImGui::Text( "Press Ctrl+P or ESC to close");
 	ImGui::End();
 	// Pop the window style colors and vars pushed in renderHeader()
 	ImGui::PopStyleColor(3);
