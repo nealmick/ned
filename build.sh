@@ -12,12 +12,12 @@ BUILD_DIR=".build"
 
 # Handle clean flag
 if [ "$1" = "--clean" ]; then
-    echo -e "${BLUE}🗑️  Cleaning build directory...${NC}"
+    echo "${BLUE}🗑️  Cleaning build directory...${NC}"
     rm -rf "$BUILD_DIR"
 fi
 
 # Build header
-echo -e "${GREEN}"
+echo "${GREEN}"
 cat << "EOF"
   _   _ ______ _____  
  | \ | |  ____|  __ \ 
@@ -26,9 +26,9 @@ cat << "EOF"
  | |\  | |____| |__| |
  |_| \_|______|_____/                       
 EOF
-echo -e "${NC}"
+echo "${NC}"
 
-echo -e "${BLUE}📝 Starting code formatting...${NC}"
+echo "${BLUE}📝 Starting code formatting...${NC}"
 
 # Count and format files
 count=$(find . \
@@ -38,25 +38,25 @@ count=$(find . \
    -not -path "./icons/*" \
    -not -path "./.build/*" \
    -not -path "./build/*" \
-   -exec clang-format -i {} \; \
-   -exec echo "." \; | wc -l)
+  xec clang-format -i {} \; \
+  xec echo "." \; | wc -l)
     
-echo -e "${GREEN}✨ Formatted ${count} files ${NC}"
+echo "${GREEN}✨ Formatted ${count} files ${NC}"
 
 # Build steps
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-echo -e "${GREEN}📦 Running cmake...${NC}"
+echo "${GREEN}📦 Running cmake...${NC}"
 cmake ..
 
-echo -e "${GREEN}📦 Running make...${NC}"
+echo "${GREEN}📦 Running make...${NC}"
 make
 
 # Check build status
 if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Build failed!${NC}"
-    echo -e "${RED}"
+    echo "${RED}❌ Build failed!${NC}"
+    echo "${RED}"
     cat << "EOF"
   ______                     
  |  ____|                    
@@ -66,12 +66,12 @@ if [ $? -ne 0 ]; then
  |______|_|  |_|  \___/|_|   
                              
 EOF
-    echo -e "${NC}"
+    echo "${NC}"
     exit 1
 fi
 
 # Success banner
-echo -e "${GREEN}"
+echo "${GREEN}"
 cat << "EOF"
   ____        _ _ _   
  |  _ \      (_) | |  
@@ -80,10 +80,10 @@ cat << "EOF"
  | |_) | |_| | | | |_ 
  |____/ \__,_|_|_|\__|
 EOF
-echo -e "${NC}"
+echo "${NC}"
 
 # Create the symbolic link for LSP support
-echo -e "${BLUE}🔗 Setting up LSP support...${NC}"
+echo "${BLUE}🔗 Setting up LSP support...${NC}"
 cd ..
 if [ -f "$BUILD_DIR/compile_commands.json" ]; then
     # Remove existing symlink if it exists
@@ -92,13 +92,13 @@ if [ -f "$BUILD_DIR/compile_commands.json" ]; then
     fi
     # Create new symlink
     ln -s "$BUILD_DIR/compile_commands.json" .
-    echo -e "${GREEN}✅ LSP configuration successful!${NC}"
+    echo "${GREEN}✅ LSP configuration successful!${NC}"
 else
-    echo -e "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
+    echo "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
 fi
 
 
-echo -e "${GREEN}✅  Launching NED  🚀 ${NC}"
+echo "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./$BUILD_DIR/ned
 
-echo -e "${GREEN}✅ Process terminated!${NC}"
+echo "${GREEN}✅ Process terminated!${NC}"

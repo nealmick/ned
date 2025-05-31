@@ -82,7 +82,6 @@ void EditorKeyboard::handleBackspaceKey()
 			  [](const MultiSelectionRange &a, const MultiSelectionRange &b) {
 				  return a.start_index < b.start_index;
 			  });
-
 	std::vector<MultiSelectionRange> merged_ranges;
 	if (!ranges_to_delete.empty())
 	{

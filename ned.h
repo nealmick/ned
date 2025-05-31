@@ -135,9 +135,21 @@ class Ned
 	ImVec2 dragStartMousePos;
 	ImVec2 dragStartWindowPos;
 	void handleWindowDragging();
+
+	int m_sroLastWidth;
+	int m_sroLastHeight;
+	int m_sroFramesToShow;
+
+	// Declaration for the single overlay function
+	void handleUltraSimpleResizeOverlay(); // Renamed for clarity
+	float lastOpacity = 0.5f;
+   bool lastBlurEnabled = false;
+	        
 };
 
 // Global scope
 extern Bookmarks gBookmarks;
 extern bool shader_toggle;
 extern bool showSidebar;
+
+

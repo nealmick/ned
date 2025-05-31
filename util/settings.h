@@ -113,7 +113,7 @@ class Settings
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
-
+	
   private:
 	json settings;			  // Holds the settings from the *active* file
 	std::string settingsPath; // Path to the *active* settings file (e.g., ned.json or test.json)
