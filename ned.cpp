@@ -21,6 +21,7 @@ Description: Main application class implementation for NED text editor.
 #include "util/terminal.h"
 #include "util/welcome.h"
 
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -74,10 +75,20 @@ bool Ned::initialize()
 	{
 		return false;
 	}
+	gSettings.loadSettings();
 
+
+	
 #ifdef __APPLE__
-	// Now properly declared via macos_window.h
-	configureMacOSWindow(window);
+	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
+	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+	
+	// Initial configuration
+	configureMacOSWindow(window, opacity, blurEnabled);
+	
+	// Initialize tracking variables
+	lastOpacity = opacity;
+	lastBlurEnabled = blurEnabled;
 #endif
 
 	// Rest of initialization...
@@ -194,16 +205,21 @@ bool Ned::initializeGraphics()
 		std::cerr << "Failed to initialize GLFW" << std::endl;
 		return false;
 	}
-
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 #ifdef __APPLE__
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // No OS decorations for macOS (custom handling)
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
+#else // For Linux/Ubuntu and other non-Apple platforms
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
 #endif
+	// GLFW_RESIZABLE should be TRUE for both.
+	// On Linux, the OS window manager handles resizing if DECORATED is TRUE.
+	// On macOS, your custom logic handles resizing.
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
 
@@ -225,6 +241,8 @@ bool Ned::initializeGraphics()
 		glfwTerminate();
 		return false;
 	}
+	glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
 	glGetError(); // Clear any GLEW startup errors
 
 	// Load both shaders
@@ -261,7 +279,6 @@ void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 void Ned::initializeResources()
 {
 	gDebugConsole.toggleVisibility();
-	gSettings.loadSettings();
 	gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
 	// Save original font size
@@ -1158,7 +1175,10 @@ void Ned::renderMainWindow()
 #else
 	ImGui::Begin("Main Window",
 				 nullptr,
-				 ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
+				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+					 ImGuiWindowFlags_NoResize |
+					 ImGuiWindowFlags_NoScrollWithMouse | // Prevent window from scrolling
+					 ImGuiWindowFlags_NoScrollbar);
 
 #endif
 
@@ -1190,6 +1210,7 @@ void Ned::renderMainWindow()
 void Ned::renderFrame()
 {
 	int display_w, display_h;
+
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
 	// [STEP 1] Render UI to framebuffer
@@ -1198,22 +1219,76 @@ void Ned::renderFrame()
 
 	// Get background color from settings
 	auto &bg = gSettings.getSettings()["backgroundColor"];
-	glClearColor(bg[0], bg[1], bg[2], bg[3]); // Use settings color
+	glClearColor(bg[0], bg[1], bg[2], 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	renderMainWindow();
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
+	handleUltraSimpleResizeOverlay();
+
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	renderWithShader(display_w, display_h, glfwGetTime());
-
 	glfwSwapBuffers(window);
 }
+void Ned::handleUltraSimpleResizeOverlay()
+{
+	if (!window)
+		return;
 
+	int currentWidth, currentHeight;
+	glfwGetWindowSize(window, &currentWidth, &currentHeight);
+
+	bool currentSizeIsValid = (currentWidth > 0 && currentHeight > 0);
+
+	if (m_sroLastWidth == 0 && m_sroLastHeight == 0 && currentSizeIsValid)
+	{
+		m_sroLastWidth = currentWidth;
+		m_sroLastHeight = currentHeight;
+		return;
+	}
+	if (currentWidth == 1200 && currentHeight == 750)
+	{
+		return;
+	}
+	if (currentSizeIsValid && (currentWidth != m_sroLastWidth || currentHeight != m_sroLastHeight))
+	{
+		m_sroFramesToShow = 35;
+		m_sroLastWidth = currentWidth;
+		m_sroLastHeight = currentHeight;
+	}
+	if (m_sroFramesToShow > 0)
+	{
+		ImDrawList *drawList = ImGui::GetForegroundDrawList();
+		ImGuiViewport *viewport = ImGui::GetMainViewport();
+		ImVec2 viewportPos = viewport->Pos;
+		ImVec2 viewportSize = viewport->Size;
+
+		drawList->AddRectFilled(viewportPos,
+								ImVec2(viewportPos.x + viewportSize.x,
+									   viewportPos.y + viewportSize.y),
+								IM_COL32(0, 0, 0, 128));
+
+		char buffer[64];
+		snprintf(buffer, sizeof(buffer), "%d x %d", m_sroLastWidth, m_sroLastHeight);
+
+		ImFont *font = ImGui::GetFont();
+		float targetFontSize = 52.0f;
+
+		ImVec2 textSize = font->CalcTextSizeA(targetFontSize, FLT_MAX, 0.0f, buffer);
+
+		ImVec2 textPos = ImVec2(viewportPos.x + (viewportSize.x - textSize.x) * 0.5f,
+								viewportPos.y + (viewportSize.y - textSize.y) * 0.5f);
+
+		drawList->AddText(font, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
+
+		m_sroFramesToShow--;
+	}
+}
 void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())
@@ -1315,16 +1390,16 @@ void Ned::handleSettingsChanges()
 	{
 		ImGuiStyle &style = ImGui::GetStyle();
 
-		// Add this line to re-apply all style settings:
-		ApplySettings(style); // <-- This is the critical fix
+		
+		ApplySettings(style); 
 
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][1].get<float>(),
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-				   gSettings.getSettings()["backgroundColor"][3].get<float>());
+				   0.0f);
 
-		// Rest of existing code...
+		
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
 		if (gSettings.hasThemeChanged())
@@ -1340,6 +1415,18 @@ void Ned::handleSettingsChanges()
 		{
 			needFontReload = true;
 		}
+		 #ifdef __APPLE__
+            // Always update with current values
+            float currentOpacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
+            bool currentBlurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+            
+            updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
+            
+            // Update tracking variables
+            lastOpacity = currentOpacity;
+            lastBlurEnabled = currentBlurEnabled;
+        #endif
+		
 		gSettings.resetSettingsChanged();
 	}
 }

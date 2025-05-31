@@ -50,7 +50,8 @@ Building the Project
 
 Create app package
 ```sh
-./pack.sh
+./pack-mac.sh
+./pack-deb.sh
 
 # Bypass quarantine/translocation or you can sign it with your own apple dev acc
 xattr -dr com.apple.quarantine Ned.app

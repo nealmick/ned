@@ -55,19 +55,57 @@ GLuint FileExplorer::createTexture(const unsigned char *pixels, int width, int h
 	return texture;
 }
 
-bool FileExplorer::loadSingleIcon(const std::string &iconFile)
+bool FileExplorer::loadSingleIcon(
+	const std::string &iconFile) // iconFile is like "file.svg" or "folder.png"
 {
-	std::string fullPath = "icons/" + iconFile;
-	if (!std::filesystem::exists(fullPath))
+	std::string primaryPath = "icons/" + iconFile;
+	std::string finalPathToLoad;
+
+	if (std::filesystem::exists(primaryPath))
 	{
+		finalPathToLoad = primaryPath;
+		// std::cout << "[IconLoader] Found icon at primary path: " << finalPathToLoad << std::endl;
+	} else
+	{
+#ifndef __APPLE__ // Only try the Debian package path if NOT on macOS
+		std::string debian_package_icon_base_path = "/usr/share/Ned/icons/";
+		std::string packagedPath = debian_package_icon_base_path + iconFile;
+
+		if (std::filesystem::exists(packagedPath))
+		{
+			finalPathToLoad = packagedPath;
+			// std::cout << "[IconLoader] Found icon at Debian package path: " << finalPathToLoad <<
+			// std::endl;
+		} else
+		{
+			// std::cerr << "[IconLoader] Icon not found. Tried:\n"
+			//           << "  1. Relative/Dev path: " << primaryPath << "\n"
+			//           << "  2. Debian package path: " << packagedPath << std::endl;
+			return false; // Icon not found at either location on Linux
+		}
+#else
+		// On macOS, if not found at primaryPath, it's just not found for this simple logic.
+		// std::cerr << "[IconLoader] Icon not found at primary path (macOS): " << primaryPath <<
+		// std::endl;
+		return false; // Icon not found at primary path on macOS
+#endif
+	}
+
+	// If finalPathToLoad is empty here, it means it wasn't found (should be caught by returns above)
+	if (finalPathToLoad.empty())
+	{
+		// This case should ideally not be reached if the logic above is correct.
+		// std::cerr << "[IconLoader] Critical error: finalPathToLoad is empty for icon: " <<
+		// iconFile << std::endl;
 		return false;
 	}
 
-	// Load SVG
-	NSVGimage *image = nsvgParseFromFile(fullPath.c_str(), "px", IconDimensions::SVG_DPI);
+	// Load SVG (or other image type if you adapt this part)
+	// Assuming nsvgParseFromFile, IconDimensions, nsvgCreateRasterizer, etc. are available.
+	NSVGimage *image = nsvgParseFromFile(finalPathToLoad.c_str(), "px", IconDimensions::SVG_DPI);
 	if (!image)
 	{
-		std::cerr << "Error loading SVG file: " << fullPath << std::endl;
+		std::cerr << "Error loading SVG file: " << finalPathToLoad << std::endl;
 		return false;
 	}
 
@@ -81,6 +119,7 @@ bool FileExplorer::loadSingleIcon(const std::string &iconFile)
 	}
 
 	// Allocate pixel buffer
+	// Ensure IconDimensions::WIDTH and IconDimensions::HEIGHT are correctly defined.
 	auto pixels =
 		std::make_unique<unsigned char[]>(IconDimensions::WIDTH * IconDimensions::HEIGHT * 4);
 
@@ -89,17 +128,25 @@ bool FileExplorer::loadSingleIcon(const std::string &iconFile)
 				  image,
 				  0,
 				  0,
-				  IconDimensions::WIDTH / image->width,
+				  IconDimensions::WIDTH / image->width, // Or some other scaling factor
 				  pixels.get(),
 				  IconDimensions::WIDTH,
 				  IconDimensions::HEIGHT,
-				  IconDimensions::WIDTH * 4);
+				  IconDimensions::WIDTH * 4); // Stride
 
 	// Create OpenGL texture
+	// Ensure createTexture is correctly defined and returns a GLuint.
 	GLuint texture = createTexture(pixels.get(), IconDimensions::WIDTH, IconDimensions::HEIGHT);
+	if (texture == 0)
+	{ // Assuming 0 indicates failure in createTexture
+		std::cerr << "Error creating OpenGL texture for icon: " << finalPathToLoad << std::endl;
+		nsvgDeleteRasterizer(rast);
+		nsvgDelete(image);
+		return false;
+	}
 
 	// Store in icon map
-	std::string iconName = iconFile.substr(0, iconFile.find('.'));
+	std::string iconName = iconFile.substr(0, iconFile.find('.')); // Gets "file" from "file.svg"
 	fileTypeIcons[iconName] = reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
 
 	// Cleanup
