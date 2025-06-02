@@ -1,13 +1,13 @@
 /*
 	File: main.cpp
-	Description: NED text editor main entry point.
+	Description: NEDitor main entry point.
 */
 
 #include "ned.h"
 int main()
 {
 	Ned ned;
-	if (!ned.initialize())
+	if(!ned.initialize())
 	{
 		return -1;
 	}
