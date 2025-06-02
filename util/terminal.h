@@ -15,6 +15,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../util/settings.h"
+
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 #define BETWEEN(x, a, b) ((a) <= (x) && (x) <= (b))
@@ -154,6 +157,7 @@ class Terminal
 	void pasteFromClipboard();
 	bool selectedText(int x, int y);
 
+	void UpdateTerminalColors();
   private:
 	// Terminal state
 	struct TermState
@@ -347,27 +351,7 @@ class Terminal
 					  float alpha);
 	void handleGlyphColors(const Glyph &glyph, ImVec4 &fg, ImVec4 &bg);
 
-	static constexpr const ImVec4 defaultColorMap[16] = {
-		// Standard colors
-		ImVec4(0.0f, 0.0f, 0.0f, 1.0f), // Black
-		ImVec4(0.8f, 0.2f, 0.2f, 1.0f), // Rich Red
-		ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // Vibrant Green
-		ImVec4(0.9f, 0.9f, 0.3f, 1.0f), // Sunny Yellow
-		ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // Sky Blue (brighter blue)
-		ImVec4(0.8f, 0.3f, 0.8f, 1.0f), // Electric Purple
-		ImVec4(0.3f, 0.8f, 0.8f, 1.0f), // Aqua Cyan
-		ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // Off-White
-
-		// Bright colors (pastel-like but still vibrant)
-		ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Medium Gray
-		ImVec4(1.0f, 0.4f, 0.4f, 1.0f), // Coral Red
-		ImVec4(0.4f, 1.0f, 0.4f, 1.0f), // Lime Green
-		ImVec4(1.0f, 1.0f, 0.6f, 1.0f), // Lemon Yellow
-		ImVec4(0.4f, 0.6f, 1.0f, 1.0f), // Bright Sky Blue
-		ImVec4(1.0f, 0.5f, 1.0f, 1.0f), // Pink Purple
-		ImVec4(0.5f, 1.0f, 1.0f, 1.0f), // Ice Blue
-		ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
-	};
+	static ImVec4 defaultColorMap[16];
 
 	const std::unordered_map<Rune, Rune> boxDrawingChars = {
 		// Basic box drawing - map proper Unicode box chars to themselves

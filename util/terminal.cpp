@@ -4,6 +4,7 @@
 	The emulator is based suckless st.c and support most xterm ansi sequences
 */
 #include "util/terminal.h"
+
 #include "util/settings.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -22,6 +23,28 @@
 #ifndef PATH_MAX // Define a fallback if PATH_MAX is not found (e.g., on some systems)
 #define PATH_MAX 1024
 #endif
+
+ImVec4 Terminal::defaultColorMap[16] = {
+    // Standard colors
+    ImVec4(0.0f, 0.0f, 0.0f, 1.0f), // Black
+    ImVec4(0.8f, 0.2f, 0.2f, 1.0f), // Rich Red
+    ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // Vibrant Green
+    ImVec4(0.9f, 0.9f, 0.3f, 1.0f), // Sunny Yellow
+    ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // Sky Blue (brighter blue)
+    ImVec4(0.8f, 0.3f, 0.8f, 1.0f), // Electric Purple
+    ImVec4(0.3f, 0.8f, 0.8f, 1.0f), // Aqua Cyan
+    ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // Off-White
+
+    // Bright colors (pastel-like but still vibrant)
+    ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Medium Gray
+    ImVec4(1.0f, 0.4f, 0.4f, 1.0f), // Coral Red
+    ImVec4(0.4f, 1.0f, 0.4f, 1.0f), // Lime Green
+    ImVec4(1.0f, 1.0f, 0.6f, 1.0f), // Lemon Yellow
+    ImVec4(0.4f, 0.6f, 1.0f, 1.0f), // Bright Sky Blue
+    ImVec4(1.0f, 0.5f, 1.0f, 1.0f), // Pink Purple
+    ImVec4(0.5f, 1.0f, 1.0f, 1.0f), // Ice Blue
+    ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
+};
 
 Terminal gTerminal;
 Terminal::Terminal()
@@ -53,6 +76,49 @@ Terminal::Terminal()
 	{
 		state.tabs[i] = true;
 	}
+}
+
+
+void Terminal::UpdateTerminalColors() {
+    // Get the current theme from settings.
+    const auto& themeJson = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]; // Renamed to avoid conflict
+
+    // A simple lambda to load a color array from the theme.
+    auto loadThemeColor = [&](const char* key) -> ImVec4 {
+        const auto& colorJson = themeJson[key]; // Use the renamed 'themeJson'
+        return ImVec4(
+            colorJson[0].get<float>(),
+            colorJson[1].get<float>(),
+            colorJson[2].get<float>(),
+            colorJson[3].get<float>()
+        );
+    };
+
+    // --- Map your 7 theme colors to ANSI colors 1-7 ---
+    // defaultColorMap[0] is handled specially for default background transparency.
+    defaultColorMap[1] = loadThemeColor("type");     // ANSI Red
+    defaultColorMap[2] = loadThemeColor("string");   // ANSI Green
+    defaultColorMap[3] = loadThemeColor("function"); // ANSI Yellow
+    defaultColorMap[4] = loadThemeColor("keyword");  // ANSI Blue
+    defaultColorMap[5] = loadThemeColor("number");   // ANSI Magenta
+    defaultColorMap[6] = loadThemeColor("variable"); // ANSI Cyan
+    defaultColorMap[7] = loadThemeColor("text");     // ANSI White
+
+    ImVec4 commentColor = loadThemeColor("comment");
+    defaultColorMap[0] = ImVec4(0.0f, 0.0f, 0.0f, commentColor.w); 
+
+    float brightnessFactor = 1.25f;
+
+    for (int i = 0; i < 8; ++i) { // This will also process index 0
+        ImVec4 baseColor = defaultColorMap[i];
+        defaultColorMap[i + 8] = ImVec4(
+            std::min(1.0f, baseColor.x * brightnessFactor),
+            std::min(1.0f, baseColor.y * brightnessFactor),
+            std::min(1.0f, baseColor.z * brightnessFactor),
+            baseColor.w // Keep original alpha
+        );
+    }
+
 }
 
 Terminal::~Terminal()
@@ -811,7 +877,7 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	}
 }
 
-void Terminal::toggleVisibility() { isVisible = !isVisible; }
+void Terminal::toggleVisibility() { isVisible = !isVisible;}
 
 void Terminal::writeToBuffer(const char *data, size_t length)
 {

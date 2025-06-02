@@ -6,7 +6,7 @@
         0.0
     ],
     "bloom_intensity": 1.0,
-    "burnin_intensity": 0.9869999885559082,
+    "burnin_intensity": 0.9049999713897705,
     "colorshift_intensity": 0.0,
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
@@ -18,7 +18,7 @@
     "pixelation_intensity": -0.04800000041723251,
     "rainbow": true,
     "scanline_intensity": 0.2800000011920929,
-    "settings_file": "solarized.json",
+    "settings_file": "test.json",
     "shader_toggle": true,
     "splitPos": 0.24220962822437286,
     "static_intensity": 0.08699999749660492,
