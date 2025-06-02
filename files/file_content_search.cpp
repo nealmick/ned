@@ -174,15 +174,26 @@ void FileContentSearch::renderFindBox()
         return;
     }
 
+    // Check for mouse click outside the find box area
+    if (findBoxRectSet && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        if (!ImGui::IsMouseHoveringRect(findBoxRectMin, findBoxRectMax, true))
+        {
+            // Click occurred outside find box - close it
+            editor_state.active_find_box = false;
+            editor_state.block_input = false;
+        }
+    }
+
     // We'll declare this static here since it's used in both the UI and keyboard shortcuts
     static bool ignoreCaseCheckbox = false;
 
     // Wrap entire find box in a group to get its bounding rect
     ImGui::BeginGroup();
     {
-        // Reserve ~70% of available width for the input field.
+        // Reserve ~50% of available width for the input field.
         float availWidth = ImGui::GetContentRegionAvail().x;
-        float inputWidth = availWidth * 0.7f;
+        float inputWidth = availWidth * 0.5f;
         ImGui::SetNextItemWidth(inputWidth);
 
         // Render the input field in its own group.
@@ -203,7 +214,6 @@ void FileContentSearch::renderFindBox()
         }
         ImGuiInputTextFlags flags =
             ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-        // FIX: Added missing parenthesis here
         if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags))
         {
             findText = inputBuffer;
@@ -212,6 +222,38 @@ void FileContentSearch::renderFindBox()
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(2);
         ImGui::EndGroup();
+
+        // Show current match position and total matches if we have a search
+        if (!findText.empty()) {
+            ImGui::SameLine();
+            ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
+            ImGui::SameLine();
+            
+            // Calculate current match position
+            int currentMatch = -1;
+            int totalMatches = 0;
+            
+            if (!findText.empty()) {
+                std::vector<size_t> positions = findAllOccurrences(ignoreCaseCheckbox);
+                totalMatches = positions.size();
+                
+                if (lastFoundPos != std::string::npos) {
+                    for (int i = 0; i < totalMatches; i++) {
+                        if (positions[i] == lastFoundPos) {
+                            currentMatch = i + 1;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Display the match counter
+            if (currentMatch == -1) {
+                ImGui::Text("Not Found");
+            } else if (totalMatches > 0) {
+                ImGui::Text("%d/%d", currentMatch, totalMatches);
+            }
+        }
 
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
@@ -235,17 +277,6 @@ void FileContentSearch::renderFindBox()
     findBoxRectMin = ImGui::GetItemRectMin();
     findBoxRectMax = ImGui::GetItemRectMax();
     findBoxRectSet = true;
-
-    // Check for mouse click outside the find box area
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && findBoxRectSet)
-    {
-        if (!ImGui::IsMouseHoveringRect(findBoxRectMin, findBoxRectMax, true))
-        {
-            // Click occurred outside find box - close it
-            editor_state.active_find_box = false;
-            editor_state.block_input = false;
-        }
-    }
 
     handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
 }
