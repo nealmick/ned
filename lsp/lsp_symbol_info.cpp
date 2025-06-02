@@ -232,7 +232,6 @@ void LSPSymbolInfo::renderSymbolInfo()
 		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
 		   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.95f, 0.95f, 1.0f));
 
 	if (ImGui::Begin("SymbolInfoWindow",
 					 &showSymbolInfo,
@@ -318,19 +317,13 @@ void LSPSymbolInfo::renderSymbolInfo()
 			// Style different parts
 			if (line.find("Type:") == 0)
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(110, 210, 255, 255));
 				ImGui::TextUnformatted(line.c_str());
-				ImGui::PopStyleColor();
 			} else if (line.find("File:") == 0)
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(160, 160, 160, 255));
 				ImGui::TextUnformatted(line.c_str());
-				ImGui::PopStyleColor();
 			} else if (line.find("//") == 0)
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(120, 200, 120, 255));
 				ImGui::TextUnformatted(line.c_str());
-				ImGui::PopStyleColor();
 			} else
 			{
 				ImGui::TextWrapped("%s", line.c_str());
@@ -342,6 +335,6 @@ void LSPSymbolInfo::renderSymbolInfo()
 	}
 
 	// Cleanup
-	ImGui::PopStyleColor(3);
+	ImGui::PopStyleColor(2);
 	ImGui::PopStyleVar(3);
 }

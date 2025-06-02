@@ -186,9 +186,17 @@ class Bookmarks
 								10.0f); // Add rounded corners
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize,
 								1.0f); // Add border
-			ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+
+
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+					   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+					   1.0f));
 			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 
 			ImGui::Begin("Bookmarks", nullptr, windowFlags);
 
@@ -203,20 +211,20 @@ class Bookmarks
 			{
 				if (bookmarks[i].isSet)
 				{
-					ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "%zu:", i + 1);
+					ImGui::Text( "%zu:", i + 1);
 					ImGui::SameLine();
 					ImGui::TextWrapped("%s Line %d",
 									   bookmarks[i].filePath.c_str(),
 									   bookmarks[i].lineNumber - 1);
 				} else
 				{
-					ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), " %zu: Empty slot", i + 1);
+					ImGui::Text(" %zu: Empty slot", i + 1);
 				}
 			}
 			ImGui::EndChild();
 
 			ImGui::Separator();
-			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Escape to close this window");
+			ImGui::Text("Press Escape to close this window");
 
 			ImGui::End();
 
