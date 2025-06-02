@@ -99,24 +99,24 @@ bool Ned::initialize()
 	initialized = true;
 	return true;
 }
+
 void Ned::renderResizeHandles()
 {
-	const float resizeBorder = 10.0f;
+	const float resizeBorder = 100.0f;   // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
 	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
 
 	// Right edge
-
 	ImGui::PushID("resize_right");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
-	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y));
+	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y)); // Will now be 100px wide
 	bool hoverRight = ImGui::IsItemHovered();
 	ImGui::PopID();
 
 	// Bottom edge
 	ImGui::PushID("resize_bottom");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder));
+	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder)); // Will now be 100px high
 	bool hoverBottom = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -124,7 +124,7 @@ void Ned::renderResizeHandles()
 	ImGui::PushID("resize_corner");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder,
 									 windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder));
+	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder)); // Will now be 100x100px
 	bool hoverCorner = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -139,63 +139,101 @@ void Ned::renderResizeHandles()
 	{
 		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
 	}
+	// else {
+	// Optionally set a default cursor if not hovering any resize handle and not resizing
+	// ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow); 
+	// }
 }
 
 void Ned::handleManualResizing()
 {
-	ImGuiIO &io = ImGui::GetIO();
-	int screenWidth, screenHeight;
-	glfwGetWindowSize(window, &screenWidth, &screenHeight);
 
-	double mouseX, mouseY;
-	glfwGetCursorPos(window, &mouseX, &mouseY);
+    ImGuiIO &io = ImGui::GetIO();
+    int currentScreenWidth, currentScreenHeight; // Renamed to avoid confusion with initial size
+    glfwGetWindowSize(window, &currentScreenWidth, &currentScreenHeight);
 
-	const float resizeBorder = 10.0f;
-	bool hoverRight = mouseX >= (screenWidth - resizeBorder);
-	bool hoverBottom = mouseY >= (screenHeight - resizeBorder);
-	bool hoverCorner = hoverRight && hoverBottom;
+    double mouseX, mouseY;
+    glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	// Handle drag start
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-	{
-		resizingRight = hoverRight || hoverCorner;
-		resizingBottom = hoverBottom || hoverCorner;
-		resizingCorner = hoverCorner;
+    const float resizeBorder = 10.0f;
+    // Hover detection based on current mouse position and current window size
+    // This is primarily for initiating the resize operation.
+    bool hoverRightEdge = mouseX >= (currentScreenWidth - resizeBorder) && mouseX < currentScreenWidth;
+    bool hoverBottomEdge = mouseY >= (currentScreenHeight - resizeBorder) && mouseY < currentScreenHeight;
+    bool hoverCorner = hoverRightEdge && hoverBottomEdge; // More specific corner detection
 
-		if (resizingRight || resizingBottom || resizingCorner)
+    // Handle drag start
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+    	std::cout << "resizing" << std::endl; 
+
+        // Determine which resize operation is being initiated.
+        // Prioritize corner, then edges.
+        if (hoverCorner) {
+            resizingCorner = true;
+            resizingRight = true;  // Corner implies right and bottom are active for resizing
+            resizingBottom = true;
+        } else if (hoverRightEdge) {
+            resizingCorner = false;
+            resizingRight = true;
+            resizingBottom = false;
+        } else if (hoverBottomEdge) {
+            resizingCorner = false;
+            resizingRight = false;
+            resizingBottom = true;
+        } else {
+            resizingCorner = false;
+            resizingRight = false;
+            resizingBottom = false;
+        }
+
+        if (resizingRight || resizingBottom) // Simplified condition, as corner sets these true
+        {
+            dragStart = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
+            initialWindowSize = ImVec2(static_cast<float>(currentScreenWidth), static_cast<float>(currentScreenHeight));
+        }
+    }
+
+    // Handle dragging
+    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+
 		{
-			dragStart = ImVec2(mouseX, mouseY);
-			initialWindowSize = ImVec2(screenWidth, screenHeight);
+
+		    if (resizingRight || resizingBottom) 
+		    {
+		        int newWidth = static_cast<int>(initialWindowSize.x);
+		        int newHeight = static_cast<int>(initialWindowSize.y);
+
+		        if (resizingRight) 
+		        {
+		            newWidth = static_cast<int>(initialWindowSize.x + (mouseX - dragStart.x));   
+		        }
+
+		        if (resizingBottom)
+		        {
+		            float deltaY = static_cast<float>(mouseY - dragStart.y);
+		            newHeight = static_cast<int>(initialWindowSize.y + deltaY);
+
+		        }
+		        newWidth = std::max(newWidth, 100);  
+		        newHeight = std::max(newHeight, 100); 
+
+
+		        // Conditional break or further check if values are extreme
+		        if (newHeight > 10000 || newHeight < 0 || newWidth > 10000 || newWidth < 0) {
+		            std::cerr << "CRITICAL: Extreme resize values detected before glfwSetWindowSize!" << std::endl;
+		        }
+
+		        glfwSetWindowSize(window, newWidth, newHeight);
+		    }
 		}
-	}
-
-	// Handle dragging
-	if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-	{
-		if (resizingRight || resizingBottom || resizingCorner)
-		{
-			int newWidth = screenWidth;
-			int newHeight = screenHeight;
-
-			if (resizingRight || resizingCorner)
-				newWidth = initialWindowSize.x + (mouseX - dragStart.x);
-			if (resizingBottom || resizingCorner)
-				newHeight = initialWindowSize.y + (mouseY - dragStart.y);
-
-			newWidth = std::max(newWidth, 100);
-			newHeight = std::max(newHeight, 100);
-
-			glfwSetWindowSize(window, newWidth, newHeight);
-		}
-	}
-
-	// Handle drag end
-	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-	{
-		resizingRight = false;
-		resizingBottom = false;
-		resizingCorner = false;
-	}
+    // Handle drag end
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        resizingRight = false;
+        resizingBottom = false;
+        resizingCorner = false;
+    }
 }
 
 bool Ned::initializeGraphics()
@@ -651,6 +689,7 @@ void Ned::handleEvents()
 	// Always poll events if resizing
 	if (resizingRight || resizingBottom || resizingCorner)
 	{
+		 glfwPollEvents();
 	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();

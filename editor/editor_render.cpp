@@ -252,16 +252,11 @@ bool EditorRender::skipLineIfAboveVisible(size_t &char_index,
 {
 	if (line_num < start_visible_line)
 	{
-		// Fast-forward index 'i' to the end of this line
 		while (char_index < editor_state.fileContent.size() &&
 			   editor_state.fileContent[char_index] != '\n')
 		{
 			char_index++;
 		}
-		// Note: The main loop's i++ will handle moving past the newline or end
-		// of file. We just need to adjust the draw pos and line num for the
-		// *next* iteration. The actual update happens after the loop check or
-		// newline handling in the main function.
 		return true;
 	}
 	return false;

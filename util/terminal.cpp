@@ -374,6 +374,8 @@ void Terminal::handleTerminalResize()
 
 	if (new_cols != state.col || new_rows != state.row)
 	{
+		std::cout << "resizing terminal" << std::endl;
+
 		resize(new_cols, new_rows);
 	}
 }
