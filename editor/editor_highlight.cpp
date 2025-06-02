@@ -144,6 +144,7 @@ void EditorHighlight::highlightContent(bool fullRehighlight)
 					} else
 					{
 						// Set default color for entire content
+						
 						std::fill(colors_copy.begin(),
 								  colors_copy.end(),
 								  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
