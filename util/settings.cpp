@@ -397,7 +397,6 @@ void Settings::loadSettings()
 	fontChanged = false;
 	fontSizeChanged = false;
 	gTerminal.UpdateTerminalColors();
-	// profileJustSwitched is handled by renderSettingsWindow
 }
 
 void Settings::saveSettings()
@@ -425,6 +424,7 @@ void Settings::saveSettings()
 		try
 		{
 			lastSettingsModification = fs::last_write_time(this->settingsPath);
+			gTerminal.UpdateTerminalColors();
 		} catch (const fs::filesystem_error &e)
 		{
 			std::cerr << "[Settings] Error getting last write time after saving "

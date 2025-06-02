@@ -156,77 +156,99 @@ void FileContentSearch::handleFindBoxActivation()
 		editor_state.block_input = false;
 	}
 }
-
 void FileContentSearch::renderFindBox()
 {
-	if (needsInputUnblock)
-	{
-		if (--unblockDelayFrames <= 0)
-		{
-			editor_state.block_input = false;
-			needsInputUnblock = false;
-		}
-	}
+    if (needsInputUnblock)
+    {
+        if (--unblockDelayFrames <= 0)
+        {
+            editor_state.block_input = false;
+            needsInputUnblock = false;
+        }
+    }
 
-	// Only render if the find box is active.
-	if (!editor_state.active_find_box)
-		return;
+    // Only render if the find box is active.
+    if (!editor_state.active_find_box)
+    {
+        findBoxRectSet = false; // Reset rect tracking when inactive
+        return;
+    }
 
-	// Reserve ~70% of available width for the input field.
-	float availWidth = ImGui::GetContentRegionAvail().x;
-	float inputWidth = availWidth * 0.7f;
-	ImGui::SetNextItemWidth(inputWidth);
+    // We'll declare this static here since it's used in both the UI and keyboard shortcuts
+    static bool ignoreCaseCheckbox = false;
 
-	// Render the input field in its own group.
-	ImGui::BeginGroup();
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-			   1.0f));
-	ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
+    // Wrap entire find box in a group to get its bounding rect
+    ImGui::BeginGroup();
+    {
+        // Reserve ~70% of available width for the input field.
+        float availWidth = ImGui::GetContentRegionAvail().x;
+        float inputWidth = availWidth * 0.7f;
+        ImGui::SetNextItemWidth(inputWidth);
 
-	static char inputBuffer[256] = "";
-	// Force focus on the input field on activation.
-	if (findBoxShouldFocus)
-	{
-		ImGui::SetKeyboardFocusHere();
-		findBoxShouldFocus = false;
-	}
-	ImGuiInputTextFlags flags =
-		ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-	if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags))
-	{
-		findText = inputBuffer;
-		lastFoundPos = std::string::npos;
-	}
-	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar(2);
-	ImGui::EndGroup();
+        // Render the input field in its own group.
+        ImGui::BeginGroup();
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+                   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+                   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+                   1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
-	// Add horizontal spacing between the input field and the checkbox.
-	ImGui::SameLine();
-	ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
-	ImGui::SameLine();
+        static char inputBuffer[256] = "";
+        if (findBoxShouldFocus)
+        {
+            ImGui::SetKeyboardFocusHere();
+            findBoxShouldFocus = false;
+        }
+        ImGuiInputTextFlags flags =
+            ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
+        // FIX: Added missing parenthesis here
+        if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags))
+        {
+            findText = inputBuffer;
+            lastFoundPos = std::string::npos;
+        }
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
+        ImGui::EndGroup();
 
-	// Render the checkbox.
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-			   1.0f));
-	ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
+        ImGui::SameLine();
 
-	static bool ignoreCaseCheckbox = false;
-	ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
-	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar(2);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+                   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+                   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+                   1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
-	handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
+        ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
+    }
+    ImGui::EndGroup(); // End entire find box group
+
+    // Store bounding rect for click detection
+    findBoxRectMin = ImGui::GetItemRectMin();
+    findBoxRectMax = ImGui::GetItemRectMax();
+    findBoxRectSet = true;
+
+    // Check for mouse click outside the find box area
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && findBoxRectSet)
+    {
+        if (!ImGui::IsMouseHoveringRect(findBoxRectMin, findBoxRectMax, true))
+        {
+            // Click occurred outside find box - close it
+            editor_state.active_find_box = false;
+            editor_state.block_input = false;
+        }
+    }
+
+    handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
 }
-
 std::vector<size_t> FileContentSearch::findAllOccurrences(bool ignoreCase)
 {
 	std::vector<size_t> positions;

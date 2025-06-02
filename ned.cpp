@@ -162,16 +162,11 @@ void Ned::handleManualResizing()
     bool hoverBottomEdge = mouseY >= (currentScreenHeight - resizeBorder) && mouseY < currentScreenHeight;
     bool hoverCorner = hoverRightEdge && hoverBottomEdge; // More specific corner detection
 
-    // Handle drag start
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
-    	std::cout << "resizing" << std::endl; 
-
-        // Determine which resize operation is being initiated.
-        // Prioritize corner, then edges.
         if (hoverCorner) {
             resizingCorner = true;
-            resizingRight = true;  // Corner implies right and bottom are active for resizing
+            resizingRight = true; 
             resizingBottom = true;
         } else if (hoverRightEdge) {
             resizingCorner = false;
@@ -187,14 +182,13 @@ void Ned::handleManualResizing()
             resizingBottom = false;
         }
 
-        if (resizingRight || resizingBottom) // Simplified condition, as corner sets these true
+        if (resizingRight || resizingBottom) 
         {
             dragStart = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
             initialWindowSize = ImVec2(static_cast<float>(currentScreenWidth), static_cast<float>(currentScreenHeight));
         }
     }
 
-    // Handle dragging
     if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 
 		{
