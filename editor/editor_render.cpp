@@ -20,6 +20,7 @@
 #include "editor_scroll.h"
 #include "editor_selection.h"
 #include "editor_utils.h"
+#include "editor_tree_sitter.h"
 
 #include <iostream>
 
@@ -71,21 +72,30 @@ void EditorRender::renderEditorFrame()
 	ImGui::EndGroup();
 	ImGui::PopID();
 }
-
 bool EditorRender::validateAndResizeColors()
 {
+	// Ensure theme colors are updated first
+	TreeSitter::updateThemeColors();
+	
 	if (editor_state.fileColors.size() != editor_state.fileContent.size())
 	{
 		std::cout << "Warning: colors vector size (" << editor_state.fileColors.size()
 				  << ") does not match text size (" << editor_state.fileContent.size()
 				  << "). Resizing." << std::endl;
-		editor_state.fileColors.resize(editor_state.fileContent.size(),
-									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				  
+		// Use text color if available, otherwise fallback to white
+		ImVec4 defaultColor = TreeSitter::cachedColors.text;
+		if (defaultColor.x == 0 && defaultColor.y == 0 && defaultColor.z == 0) {
+			defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+		}
+		std::cout << "set to default color.... " << std::endl;
+		
+		editor_state.fileColors.resize(editor_state.fileContent.size(), defaultColor);
 		return true;
 	}
 	return false;
 }
-
 void EditorRender::setupEditorWindow(const char *label)
 {
 	editor_state.size = ImGui::GetContentRegionAvail();
