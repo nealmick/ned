@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h" 
 #include "../files/files.h"				
+#include "../util/terminal.h"				
 #include "config.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
@@ -395,6 +396,7 @@ void Settings::loadSettings()
 	themeChanged = false;
 	fontChanged = false;
 	fontSizeChanged = false;
+	gTerminal.UpdateTerminalColors();
 	// profileJustSwitched is handled by renderSettingsWindow
 }
 
