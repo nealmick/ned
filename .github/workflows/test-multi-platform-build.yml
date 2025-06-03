@@ -1,0 +1,100 @@
+name: Test Multi-Platform Build # Renamed
+on:
+  workflow_dispatch: # Only manual trigger for testing
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      timestamp: ${{ steps.tag.outputs.timestamp }}
+    steps:
+      - name: Generate timestamp
+        id: tag
+        run: |
+          TS=$(date -u +'%Y.%m.%d.%H%M%S')
+          echo "timestamp=v${TS}"
+          echo "timestamp=v${TS}" >> $GITHUB_OUTPUT
+
+  macos-arm:
+    runs-on: macos-14
+    needs: create-tag
+    # permissions: contents: write # Not needed for artifact upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Install dependencies
+        run: brew install clang-format cmake llvm glfw glew pkg-config
+      
+      - name: Build
+        run: ./build.sh
+      
+      - name: Package
+        run: |
+          ./pack-mac.sh
+          mv Ned.zip "Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
+      
+      - name: Upload macOS ARM Artifact # Changed from Release to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
+          path: Ned-macOS-ARM64-*.zip # Path to the file(s)
+
+  macos-intel:
+    runs-on: macos-13
+    needs: create-tag
+    # permissions: contents: write # Not needed for artifact upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: brew install clang-format cmake llvm glfw glew pkg-config
+      
+      - name: Build
+        run: |
+          export MACOSX_DEPLOYMENT_TARGET=10.15
+          ./build.sh
+      
+      - name: Package
+        run: |
+          ./pack-mac.sh
+          mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
+      
+      - name: Upload macOS Intel Artifact # Changed from Release to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
+          path: Ned-macOS-Intel-*.zip # Path to the file(s)
+
+  debian:
+    runs-on: ubuntu-22.04
+    needs: create-tag
+    # permissions: contents: write # Not needed for artifact upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
+            pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
+      
+      - name: Build
+        run: ./build.sh
+      
+      - name: Package
+        run: |
+          chmod +x pack-deb.sh
+          ./pack-deb.sh
+          mv Ned_*.deb "Ned-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
+      
+      - name: Upload Debian Artifact # Changed from Release to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-Debian-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
+          path: Ned-Debian-*.deb # Path to the file(s)
