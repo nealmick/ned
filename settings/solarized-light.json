@@ -1,11 +1,11 @@
 {
     "backgroundColor": [
-        0.6589597463607788,
-        0.7062706351280212,
-        0.5151346921920776,
+        0.8423169255256653,
+        0.8910890817642212,
+        0.6940495371818542,
         0.0
     ],
-    "bloom_intensity": 0.15000000596046448,
+    "bloom_intensity": 0.07999999821186066,
     "burnin_intensity": 0.8999999761581421,
     "colorshift_intensity": 0.0,
     "curvature_intensity": 0.0,
@@ -17,10 +17,10 @@
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.04800000041723251,
     "rainbow": true,
-    "scanline_intensity": 0.23999999463558197,
+    "scanline_intensity": 0.09000000357627869,
     "shader_toggle": true,
     "splitPos": 0.3203410506248474,
-    "static_intensity": 0.25600001215934753,
+    "static_intensity": 0.04100000113248825,
     "theme": "default",
     "themes": {
         "default": {

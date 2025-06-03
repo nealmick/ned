@@ -7,7 +7,6 @@
 #include <iostream>
 #include <tree_sitter/api.h>
 
-// Global instance
 EditorHighlight gEditorHighlight;
 
 EditorHighlight::EditorHighlight() : highlightingInProgress(false), cancelHighlightFlag(false) {}
@@ -31,7 +30,11 @@ void EditorHighlight::forceColorUpdate()
 	tsxLexer.forceColorUpdate();
 
 	TreeSitter::refreshColors();
-	std::cout << "refrehsing colors for highlight" << std::endl;
+	TreeSitter::clearQueryCache(); 
+  	TreeSitter::colorsNeedUpdate = true;
+    if (!gFileExplorer.currentFile.empty()) {
+        highlightContent();
+    }
 }
 
 bool EditorHighlight::validateHighlightContentParams()
@@ -57,111 +60,123 @@ bool EditorHighlight::validateHighlightContentParams()
 	return true;
 }
 
+
 void EditorHighlight::highlightContent(bool fullRehighlight)
 {
-	std::lock_guard<std::mutex> lock(highlight_mutex);
+    std::lock_guard<std::mutex> lock(highlight_mutex);
 
-	cancelHighlighting();
+    cancelHighlighting();
 
-	// Create safe copies of content and colors
-	std::string content_copy;
-	std::vector<ImVec4> colors_copy;
-	std::string currentFile;
-	std::string extension;
+    TreeSitter::updateThemeColors();
 
-	{
-		std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
-		// Handle large files quickly
-		const size_t LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 100;
-		if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD)
-		{
-			editor_state.fileColors.resize(editor_state.fileContent.size(),
-										   TreeSitter::cachedColors.text);
+    std::string content_copy;
+    std::vector<ImVec4> colors_param_copy; 
+    std::string currentFile_copy;
+    std::string extension_copy;
 
-			return;
-		}
+    { 
+        std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
 
-		if (!validateHighlightContentParams())
-			return;
+        if (editor_state.fileContent.empty()) {
+            editor_state.fileColors.clear(); 
+            highlightingInProgress = false; 
+            return;
+        }
 
-		// Create copies while locked
-		content_copy = editor_state.fileContent;
-		colors_copy = editor_state.fileColors;
-		currentFile = gFileExplorer.currentFile;
-		extension = fs::path(currentFile).extension().string();
-	}
+        // Handle large files quickly (bypasses async task)
+        const size_t LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 100; // 100MB
+        if (editor_state.fileContent.size() > LARGE_FILE_THRESHOLD)
+        {
+            editor_state.fileColors.assign(editor_state.fileContent.size(),
+                                           TreeSitter::cachedColors.text);
+            highlightingInProgress = false; // Not strictly necessary here
+            return;
+        }
 
-	highlightingInProgress = true;
-	cancelHighlightFlag = false;
+        if (!validateHighlightContentParams()) {
+            return;
+        }
 
-	highlightFuture = std::async(
-		std::launch::async,
-		[this, content_copy, colors_copy, currentFile, extension, fullRehighlight]() mutable {
-			try
-			{
-				if (cancelHighlightFlag.load())
-				{
-					highlightingInProgress = false;
-					return;
-				}
-				if (gSettings.getTreesitterMode())
-				{
-					// Resize colors_copy to match content_copy size (crucial for new
-					// files)
-					colors_copy.resize(content_copy.size(), TreeSitter::cachedColors.text);
-					TreeSitter::parse(content_copy, colors_copy, extension, fullRehighlight);
-				} else
-				{
-					// use custom lexers....
-					if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
-					{
-						cppLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".py")
-					{
-						pythonLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".html" || extension == ".cshtml")
-					{
-						htmlLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".js" || extension == ".jsx")
-					{
-						jsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".tsx" || extension == ".ts")
-					{
-						tsxLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".java")
-					{
-						javaLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".cs")
-					{
-						csharpLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else if (extension == ".css")
-					{
-						cssLexer.applyHighlighting(content_copy, colors_copy, 0);
-					} else
-					{
-						// Set default color for entire content
-						std::fill(colors_copy.begin(),
-								  colors_copy.end(),
-								  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-					}
-				}
+        content_copy = editor_state.fileContent;
+        colors_param_copy = editor_state.fileColors; // Copied while editor_state is locked
+        currentFile_copy = gFileExplorer.currentFile;
+        extension_copy = fs::path(currentFile_copy).extension().string();
+    } // editor_state.colorsMutex is released
 
-				// Safely update colors if still valid
-				std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
+    highlightingInProgress = true;
 
-				if (!cancelHighlightFlag && currentFile == gFileExplorer.currentFile &&
-					content_copy == editor_state.fileContent &&
-					colors_copy.size() == editor_state.fileColors.size())
-				{
-					editor_state.fileColors = colors_copy; // Copy, don't move
-				}
-			} catch (const std::exception &e)
-			{
-				std::cerr << "Highlighting error: " << e.what() << std::endl;
-			}
-			highlightingInProgress = false;
-		});
+    highlightFuture = std::async(
+        std::launch::async,
+        [this, content_copy, colors_param_copy, currentFile_copy, extension_copy, fullRehighlight]() mutable {
+            std::vector<ImVec4> current_colors = colors_param_copy; // Use a mutable copy within the lambda
+
+            try
+            {
+                if (cancelHighlightFlag.load())
+                {
+                    highlightingInProgress = false;
+                    return;
+                }
+
+                current_colors.assign(content_copy.size(), TreeSitter::cachedColors.text);
+
+                if (gSettings.getTreesitterMode())
+                {
+                    TreeSitter::parse(content_copy, current_colors, extension_copy, fullRehighlight);
+                }
+                else // Custom lexers or fallback for unsupported extensions
+                {
+                    if (extension_copy == ".cpp" || extension_copy == ".h" || extension_copy == ".hpp")
+                    {
+                        cppLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".py")
+                    {
+                        pythonLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".html" || extension_copy == ".cshtml")
+                    {
+                        htmlLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".js" || extension_copy == ".jsx")
+                    {
+                        jsxLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".tsx" || extension_copy == ".ts")
+                    {
+                        tsxLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".java")
+                    {
+                        javaLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".cs")
+                    {
+                        csharpLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                    else if (extension_copy == ".css")
+                    {
+                        cssLexer.applyHighlighting(content_copy, current_colors, 0);
+                    }
+                }
+
+                std::lock_guard<std::mutex> state_lock(editor_state.colorsMutex);
+
+                if (!cancelHighlightFlag.load() &&
+                    currentFile_copy == gFileExplorer.currentFile &&
+                    content_copy == editor_state.fileContent)
+                {
+                    editor_state.fileColors = current_colors;
+                }
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Highlighting error: " << e.what() << std::endl;
+            }
+            highlightingInProgress = false;
+        });
 }
+
 
 void EditorHighlight::setTheme(const std::string &themeName) { loadTheme(themeName); }
 

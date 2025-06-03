@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h" 
 #include "../files/files.h"				
+#include "../util/terminal.h"				
 #include "config.h"
 #include "imgui.h"
 #include <GLFW/glfw3.h>
@@ -130,7 +131,7 @@ void Settings::loadSettings()
 				  << " not found.\n";
 
 		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json"};
+		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json", "custom1.json","custom2.json","custom3.json"};
 
 		for (const auto &filename : filesToCopy)
 		{
@@ -395,7 +396,7 @@ void Settings::loadSettings()
 	themeChanged = false;
 	fontChanged = false;
 	fontSizeChanged = false;
-	// profileJustSwitched is handled by renderSettingsWindow
+	gTerminal.UpdateTerminalColors();
 }
 
 void Settings::saveSettings()
@@ -423,6 +424,7 @@ void Settings::saveSettings()
 		try
 		{
 			lastSettingsModification = fs::last_write_time(this->settingsPath);
+			gTerminal.UpdateTerminalColors();
 		} catch (const fs::filesystem_error &e)
 		{
 			std::cerr << "[Settings] Error getting last write time after saving "
@@ -467,11 +469,13 @@ void Settings::checkSettingsFile()
 			oldSettings["theme"] != settings["theme"])
 		{
 			themeChanged = true;
+			gEditorHighlight.forceColorUpdate(); 
 		}
 		if (oldSettings.contains("themes") && settings.contains("themes") &&
 			oldSettings["themes"] != settings["themes"])
 		{
 			themeChanged = true; 
+			gEditorHighlight.forceColorUpdate(); 
 		}
 		if (oldSettings.contains("mac_background_opacity") && 
 		    settings.contains("mac_background_opacity") &&
@@ -563,10 +567,28 @@ void Settings::renderSettingsWindow()
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+
+
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+				   1.0f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+			   1.0f));
+
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+			   1.0f));
+
+
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
+	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
+	   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
+	   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.15f, 0.15f, 0.15f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
@@ -702,6 +724,7 @@ void Settings::renderSettingsWindow()
 					settingsChanged = true;
 					fontChanged = true;
 					settingsChanged = true;
+					gEditorHighlight.forceColorUpdate();
 				}
 			}
 			if (isSelected)
@@ -1002,7 +1025,7 @@ void Settings::renderSettingsWindow()
 	}
 
 	ImGui::End();
-	ImGui::PopStyleColor(7);
+	ImGui::PopStyleColor(8);
 	ImGui::PopStyleVar(5);
 
 	if (profileJustSwitched)

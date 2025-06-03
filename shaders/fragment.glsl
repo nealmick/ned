@@ -17,7 +17,6 @@ uniform float u_pixel_width;
 uniform float u_effects_enabled;
 
 
-// Helper functions
 float random(vec2 co) {
     float a = 12.9898;
     float b = 78.233;
@@ -171,7 +170,6 @@ vec3 pixelate(vec2 uv) {
 }
 
 vec3 applyGrid(vec3 color) {
-    // Grid calculations in screen space
     vec2 cellSize = resolution / 250.0;
     vec2 gridPos = mod(gl_FragCoord.xy, cellSize);
     float lineThickness = 1.0;
@@ -188,16 +186,13 @@ void main() {
     if (u_effects_enabled > 0.5) {
         vec2 uv = TexCoords;
 
-        // Apply distortions
         uv = applyCurvature(uv, u_curvature_intensity);
         uv = addJitter(uv, time);
 
 
-        // Apply pixelation to the color-shifted result
-        vec3 color = pixelate(uv); // Pixelate after color shift (modify if needed)
+        vec3 color = pixelate(uv);
         color = applyColorShift(uv, time);
 
-        // Post-processing effects
         color += getBloom(uv);
         color *= applyVignette(uv) * calculateScanline(uv, time);
         color = applyStaticNoise(color, time);

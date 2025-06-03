@@ -196,6 +196,8 @@ float EditorScroll::calculateCursorXPosition()
 	// The X position is the editor's text starting X plus the offset on the current line.
 	return editor_state.text_pos.x + relative_x_offset_on_line;
 }
+
+
 ScrollChange EditorScroll::ensureCursorVisible()
 {
 	// Get current scroll offsets
@@ -220,7 +222,7 @@ ScrollChange EditorScroll::ensureCursorVisible()
 	float visible_cursor_y = abs_cursor_y - editor_state.text_pos.y - scroll_y;
 
 	// Margins - space to keep between cursor and edges
-	float margin_x = ImGui::GetFontSize() * 3.0f;
+	float margin_x = ImGui::GetFontSize() * 4.0f;
 	float margin_y = editor_state.line_height * 1.5f;
 
 	// Calculate distances from each edge (negative means cursor is outside)

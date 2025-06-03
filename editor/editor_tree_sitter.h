@@ -3,7 +3,6 @@
 #include "../util/settings.h"
 #include "imgui.h"
 #include <iostream>
-#include <mutex>
 #include <string>
 #include <tree_sitter/api.h>
 #include <unordered_map>
@@ -26,7 +25,7 @@ class TreeSitter
 {
   public:
 	static std::string getResourcePath(const std::string &relativePathToQuery);
-
+	static void clearQueryCache();
 	static void parse(const std::string &fileContent,
 					  std::vector<ImVec4> &fileColors,
 					  const std::string &extension,

@@ -10,6 +10,13 @@
 #include <limits.h> // Or <climits> for C++ style
 #include <unistd.h> // For getcwd
 
+#include <algorithm> 
+#include <iostream>
+#include <string>
+#include <string_view>
+
+
+
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h> // For macOS bundle functions
 #endif
@@ -244,37 +251,42 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 
 TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path)
 {
-	std::string full_path = getResourcePath(query_path);
+    std::string full_path = getResourcePath(query_path);
+    
+    // Use full_path as the cache key consistently
+    auto cacheIt = queryCache.find(full_path);
+    if (cacheIt != queryCache.end()) {
+        return cacheIt->second;
+    }
 
-	auto cacheIt = queryCache.find(full_path);
-	if (cacheIt != queryCache.end())
-	{
-		return cacheIt->second;
-	}
+    std::ifstream file(full_path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open query file: " << full_path << "\n";
+        return nullptr;
+    }
+    std::string query_src((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
 
-	std::ifstream file(full_path);
+    uint32_t error_offset;
+    TSQueryError error_type;
+    TSQuery *query = ts_query_new(lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
+    
+    if (!query) {
+        std::cerr << "Query error (" << error_type << ") at offset " << error_offset << "\n";
+        return nullptr;
+    }
 
-	if (!file.is_open())
-	{
-		std::cerr << "Failed to open query file: " << query_path << "\n";
-		return nullptr;
-	}
-
-	std::string query_src((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-	file.close();
-
-	uint32_t error_offset;
-	TSQueryError error_type;
-	TSQuery *query =
-		ts_query_new(lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
-	if (!query)
-	{
-		std::cerr << "Query error (" << error_type << ") at offset " << error_offset << "\n";
-		return nullptr;
-	}
-
-	queryCache[query_path] = query;
-	return query;
+    // Store using full_path as key
+    queryCache[full_path] = query;
+    return query;
+}
+void TreeSitter::clearQueryCache()
+{
+    std::lock_guard<std::mutex> lock(parserMutex);
+    for (auto& [key, query] : queryCache) {
+        ts_query_delete(query);
+    }
+    queryCache.clear();
 }
 void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 										  TSTree *tree,
@@ -430,13 +442,8 @@ void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
 	printASTNode(ts_tree_root_node(tree), fileContent);
 	std::cout << "──────────────────────────────────────" << std::endl;
 }
-#include <algorithm> // For std::min/max if needed
-#include <iostream>
-#include <string>
-#include <string_view>
 
-// Assuming TSPoint and TSNode are defined correctly from tree_sitter.h
-// and other necessary parts of your TreeSitter class are available.
+
 
 void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int depth)
 {
