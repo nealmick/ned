@@ -61,32 +61,38 @@ std::string Settings::getAppResourcesPath()
 		}
 	}
 #elif defined(__linux__)
-	// Linux implementation
-	char exePath[PATH_MAX];
-	ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
-	if (count != -1)
-	{
-		exePath[count] = '\0';
-		std::string p = dirname(exePath);
+    // Linux implementation
+    char exePath[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
+    if (count != -1)
+    {
+        exePath[count] = '\0';
+        std::string p = dirname(exePath); // If exe is /usr/lib/Ned/ned, p is /usr/lib/Ned
 
-		// Look for resources in common Linux locations
-		std::vector<std::string> pathsToCheck = {
-			p + "/../share/ned", // Typical for system-wide install
-			p + "/resources",	 // Local build
-			p					 // Fallback
-		};
+        // Look for resources in common Linux locations
+        std::vector<std::string> pathsToCheck = {
+            p + "/../share/Ned", // <<-- THIS IS THE KEY CHANGE (Ned with capital N)
+            p + "/resources",    // For local build (e.g., ./build/resources)
+            p                    // Fallback (e.g. binary dir itself)
+        };
 
-		for (const auto &path : pathsToCheck)
-		{
-			if (fs::exists(path) && fs::is_directory(path))
-			{
-				return path;
-			}
-		}
-	}
-	return "."; // Fallback
-#else
-	return ".";
+        for (const auto &path : pathsToCheck)
+        {
+            // Ensure the path actually exists before returning it
+            // The actual check for "settings/ned.json" happens later in loadSettings
+            if (fs::exists(path) && fs::is_directory(path))
+            {
+                std::cout << "[Settings] Using app resource path: " << path << std::endl;
+                return path;
+            }
+        }
+        std::cerr << "[Settings] Warning: Could not find a valid app resource path from checks. Defaulting to executable directory." << std::endl;
+        // If none of the preferred paths exist, return the executable's directory as a last resort.
+        // This might happen if `p + "/../share/Ned"` or `p + "/resources"` don't exist.
+        if (fs::exists(p) && fs::is_directory(p)) return p;
+    }
+    std::cerr << "[Settings] CRITICAL: Could not determine app resources path for Linux (readlink failed or no valid path found)." << std::endl;
+    return "."; // Absolute fallback
 #endif
 }
 
