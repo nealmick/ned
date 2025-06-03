@@ -350,6 +350,7 @@ void TreeSitter::parse(const std::string &fileContent,
 					   const std::string &extension,
 					   bool fullRehighlight)
 {
+	
 	std::lock_guard<std::mutex> lock(parserMutex);
 	if (fileContent.empty())
 	{
@@ -430,7 +431,7 @@ void TreeSitter::parse(const std::string &fileContent,
 	TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
 	if (!query)
 		return;
-
+	
 	executeQueryAndHighlight(query, newTree, fileContent, fileColors, initialParse, start, newEnd);
 }
 
