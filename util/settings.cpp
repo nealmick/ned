@@ -131,7 +131,7 @@ void Settings::loadSettings()
 				  << " not found.\n";
 
 		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json"};
+		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json", "custom1.json","custom2.json","custom3.json"};
 
 		for (const auto &filename : filesToCopy)
 		{

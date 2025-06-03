@@ -965,7 +965,6 @@ void EditorCursor::processWordMovement(std::string &text, CursorVisibility &ensu
 	ensure_cursor_visible.horizontal = true;
 	ensure_cursor_visible.vertical = true;
 }
-
 int EditorCursor::CalculateVisualColumnForPosition(int position,
 												   const std::string &content,
 												   const std::vector<int> &content_lines)
