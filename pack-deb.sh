@@ -60,7 +60,7 @@ cp -r editor/queries/* "$LIB_DIR/queries/"
 # 3. Other resources
 cp -r icons "$SHARE_DIR/"
 cp -r shaders "$SHARE_DIR/"
-cp -r settings "$SHARE_DIR/"
+cp -r settings "$LIB_DIR/"
 
 # =========================================================================
 # Control File
