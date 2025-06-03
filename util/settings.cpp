@@ -61,32 +61,38 @@ std::string Settings::getAppResourcesPath()
 		}
 	}
 #elif defined(__linux__)
-	// Linux implementation
-	char exePath[PATH_MAX];
-	ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
-	if (count != -1)
-	{
-		exePath[count] = '\0';
-		std::string p = dirname(exePath);
+    // Linux implementation
+    char exePath[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
+    if (count != -1)
+    {
+        exePath[count] = '\0';
+        std::string p = dirname(exePath); // If exe is /usr/lib/Ned/ned, p is /usr/lib/Ned
 
-		// Look for resources in common Linux locations
-		std::vector<std::string> pathsToCheck = {
-			p + "/../share/ned", // Typical for system-wide install
-			p + "/resources",	 // Local build
-			p					 // Fallback
-		};
+        // Look for resources in common Linux locations
+        std::vector<std::string> pathsToCheck = {
+            p + "/../share/Ned", // <<-- THIS IS THE KEY CHANGE (Ned with capital N)
+            p + "/resources",    // For local build (e.g., ./build/resources)
+            p                    // Fallback (e.g. binary dir itself)
+        };
 
-		for (const auto &path : pathsToCheck)
-		{
-			if (fs::exists(path) && fs::is_directory(path))
-			{
-				return path;
-			}
-		}
-	}
-	return "."; // Fallback
-#else
-	return ".";
+        for (const auto &path : pathsToCheck)
+        {
+            // Ensure the path actually exists before returning it
+            // The actual check for "settings/ned.json" happens later in loadSettings
+            if (fs::exists(path) && fs::is_directory(path))
+            {
+                std::cout << "[Settings] Using app resource path: " << path << std::endl;
+                return path;
+            }
+        }
+        std::cerr << "[Settings] Warning: Could not find a valid app resource path from checks. Defaulting to executable directory." << std::endl;
+        // If none of the preferred paths exist, return the executable's directory as a last resort.
+        // This might happen if `p + "/../share/Ned"` or `p + "/resources"` don't exist.
+        if (fs::exists(p) && fs::is_directory(p)) return p;
+    }
+    std::cerr << "[Settings] CRITICAL: Could not determine app resources path for Linux (readlink failed or no valid path found)." << std::endl;
+    return "."; // Absolute fallback
 #endif
 }
 
@@ -820,11 +826,42 @@ void Settings::renderSettingsWindow()
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
+		
 	if (ImGui::ColorEdit4("Background Color", (float *)&bgColor))
 	{
-		settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-		settingsChanged = true;
-		saveSettings();
+	    // Update JSON in memory if the color changed this frame
+	    if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
+	        settings["backgroundColor"][1].get<float>() != bgColor.y ||
+	        settings["backgroundColor"][2].get<float>() != bgColor.z ||
+	        settings["backgroundColor"][3].get<float>() != bgColor.w)
+	    {
+	        settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+	        if (!settingsChanged) settingsChanged = true;
+	    }
+	}
+
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+	    // Ensure JSON has the final value of bgColor
+	    if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
+	        settings["backgroundColor"][1].get<float>() != bgColor.y ||
+	        settings["backgroundColor"][2].get<float>() != bgColor.z ||
+	        settings["backgroundColor"][3].get<float>() != bgColor.w)
+	    {
+	        settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+	        if (!settingsChanged) settingsChanged = true;
+	    }
+	    
+	    // Only save if settings were actually changed by this interaction sequence.
+	    // The 'settingsChanged' flag should have been set if ColorEdit4 returned true.
+	    if (settingsChanged) // Check if settingsChanged is true (it should be if a change was made)
+	    {
+	        std::cout << "[Settings] Background Color edit finished. Saving." << std::endl;
+	        saveSettings();
+	        // Note: Background color change doesn't typically require gEditorHighlight.forceColorUpdate()
+	        // unless your syntax highlighting logic directly depends on the general background color
+	        // for default text or something similar. If it does, add it here.
+	    }
 	}
 
 
@@ -864,28 +901,58 @@ void Settings::renderSettingsWindow()
 		settings["themes"].contains(currentThemeName))
 	{
 		auto &themeColorsJson = settings["themes"][currentThemeName];
+				
 		auto editThemeColor = [&](const char *label, const char *colorKey) {
-			if (!themeColorsJson.contains(colorKey) || !themeColorsJson[colorKey].is_array() ||
-				themeColorsJson[colorKey].size() != 4)
-			{
-				return;
-			}
-			auto &colorArray = themeColorsJson[colorKey];
-			ImVec4 color(colorArray[0].get<float>(),
-						 colorArray[1].get<float>(),
-						 colorArray[2].get<float>(),
-						 colorArray[3].get<float>());
+		    if (!themeColorsJson.contains(colorKey) || !themeColorsJson[colorKey].is_array() ||
+		        themeColorsJson[colorKey].size() != 4)
+		    {
+		        return;
+		    }
+		    auto &colorArray = themeColorsJson[colorKey];
+		    ImVec4 color(colorArray[0].get<float>(),
+		                 colorArray[1].get<float>(),
+		                 colorArray[2].get<float>(),
+		                 colorArray[3].get<float>());
 
-			ImGui::TextUnformatted(label);
-			ImGui::SameLine(200);
-			if (ImGui::ColorEdit4(("##" + std::string(colorKey)).c_str(), (float *)&color))
-			{
-				themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
-				themeChanged = true;
-				settingsChanged = true;
-				gEditorHighlight.forceColorUpdate();
-				saveSettings();
-			}
+		    ImGui::TextUnformatted(label);
+		    ImGui::SameLine(200); // Adjust this alignment as needed
+
+		    // ImGui::ColorEdit4 directly modifies the 'color' variable.
+		    if (ImGui::ColorEdit4(("##" + std::string(colorKey)).c_str(), (float *)&color))
+		    {
+		        // This block executes if the color value changed *during this frame*.
+		        // Update the JSON object in memory immediately.
+		        themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
+		        
+		        // Mark that settings have changed, so IsItemDeactivatedAfterEdit knows a change occurred.
+		        if (!settingsChanged) settingsChanged = true; 
+		        if (!themeChanged) themeChanged = true;
+		    }
+
+		    // This block executes if the widget was active, its value was modified at some point,
+		    // and then it was deactivated (e.g., user released mouse, clicked elsewhere, or pressed Enter).
+		    if (ImGui::IsItemDeactivatedAfterEdit()) 
+		    {
+		        // The 'color' variable now holds the final value.
+		        // Ensure the JSON is up-to-date with this final value.
+		        // This also covers cases like typing values and pressing Enter,
+		        // where ColorEdit4 might not return true on the very last frame of interaction.
+		        if (themeColorsJson[colorKey][0].get<float>() != color.x ||
+		            themeColorsJson[colorKey][1].get<float>() != color.y ||
+		            themeColorsJson[colorKey][2].get<float>() != color.z ||
+		            themeColorsJson[colorKey][3].get<float>() != color.w)
+		        {
+		            themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
+		            if (!settingsChanged) settingsChanged = true;
+		            if (!themeChanged) themeChanged = true;
+		        }
+		        
+		        // Now that editing is finished and a change was made,
+		        // trigger the expensive operations.
+		        std::cout << "[Settings] Color " << colorKey << " edit finished. Forcing update and saving." << std::endl;
+		        gEditorHighlight.forceColorUpdate(); // Trigger re-highlight
+		        saveSettings();                     // Save all settings to disk
+		    }
 		};
 		ImGui::Spacing();
 		ImGui::TextUnformatted("Syntax Colors");
