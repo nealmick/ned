@@ -99,24 +99,24 @@ bool Ned::initialize()
 	initialized = true;
 	return true;
 }
+
 void Ned::renderResizeHandles()
 {
-	const float resizeBorder = 10.0f;
+	const float resizeBorder = 100.0f;   // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
 	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
 
 	// Right edge
-
 	ImGui::PushID("resize_right");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
-	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y));
+	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y)); // Will now be 100px wide
 	bool hoverRight = ImGui::IsItemHovered();
 	ImGui::PopID();
 
 	// Bottom edge
 	ImGui::PushID("resize_bottom");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder));
+	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder)); // Will now be 100px high
 	bool hoverBottom = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -124,7 +124,7 @@ void Ned::renderResizeHandles()
 	ImGui::PushID("resize_corner");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder,
 									 windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder));
+	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder)); // Will now be 100x100px
 	bool hoverCorner = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -139,63 +139,95 @@ void Ned::renderResizeHandles()
 	{
 		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
 	}
+	// else {
+	// Optionally set a default cursor if not hovering any resize handle and not resizing
+	// ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow); 
+	// }
 }
 
 void Ned::handleManualResizing()
 {
-	ImGuiIO &io = ImGui::GetIO();
-	int screenWidth, screenHeight;
-	glfwGetWindowSize(window, &screenWidth, &screenHeight);
 
-	double mouseX, mouseY;
-	glfwGetCursorPos(window, &mouseX, &mouseY);
+    ImGuiIO &io = ImGui::GetIO();
+    int currentScreenWidth, currentScreenHeight; // Renamed to avoid confusion with initial size
+    glfwGetWindowSize(window, &currentScreenWidth, &currentScreenHeight);
 
-	const float resizeBorder = 10.0f;
-	bool hoverRight = mouseX >= (screenWidth - resizeBorder);
-	bool hoverBottom = mouseY >= (screenHeight - resizeBorder);
-	bool hoverCorner = hoverRight && hoverBottom;
+    double mouseX, mouseY;
+    glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	// Handle drag start
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-	{
-		resizingRight = hoverRight || hoverCorner;
-		resizingBottom = hoverBottom || hoverCorner;
-		resizingCorner = hoverCorner;
+    const float resizeBorder = 10.0f;
+    // Hover detection based on current mouse position and current window size
+    // This is primarily for initiating the resize operation.
+    bool hoverRightEdge = mouseX >= (currentScreenWidth - resizeBorder) && mouseX < currentScreenWidth;
+    bool hoverBottomEdge = mouseY >= (currentScreenHeight - resizeBorder) && mouseY < currentScreenHeight;
+    bool hoverCorner = hoverRightEdge && hoverBottomEdge; // More specific corner detection
 
-		if (resizingRight || resizingBottom || resizingCorner)
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        if (hoverCorner) {
+            resizingCorner = true;
+            resizingRight = true; 
+            resizingBottom = true;
+        } else if (hoverRightEdge) {
+            resizingCorner = false;
+            resizingRight = true;
+            resizingBottom = false;
+        } else if (hoverBottomEdge) {
+            resizingCorner = false;
+            resizingRight = false;
+            resizingBottom = true;
+        } else {
+            resizingCorner = false;
+            resizingRight = false;
+            resizingBottom = false;
+        }
+
+        if (resizingRight || resizingBottom) 
+        {
+            dragStart = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
+            initialWindowSize = ImVec2(static_cast<float>(currentScreenWidth), static_cast<float>(currentScreenHeight));
+        }
+    }
+
+    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+
 		{
-			dragStart = ImVec2(mouseX, mouseY);
-			initialWindowSize = ImVec2(screenWidth, screenHeight);
+
+		    if (resizingRight || resizingBottom) 
+		    {
+		        int newWidth = static_cast<int>(initialWindowSize.x);
+		        int newHeight = static_cast<int>(initialWindowSize.y);
+
+		        if (resizingRight) 
+		        {
+		            newWidth = static_cast<int>(initialWindowSize.x + (mouseX - dragStart.x));   
+		        }
+
+		        if (resizingBottom)
+		        {
+		            float deltaY = static_cast<float>(mouseY - dragStart.y);
+		            newHeight = static_cast<int>(initialWindowSize.y + deltaY);
+
+		        }
+		        newWidth = std::max(newWidth, 100);  
+		        newHeight = std::max(newHeight, 100); 
+
+
+		        // Conditional break or further check if values are extreme
+		        if (newHeight > 10000 || newHeight < 0 || newWidth > 10000 || newWidth < 0) {
+		            std::cerr << "CRITICAL: Extreme resize values detected before glfwSetWindowSize!" << std::endl;
+		        }
+
+		        glfwSetWindowSize(window, newWidth, newHeight);
+		    }
 		}
-	}
-
-	// Handle dragging
-	if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-	{
-		if (resizingRight || resizingBottom || resizingCorner)
-		{
-			int newWidth = screenWidth;
-			int newHeight = screenHeight;
-
-			if (resizingRight || resizingCorner)
-				newWidth = initialWindowSize.x + (mouseX - dragStart.x);
-			if (resizingBottom || resizingCorner)
-				newHeight = initialWindowSize.y + (mouseY - dragStart.y);
-
-			newWidth = std::max(newWidth, 100);
-			newHeight = std::max(newHeight, 100);
-
-			glfwSetWindowSize(window, newWidth, newHeight);
-		}
-	}
-
-	// Handle drag end
-	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-	{
-		resizingRight = false;
-		resizingBottom = false;
-		resizingCorner = false;
-	}
+    // Handle drag end
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        resizingRight = false;
+        resizingBottom = false;
+        resizingCorner = false;
+    }
 }
 
 bool Ned::initializeGraphics()
@@ -651,6 +683,7 @@ void Ned::handleEvents()
 	// Always poll events if resizing
 	if (resizingRight || resizingBottom || resizingCorner)
 	{
+		 glfwPollEvents();
 	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
 	{
 		glfwPollEvents();
@@ -1307,77 +1340,84 @@ void Ned::handleFileDialog()
 		}
 	}
 }
+
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-	// Get current accumulation buffers
-	int prev = accum.swap ? 1 : 0;
-	int curr = accum.swap ? 0 : 1;
+    // Only run burn-in shader if shaders are enabled
+    if (shader_toggle) 
+    {
+        // Get current accumulation buffers
+        int prev = accum.swap ? 1 : 0;
+        int curr = accum.swap ? 0 : 1;
 
-	// First pass: Burn-in accumulation
-	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
-	accum.burnInShader.useShader();
+        // Burn-in accumulation pass
+        glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
+        accum.burnInShader.useShader();
+        accum.burnInShader.setInt("currentFrame", 0);
+        accum.burnInShader.setInt("previousFrame", 1);
+        accum.burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture);
+        
+        glClear(GL_COLOR_BUFFER_BIT);
+        glBindVertexArray(quad.VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// Set texture units and uniforms
-	accum.burnInShader.setInt("currentFrame", 0);
-	accum.burnInShader.setInt("previousFrame", 1);
-	accum.burnInShader.setFloat("decay",
-								gSettings.getSettings()["burnin_intensity"]); // Optimal decay value
+        accum.swap = !accum.swap;
+    }
 
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fb.renderTexture); // Current frame
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture); // Previous accumulation
+    // CRT effects pass
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    crtShader.useShader();
 
-	// Clear accumulation buffer before drawing
-	glClear(GL_COLOR_BUFFER_BIT);
-	glBindVertexArray(quad.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+    // Set CRT shader uniforms
+    crtShader.setInt("screenTexture", 0);
+    if (shader_toggle) {
+        crtShader.setFloat("u_effects_enabled", 1.0f);
+    } else {
+        crtShader.setFloat("u_effects_enabled", 0.0f);
+    }
+    crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
+    crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
+    crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
+    crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+    crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
+    crtShader.setFloat("u_jitter_intensity",
+                       gSettings.getSettings()["jitter_intensity"].get<float>());
+    crtShader.setFloat("u_curvature_intensity",
+                       gSettings.getSettings()["curvature_intensity"].get<float>());
+    crtShader.setFloat("u_pixelation_intensity",
+                       gSettings.getSettings()["pixelation_intensity"].get<float>());
+    crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
+    
+    // Set time and resolution uniforms
+    GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
+    GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
+    if (timeLocation != -1)
+        glUniform1f(timeLocation, currentTime);
+    if (resolutionLocation != -1)
+        glUniform2f(resolutionLocation, display_w, display_h);
 
-	accum.swap = !accum.swap;
+    // Bind appropriate texture based on shader toggle
+    glActiveTexture(GL_TEXTURE0);
+    if (shader_toggle) {
+        int curr = accum.swap ? 0 : 1; // Get current accumulation buffer
+        glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture);
+    } else {
+        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+    }
 
-	// Second pass: CRT effects
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	crtShader.useShader();
-
-	// Set CRT shader uniforms
-	crtShader.setInt("screenTexture", 0);
-	if (shader_toggle)
-	{
-		crtShader.setFloat("u_effects_enabled", 1.0f);
-	} else
-	{
-		crtShader.setFloat("u_effects_enabled", 0.0f);
-	}
-	crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
-	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
-	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
-	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
-	crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
-	crtShader.setFloat("u_jitter_intensity",
-					   gSettings.getSettings()["jitter_intensity"].get<float>());
-	crtShader.setFloat("u_curvature_intensity",
-					   gSettings.getSettings()["curvature_intensity"].get<float>());
-	crtShader.setFloat("u_pixelation_intensity",
-					   gSettings.getSettings()["pixelation_intensity"].get<float>());
-	crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
-	// Set time and resolution uniforms
-	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-	GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
-	if (timeLocation != -1)
-		glUniform1f(timeLocation, currentTime);
-	if (resolutionLocation != -1)
-		glUniform2f(resolutionLocation, display_w, display_h);
-
-	// Bind accumulated texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture); // Use current accum buffer
-
-	// Draw final quad
-	glBindVertexArray(quad.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+    // Draw final quad
+    glBindVertexArray(quad.VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
+
+
 void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
 {
 	auto frame_end = std::chrono::high_resolution_clock::now();

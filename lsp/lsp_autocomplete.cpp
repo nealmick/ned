@@ -242,7 +242,10 @@ void LSPAutocomplete::applyStyling()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(window_padding, window_padding));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 0.95f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+		   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
 }
