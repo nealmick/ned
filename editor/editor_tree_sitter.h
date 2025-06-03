@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <mutext>
+#include <mutex>
 struct ThemeColors
 {
 	ImVec4 keyword;
