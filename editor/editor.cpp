@@ -152,13 +152,35 @@ int Editor::getLineFromPos(int pos)
 							   pos);
 	return std::distance(editor_state.editor_content_lines.begin(), it) - 1;
 }
-
+// editor.cpp
 float Editor::calculateTextWidth()
 {
-	float max_width = 0.0f;
-	for (float width : editor_state.line_widths)
-	{
-		max_width = std::max(max_width, width);
-	}
-	return max_width;
+    float max_width = 0.0f;
+    ImFont* font = ImGui::GetFont();
+    
+    for (size_t i = 0; i < editor_state.editor_content_lines.size(); ++i)
+    {
+        size_t start = editor_state.editor_content_lines[i];
+        size_t end = (i + 1 < editor_state.editor_content_lines.size()) 
+                     ? editor_state.editor_content_lines[i + 1] 
+                     : editor_state.fileContent.size();
+        
+        if (end > start) {
+            std::string line = editor_state.fileContent.substr(start, end - start);
+            float width = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, line.c_str()).x;
+            
+            // Apply compensation based on line length and font size
+            float compensation = (line.length() * 0.1f) * (24.0f / font->FontSize) *10;
+            width += compensation;
+            
+            // Add extra safety margin
+            width *= 1.01f; // 1% extra
+            
+            if (width > max_width) max_width = width;
+        }
+    }
+    
+    // Add generous padding (15% or 150px, whichever is larger)
+    float padding = std::max(150.0f, max_width * 0.15f);
+    return max_width + padding;
 }
