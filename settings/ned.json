@@ -12,13 +12,13 @@
     "font": "SourceCodePro-Regular",
     "fontSize": 24.0,
     "jitter_intensity": 0.0,
-    "mac_background_opacity": 0.5400000214576721,
+    "mac_background_opacity": 0.6899999976158142,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.04800000041723251,
     "rainbow": true,
     "scanline_intensity": 0.2800000011920929,
-    "settings_file": "amber.json",
+    "settings_file": "ned.json",
     "shader_toggle": true,
     "splitPos": 0.24220962822437286,
     "static_intensity": 0.08699999749660492,
@@ -82,5 +82,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.18000000715255737
+    "vignet_intensity": 0.3400000035762787
 }
