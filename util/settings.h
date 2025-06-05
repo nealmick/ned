@@ -1,7 +1,6 @@
 #pragma once
 #include "../lib/json.hpp"
 #include "close_popper.h"
-#include "settings_file_manager.h"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -13,8 +12,8 @@ class Settings
 {
   public:
 	// --- STATIC HELPERS: publicly accessible ---
-	static std::string getAppResourcesPath() { return SettingsFileManager::getAppResourcesPath(); }
-	static std::string getUserSettingsPath() { return SettingsFileManager::getUserSettingsPath(); }
+	static std::string getAppResourcesPath();
+	static std::string getUserSettingsPath(); // Points to the primary ned.json
 
 	// --- Normal members & methods ---
 	Settings();
@@ -120,30 +119,17 @@ class Settings
 	std::string settingsPath; // Path to the *active* settings file (e.g., ned.json or test.json)
 	float splitPos = 0.3f;	  // Default, will be overwritten by loaded settings
 
+	fs::file_time_type lastSettingsModification;
+
 	bool settingsChanged = false;
 	bool themeChanged = false;
 	bool fontChanged = false;
 	bool fontSizeChanged = false;
 	bool blockInput = false;
 
-	float currentFontSize = 0.0f; // Will be set by loadSettings()
+	float currentFontSize = 16.0f; // Default, will be overwritten
 	int settingsCheckFrameCounter = 0;
 	const int SETTINGS_CHECK_INTERVAL = 60; // frames
-
-	SettingsFileManager settingsFileManager; // Handles all file operations
-
-	// Helper functions for rendering different sections of the settings window
-	void renderWindowHeader();
-	void renderProfileSelector();
-	void renderMainSettings();
-	void renderMacSettings();
-	void renderSyntaxColors();
-	void renderToggleSettings();
-	void renderShaderSettings();
-	void renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
-		const char* format, float default_val);
-	void handleWindowInput();
-	void applyImGuiStyles(); // New function for handling ImGui styles
 };
 
 extern Settings gSettings;
