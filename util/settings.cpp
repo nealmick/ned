@@ -118,6 +118,27 @@ void Settings::renderSettingsWindow()
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
+	renderWindowHeader();
+	renderProfileSelector();
+	renderMainSettings();
+	renderMacSettings();
+	renderSyntaxColors();
+	renderToggleSettings();
+	renderShaderSettings();
+	handleWindowInput();
+
+	ImGui::End();
+	ImGui::PopStyleColor(8);
+	ImGui::PopStyleVar(5);
+
+	if (profileJustSwitched)
+	{
+		profileJustSwitched = false;
+	}
+}
+
+void Settings::renderWindowHeader()
+{
 	static bool wasFocused = false;
 	bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 	if (wasFocused && !isFocused && showSettingsWindow)
@@ -153,7 +174,10 @@ void Settings::renderSettingsWindow()
 	ImGui::EndGroup();
 	ImGui::Separator();
 	ImGui::Spacing();
+}
 
+void Settings::renderProfileSelector()
+{
 	std::vector<std::string> availableProfileFiles = settingsFileManager.getAvailableProfileFiles();
 	std::string currentActiveFilename = "ned.json";
 
@@ -202,10 +226,12 @@ void Settings::renderSettingsWindow()
 		ImGui::EndCombo();
 	}
 	ImGui::SameLine();
-
 	ImGui::TextUnformatted("Profile");
-
 	ImGui::Spacing();
+}
+
+void Settings::renderMainSettings()
+{
 	std::string displayPreviewName = getCurrentFont();
 	if (ImGui::IsWindowAppearing() || fontChanged || profileJustSwitched)
 	{
@@ -250,11 +276,11 @@ void Settings::renderSettingsWindow()
 	static float tempFontSize;
 	if (ImGui::IsWindowAppearing() || fontSizeChanged || profileJustSwitched)
 	{
-		tempFontSize = getFontSize();
+		tempFontSize = settings.value("fontSize", 20.0f); // Get the value directly from settings
 	}
 	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
 	{
-		if (settings.value("fontSize", 0.0f) != tempFontSize)
+		if (settings.value("fontSize", 20.0f) != tempFontSize)
 		{
 			settingsChanged = true;
 		}
@@ -316,8 +342,11 @@ void Settings::renderSettingsWindow()
 			saveSettings();
 		}
 	}
+}
 
-	#ifdef __APPLE__
+void Settings::renderMacSettings()
+{
+#ifdef __APPLE__
 	ImGui::Spacing();
 	ImGui::TextUnformatted("macOS Settings");
 	ImGui::Separator();
@@ -337,8 +366,11 @@ void Settings::renderSettingsWindow()
 		settingsChanged = true;
 		saveSettings();
 	}
-	#endif
+#endif
+}
 
+void Settings::renderSyntaxColors()
+{
 	std::string currentThemeName = getCurrentTheme();
 	if (ImGui::IsWindowAppearing() || themeChanged || profileJustSwitched)
 	{
@@ -405,7 +437,10 @@ void Settings::renderSettingsWindow()
 		ImGui::Text("Current theme '%s' not found or themes object missing.",
 					currentThemeName.c_str());
 	}
+}
 
+void Settings::renderToggleSettings()
+{
 	ImGui::Spacing();
 	ImGui::TextUnformatted("Toggle Settings");
 	ImGui::Separator();
@@ -431,7 +466,10 @@ void Settings::renderSettingsWindow()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Syntax Highlighting)");
+}
 
+void Settings::renderShaderSettings()
+{
 	ImGui::Spacing();
 	ImGui::TextUnformatted("GL Shaders");
 	ImGui::Separator();
@@ -447,59 +485,58 @@ void Settings::renderSettingsWindow()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(CRT & visual effects)");
 
-	auto shaderFloatSlider = [&](const char *label,
-								 const char *key,
-								 float min_val,
-								 float max_val,
-								 const char *format,
-								 float default_val) {
-		static std::map<std::string, float> temp_shader_values;
+	renderShaderSlider("Scanline", "scanline_intensity", 0.00f, 1.00f, "%.02f", 0.20f);
+	renderShaderSlider("Vignette", "vignet_intensity", 0.00f, 1.00f, "%.02f", 0.25f);
+	renderShaderSlider("Bloom", "bloom_intensity", 0.00f, 1.00f, "%.02f", 0.75f);
+	renderShaderSlider("Static", "static_intensity", 0.00f, 0.5f, "%.03f", 0.208f);
+	renderShaderSlider("RGB Shift", "colorshift_intensity", 0.0f, 10.0f, "%.02f", 0.90f);
+	renderShaderSlider("Curvature(bugged)", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
+	renderShaderSlider("Burn-in", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
+	renderShaderSlider("Jitter", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
+	renderShaderSlider("Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
+}
 
-		if (ImGui::IsWindowAppearing() || profileJustSwitched)
+void Settings::renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
+	const char* format, float default_val)
+{
+	static std::map<std::string, float> temp_shader_values;
+
+	if (ImGui::IsWindowAppearing() || profileJustSwitched)
+	{
+		if (profileJustSwitched)
+			temp_shader_values.clear();
+	}
+	if (temp_shader_values.find(key) == temp_shader_values.end() || profileJustSwitched)
+	{
+		temp_shader_values[key] = settings.value(key, default_val);
+	}
+
+	float &temp_val = temp_shader_values[key];
+
+	if (ImGui::SliderFloat(
+			label, &temp_val, min_val, max_val, format, ImGuiSliderFlags_AlwaysClamp))
+	{
+		if (settings.value(key, default_val) != temp_val)
 		{
-			if (profileJustSwitched)
-				temp_shader_values.clear();
+			settingsChanged = true;
 		}
-		if (temp_shader_values.find(key) == temp_shader_values.end() || profileJustSwitched)
+	}
+	if (ImGui::IsItemDeactivatedAfterEdit())
+	{
+		if (settings.value(key, default_val) != temp_val)
 		{
-			temp_shader_values[key] = settings.value(key, default_val);
-		}
-
-		float &temp_val = temp_shader_values[key];
-
-		if (ImGui::SliderFloat(
-				label, &temp_val, min_val, max_val, format, ImGuiSliderFlags_AlwaysClamp))
+			settings[key] = temp_val;
+			settingsChanged = true;
+			saveSettings();
+		} else if (settingsChanged)
 		{
-			if (settings.value(key, default_val) != temp_val)
-			{
-				settingsChanged = true;
-			}
 		}
-		if (ImGui::IsItemDeactivatedAfterEdit())
-		{
-			if (settings.value(key, default_val) != temp_val)
-			{
-				settings[key] = temp_val;
-				settingsChanged = true;
-				saveSettings();
-			} else if (settingsChanged)
-			{
-			}
-		}
-		ImGui::Spacing();
-	};
-
-	shaderFloatSlider("Scanline", "scanline_intensity", 0.00f, 1.00f, "%.02f", 0.20f);
-	shaderFloatSlider("Vignette", "vignet_intensity", 0.00f, 1.00f, "%.02f", 0.25f);
-	shaderFloatSlider("Bloom", "bloom_intensity", 0.00f, 1.00f, "%.02f", 0.75f);
-	shaderFloatSlider("Static", "static_intensity", 0.00f, 0.5f, "%.03f", 0.208f);
-	shaderFloatSlider("RGB Shift", "colorshift_intensity", 0.0f, 10.0f, "%.02f", 0.90f);
-	shaderFloatSlider("Curvature(bugged)", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
-	shaderFloatSlider("Burn-in", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
-	shaderFloatSlider("Jitter", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
-	shaderFloatSlider("Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
-
+	}
 	ImGui::Spacing();
+}
+
+void Settings::handleWindowInput()
+{
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		showSettingsWindow = false;
@@ -523,14 +560,5 @@ void Settings::renderSettingsWindow()
 					saveSettings();
 			}
 		}
-	}
-
-	ImGui::End();
-	ImGui::PopStyleColor(8);
-	ImGui::PopStyleVar(5);
-
-	if (profileJustSwitched)
-	{
-		profileJustSwitched = false;
 	}
 }
