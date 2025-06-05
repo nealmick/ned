@@ -9,14 +9,10 @@
 #include <sstream>
 #include <string>
 
-// Use the nlohmann::json namespace (already declared in header, but fine here
-// too)
 using json = nlohmann::json;
 
-// Global instance definition (remains the same)
 LSPGotoDef gLSPGotoDef;
 
-// Constructor and Destructor (remain the same)
 LSPGotoDef::LSPGotoDef()
 	: currentRequestId(2000), showDefinitionOptions(false), selectedDefinitionIndex(0)
 {
@@ -504,42 +500,42 @@ void LSPGotoDef::renderDefinitionOptions()
 
 				if (selected.uri != gFileExplorer.currentFile)
 				{
-					gFileExplorer.loadFileContent(selected.uri, nullptr);
-				}
-				int index = 0;
-				int currentLine = 0;
-				std::cout << "Calculating cursor position..." << std::endl;
+					gFileExplorer.loadFileContent(selected.uri, [selected]() {
+						gEditorScroll.pending_cursor_centering = true;
+						gEditorScroll.pending_cursor_line = selected.startLine;
+						gEditorScroll.pending_cursor_char = selected.startChar;
+					});
+				} else {
+					int index = 0;
+					int currentLine = 0;
+					std::cout << "Calculating cursor position..." << std::endl;
 
-				while (currentLine < selected.startLine &&
-					   index < editor_state.fileContent.length())
-				{
-					if (editor_state.fileContent[index] == '\n')
+					while (currentLine < selected.startLine &&
+						   index < editor_state.fileContent.length())
 					{
-						currentLine++;
+						if (editor_state.fileContent[index] == '\n')
+						{
+							currentLine++;
+						}
+						index++;
 					}
-					index++;
-				}
 
-				index += selected.startChar;
-				index = std::min(index, (int)editor_state.fileContent.length());
-				editor_state.cursor_index = index;
-				gEditorScroll.setEnsureCursorVisibleFrames(-1);
-				showDefinitionOptions = false;
-				editor_state.block_input = false;
-				// editor_state.ensure_cursor_visible.horizontal = true;
-				// editor_state.ensure_cursor_visible.vertical = true;
-				editor_state.center_cursor_vertical = true;
+					index += selected.startChar;
+					index = std::min(index, (int)editor_state.fileContent.length());
+					editor_state.cursor_index = index;
+					editor_state.center_cursor_vertical = true;
+					gEditorScroll.centerCursorVertically();
+				}
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
 			}
 		} else if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-		{ // Already handled, but keep for
-			// clarity
+		{ 
 			showDefinitionOptions = false;
 			editor_state.block_input = false;
 		}
 
-		ImGui::End(); // End the window
+		ImGui::End();
 	} else
 	{
 		// If Begin returned false
@@ -550,7 +546,6 @@ void LSPGotoDef::renderDefinitionOptions()
 		}
 	}
 
-	// Pop styles
 	ImGui::PopStyleColor(6);
 	ImGui::PopStyleVar(4);
 

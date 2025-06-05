@@ -62,6 +62,11 @@ class EditorScroll
 	void handleCursorMovementScroll();
 	void centerCursorVertically();
 
+	// Add pending cursor centering state
+	bool pending_cursor_centering = false;
+	int pending_cursor_line = -1;
+	int pending_cursor_char = -1;
+
 	// Helpers
 	float calculateCursorXPosition();
 

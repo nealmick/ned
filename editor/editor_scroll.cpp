@@ -25,6 +25,29 @@ int EditorScroll::getLineFromPosition(const std::vector<int> &line_starts, int p
 
 void EditorScroll::updateScrollAnimation()
 {
+	// Handle pending cursor centering
+	if (pending_cursor_centering && pending_cursor_line >= 0) {
+		int index = 0;
+		int currentLine = 0;
+		while (currentLine < pending_cursor_line && 
+			   index < editor_state.fileContent.length()) {
+			if (editor_state.fileContent[index] == '\n') {
+				currentLine++;
+			}
+			index++;
+		}
+		index += pending_cursor_char;
+		index = std::min(index, (int)editor_state.fileContent.length());
+		editor_state.cursor_index = index;
+		editor_state.center_cursor_vertical = true;
+		gEditorScroll.centerCursorVertically();
+		
+		// Reset pending state
+		pending_cursor_centering = false;
+		pending_cursor_line = -1;
+		pending_cursor_char = -1;
+	}
+
 	// Animation should complete in ~0.1 seconds
 	const float animation_speed = 15.0f; // Move 15% of remaining distance per frame
 	const float min_step = 1.0f;		 // Minimum pixels to move per frame

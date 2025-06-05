@@ -55,9 +55,7 @@ void Editor::textEditor()
 	std::cout << "---- Multi-Selection Ranges (After Movement) ----" << std::endl;
 	for (size_t i = 0; i < editor_state.multi_selections.size(); ++i)
 	{
-		// Ensure we don't go out of bounds if multi_selections wasn't perfectly synced
-		// (though the logic now aims to keep them synced)
-		if (i < editor_state.multi_selections.size())
+		if (i < editor_state.multi_cursor_indices.size())
 		{
 			const auto &selection = editor_state.multi_selections[i];
 			std::cout << "  Cursor " << i << " (idx "
@@ -152,7 +150,8 @@ int Editor::getLineFromPos(int pos)
 							   pos);
 	return std::distance(editor_state.editor_content_lines.begin(), it) - 1;
 }
-// editor.cpp
+
+
 float Editor::calculateTextWidth()
 {
     float max_width = 0.0f;
