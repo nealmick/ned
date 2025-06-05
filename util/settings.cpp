@@ -30,374 +30,18 @@
 namespace fs = std::filesystem;
 Settings gSettings; 
 
-std::string Settings::getAppResourcesPath()
-{
-#ifdef __APPLE__
-	char exePath[MAXPATHLEN];
-	uint32_t size = sizeof(exePath);
-	if (_NSGetExecutablePath(exePath, &size) == 0)
-	{
-		char resolvedPath[MAXPATHLEN];
-		if (realpath(exePath, resolvedPath) != nullptr)
-		{
-			std::string p = resolvedPath;
-			p = dirname((char *)p.c_str());
-			p = dirname((char *)p.c_str());
-			std::string resourcesPath = p + "/Resources";
-			if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath))
-			{
-				return resourcesPath;
-			} else
-			{
-				return p;
-			}
-		} else
-		{
-			std::string p = exePath;
-			p = dirname((char *)p.c_str());
-			p = dirname((char *)p.c_str());
-			p += "/Resources";
-			return p;
-		}
-	}
-#elif defined(__linux__)
-    // Linux implementation
-    char exePath[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
-    if (count != -1)
-    {
-        exePath[count] = '\0';
-        std::string p = dirname(exePath); // If exe is /usr/lib/Ned/ned, p is /usr/lib/Ned
-
-        // Look for resources in common Linux locations
-        std::vector<std::string> pathsToCheck = {
-            p + "/../share/Ned", // <<-- THIS IS THE KEY CHANGE (Ned with capital N)
-            p + "/resources",    // For local build (e.g., ./build/resources)
-            p                    // Fallback (e.g. binary dir itself)
-        };
-
-        for (const auto &path : pathsToCheck)
-        {
-            // Ensure the path actually exists before returning it
-            // The actual check for "settings/ned.json" happens later in loadSettings
-            if (fs::exists(path) && fs::is_directory(path))
-            {
-                std::cout << "[Settings] Using app resource path: " << path << std::endl;
-                return path;
-            }
-        }
-        std::cerr << "[Settings] Warning: Could not find a valid app resource path from checks. Defaulting to executable directory." << std::endl;
-        // If none of the preferred paths exist, return the executable's directory as a last resort.
-        // This might happen if `p + "/../share/Ned"` or `p + "/resources"` don't exist.
-        if (fs::exists(p) && fs::is_directory(p)) return p;
-    }
-    std::cerr << "[Settings] CRITICAL: Could not determine app resources path for Linux (readlink failed or no valid path found)." << std::endl;
-    return "."; // Absolute fallback
-#endif
+Settings::Settings() : splitPos(0.3f) {
+    // Initialize with default values that will be overwritten by loadSettings
+    currentFontSize = 0.0f;
+    loadSettings(); // Load settings immediately to set proper values
 }
-
-std::string Settings::getUserSettingsPath()
-{
-	const char *home = getenv("HOME");
-	if (!home)
-	{
-		std::cerr << "[Settings] WARNING: HOME environment variable not found. Using "
-					 "'./ned/settings/ned.json' for primary settings."
-				  << std::endl;
-		return "ned/settings/ned.json";
-	}
-	return std::string(home) + "/ned/settings/ned.json";
-}
-
-Settings::Settings() : splitPos(0.3f) { currentFontSize = 20.0f; }
 
 void Settings::loadSettings()
 {
-	std::string primarySettingsFilePath = getUserSettingsPath();
-	fs::path primarySettingsDir = fs::path(primarySettingsFilePath).parent_path();
-
-	if (!fs::exists(primarySettingsDir))
-	{
-		try
-		{
-			fs::create_directories(primarySettingsDir);
-			std::cout << "[Settings] Created settings directory: " << primarySettingsDir.string()
-					  << std::endl;
-		} catch (const fs::filesystem_error &e)
-		{
-			std::cerr << "[Settings] Error creating settings directory "
-					  << primarySettingsDir.string() << ": " << e.what() << std::endl;
-		}
-	}
-	json primaryJsonConfig;
-	bool primaryJsonModified = false;
-	if (!fs::exists(primarySettingsFilePath))
-	{
-		std::cout << "[Settings] Primary settings file " << primarySettingsFilePath
-				  << " not found.\n";
-
-		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-		std::vector<std::string> filesToCopy = {"ned.json","amber.json", "test.json", "solarized.json", "solarized-light.json", "custom1.json","custom2.json","custom3.json"};
-
-		for (const auto &filename : filesToCopy)
-		{
-			std::string sourcePath = bundleSettingsDir + "/" + filename;
-			std::string destPath = fs::path(primarySettingsDir) / filename;
-
-			if (fs::exists(sourcePath))
-			{
-				try
-				{
-					fs::copy_file(sourcePath, destPath, fs::copy_options::overwrite_existing);
-					std::cout << "[Settings] Copied " << filename << " from bundle to " << destPath
-							  << "\n";
-				} catch (const fs::filesystem_error &e)
-				{
-					std::cerr << "[Settings] Error copying " << filename << ": " << e.what()
-							  << "\n";
-					// Only critical error for ned.json
-					if (filename == "ned.json")
-					{
-						std::cerr << "CRITICAL: Failed to copy primary settings file\n";
-					}
-				}
-			} else
-			{
-				std::cerr << (filename == "ned.json" ? "CRITICAL" : "WARNING") << ": Bundle file "
-						  << sourcePath << " not found\n";
-				if (filename == "ned.json")
-				{
-					return; // Can't proceed without primary
-				}
-			}
-		}
-	}
-	if (fs::exists(primarySettingsFilePath))
-	{
-		try
-		{
-			std::ifstream primaryFile(primarySettingsFilePath);
-			if (primaryFile.is_open())
-			{
-				primaryFile >> primaryJsonConfig;
-			} else
-			{
-				std::cerr << "[Settings] Failed to open primary settings file "
-						  << primarySettingsFilePath << " for reading." << std::endl;
-			}
-		} catch (const json::parse_error &e)
-		{
-			std::cerr << "[Settings] Error parsing primary " << primarySettingsFilePath << ": "
-					  << e.what() << ". Using empty config for primary." << std::endl;
-			primaryJsonConfig = json::object();
-		} catch (const std::exception &e)
-		{
-			std::cerr << "[Settings] Generic error loading primary " << primarySettingsFilePath
-					  << ": " << e.what() << ". Using empty config for primary." << std::endl;
-			primaryJsonConfig = json::object();
-		}
-	} else
-	{
-		std::cerr << "[Settings] Primary settings file " << primarySettingsFilePath
-				  << " could not be accessed after setup attempt. Using empty primary config."
-				  << std::endl;
-		primaryJsonConfig = json::object();
-	}
-	std::string activeSettingsFilename;
-	if (primaryJsonConfig.contains("settings_file") &&
-		primaryJsonConfig["settings_file"].is_string())
-	{
-		activeSettingsFilename = primaryJsonConfig["settings_file"].get<std::string>();
-	} else
-	{
-		std::cout << "[Settings] 'settings_file' key missing or invalid in "
-				  << primarySettingsFilePath
-				  << ". Defaulting to 'ned.json' and updating primary file." << std::endl;
-		activeSettingsFilename = "ned.json";
-		primaryJsonConfig["settings_file"] = activeSettingsFilename;
-		primaryJsonModified = true;
-	}
-	if (primaryJsonModified)
-	{
-		try
-		{
-			std::ofstream primaryFileOut(primarySettingsFilePath);
-			if (primaryFileOut.is_open())
-			{
-				primaryFileOut << std::setw(4) << primaryJsonConfig << std::endl;
-				std::cout << "[Settings] Saved " << primarySettingsFilePath
-						  << " after ensuring 'settings_file' key." << std::endl;
-			} else
-			{
-				std::cerr << "[Settings] Failed to open " << primarySettingsFilePath
-						  << " for writing to update 'settings_file' key." << std::endl;
-			}
-		} catch (const std::exception &e)
-		{
-			std::cerr << "[Settings] Error saving " << primarySettingsFilePath
-					  << " after ensuring 'settings_file' key: " << e.what() << std::endl;
-		}
-	}
-	this->settingsPath = (primarySettingsDir / activeSettingsFilename).string();
-	std::cout << "[Settings] Active settings file target: " << this->settingsPath << std::endl;
-	bool activeSettingsFileNewlyCreatedOrModified = false;
-	if (activeSettingsFilename != "ned.json" && !fs::exists(this->settingsPath))
-	{
-		std::cout << "[Settings] Active settings file " << this->settingsPath << " not found."
-				  << std::endl;
-		if (fs::exists(primarySettingsFilePath))
-		{
-			try
-			{
-				fs::copy_file(primarySettingsFilePath,
-							  this->settingsPath,
-							  fs::copy_options::overwrite_existing);
-				std::cout << "[Settings] Copied " << primarySettingsFilePath << " to "
-						  << this->settingsPath << " as a base." << std::endl;
-				activeSettingsFileNewlyCreatedOrModified = true;
-			} catch (const fs::filesystem_error &e)
-			{
-				std::cerr << "[Settings] Error copying " << primarySettingsFilePath << " to "
-						  << this->settingsPath << ": " << e.what() << std::endl;
-				std::cout << "[Settings] Fallback: Using " << primarySettingsFilePath
-						  << " as active settings file due to copy error." << std::endl;
-				this->settingsPath = primarySettingsFilePath;
-				activeSettingsFilename = fs::path(primarySettingsFilePath).filename().string();
-			}
-		} else
-		{
-			std::cerr << "[Settings] Primary settings file " << primarySettingsFilePath
-					  << " not found. Cannot use it to create " << this->settingsPath << std::endl;
-			std::cout << "[Settings] Fallback: Attempting to use " << primarySettingsFilePath
-					  << " as active settings path." << std::endl;
-			this->settingsPath = primarySettingsFilePath;
-			activeSettingsFilename = fs::path(primarySettingsFilePath).filename().string();
-		}
-	}
-	settings = json::object();
-	if (fs::exists(this->settingsPath))
-	{
-		try
-		{
-			std::ifstream settingsFileStream(this->settingsPath);
-			if (settingsFileStream.is_open())
-			{
-				settingsFileStream >> settings;
-				std::cout << "[Settings] Successfully loaded settings from: " << this->settingsPath
-						  << std::endl;
-			} else
-			{
-				std::cerr << "[Settings] Failed to open active settings file " << this->settingsPath
-						  << " for reading. Using empty settings." << std::endl;
-			}
-		} catch (const json::parse_error &e)
-		{
-			std::cerr << "[Settings] Error parsing active settings file " << this->settingsPath
-					  << ": " << e.what() << ". Using empty settings." << std::endl;
-			settings = json::object();
-		} catch (const std::exception &e)
-		{
-			std::cerr << "[Settings] Generic error loading " << this->settingsPath << ": "
-					  << e.what() << ". Using empty settings." << std::endl;
-			settings = json::object();
-		}
-	} else
-	{
-		std::cout << "[Settings] Active settings file " << this->settingsPath
-				  << " does not exist (even after creation attempt). Starting with empty settings."
-				  << std::endl;
-	}
-	if (activeSettingsFilename != "ned.json" && settings.contains("settings_file"))
-	{
-		std::cout
-			<< "[Settings] Removing 'settings_file' key from non-primary active settings file: "
-			<< this->settingsPath << std::endl;
-		settings.erase("settings_file");
-		activeSettingsFileNewlyCreatedOrModified = true;
-	}
-	const std::vector<std::pair<std::string, json>> defaults = {
-		{"backgroundColor",
-		 json::array(
-			 {0.05816289037466049, 0.19437342882156372, 0.1578674018383026, 1.0000001192092896})},
-		{"bloom_intensity", 0.75},
-		{"burnin_intensity", 0.9525200128555298},
-		{"colorshift_intensity", 0.8999999761581421},
-		{"curvature_intensity", 0.0},
-		{"font", "SourceCodePro-Regular"},
-		{"fontSize", 20.0f},
-		{"jitter_intensity", 2.809999942779541},
-		{"pixel_width", 5000.0},
-		{"pixelation_intensity", -0.10999999940395355},
-		{"rainbow", true},
-		{"scanline_intensity", 0.20000000298023224},
-		{"shader_toggle", true},
-		{"splitPos", 0.2142857164144516},
-		{"static_intensity", 0.20800000429153442},
-		{"theme", "default"},
-		{"treesitter", true},
-		{"vignet_intensity", 0.25},
-	 	{"mac_background_opacity", 0.5},
-    	{"mac_blur_enabled", true},};
-	for (const auto &[key, value] : defaults)
-	{
-		if (!settings.contains(key))
-		{
-			settings[key] = value;
-			activeSettingsFileNewlyCreatedOrModified = true;
-			std::cout << "[Settings] Applied default for key '" << key << "' to "
-					  << this->settingsPath << std::endl;
-		}
-	}
-	if (!settings.contains("themes") || !settings["themes"].is_object())
-	{
-		settings["themes"] = {
-			{"default",
-			 {{"background", json::array({0.2, 0.2, 0.2, 1.0})},
-			  {"comment",
-			   json::array({0.4565933346748352,
-							0.4565933346748352,
-							0.4565933346748352,
-							0.8999999761581421})},
-			  {"function",
-			   json::array({0.6752017140388489, 0.3185149133205414, 0.7726563811302185, 1.0})},
-			  {"keyword", json::array({0.0, 0.5786033272743225, 0.9643363952636719, 1.0})},
-			  {"number",
-			   json::array({0.6439791321754456, 0.3536583185195923, 0.7698838710784912, 1.0})},
-			  {"string",
-			   json::array({0.08516374975442886, 0.6660587787628174, 0.6660587787628174, 1.0})},
-			  {"text", json::array({0.680115282535553, 0.680115282535553, 0.680115282535553, 1.0})},
-			  {"type",
-			   json::array({0.6007077097892761, 0.7665653228759766, 0.44595927000045776, 1.0})},
-			  {"variable",
-			   json::array({0.3506303131580353, 0.7735447883605957, 0.8863282203674316, 1.0})}}}};
-		activeSettingsFileNewlyCreatedOrModified = true;
-		std::cout << "[Settings] Applied default themes structure to " << this->settingsPath
-				  << std::endl;
-	}
-	currentFontName = settings.value("font", "SourceCodePro-Regular");
-	currentFontSize = settings.value("fontSize", 20.0f);
+	settingsFileManager.loadSettings(settings, settingsPath);
+	currentFontName = getCurrentFont();
+	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
-	if (activeSettingsFileNewlyCreatedOrModified)
-	{
-		std::cout << "[Settings] Saving active settings file " << this->settingsPath
-				  << " due to initial setup or modifications." << std::endl;
-		saveSettings();
-	}
-	if (fs::exists(this->settingsPath))
-	{
-		try
-		{
-			lastSettingsModification = fs::last_write_time(this->settingsPath);
-		} catch (const fs::filesystem_error &e)
-		{
-			std::cerr << "[Settings] Error getting last write time for " << this->settingsPath
-					  << ": " << e.what() << std::endl;
-			lastSettingsModification = fs::file_time_type::min();
-		}
-	} else
-	{
-		lastSettingsModification = fs::file_time_type::min();
-	}
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -407,144 +51,18 @@ void Settings::loadSettings()
 
 void Settings::saveSettings()
 {
-	if (this->settingsPath.empty())
-	{
-		std::cerr << "[Settings] Error: settingsPath is empty, cannot save settings." << std::endl;
-		return;
-	}
-
-	std::ofstream settingsFile(this->settingsPath);
-	if (settingsFile.is_open())
-	{
-		settingsFile << std::setw(4) << settings << std::endl;
-		settingsFile.close();
-	} else
-	{
-		std::cerr << "[Settings] Failed to open " << this->settingsPath << " for saving."
-				  << std::endl;
-		return;
-	}
-
-	if (fs::exists(this->settingsPath))
-	{
-		try
-		{
-			lastSettingsModification = fs::last_write_time(this->settingsPath);
-			gTerminal.UpdateTerminalColors();
-		} catch (const fs::filesystem_error &e)
-		{
-			std::cerr << "[Settings] Error getting last write time after saving "
-					  << this->settingsPath << ": " << e.what() << std::endl;
-		}
-	}
+	settingsFileManager.saveSettings(settings, settingsPath);
 }
 
 void Settings::checkSettingsFile()
 {
-	if (this->settingsPath.empty() || !fs::exists(this->settingsPath))
+	settingsFileManager.checkSettingsFile(settingsPath, settings, settingsChanged, fontChanged, fontSizeChanged, themeChanged);
+	if (settingsChanged || fontChanged || fontSizeChanged || themeChanged)
 	{
-		return;
-	}
-
-	try
-	{
-		auto currentModification = fs::last_write_time(this->settingsPath);
-		if (currentModification <= lastSettingsModification)
-			return;
-
-		std::cout << "[Settings] Active settings file " << this->settingsPath
-				  << " was modified externally, reloading." << std::endl;
-
-		json oldSettings = settings;
-		loadSettings();
-
-		if (oldSettings.contains("fontSize") && settings.contains("fontSize") &&
-			oldSettings["fontSize"] != settings["fontSize"])
-		{
-			if (settings["fontSize"].get<float>() != currentFontSize)
-			{ 
-				fontSizeChanged = true; // Simpler, as currentFontSize is already correct.
-			}
-		}
-		if (oldSettings.contains("font") && settings.contains("font") &&
-			oldSettings["font"] != settings["font"])
-		{
-			fontChanged = true;
-		}
-		if (oldSettings.contains("theme") && settings.contains("theme") &&
-			oldSettings["theme"] != settings["theme"])
-		{
-			themeChanged = true;
-			gEditorHighlight.forceColorUpdate(); 
-		}
-		if (oldSettings.contains("themes") && settings.contains("themes") &&
-			oldSettings["themes"] != settings["themes"])
-		{
-			themeChanged = true; 
-			gEditorHighlight.forceColorUpdate(); 
-		}
-		if (oldSettings.contains("mac_background_opacity") && 
-		    settings.contains("mac_background_opacity") &&
-		    oldSettings["mac_background_opacity"] != settings["mac_background_opacity"]) 
-		{
-		    settingsChanged = true;
-		}
-
-		if (oldSettings.contains("mac_blur_enabled") && 
-		    settings.contains("mac_blur_enabled") &&
-		    oldSettings["mac_blur_enabled"] != settings["mac_blur_enabled"]) 
-		{
-		    settingsChanged = true;
-		}
-		const std::vector<std::string> checkKeys = {
-			"backgroundColor",
-			"splitPos",
-			"rainbow",
-			"treesitter",
-			"shader_toggle",
-			"scanline_intensity",
-			"burnin_intensity",
-			"curvature_intensity",
-			"colorshift_intensity",
-			"bloom_intensity",
-			"static_intensity",
-			"jitter_intensity",
-			"pixelation_intensity",
-			"pixel_width",
-			"vignet_intensity",
-			"mac_background_opacity",
-			"mac_blur_enabled",};
-		for (const auto &key : checkKeys)
-		{
-			if (oldSettings.contains(key) && settings.contains(key))
-			{
-				if (oldSettings[key] != settings[key])
-				{
-					settingsChanged = true;
-					break;
-				}
-			} else if (oldSettings.contains(key) != settings.contains(key))
-			{
-				settingsChanged = true;
-				break;
-			}
-		}
-		if (settingsChanged || fontChanged || fontSizeChanged || themeChanged)
-		{
-			gSettings.profileJustSwitched =
-				true; 
-		}
-
-	} catch (const fs::filesystem_error &e)
-	{
-		std::cerr << "[Settings] Filesystem error checking settings file " << this->settingsPath
-				  << ": " << e.what() << std::endl;
-	} catch (const std::exception &e)
-	{
-		std::cerr << "[Settings] Error during settings file check for " << this->settingsPath
-				  << ": " << e.what() << std::endl;
+		profileJustSwitched = true;
 	}
 }
+
 void Settings::renderSettingsWindow()
 {
 	if (!showSettingsWindow)
@@ -574,7 +92,6 @@ void Settings::renderSettingsWindow()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 
-
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
 				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
 				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
@@ -588,7 +105,6 @@ void Settings::renderSettingsWindow()
 			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
 			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
 			   1.0f));
-
 
 	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
 	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
@@ -638,26 +154,12 @@ void Settings::renderSettingsWindow()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	std::vector<std::string> availableProfileFiles;
+	std::vector<std::string> availableProfileFiles = settingsFileManager.getAvailableProfileFiles();
 	std::string currentActiveFilename = "ned.json";
-	fs::path userSettingsDir = fs::path(getUserSettingsPath()).parent_path();
 
-	if (fs::exists(userSettingsDir) && fs::is_directory(userSettingsDir))
+	if (!settingsPath.empty())
 	{
-		for (const auto &entry : fs::directory_iterator(userSettingsDir))
-		{
-			if (entry.is_regular_file() && entry.path().extension() == ".json")
-			{
-				availableProfileFiles.push_back(entry.path().filename().string());
-			}
-		}
-		std::sort(availableProfileFiles.begin(),
-				  availableProfileFiles.end());
-	}
-
-	if (!this->settingsPath.empty())
-	{
-		currentActiveFilename = fs::path(this->settingsPath).filename().string();
+		currentActiveFilename = fs::path(settingsPath).filename().string();
 	}
 
 	bool foundCurrentInList = false;
@@ -671,8 +173,7 @@ void Settings::renderSettingsWindow()
 	}
 	if (!foundCurrentInList && !currentActiveFilename.empty())
 	{
-		availableProfileFiles.insert(availableProfileFiles.begin(),
-									 currentActiveFilename);
+		availableProfileFiles.insert(availableProfileFiles.begin(), currentActiveFilename);
 	}
 
 	if (ImGui::BeginCombo("##ActiveSettingsFileCombo", currentActiveFilename.c_str()))
@@ -685,47 +186,7 @@ void Settings::renderSettingsWindow()
 				if (currentActiveFilename != filename)
 				{
 					std::cout << "[Settings] User selected new profile: " << filename << std::endl;
-
-					std::string primarySettingsFilePath = getUserSettingsPath();
-					json primaryJson;
-					std::ifstream primaryFileIn(primarySettingsFilePath);
-					if (primaryFileIn.is_open())
-					{
-						try
-						{
-							primaryFileIn >> primaryJson;
-						} catch (const json::parse_error &e)
-						{
-							std::cerr << "[Settings] Error parsing primary "
-									  << primarySettingsFilePath
-									  << " for profile switch: " << e.what() << std::endl;
-							primaryJson = json::object();
-						}
-						primaryFileIn.close();
-					} else
-					{
-						std::cerr << "[Settings] Could not open primary " << primarySettingsFilePath
-								  << " for profile switch." << std::endl;
-						primaryJson = json::object();
-					}
-
-					primaryJson["settings_file"] = filename;
-
-					std::ofstream primaryFileOut(primarySettingsFilePath);
-					if (primaryFileOut.is_open())
-					{
-						primaryFileOut << std::setw(4) << primaryJson << std::endl;
-						primaryFileOut.close();
-						std::cout << "[Settings] Updated " << primarySettingsFilePath
-								  << " to use profile: " << filename << std::endl;
-					} else
-					{
-						std::cerr << "[Settings] Failed to save " << primarySettingsFilePath
-								  << " for profile switch." << std::endl;
-					}
-
-					loadSettings();
-
+					settingsFileManager.switchProfile(filename, settings, settingsPath, settingsChanged, fontChanged, themeChanged);
 					profileJustSwitched = true;
 					settingsChanged = true;
 					fontChanged = true;
@@ -826,45 +287,35 @@ void Settings::renderSettingsWindow()
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
-		
 	if (ImGui::ColorEdit4("Background Color", (float *)&bgColor))
 	{
-	    // Update JSON in memory if the color changed this frame
-	    if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-	        settings["backgroundColor"][1].get<float>() != bgColor.y ||
-	        settings["backgroundColor"][2].get<float>() != bgColor.z ||
-	        settings["backgroundColor"][3].get<float>() != bgColor.w)
-	    {
-	        settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-	        if (!settingsChanged) settingsChanged = true;
-	    }
+		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
+			settings["backgroundColor"][1].get<float>() != bgColor.y ||
+			settings["backgroundColor"][2].get<float>() != bgColor.z ||
+			settings["backgroundColor"][3].get<float>() != bgColor.w)
+		{
+			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+			if (!settingsChanged) settingsChanged = true;
+		}
 	}
 
 	if (ImGui::IsItemDeactivatedAfterEdit())
 	{
-	    // Ensure JSON has the final value of bgColor
-	    if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-	        settings["backgroundColor"][1].get<float>() != bgColor.y ||
-	        settings["backgroundColor"][2].get<float>() != bgColor.z ||
-	        settings["backgroundColor"][3].get<float>() != bgColor.w)
-	    {
-	        settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-	        if (!settingsChanged) settingsChanged = true;
-	    }
-	    
-	    // Only save if settings were actually changed by this interaction sequence.
-	    // The 'settingsChanged' flag should have been set if ColorEdit4 returned true.
-	    if (settingsChanged) // Check if settingsChanged is true (it should be if a change was made)
-	    {
-	        std::cout << "[Settings] Background Color edit finished. Saving." << std::endl;
-	        saveSettings();
-	        // Note: Background color change doesn't typically require gEditorHighlight.forceColorUpdate()
-	        // unless your syntax highlighting logic directly depends on the general background color
-	        // for default text or something similar. If it does, add it here.
-	    }
+		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
+			settings["backgroundColor"][1].get<float>() != bgColor.y ||
+			settings["backgroundColor"][2].get<float>() != bgColor.z ||
+			settings["backgroundColor"][3].get<float>() != bgColor.w)
+		{
+			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+			if (!settingsChanged) settingsChanged = true;
+		}
+		
+		if (settingsChanged)
+		{
+			std::cout << "[Settings] Background Color edit finished. Saving." << std::endl;
+			saveSettings();
+		}
 	}
-
-
 
 	#ifdef __APPLE__
 	ImGui::Spacing();
@@ -872,25 +323,21 @@ void Settings::renderSettingsWindow()
 	ImGui::Separator();
 	ImGui::Spacing();
 
-	// Get current values
 	float currentOpacity = settings.value("mac_background_opacity", 0.5f);
 	bool currentBlurEnabled = settings.value("mac_blur_enabled", true);
 
-	// Opacity slider
 	if (ImGui::SliderFloat("Background Opacity", &currentOpacity, 0.0f, 1.0f, "%.2f")) {
-	    settings["mac_background_opacity"] = currentOpacity;
-	    settingsChanged = true;
-	    saveSettings();
+		settings["mac_background_opacity"] = currentOpacity;
+		settingsChanged = true;
+		saveSettings();
 	}
 
-	// Blur checkbox
 	if (ImGui::Checkbox("Enable Background Blur", &currentBlurEnabled)) {
-	    settings["mac_blur_enabled"] = currentBlurEnabled;
-	    settingsChanged = true;
-	    saveSettings();
+		settings["mac_blur_enabled"] = currentBlurEnabled;
+		settingsChanged = true;
+		saveSettings();
 	}
 	#endif
-
 
 	std::string currentThemeName = getCurrentTheme();
 	if (ImGui::IsWindowAppearing() || themeChanged || profileJustSwitched)
@@ -903,56 +350,43 @@ void Settings::renderSettingsWindow()
 		auto &themeColorsJson = settings["themes"][currentThemeName];
 				
 		auto editThemeColor = [&](const char *label, const char *colorKey) {
-		    if (!themeColorsJson.contains(colorKey) || !themeColorsJson[colorKey].is_array() ||
-		        themeColorsJson[colorKey].size() != 4)
-		    {
-		        return;
-		    }
-		    auto &colorArray = themeColorsJson[colorKey];
-		    ImVec4 color(colorArray[0].get<float>(),
-		                 colorArray[1].get<float>(),
-		                 colorArray[2].get<float>(),
-		                 colorArray[3].get<float>());
+			if (!themeColorsJson.contains(colorKey) || !themeColorsJson[colorKey].is_array() ||
+				themeColorsJson[colorKey].size() != 4)
+			{
+				return;
+			}
+			auto &colorArray = themeColorsJson[colorKey];
+			ImVec4 color(colorArray[0].get<float>(),
+						 colorArray[1].get<float>(),
+						 colorArray[2].get<float>(),
+						 colorArray[3].get<float>());
 
-		    ImGui::TextUnformatted(label);
-		    ImGui::SameLine(200); // Adjust this alignment as needed
+			ImGui::TextUnformatted(label);
+			ImGui::SameLine(200);
 
-		    // ImGui::ColorEdit4 directly modifies the 'color' variable.
-		    if (ImGui::ColorEdit4(("##" + std::string(colorKey)).c_str(), (float *)&color))
-		    {
-		        // This block executes if the color value changed *during this frame*.
-		        // Update the JSON object in memory immediately.
-		        themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
-		        
-		        // Mark that settings have changed, so IsItemDeactivatedAfterEdit knows a change occurred.
-		        if (!settingsChanged) settingsChanged = true; 
-		        if (!themeChanged) themeChanged = true;
-		    }
+			if (ImGui::ColorEdit4(("##" + std::string(colorKey)).c_str(), (float *)&color))
+			{
+				themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
+				if (!settingsChanged) settingsChanged = true;
+				if (!themeChanged) themeChanged = true;
+			}
 
-		    // This block executes if the widget was active, its value was modified at some point,
-		    // and then it was deactivated (e.g., user released mouse, clicked elsewhere, or pressed Enter).
-		    if (ImGui::IsItemDeactivatedAfterEdit()) 
-		    {
-		        // The 'color' variable now holds the final value.
-		        // Ensure the JSON is up-to-date with this final value.
-		        // This also covers cases like typing values and pressing Enter,
-		        // where ColorEdit4 might not return true on the very last frame of interaction.
-		        if (themeColorsJson[colorKey][0].get<float>() != color.x ||
-		            themeColorsJson[colorKey][1].get<float>() != color.y ||
-		            themeColorsJson[colorKey][2].get<float>() != color.z ||
-		            themeColorsJson[colorKey][3].get<float>() != color.w)
-		        {
-		            themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
-		            if (!settingsChanged) settingsChanged = true;
-		            if (!themeChanged) themeChanged = true;
-		        }
-		        
-		        // Now that editing is finished and a change was made,
-		        // trigger the expensive operations.
-		        std::cout << "[Settings] Color " << colorKey << " edit finished. Forcing update and saving." << std::endl;
-		        gEditorHighlight.forceColorUpdate(); // Trigger re-highlight
-		        saveSettings();                     // Save all settings to disk
-		    }
+			if (ImGui::IsItemDeactivatedAfterEdit())
+			{
+				if (themeColorsJson[colorKey][0].get<float>() != color.x ||
+					themeColorsJson[colorKey][1].get<float>() != color.y ||
+					themeColorsJson[colorKey][2].get<float>() != color.z ||
+					themeColorsJson[colorKey][3].get<float>() != color.w)
+				{
+					themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
+					if (!settingsChanged) settingsChanged = true;
+					if (!themeChanged) themeChanged = true;
+				}
+				
+				std::cout << "[Settings] Color " << colorKey << " edit finished. Forcing update and saving." << std::endl;
+				gEditorHighlight.forceColorUpdate();
+				saveSettings();
+			}
 		};
 		ImGui::Spacing();
 		ImGui::TextUnformatted("Syntax Colors");
