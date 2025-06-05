@@ -355,7 +355,6 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		setupUndoManager(path);
 		gEditorHighlight.highlightContent();
 
-		// Notify LSP about the newly opened file
 		notifyLSPFileOpen(path);
 
 		if (afterLoadCallback)
@@ -440,9 +439,22 @@ void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool 
 	}
 
 	editor_state.fileContent = state.content;
-	editor_state.cursor_index = state.cursor_index;
+	
+	// Ensure cursor position is valid
+	int cursor_pos = state.cursor_index;
+	if (cursor_pos < 0) cursor_pos = 0;
+	if (cursor_pos > static_cast<int>(state.content.length())) {
+		cursor_pos = state.content.length();
+	}
+	editor_state.cursor_index = cursor_pos;
+	
+	// Reset selection state
+	editor_state.selection_start = editor_state.selection_end = cursor_pos;
+	editor_state.selection_active = false;
+	editor_state.multi_selections.clear();
+	
+	// Reset color buffer and trigger highlighting
 	resetColorBuffer();
-
 	gEditorHighlight.highlightContent(true);
 
 	_unsavedChanges = true;

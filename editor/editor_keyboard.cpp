@@ -1037,11 +1037,6 @@ void EditorKeyboard::processUndoRedo()
 		std::cout << "Z key pressed. Ctrl: " << ImGui::GetIO().KeyCtrl
 				  << ", Shift: " << shift_pressed << std::endl;
 
-		int oldCursorPos = editor_state.cursor_index;
-		int oldLine =
-			EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, oldCursorPos);
-		int oldColumn = oldCursorPos - editor_state.editor_content_lines[oldLine];
-
 		if (shift_pressed)
 		{
 			std::cout << "Attempting Redo" << std::endl;
@@ -1052,20 +1047,8 @@ void EditorKeyboard::processUndoRedo()
 			gFileExplorer.handleUndo();
 		}
 
-		// Update text and colors
 		gEditor.updateLineStarts();
 
-		int newLine =
-			std::min(oldLine, static_cast<int>(editor_state.editor_content_lines.size()) - 1);
-		int lineStart = editor_state.editor_content_lines[newLine];
-		int lineEnd = (newLine + 1 < editor_state.editor_content_lines.size())
-						  ? editor_state.editor_content_lines[newLine + 1] - 1
-						  : editor_state.fileContent.size();
-		int lineLength = lineEnd - lineStart;
-
-		editor_state.cursor_index = lineStart + std::min(oldColumn, lineLength);
-		editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
-		// editor_state.text_changed = true;
 		editor_state.ensure_cursor_visible.vertical = true;
 		editor_state.ensure_cursor_visible.horizontal = true;
 
