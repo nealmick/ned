@@ -1,17 +1,22 @@
 #include "settings_file_manager.h"
+#include <unistd.h>  
 #include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
-#include <libgen.h>
+#include <libgen.h> 
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
-#include <sys/param.h>
+#include <sys/param.h>   
 #endif
 #ifdef __linux__
 #include <linux/limits.h>
+#include <sys/types.h>  // For ssize_t
 #endif
+
+#include <map>
+
 
 SettingsFileManager::SettingsFileManager() {}
 
