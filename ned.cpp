@@ -1240,34 +1240,39 @@ void Ned::renderMainWindow()
 	ImGui::End();
 	ImGui::PopFont();
 }
+
 void Ned::renderFrame()
 {
-	int display_w, display_h;
+    int display_w, display_h;
+    glfwGetFramebufferSize(window, &display_w, &display_h);
 
-	glfwGetFramebufferSize(window, &display_w, &display_h);
+    // [STEP 1] Render UI to framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
+    glViewport(0, 0, display_w, display_h);
 
-	// [STEP 1] Render UI to framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-	glViewport(0, 0, display_w, display_h);
+    // Get background color from settings
+    auto &bg = gSettings.getSettings()["backgroundColor"];
+    
+    // Use different alpha based on shader state
+    float alpha = shader_toggle ? bg[3].get<float>() : 1.0f;
+    glClearColor(bg[0], bg[1], bg[2], alpha);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-	// Get background color from settings
-	auto &bg = gSettings.getSettings()["backgroundColor"];
-	glClearColor(bg[0], bg[1], bg[2], 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+    renderMainWindow();
+    gBookmarks.renderBookmarksWindow();
+    gSettings.renderSettingsWindow();
+    handleUltraSimpleResizeOverlay();
 
-	renderMainWindow();
-	gBookmarks.renderBookmarksWindow();
-	gSettings.renderSettingsWindow();
-	handleUltraSimpleResizeOverlay();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	ImGui::Render();
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	renderWithShader(display_w, display_h, glfwGetTime());
-	glfwSwapBuffers(window);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderWithShader(display_w, display_h, glfwGetTime());
+    glfwSwapBuffers(window);
 }
+
+
 void Ned::handleUltraSimpleResizeOverlay()
 {
 	if (!window)
