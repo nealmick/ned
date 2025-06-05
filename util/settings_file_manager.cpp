@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <libgen.h> 
+#include <filesystem>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -17,56 +18,29 @@
 
 #include <map>
 
+namespace fs = std::filesystem;
+using json = nlohmann::json;
 
 SettingsFileManager::SettingsFileManager() {}
 
 std::string SettingsFileManager::getAppResourcesPath() {
 #ifdef __APPLE__
-    char exePath[MAXPATHLEN];
+    char exePath[PATH_MAX];
     uint32_t size = sizeof(exePath);
     if (_NSGetExecutablePath(exePath, &size) == 0) {
-        char resolvedPath[MAXPATHLEN];
-        if (realpath(exePath, resolvedPath) != nullptr) {
-            std::string p = resolvedPath;
-            p = dirname((char *)p.c_str());
-            p = dirname((char *)p.c_str());
-            std::string resourcesPath = p + "/Resources";
-            if (fs::exists(resourcesPath) && fs::is_directory(resourcesPath)) {
-                return resourcesPath;
-            } else {
-                return p;
-            }
-        } else {
-            std::string p = exePath;
-            p = dirname((char *)p.c_str());
-            p = dirname((char *)p.c_str());
-            p += "/Resources";
-            return p;
-        }
+        fs::path path(exePath);
+        return (path.parent_path() / "Resources").string();
     }
 #elif defined(__linux__)
     char exePath[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", exePath, PATH_MAX);
     if (count != -1) {
         exePath[count] = '\0';
-        std::string p = dirname(exePath);
-
-        std::vector<std::string> pathsToCheck = {
-            p + "/../share/Ned",
-            p + "/resources",
-            p
-        };
-
-        for (const auto &path : pathsToCheck) {
-            if (fs::exists(path) && fs::is_directory(path)) {
-                std::cout << "[Settings] Using app resource path: " << path << std::endl;
-                return path;
-            }
-        }
-        if (fs::exists(p) && fs::is_directory(p)) return p;
+        fs::path path(exePath);
+        return (path.parent_path() / "resources").string();
     }
-    return ".";
 #endif
+    return "";
 }
 
 std::string SettingsFileManager::getUserSettingsPath() {
