@@ -131,6 +131,18 @@ class Settings
 	const int SETTINGS_CHECK_INTERVAL = 60; // frames
 
 	SettingsFileManager settingsFileManager; // Handles all file operations
+
+	// Helper functions for rendering different sections of the settings window
+	void renderWindowHeader();
+	void renderProfileSelector();
+	void renderMainSettings();
+	void renderMacSettings();
+	void renderSyntaxColors();
+	void renderToggleSettings();
+	void renderShaderSettings();
+	void renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
+		const char* format, float default_val);
+	void handleWindowInput();
 };
 
 extern Settings gSettings;
