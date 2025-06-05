@@ -70,6 +70,8 @@ void FileContentSearch::findNext(bool ignoreCase)
 		editor_state.cursor_index = foundPos;
 		editor_state.selection_start = foundPos;
 		editor_state.selection_end = foundPos + findText.length();
+		editor_state.center_cursor_vertical = true;
+
 		std::cout << "Found at position: " << foundPos
 				  << ", cursor now at: " << editor_state.cursor_index << std::endl;
 	} else
@@ -129,6 +131,8 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 		editor_state.cursor_index = foundPos;
 		editor_state.selection_start = foundPos;
 		editor_state.selection_end = foundPos + findText.length();
+		editor_state.center_cursor_vertical = true;
+		
 		std::cout << "Found at position: " << foundPos
 				  << ", cursor now at: " << editor_state.cursor_index << std::endl;
 	} else
@@ -345,7 +349,9 @@ void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
 				}
 
 				// Ensure visibility
-				editor_state.ensure_cursor_visible = {true, true};
+				//editor_state.ensure_cursor_visible = {true, true};
+				editor_state.center_cursor_vertical = true;
+
 				std::cout << "Added " << positions.size() << " cursors\n";
 
 				if (!positions.empty())
