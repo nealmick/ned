@@ -89,33 +89,7 @@ void Settings::renderSettingsWindow()
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
 		ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_Modal;
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-				   1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
-			   1.0f));
-
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
-			   1.0f));
-
-	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .5,
-	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .5,
-	   gSettings.getSettings()["backgroundColor"][2].get<float>()* .5,
-	   1.0f));
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
+	applyImGuiStyles();
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
 	renderWindowHeader();
@@ -135,6 +109,65 @@ void Settings::renderSettingsWindow()
 	{
 		profileJustSwitched = false;
 	}
+}
+
+void Settings::applyImGuiStyles()
+{
+	// Style variables
+	const float WINDOW_BG_MULTIPLIER = 0.8f;
+	const float FRAME_BG_MULTIPLIER = 0.5f;
+	const float SCROLLBAR_BG_MULTIPLIER = 0.5f;
+	const float POPUP_BG_MULTIPLIER = 0.5f;
+	const float BORDER_COLOR = 0.3f;
+	const float SCROLLBAR_GRAB_COLOR = 0.3f;
+	const float SCROLLBAR_GRAB_HOVER_COLOR = 0.4f;
+	const float SCROLLBAR_GRAB_ACTIVE_COLOR = 0.5f;
+
+	// Get background color from settings
+	auto& bgColor = settings["backgroundColor"];
+	float bgR = bgColor[0].get<float>();
+	float bgG = bgColor[1].get<float>();
+	float bgB = bgColor[2].get<float>();
+
+	// Apply window styles
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
+
+	// Apply colors
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(
+		bgR * WINDOW_BG_MULTIPLIER,
+		bgG * WINDOW_BG_MULTIPLIER,
+		bgB * WINDOW_BG_MULTIPLIER,
+		1.0f
+	));
+
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
+		bgR * FRAME_BG_MULTIPLIER,
+		bgG * FRAME_BG_MULTIPLIER,
+		bgB * FRAME_BG_MULTIPLIER,
+		1.0f
+	));
+
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(
+		bgR * SCROLLBAR_BG_MULTIPLIER,
+		bgG * SCROLLBAR_BG_MULTIPLIER,
+		bgB * SCROLLBAR_BG_MULTIPLIER,
+		1.0f
+	));
+
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(
+		bgR * POPUP_BG_MULTIPLIER,
+		bgG * POPUP_BG_MULTIPLIER,
+		bgB * POPUP_BG_MULTIPLIER,
+		1.0f
+	));
+
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(BORDER_COLOR, BORDER_COLOR, BORDER_COLOR, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(SCROLLBAR_GRAB_COLOR, SCROLLBAR_GRAB_COLOR, SCROLLBAR_GRAB_COLOR, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(SCROLLBAR_GRAB_HOVER_COLOR, SCROLLBAR_GRAB_HOVER_COLOR, SCROLLBAR_GRAB_HOVER_COLOR, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(SCROLLBAR_GRAB_ACTIVE_COLOR, SCROLLBAR_GRAB_ACTIVE_COLOR, SCROLLBAR_GRAB_ACTIVE_COLOR, 1.0f));
 }
 
 void Settings::renderWindowHeader()
