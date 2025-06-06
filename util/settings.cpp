@@ -1,4 +1,3 @@
-#pragma once
 #include "settings.h"
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h" 
@@ -52,6 +51,8 @@ void Settings::loadSettings()
 void Settings::saveSettings()
 {
 	settingsFileManager.saveSettings(settings, settingsPath);
+	gTerminal.UpdateTerminalColors();
+	
 }
 
 void Settings::checkSettingsFile()

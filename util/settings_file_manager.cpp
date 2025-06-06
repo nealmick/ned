@@ -17,6 +17,8 @@
 #endif
 
 #include <map>
+#include "terminal.h"
+
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -87,6 +89,7 @@ std::string SettingsFileManager::getAppResourcesPath()
     std::cerr << "[Settings] CRITICAL: Could not determine app resources path for Linux (readlink failed or no valid path found)." << std::endl;
     return "."; // Absolute fallback
 #endif
+    return "."; // Absolute fallback
 }
 
 std::string SettingsFileManager::getUserSettingsPath()
@@ -525,13 +528,20 @@ std::vector<std::string> SettingsFileManager::getAvailableProfileFiles() {
     if (fs::exists(userSettingsDir) && fs::is_directory(userSettingsDir)) {
         for (const auto &entry : fs::directory_iterator(userSettingsDir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
-                availableProfileFiles.push_back(entry.path().filename().string());
+                std::string filename = entry.path().filename().string();
+                // Exclude "keybinds.json"
+                if (filename != "keybinds.json") {
+                    availableProfileFiles.push_back(filename);
+                }
             }
         }
         std::sort(availableProfileFiles.begin(), availableProfileFiles.end());
+    } else {
+    	return availableProfileFiles;
     }
     return availableProfileFiles;
 }
+
 
 void SettingsFileManager::switchProfile(const std::string& newProfile, json& settings,
                                       std::string& settingsPath, bool& settingsChanged,
@@ -546,6 +556,8 @@ void SettingsFileManager::switchProfile(const std::string& newProfile, json& set
         settingsChanged = true;
         fontChanged = true;
         themeChanged = true;
+		gTerminal.UpdateTerminalColors();
+
     }
 }
 
