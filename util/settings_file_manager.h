@@ -32,13 +32,14 @@ public:
     void applyDefaultSettings(json& settings);
     void applyDefaultThemes(json& settings);
 
+     bool loadJsonFile(const std::string& filePath, json& jsonData);
+    void saveJsonFile(const std::string& filePath, const json& jsonData);
+
 private:
     fs::file_time_type lastSettingsModification;
     
     // Helper methods
     void createSettingsDirectory(const fs::path& dir);
     void copyDefaultSettingsFiles(const fs::path& destDir);
-    bool loadJsonFile(const std::string& filePath, json& jsonData);
-    void saveJsonFile(const std::string& filePath, const json& jsonData);
-    void updateLastModificationTime(const std::string& filePath);
+     void updateLastModificationTime(const std::string& filePath);
 }; 

@@ -231,7 +231,6 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
 		}
 	}
 	settingsPath = (primarySettingsDir / activeSettingsFilename).string();
-	std::cout << "[Settings] Active settings file target: " << settingsPath << std::endl;
 	bool activeSettingsFileNewlyCreatedOrModified = false;
 	if (activeSettingsFilename != "ned.json" && !fs::exists(settingsPath))
 	{
@@ -275,8 +274,6 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
 			if (settingsFileStream.is_open())
 			{
 				settingsFileStream >> settings;
-				std::cout << "[Settings] Successfully loaded settings from: " << settingsPath
-						  << std::endl;
 			} else
 			{
 				std::cerr << "[Settings] Failed to open active settings file " << settingsPath
@@ -473,7 +470,6 @@ void SettingsFileManager::checkSettingsFile(const std::string& settingsPath, jso
             return;
         }
 
-        std::cout << "[Settings] Active settings file " << settingsPath << " was modified externally, reloading." << std::endl;
 
         json oldSettings = settings;
         loadSettings(settings, const_cast<std::string&>(settingsPath));

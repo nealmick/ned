@@ -924,7 +924,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
 
 		if (ctrl_pressed)
 		{
-			if (ImGui::IsKeyPressed(ImGuiKey_G))
+			ImGuiKey ai_completions = gKeybinds.getActionKey("ai_completion");
+		 
+			if (ImGui::IsKeyPressed(ai_completions, false))
 			{
 				gAITab.tab_complete();
 			}
@@ -934,12 +936,16 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			gBookmarks.handleBookmarkInput(gFileExplorer);
 			gEditorCursor.processCursorJump(editor_state.fileContent,
 											editor_state.ensure_cursor_visible);
-
-			if (ImGui::IsKeyPressed(ImGuiKey_I))
+			ImGuiKey lsp_symbol_info = gKeybinds.getActionKey("lsp_symbol_info");
+		 
+		
+			if (ImGui::IsKeyPressed(lsp_symbol_info, false))
 			{
 				gLSPSymbolInfo.fetchSymbolInfo(gFileExplorer.currentFile);
 			}
-			if (ImGui::IsKeyPressed(ImGuiKey_R))
+			ImGuiKey lsp_find_ref = gKeybinds.getActionKey("lsp_find_ref");
+		 
+			if (ImGui::IsKeyPressed(lsp_find_ref, false))
 			{
 				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 				// Get character offset in current line (same as above)
@@ -954,7 +960,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
 				// Call LSP find references using the new global instance
 				gLSPGotoRef.findReferences(gFileExplorer.currentFile, current_line, char_offset);
 			}
-			if (ImGui::IsKeyPressed(ImGuiKey_D))
+			ImGuiKey lsp_find_def = gKeybinds.getActionKey("lsp_find_def");
+		 
+			if (ImGui::IsKeyPressed(lsp_find_def, false))
 			{
 				// Get current line number from editor_state
 				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
@@ -966,7 +974,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
 				// Call LSP goto definition
 				gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
 			}
-			if (ImGui::IsKeyPressed(ImGuiKey_L))
+			ImGuiKey lsp_completion = gKeybinds.getActionKey("lsp_completion");
+		 
+			if (ImGui::IsKeyPressed(lsp_completion, false))
 			{
 				// Get current line number from editor_state
 				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
