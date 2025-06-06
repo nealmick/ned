@@ -94,23 +94,16 @@ bool KeybindsManager::loadKeybinds() {
 }
 
 void KeybindsManager::printKeybinds() const {
-    if (keybinds_.empty() || !keybinds_.is_object()) {
-        std::cout << "[Keybinds] Raw keybinds data is empty/invalid." << std::endl;
+    std::cout << "[Keybinds] Current Raw Keybinds:" << std::endl;
+
+    if (keybinds_.is_object() && !keybinds_.empty()) {
+        std::cout << keybinds_.dump(4) << std::endl; // The '4' is for 4-space indentation.
     } else {
-        std::cout << "[Keybinds] Current Raw Keybinds:" << std::endl;
-        try {
-            std::cout << std::setw(4) << keybinds_ << std::endl;
-        } catch (const json::type_error& e) {
-            std::cerr << "[Keybinds] Error formatting raw keybinds for printing: " << e.what() << std::endl;
-            std::cout << "[Keybinds] Raw content: " << keybinds_.dump() << std::endl;
-        }
+        std::cout << "{}" << std::endl; // Print empty JSON if not a valid/filled object
     }
-     // Optionally print the processed map for debugging
-    // std::cout << "[Keybinds] Processed Keybinds Map (" << processedKeybinds_.size() << " entries):" << std::endl;
-    // for (const auto& [action, key] : processedKeybinds_) {
-    //     std::cout << "  " << action << ": ImGuiKey " << static_cast<int>(key) << std::endl;
-    // }
 }
+
+    
 
 void KeybindsManager::updateLastModificationTime() {
     if (keybindsFilePath_.empty() || !fs::exists(keybindsFilePath_)) {
