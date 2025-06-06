@@ -10,8 +10,12 @@
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include <set>
 
 Shader::Shader() { shaderProgram = 0; }
+
+// Add static set to track warned uniforms
+static std::set<std::string> warnedUniforms;
 
 Shader::~Shader()
 {
@@ -212,7 +216,11 @@ void Shader::setFloat(const std::string &name, float value)
 	GLint location = glGetUniformLocation(shaderProgram, name.c_str());
 	if (location == -1)
 	{
-		std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
+		// Only warn if we haven't warned about this uniform before
+		if (warnedUniforms.find(name) == warnedUniforms.end()) {
+			std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
+			warnedUniforms.insert(name);
+		}
 		return;
 	}
 	glUniform1f(location, value);

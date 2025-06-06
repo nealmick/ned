@@ -10,16 +10,16 @@
     "colorshift_intensity": 0.6700000166893005,
     "curvature_intensity": 0.0,
     "font": "NotoSansMono-Light",
-    "fontSize": 24.0,
+    "fontSize": 25.0,
     "jitter_intensity": 0.0,
-    "mac_background_opacity": 0.6299999952316284,
+    "mac_background_opacity": 0.6600000262260437,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
     "pixelation_intensity": 0.1420000046491623,
     "rainbow": true,
     "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
-    "splitPos": 0.3203410506248474,
+    "splitPos": 0.24250440299510956,
     "static_intensity": 0.13699999451637268,
     "theme": "default",
     "themes": {
@@ -61,9 +61,9 @@
                 1.0
             ],
             "text": [
-                0.680115282535553,
-                0.680115282535553,
-                0.680115282535553,
+                0.6279761791229248,
+                0.6167623400688171,
+                0.6167623400688171,
                 1.0
             ],
             "type": [

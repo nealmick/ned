@@ -1,4 +1,3 @@
-
 #include "lsp_goto_ref.h"
 #include "../editor/editor.h"
 #include "../editor/editor_line_jump.h"
@@ -9,7 +8,6 @@
 #include <sstream>
 #include <string>
 
-// Global instance definition
 LSPGotoRef gLSPGotoRef;
 
 LSPGotoRef::LSPGotoRef()
@@ -19,8 +17,6 @@ LSPGotoRef::LSPGotoRef()
 
 LSPGotoRef::~LSPGotoRef() = default;
 
-// --- findReferences (Request Sending Logic) ---
-// This part remains specific to 'textDocument/references'
 bool LSPGotoRef::findReferences(const std::string &filePath, int line, int character)
 {
 	if (!gLSPManager.isInitialized())
@@ -68,8 +64,6 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 		return false;
 	}
 
-	// --- Response Handling Logic (Adapted from LSPGotoDef, checking for
-	// correct ID) ---
 	const int MAX_ATTEMPTS = 15;
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
@@ -90,20 +84,15 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 						  << std::endl;
 				return false;
 			}
-			// usleep(50000); // Optional short delay
 			continue;
 		}
 
-		// Check if the response ID matches our request
 		if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
 		{
 			std::cout << "\033[32mLSP FindRef:\033[0m Received response for "
 						 "request ID "
 					  << requestId << std::endl;
 
-			// References usually return an array (even if empty) or null.
-			// Unlike definition, a single object result isn't standard for
-			// references.
 			if (response.find("\"result\":[") != std::string::npos)
 			{
 				std::cout << "\033[32mLSP FindRef:\033[0m Found result array." << std::endl;
@@ -116,9 +105,6 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 						  << std::endl;
 				referenceLocations.clear(); // Ensure list is empty
 				showReferenceOptions = false;
-				// We might still want to show an empty state or message? For
-				// now, just return true. Optionally: Set a flag to show "No
-				// references found" message later.
 				return true; // Successfully processed the response (no results)
 			} else if (response.find("\"error\":") != std::string::npos)
 			{
@@ -129,7 +115,6 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 				return false; // Indicate error
 			} else
 			{
-				// Got a response with our ID, but unexpected format
 				std::cout << "\033[31mLSP FindRef:\033[0m Response for ID " << requestId
 						  << " has unexpected format: " << response << std::endl;
 				referenceLocations.clear();
@@ -148,20 +133,15 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 			  << requestId << std::endl;
 	return false;
 }
-// --- parseReferenceResponse (Using nlohmann::json) ---
 void LSPGotoRef::parseReferenceResponse(const std::string &response)
 {
-	// --- 1. Print the raw response for debugging (keeping this for now) ---
 	std::cout << "\033[36mLSP FindRef Raw Response:\033[0m\n>>>>>>>>>>\n"
 			  << response << "\n<<<<<<<<<<\n"
 			  << std::endl;
-	// --- End Printing ---
 
-	referenceLocations.clear(); // Clear previous results
-
+	referenceLocations.clear(); 
 	try
 	{
-		// --- 2. Parse the JSON string ---
 		json j = json::parse(response);
 
 		// --- 3. Check for the "result" array ---
@@ -173,7 +153,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 						 "array with "
 					  << results.size() << " items." << std::endl;
 
-			// --- 4. Iterate through each location object in the array ---
 			for (const auto &loc_json : results)
 			{
 				// Ensure the item itself is an object
@@ -185,11 +164,9 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 					continue;
 				}
 
-				// Default values in case keys are missing
 				std::string uri = "";
 				int startLine = -1, startChar = -1;
-				int endLine = -1, endChar = -1; // Also parse end if available
-
+				int endLine = -1, endChar = -1; 
 				// --- 5. Extract "uri" ---
 				if (loc_json.contains("uri") && loc_json["uri"].is_string())
 				{
@@ -200,27 +177,23 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 						uri = fullUri.substr(7);
 					} else
 					{
-						uri = fullUri; // Keep other URIs as is
+						uri = fullUri;
 					}
 				} else
 				{
 					std::cout << "\033[33mLSP FindRef Parse:\033[0m Missing or "
 								 "invalid 'uri' in location object."
 							  << std::endl;
-					continue; // Skip this location if URI is missing
+					continue; 
 				}
 
-				// --- 6. Extract "range" object ---
 				if (loc_json.contains("range") && loc_json["range"].is_object())
 				{
 					const auto &range_json = loc_json["range"];
 
-					// --- 7. Extract "start" position ---
 					if (range_json.contains("start") && range_json["start"].is_object())
 					{
 						const auto &start_json = range_json["start"];
-						// Use .value() for safe extraction with default (-1 if
-						// missing/wrong type)
 						startLine = start_json.value("line", -1);
 						startChar = start_json.value("character", -1);
 					} else
@@ -230,16 +203,12 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 								  << uri << std::endl;
 					}
 
-					// --- 8. Extract "end" position (optional but good
-					// practice) ---
 					if (range_json.contains("end") && range_json["end"].is_object())
 					{
 						const auto &end_json = range_json["end"];
 						endLine = end_json.value("line", -1);
 						endChar = end_json.value("character", -1);
 					}
-					// No warning if end is missing, it's less critical than
-					// start
 				} else
 				{
 					std::cout << "\033[33mLSP FindRef Parse:\033[0m Missing or "
@@ -247,8 +216,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 							  << uri << std::endl;
 				}
 
-				// --- 9. Validate and Store ---
-				// Check if we got the essential start information
 				if (!uri.empty() && startLine != -1 && startChar != -1)
 				{
 					std::cout << "\033[32mLSP FindRef Parse:\033[0m "
@@ -264,18 +231,14 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 							  << std::endl;
 				}
 
-			} // End loop through results array
+			} 
 		}
-		// Handle cases where "result" exists but isn't an array (e.g., null)
 		else if (j.contains("result") && j["result"].is_null())
 		{
 			std::cout << "\033[32mLSP FindRef Parse:\033[0m 'result' is null. "
 						 "No references found."
 					  << std::endl;
-			// referenceLocations is already cleared, showReferenceOptions
-			// remains false
 		}
-		// Handle missing "result" key (shouldn't happen for valid responses)
 		else
 		{
 			std::cout << "\033[31mLSP FindRef Parse:\033[0m Response missing "
@@ -284,7 +247,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		}
 	} catch (json::parse_error &e)
 	{
-		// --- Handle JSON parsing errors ---
 		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON parsing error: " << e.what() << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		referenceLocations.clear(); // Ensure list is empty on error
@@ -292,8 +254,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		return; // Stop processing on parse error
 	} catch (json::exception &e)
 	{
-		// --- Handle other potential json library errors (e.g., type errors if
-		// not using .value()) ---
 		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON exception: " << e.what() << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		referenceLocations.clear();
@@ -301,7 +261,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		return;
 	}
 
-	// --- 10. Update state based on parsed locations ---
 	if (!referenceLocations.empty())
 	{
 		std::cout << "\033[32mLSP FindRef Parse:\033[0m Finished Parsing. Found "
@@ -310,8 +269,6 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		selectedReferenceIndex = 0; // Reset selection
 	} else
 	{
-		// This now means the array was empty, null, or parsing failed for all
-		// items found.
 		std::cout << "\033[33mLSP FindRef Parse:\033[0m Finished Parsing. No "
 					 "valid reference locations were successfully extracted or "
 					 "none were found."
@@ -319,11 +276,8 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		showReferenceOptions = false; // Ensure this is false if no locations were added
 	}
 }
-// --- hasReferenceOptions (Identical to hasDefinitionOptions) ---
 bool LSPGotoRef::hasReferenceOptions() const
 {
-	// Keep the logic consistent, show window only if flag is true AND locations
-	// exist
 	return showReferenceOptions && !referenceLocations.empty();
 }
 
@@ -347,7 +301,6 @@ void LSPGotoRef::renderReferenceOptions()
 	float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
 	const float maxHeight = ImGui::GetIO().DisplaySize.y * 0.5f;
 
-	// Window size calculations
 	float desiredWidth = 600.0f;
 	desiredWidth = std::max(desiredWidth, 500.0f);
 	ImVec2 windowSize(desiredWidth,
@@ -534,27 +487,29 @@ void LSPGotoRef::handleReferenceSelection()
 
 	if (selected.uri != gFileExplorer.currentFile)
 	{
-		gFileExplorer.loadFileContent(selected.uri, nullptr);
+		gFileExplorer.loadFileContent(selected.uri, [selected]() {
+			gEditorScroll.pending_cursor_centering = true;
+			gEditorScroll.pending_cursor_line = selected.startLine;
+			gEditorScroll.pending_cursor_char = selected.startChar;
+		});
+	} else {
+		int index = 0;
+		int currentLine = 0;
+		const std::string &content = editor_state.fileContent;
+
+		while (currentLine < selected.startLine && index < content.length())
+		{
+			if (content[index] == '\n')
+				currentLine++;
+			index++;
+		}
+
+		index += selected.startChar;
+		index = std::min(index, static_cast<int>(content.length()));
+
+		editor_state.cursor_index = index;
+		editor_state.center_cursor_vertical = true;
+		gEditorScroll.centerCursorVertically();
 	}
-
-	int index = 0;
-	int currentLine = 0;
-	const std::string &content = editor_state.fileContent;
-
-	while (currentLine < selected.startLine && index < content.length())
-	{
-		if (content[index] == '\n')
-			currentLine++;
-		index++;
-	}
-
-	index += selected.startChar;
-	index = std::min(index, static_cast<int>(content.length()));
-
-	editor_state.cursor_index = index;
-	gEditorScroll.setEnsureCursorVisibleFrames(-1);
-	// editor_state.ensure_cursor_visible.horizontal = true;
-	// editor_state.ensure_cursor_visible.vertical = true;
-	editor_state.center_cursor_vertical = true;
 	editor_state.block_input = false;
 }

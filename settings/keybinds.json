@@ -1,0 +1,13 @@
+{
+    "toggle_bookmarks_menu" : "b", 
+    "toggle_file_finder" : "p",
+    "toggle_settings_window" : ",",
+    "toggle_terminal" : "t",
+    "toggle_sidebar" : "s",
+    "lsp_symbol_info" : "i",
+    "lsp_find_ref" : "r",
+    "lsp_find_def" : "d",
+    "lsp_completion" : "l",
+    "ai_completion" : "g",
+    "line_jump_key" : ";"
+}
