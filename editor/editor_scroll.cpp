@@ -25,6 +25,29 @@ int EditorScroll::getLineFromPosition(const std::vector<int> &line_starts, int p
 
 void EditorScroll::updateScrollAnimation()
 {
+	// Handle pending cursor centering
+	if (pending_cursor_centering && pending_cursor_line >= 0) {
+		int index = 0;
+		int currentLine = 0;
+		while (currentLine < pending_cursor_line && 
+			   index < editor_state.fileContent.length()) {
+			if (editor_state.fileContent[index] == '\n') {
+				currentLine++;
+			}
+			index++;
+		}
+		index += pending_cursor_char;
+		index = std::min(index, (int)editor_state.fileContent.length());
+		editor_state.cursor_index = index;
+		editor_state.center_cursor_vertical = true;
+		gEditorScroll.centerCursorVertically();
+		
+		// Reset pending state
+		pending_cursor_centering = false;
+		pending_cursor_line = -1;
+		pending_cursor_char = -1;
+	}
+
 	// Animation should complete in ~0.1 seconds
 	const float animation_speed = 15.0f; // Move 15% of remaining distance per frame
 	const float min_step = 1.0f;		 // Minimum pixels to move per frame
@@ -179,24 +202,38 @@ float EditorScroll::calculateCursorXPosition()
 		// Fallback for inconsistent state.
 		return editor_state.text_pos.x;
 	}
+   const char *line_start_ptr = editor_state.fileContent.c_str() + line_start_char_index;
+    const char *cursor_ptr = editor_state.fileContent.c_str() + editor_state.cursor_index;
+    const size_t segment_length = cursor_ptr - line_start_ptr;
 
-	const char *line_start_ptr = editor_state.fileContent.c_str() + line_start_char_index;
-	const char *cursor_ptr = editor_state.fileContent.c_str() + editor_state.cursor_index;
+    float relative_x_offset_on_line = 0.0f;
+    if (segment_length > 0)
+    {
+        ImFont* font = ImGui::GetFont();
+        
+        // Calculate width character by character for better accuracy
+        const char* current = line_start_ptr;
+        while (current < cursor_ptr)
+        {
+            // Measure each character individually
+            char c = *current;
+            float char_width = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, &c, &c + 1).x;
+            
+            // Add compensation for this character
+            const float base_compensation = 0.3f;
+            const float size_factor = 12.0f / font->FontSize;
+            const float compensation_factor = base_compensation * size_factor * size_factor;
+            
+            relative_x_offset_on_line += char_width + compensation_factor;
+            current++;
+        }
+        
+        // Add extra safety margin proportional to the text width
+        relative_x_offset_on_line *= 1.01f;
+    }
 
-	float relative_x_offset_on_line = 0.0f;
-	// Only calculate if cursor_ptr is actually after line_start_ptr (i.e., not at the very start of
-	// the line) and cursor_ptr does not exceed fileContent bounds (though cursor_index should be <
-	// fileContent.size())
-	if (cursor_ptr > line_start_ptr &&
-		static_cast<size_t>(editor_state.cursor_index) <= editor_state.fileContent.size())
-	{
-		relative_x_offset_on_line = ImGui::CalcTextSize(line_start_ptr, cursor_ptr).x;
-	}
-
-	// The X position is the editor's text starting X plus the offset on the current line.
-	return editor_state.text_pos.x + relative_x_offset_on_line;
+    return editor_state.text_pos.x + relative_x_offset_on_line;
 }
-
 
 ScrollChange EditorScroll::ensureCursorVisible()
 {
@@ -236,20 +273,32 @@ ScrollChange EditorScroll::ensureCursorVisible()
 	float new_scroll_x = scroll_x;
 	float new_scroll_y = scroll_y;
 
-	// Check if cursor needs horizontal scrolling
-	if (dist_left < margin_x)
-	{
-		// Cursor too close to or beyond left edge
-		new_scroll_x = scroll_x - (margin_x - dist_left);
-		new_scroll_x = std::max(0.0f, new_scroll_x);
-		scroll_x_changed = true;
-	} else if (dist_right < margin_x)
-	{
-		// Cursor too close to or beyond right edge
-		new_scroll_x = scroll_x + (margin_x - dist_right);
-		new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
-		scroll_x_changed = true;
-	}
+ const float cursor_width = ImGui::GetFontSize() * 1.2f;
+    
+    // Calculate the actual visible area considering padding
+    const float actual_viewport_width = viewport_width - margin_x * 2;
+    
+    // Check if cursor needs horizontal scrolling
+    if (visible_cursor_x < margin_x)
+    {
+        // Cursor too close to left edge
+        new_scroll_x = abs_cursor_x - editor_state.text_pos.x - margin_x;
+        new_scroll_x = std::max(0.0f, new_scroll_x);
+        scroll_x_changed = true;
+    }
+    else if (visible_cursor_x > viewport_width - margin_x)
+    {
+        // Cursor too close to right edge - scroll more aggressively
+        float overflow = visible_cursor_x - (viewport_width - margin_x);
+        
+        // Add extra buffer proportional to font size
+        float extra_buffer = std::max(10.0f, cursor_width * 1.5f);
+        
+        new_scroll_x = scroll_x + overflow + extra_buffer;
+        new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
+        scroll_x_changed = true;
+    }
+
 
 	// Check if cursor needs vertical scrolling
 	if (dist_top < margin_y)

@@ -203,8 +203,11 @@ void EditorMouse::handleContextMenu()
 						1.0f);									  // Thin border for the popup
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6)); // Reduced vertical spacing
 
-	// Colors for the popup
-	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+		   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 

@@ -137,236 +137,273 @@ Terminal::~Terminal()
 		kill(childPid, SIGTERM);
 	}
 }
+
 void Terminal::startShell()
 {
-	// Open PTY master
-	ptyFd = posix_openpt(O_RDWR | O_NOCTTY); // O_NOCTTY for master is good practice
-	if (ptyFd < 0)
-	{
-		perror("posix_openpt failed");
-		return;
-	}
+    // Open PTY master
+    ptyFd = posix_openpt(O_RDWR | O_NOCTTY);
+    if (ptyFd < 0)
+    {
+        perror("posix_openpt failed");
+        return;
+    }
 
-	if (grantpt(ptyFd) < 0)
-	{
-		perror("grantpt failed");
-		close(ptyFd);
-		ptyFd = -1;
-		return;
-	}
+    if (grantpt(ptyFd) < 0)
+    {
+        perror("grantpt failed");
+        close(ptyFd);
+        ptyFd = -1;
+        return;
+    }
 
-	if (unlockpt(ptyFd) < 0)
-	{
-		perror("unlockpt failed");
-		close(ptyFd);
-		ptyFd = -1;
-		return;
-	}
+    if (unlockpt(ptyFd) < 0)
+    {
+        perror("unlockpt failed");
+        close(ptyFd);
+        ptyFd = -1;
+        return;
+    }
 
-	char *slaveName = ptsname(ptyFd);
-	if (!slaveName)
-	{
-		perror("ptsname failed");
-		close(ptyFd);
-		ptyFd = -1;
-		return;
-	}
+    char *slaveName = ptsname(ptyFd);
+    if (!slaveName)
+    {
+        perror("ptsname failed");
+        close(ptyFd);
+        ptyFd = -1;
+        return;
+    }
 
-	childPid = fork();
+    childPid = fork();
 
-	if (childPid < 0)
-	{ // Fork failed
-		perror("fork failed");
-		close(ptyFd);
-		ptyFd = -1;
-		return;
-	}
+    if (childPid < 0)
+    { // Fork failed
+        perror("fork failed");
+        close(ptyFd);
+        ptyFd = -1;
+        return;
+    }
 
-	if (childPid == 0)
-	{				  // Child process
-		close(ptyFd); // Close master PTY in child
+    if (childPid == 0)
+    {                 // Child process
+        close(ptyFd); // Close master PTY in child
 
-		if (setsid() < 0)
-		{ // Create new session, detach from parent's controlling TTY
-			perror("setsid failed");
-			exit(1);
-		}
+        if (setsid() < 0)
+        { // Create new session, detach from parent's controlling TTY
+            perror("setsid failed");
+            exit(EXIT_FAILURE);
+        }
 
-		// Open slave PTY
-		int slaveFd = open(slaveName, O_RDWR);
-		if (slaveFd < 0)
-		{
-			perror("open slave PTY failed");
-			exit(1);
-		}
+        // Open slave PTY
+        int slaveFd = open(slaveName, O_RDWR);
+        if (slaveFd < 0)
+        {
+            perror("open slave PTY failed");
+            exit(EXIT_FAILURE);
+        }
 
-		// Make the slave PTY the controlling terminal for this new session
-		if (ioctl(slaveFd, TIOCSCTTY, 0) < 0)
-		{
-			perror("ioctl TIOCSCTTY failed");
-			// Not always fatal, but can lead to issues.
-		}
+        // Make the slave PTY the controlling terminal for this new session
+        if (ioctl(slaveFd, TIOCSCTTY, 0) < 0)
+        {
+            // This can fail if the process is not a session leader and already has a controlling TTY.
+            // setsid() should make us a session leader.
+            perror("ioctl TIOCSCTTY failed (can be non-fatal depending on context)");
+        }
 
-		dup2(slaveFd, STDIN_FILENO);
-		dup2(slaveFd, STDOUT_FILENO);
-		dup2(slaveFd, STDERR_FILENO);
+        dup2(slaveFd, STDIN_FILENO);
+        dup2(slaveFd, STDOUT_FILENO);
+        dup2(slaveFd, STDERR_FILENO);
 
-		if (slaveFd > STDERR_FILENO)
-		{
-			close(slaveFd);
-		}
+        if (slaveFd > STDERR_FILENO)
+        {
+            close(slaveFd);
+        }
 
-		// Configure terminal modes for the slave PTY
-		struct termios tios;
-		if (tcgetattr(STDIN_FILENO, &tios) < 0)
-		{ // STDIN_FILENO is now the slave PTY
-			perror("tcgetattr failed on slave pty");
-			exit(1);
-		}
+        // Configure terminal modes for the slave PTY
+        struct termios tios;
+        if (tcgetattr(STDIN_FILENO, &tios) < 0)
+        { 
+            perror("tcgetattr failed on slave pty");
+            exit(EXIT_FAILURE);
+        }
 
-		// Set reasonable default modes (these are from your original code)
-		tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
+        // Set reasonable default modes (from st/typical terminal settings)
+        tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
 #ifdef IUTF8 // Common on Linux, good to enable if available
-		tios.c_iflag |= IUTF8;
+        tios.c_iflag |= IUTF8;
 #endif
-		tios.c_oflag = OPOST | ONLCR;
+        tios.c_oflag = OPOST | ONLCR; // OPOST: enable output processing, ONLCR: map NL to CR-NL
 
-		// Ensure CS8 is set correctly
-		tios.c_cflag &= ~(CSIZE | PARENB); // Clear size and parity bits
-		tios.c_cflag |= CS8;			   // 8 bits per character
-		tios.c_cflag |= CREAD;			   // Enable receiver
-		tios.c_cflag |= HUPCL;			   // Hang up on last close (good for shell cleanup)
+        tios.c_cflag &= ~(CSIZE | PARENB); // Clear size and parity bits
+        tios.c_cflag |= CS8;               // 8 bits per character
+        tios.c_cflag |= CREAD;             // Enable receiver
+        tios.c_cflag |= HUPCL;             // Hang up on last close (sends SIGHUP to foreground process group)
 
-		tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
-		// Consider if ECHO is causing double prompt on Linux. If problems persist,
-		// you might try `tios.c_lflag &= ~ECHO;` here for the Linux case.
+        // Standard local modes for interactive shells
+        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
+        
+        if (tcsetattr(STDIN_FILENO, TCSANOW, &tios) < 0)
+        {
+            perror("tcsetattr failed on slave pty");
+            exit(EXIT_FAILURE);
+        }
 
-		// Set default control characters (usually not needed to set explicitly,
-		// inherits from /dev/tty, but can be set if specific behavior is desired)
-		// tios.c_cc[VERASE] = 127; /* DEL */
-		// tios.c_cc[VKILL] = 21; /* CTRL+U */
-		// ... etc.
+        // Set window size
+        struct winsize ws = {};
+        ws.ws_row = state.row; // Use initial rows/cols from Terminal state object
+        ws.ws_col = state.col;
+        if (ioctl(STDIN_FILENO, TIOCSWINSZ, &ws) < 0)
+        {
+            perror("ioctl TIOCSWINSZ failed on slave pty (non-fatal, shell might misbehave)");
+        }
 
-		if (tcsetattr(STDIN_FILENO, TCSANOW, &tios) < 0)
-		{
-			perror("tcsetattr failed on slave pty");
-			exit(1);
-		}
-		// state.mode |= MODE_BRACKETPASTE; // This is an internal emulator state, not a TTY mode.
-
-		// Set window size
-		struct winsize ws = {};
-		ws.ws_row = state.row; // Use initial rows/cols
-		ws.ws_col = state.col;
-		if (ioctl(STDIN_FILENO, TIOCSWINSZ, &ws) < 0)
-		{
-			perror("ioctl TIOCSWINSZ failed on slave pty");
-			// Not fatal, but shell might not know its size.
-		}
-
-		// Prepare environment for the shell
-		setenv("TERM", "xterm-256color", 1);
-		// Clear potentially problematic inherited variables
-		unsetenv("COLUMNS");
-		unsetenv("LINES");
-		// On Linux, gnome-terminal also unsets WINDOWID, DESKTOP_AUTOSTART_ID etc.
-		// For now, TERM is the most critical.
+        // Prepare environment for the shell
+        setenv("TERM", "xterm-256color", 1);
+        // Unsetting these is often good as the login shell will set them appropriately
+        unsetenv("COLUMNS"); 
+        unsetenv("LINES");
+        // Optionally, clear other inherited variables that might cause issues, e.g.,
+        // unsetenv("TERMCAP");
+        // unsetenv("WINDOWID"); // Common in some terminal emulators
 
 #ifdef __APPLE__
-		// Current logic for macOS (which you said works well)
-		const char *shell_exec_path = getenv("SHELL");
-		if (!shell_exec_path || shell_exec_path[0] == '\0')
-		{
-			// Fallback for macOS if SHELL is not set
-			struct passwd *pw = getpwuid(getuid());
-			if (pw && pw->pw_shell && pw->pw_shell[0] != '\0')
-			{
-				shell_exec_path = pw->pw_shell;
-			} else
-			{
-				shell_exec_path = "/bin/zsh"; // Modern macOS default
-			}
-		}
-		// For execvp, argv[0] is typically the command name.
-		// shell_exec_path might be a full path or just a name if it's in PATH.
-		// execvp will search PATH if shell_exec_path is not a full path.
-		char *const args[] = {(char *)shell_exec_path, (char *)"-i", NULL};
-		execvp(shell_exec_path, args);
-		// If execvp returns, an error occurred.
-		perror("execvp failed (macOS)");
-		exit(1);
+        // Revised logic for macOS: Launch as a login shell
+        const char *user_shell_from_passwd = nullptr;
+        struct passwd *pw = getpwuid(getuid());
+        if (pw && pw->pw_shell && pw->pw_shell[0] != '\0') {
+            user_shell_from_passwd = pw->pw_shell;
+        }
+
+        const char *shell_to_launch_path_str = user_shell_from_passwd;
+
+        // Fallback 1: getenv("SHELL")
+        if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0') {
+            shell_to_launch_path_str = getenv("SHELL");
+        }
+
+        // Fallback 2: Default to /bin/zsh (modern macOS default)
+        // If on an older Mac where /bin/bash is default, this might still be better.
+        if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0') {
+            shell_to_launch_path_str = "/bin/zsh"; 
+        }
+        
+        char shell_exec_path_buf[PATH_MAX]; // Full path to the executable
+        strncpy(shell_exec_path_buf, shell_to_launch_path_str, sizeof(shell_exec_path_buf));
+        shell_exec_path_buf[sizeof(shell_exec_path_buf) - 1] = '\0'; // Ensure null termination
+
+        // Prepare argv[0] for the child shell: "-basename"
+        char shell_argv0_login[PATH_MAX + 1]; // +1 for the leading hyphen
+        shell_argv0_login[0] = '-'; // Signal to the shell to act as a login shell
+
+        const char *shell_basename_ptr = strrchr(shell_exec_path_buf, '/');
+        if (shell_basename_ptr) {
+            // Found a '/', so use the part after it
+            strncpy(shell_argv0_login + 1, shell_basename_ptr + 1, sizeof(shell_argv0_login) - 2); 
+        } else {
+            // No '/', so use the whole path string (it's already a basename or relative)
+            strncpy(shell_argv0_login + 1, shell_exec_path_buf, sizeof(shell_argv0_login) - 2);
+        }
+        shell_argv0_login[sizeof(shell_argv0_login) - 1] = '\0'; // Ensure null termination
+
+        // Arguments for a login shell.
+        char *const args[] = {shell_argv0_login, NULL};
+
+        // --- Debugging Output ---
+        fprintf(stderr, "[TERMINAL DEBUG] macOS Shell Launch Information:\n");
+        fprintf(stderr, "  User's pw_shell (from getpwuid): '%s'\n", (pw && pw->pw_shell) ? pw->pw_shell : "(not found or empty)");
+        const char* env_shell_in_child = getenv("SHELL");
+        fprintf(stderr, "  getenv(\"SHELL\") in child process: '%s'\n", env_shell_in_child ? env_shell_in_child : "(not set or empty)");
+        fprintf(stderr, "  Path to be executed (shell_exec_path_buf): '%s'\n", shell_exec_path_buf);
+        fprintf(stderr, "  argv[0] for child shell (shell_argv0_login): '%s'\n", args[0] ? args[0] : "(NULL)");
+        // --- End Debugging Output ---
+
+        execv(shell_exec_path_buf, args);
+        
+        // If execv returns, an error occurred.
+        fprintf(stderr, "FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
+                shell_exec_path_buf, args[0] ? args[0] : "(null)", strerror(errno));
+        exit(EXIT_FAILURE); // Or exit(127) for command not found / exec failure
+        // Removed unreachable: std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #else
-		// New logic for Linux and other Unix-like systems
-		// Aim for a non-login interactive shell, similar to macOS behavior.
-		char shell_path_buf[PATH_MAX];
-		const char *shell_env_val = getenv("SHELL");
+        // Logic for Linux and other Unix-like systems (also launch as login shell)
+        char shell_path_buf[PATH_MAX];
+        const char *shell_env_val = getenv("SHELL"); // SHELL env var is primary on Linux
 
-		if (shell_env_val && shell_env_val[0] != '\0')
-		{
-			// Copy SHELL environment variable to shell_path_buf
-			strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf));
-			// Ensure null termination, as strncpy might not if src is too long
-			shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-		} else
-		{
-			// Fallback if SHELL is not set; query user's default shell
-			struct passwd *pw = getpwuid(getuid());
-			if (pw && pw->pw_shell && pw->pw_shell[0] != '\0')
-			{
-				strncpy(shell_path_buf, pw->pw_shell, sizeof(shell_path_buf));
-				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-			} else
-			{
-				// Absolute fallback to /bin/bash
-				// Use strncpy for safety, though strcpy is likely fine here.
-				strncpy(shell_path_buf, "/bin/bash", sizeof(shell_path_buf));
-				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-			}
-		}
+        if (shell_env_val && shell_env_val[0] != '\0')
+        {
+            strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf));
+            shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+        } else
+        {
+            struct passwd *pw_linux = getpwuid(getuid()); // Fallback to passwd entry
+            if (pw_linux && pw_linux->pw_shell && pw_linux->pw_shell[0] != '\0')
+            {
+                strncpy(shell_path_buf, pw_linux->pw_shell, sizeof(shell_path_buf));
+                shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+            } else
+            {
+                strncpy(shell_path_buf, "/bin/bash", sizeof(shell_path_buf)); // Absolute fallback for Linux
+                shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+            }
+        }
 
-		// Determine argv[0] for the child shell process.
-		// This is typically the basename of the shell executable (e.g., "bash").
-		// Use PATH_MAX for buffer size, as shell_path_buf could be a long name without '/'
-		char shell_arg0_for_child[PATH_MAX];
-		const char *shell_basename_ptr = strrchr(shell_path_buf, '/');
+        char shell_argv0_login_linux[PATH_MAX + 1];
+        shell_argv0_login_linux[0] = '-';
+        const char *shell_basename_linux = strrchr(shell_path_buf, '/');
+        if (shell_basename_linux) {
+            strncpy(shell_argv0_login_linux + 1, shell_basename_linux + 1, sizeof(shell_argv0_login_linux) - 2);
+        } else {
+            strncpy(shell_argv0_login_linux + 1, shell_path_buf, sizeof(shell_argv0_login_linux) - 2);
+        }
+        shell_argv0_login_linux[sizeof(shell_argv0_login_linux) - 1] = '\0';
 
-		if (shell_basename_ptr)
-		{
-			// Found a '/', so use the part after it as basename
-			strncpy(shell_arg0_for_child, shell_basename_ptr + 1, sizeof(shell_arg0_for_child));
-		} else
-		{
-			// No '/' in shell_path_buf, so use it as is (it's already a basename or a relative path)
-			strncpy(shell_arg0_for_child, shell_path_buf, sizeof(shell_arg0_for_child));
-		}
+        char *const new_argv_linux[] = {shell_argv0_login_linux, NULL};
+        
+        // --- Debugging Output for Linux ---
+        fprintf(stderr, "[TERMINAL DEBUG] Linux/Other Shell Launch Information:\n");
+        struct passwd *pw_linux_debug = getpwuid(getuid());
+        fprintf(stderr, "  User's pw_shell (from getpwuid): '%s'\n", (pw_linux_debug && pw_linux_debug->pw_shell) ? pw_linux_debug->pw_shell : "(not found or empty)");
+        const char* env_shell_child_linux = getenv("SHELL");
+        fprintf(stderr, "  getenv(\"SHELL\") in child process: '%s'\n", env_shell_child_linux ? env_shell_child_linux : "(not set or empty)");
+        fprintf(stderr, "  Path to be executed (shell_path_buf): '%s'\n", shell_path_buf);
+        fprintf(stderr, "  argv[0] for child shell (new_argv_linux[0]): '%s'\n", new_argv_linux[0] ? new_argv_linux[0] : "(NULL)");
+        // --- End Debugging Output for Linux ---
 
-		shell_arg0_for_child[sizeof(shell_arg0_for_child) - 1] = '\0'; // Ensure null termination
+        execv(shell_path_buf, new_argv_linux);
 
-		// Arguments for interactive, non-login shell: {shell_name, "-i", NULL}
-		char *const new_argv[] = {shell_arg0_for_child, (char *)"-i", NULL};
-
-		// execv requires the full path to the executable as its first argument.
-		// new_argv[0] (shell_arg0_for_child) is what the new process sees as its own name.
-		execv(shell_path_buf, new_argv);
-
-		// If execv returns, an error occurred.
-		fprintf(stderr,
-				"Failed to execv shell '%s' (intended argv[0]='%s', with '-i'): %s\n",
-				shell_path_buf,
-				shell_arg0_for_child,
-				strerror(errno));
-		exit(127); // Standard exit code for command not found / exec failure
+        fprintf(stderr,
+                "FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
+                shell_path_buf,
+                new_argv_linux[0] ? new_argv_linux[0] : "(null)",
+                strerror(errno));
+        exit(127); // Standard exit code for command not found / exec failure
 #endif
-	}
+    }
 
-	// Parent process - start read thread
-	// Make sure ptyFd is non-blocking for the read thread
-	// int flags = fcntl(ptyFd, F_GETFL, 0);
-	// fcntl(ptyFd, F_SETFL, flags | O_NONBLOCK); // Optional, if read() blocks too long
+    // Parent process
+    // Make sure ptyFd is non-blocking for the read thread if select/poll isn't used
+    // This can be optional if read() behaves well or if your readOutput uses select/poll.
+    // int flags = fcntl(ptyFd, F_GETFL, 0);
+    // if (flags != -1) fcntl(ptyFd, F_SETFL, flags | O_NONBLOCK);
 
-	readThread = std::thread(&Terminal::readOutput, this);
+#ifdef __APPLE__
+    // Send initial commands (cd ~ and clear) to the shell on Apple systems.
+    // A short delay helps ensure the shell has initialized before receiving commands.
+    // This is a heuristic; 100ms is a common value.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    const char* initial_commands = "cd ~\nclear\n";
+    ssize_t bytes_written = write(ptyFd, initial_commands, strlen(initial_commands));
+    if (bytes_written == -1) {
+        perror("write to pty (initial_commands for Apple) failed in parent");
+        // This is a non-critical enhancement, so we log the error and continue.
+    } else if (static_cast<size_t>(bytes_written) < strlen(initial_commands)) {
+        // Handle partial write, though unlikely for small command strings with TTYs.
+        fprintf(stderr, "Partial write to pty (initial_commands for Apple) in parent.\n");
+    }
+#endif
+
+    readThread = std::thread(&Terminal::readOutput, this);
 }
-
 void Terminal::render()
 {
 	if (!isVisible)

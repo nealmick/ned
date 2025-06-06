@@ -40,7 +40,7 @@ bool AITab::load_key()
 
 	if (!key_file.is_open())
 	{
-		std::cerr << "Error: Could not open OpenRouter key file at " << key_path << "\n";
+		std::cerr << "Open Router adapter : Could not open OpenRouter key file at " << key_path << "\n";
 		return false;
 	}
 
