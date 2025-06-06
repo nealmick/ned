@@ -167,6 +167,7 @@ set(IMGUI_SOURCES
 add_library(util STATIC
   util/settings.cpp
   util/settings_file_manager.cpp
+  util/keybinds.cpp
   util/terminal.cpp
   util/close_popper.cpp
   util/welcome.cpp

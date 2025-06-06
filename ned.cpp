@@ -18,6 +18,7 @@ Description: Main application class implementation for NED text editor.
 #include "editor/editor_highlight.h"
 #include "util/debug_console.h"
 #include "util/settings.h"
+#include "util/keybinds.h"
 #include "util/terminal.h"
 #include "util/welcome.h"
 
@@ -76,6 +77,11 @@ bool Ned::initialize()
 		return false;
 	}
 	gSettings.loadSettings();
+ 	if (gKeybinds.loadKeybinds()) {
+        std::cout << "Initial keybinds loaded successfully." << std::endl;
+    } else {
+        std::cout << "Failed to load initial keybinds." << std::endl;
+    }
 
 
 	
@@ -797,14 +803,15 @@ void Ned::handleKeyboardShortcuts()
 	ImGuiIO &io = ImGui::GetIO();
 	// Accept either Ctrl or Super (Command on macOS)
 	bool modPressed = io.KeyCtrl || io.KeySuper;
-
-	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_S, false))
-	{
+	ImGuiKey toggleSidebar = gKeybinds.getActionKey("toggle_sidebar");
+	 
+	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false)){
 		showSidebar = !showSidebar; // Toggle sidebar visibility
 		std::cout << "Toggled sidebar visibility" << std::endl;
 	}
-	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_T, false))
-	{
+	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
+	 
+	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false)){
 		gTerminal.toggleVisibility();
 		gFileExplorer.saveCurrentFile();
 		if (gTerminal.isTerminalVisible())
@@ -812,7 +819,9 @@ void Ned::handleKeyboardShortcuts()
 			ClosePopper::closeAll();
 		}
 	}
-	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Comma, false))
+	ImGuiKey togglesetings = gKeybinds.getActionKey("toggle_settings_window");
+	 
+	if (modPressed && ImGui::IsKeyPressed(togglesetings, false))
 	{
 		gFileExplorer.showWelcomeScreen = false;
 		gSettings.toggleSettingsWindow();
@@ -1261,6 +1270,8 @@ void Ned::renderFrame()
     renderMainWindow();
     gBookmarks.renderBookmarksWindow();
     gSettings.renderSettingsWindow();
+	gKeybinds.checkKeybindsFile(); 
+
     handleUltraSimpleResizeOverlay();
 
     ImGui::Render();

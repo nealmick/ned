@@ -18,6 +18,7 @@
 #include <string>
 
 #include "../files/files.h"
+#include "../util/keybinds.h"
 
 class Bookmarks
 {
@@ -95,17 +96,14 @@ class Bookmarks
 
 	inline void handleBookmarkInput(FileExplorer &fileExplorer)
 	{
-		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 		bool shift_pressed = ImGui::GetIO().KeyShift;
 		bool alt_pressed = ImGui::GetIO().KeyAlt;
+		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 
-		if (main_key && ImGui::IsKeyPressed(ImGuiKey_B, false))
+		ImGuiKey toggleBookmarksKey = gKeybinds.getActionKey("toggle_bookmarks_menu");
+		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false))
 		{
-			showBookmarksWindow = !showBookmarksWindow;
-			if (showBookmarksWindow)
-			{ // Only close others if we're opening
-				ClosePopper::closeAllExcept(ClosePopper::Type::Bookmarks); // RIGHT
-			}
+			ClosePopper::closeAllExcept(ClosePopper::Type::Bookmarks); // RIGHT
 			return;
 		}
 		const ImGuiKey numberKeys[9] = {ImGuiKey_1,
@@ -166,9 +164,18 @@ class Bookmarks
 			showBookmarksWindow = false;
 			editor_state.block_input = false;
 		}
+		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
+		
+		ImGuiKey toggleBookmarksKey = gKeybinds.getActionKey("toggle_bookmarks_menu");
+		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false))
+		{
+			showBookmarksWindow = !showBookmarksWindow;
+		}
 
 		if (showBookmarksWindow)
 		{
+
+			
 			editor_state.block_input = true;
 
 			ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);

@@ -4,6 +4,7 @@
 */
 #include "file_finder.h"
 #include "../util/close_popper.h"
+#include "../util/keybinds.h"
 #include "editor.h"
 #include <thread>
 FileFinder gFileFinder;
@@ -326,7 +327,8 @@ void FileFinder::renderWindow()
 {
 	// Toggle with Ctrl+P
 	bool ctrl_pressed = ImGui::GetIO().KeyCtrl;
-	if (ctrl_pressed && ImGui::IsKeyPressed(ImGuiKey_P))
+	ImGuiKey togglefilefinder = gKeybinds.getActionKey("toggle_file_finder");
+	if (ctrl_pressed && ImGui::IsKeyPressed(togglefilefinder, false))
 	{
 		orginal_cursor_index = editor_state.cursor_index;
 		toggleWindow();

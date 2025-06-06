@@ -10,6 +10,7 @@
 #include "../files/files.h"
 #include "../imgui/imgui.h"
 #include "../util/close_popper.h"
+#include "../util/keybinds.h"
 #include "editor.h"
 #include "editor_scroll.h"
 #include "editor_types.h"
@@ -33,10 +34,13 @@ class LineJump
 		{
 			justJumped = false;
 		}
+		ImGuiKey line_jump_key = gKeybinds.getActionKey("line_jump_key");
+		 
 
-		if (main_key && (ImGui::IsKeyPressed(ImGuiKey_Semicolon) ||
-						 (shift_pressed && ImGui::IsKeyPressed(ImGuiKey_Semicolon))))
+		if (main_key && (ImGui::IsKeyPressed(line_jump_key, false)||
+						 (shift_pressed && ImGui::IsKeyPressed(line_jump_key, false))))
 		{
+
 			showLineJumpWindow = !showLineJumpWindow;
 			if (showLineJumpWindow)
 			{ // Only close others if we're opening
@@ -50,8 +54,7 @@ class LineJump
 			editor_state.block_input = showLineJumpWindow;
 		}
 	}
-
-	inline void renderLineJumpWindow()
+inline void renderLineJumpWindow()
 	{
 		if (!showLineJumpWindow)
 			return;
@@ -71,9 +74,16 @@ class LineJump
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
 							ImVec2(paddingHorizontal, paddingVertical));
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+		
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+	   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+	   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f)); // This color will be used for the InputText border
 
 		// Calculate dimensions based on font size
 		float itemSpacing = fontHeight * 0.3f;	// Space between elements
@@ -114,6 +124,12 @@ class LineJump
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
 								ImVec2(paddingHorizontal * 0.5f, fontHeight * 0.25f));
 
+			// --- ADD THIS ---
+			// Set the border thickness for the InputText frame to match the window border
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f); 
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f); 
+			// ----------------
+
 			// Set keyboard focus to input field
 			ImGui::SetKeyboardFocusHere();
 
@@ -132,10 +148,16 @@ class LineJump
 				ImGui::GetIO().ClearInputCharacters();
 			}
 
-			ImGui::PopStyleVar(); // Pop FramePadding style
+			// --- MODIFY THIS ---
+			// Pop FrameBorderSize (for InputText border)
+			ImGui::PopStyleVar(); 
+			// Pop FramePadding style (for InputText padding)
+			ImGui::PopStyleVar(); 
+			ImGui::PopStyleVar(); 
+			// -------------------
 
 			// Instruction text
-			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Type line number then Enter");
+			ImGui::Text("Type line number then Enter");
 
 			if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 			{
@@ -153,7 +175,6 @@ class LineJump
 		ImGui::PopStyleColor(3);
 		ImGui::PopStyleVar(3); // Pop WindowRounding, WindowBorderSize, WindowPadding
 	}
-
 	inline void jumpToLine(int lineNumber)
 	{
 		if (lineNumber < 0)
