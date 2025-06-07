@@ -805,7 +805,6 @@ void EditorKeyboard::handleTextInput()
 	handleBackspaceKey();
 	handleDeleteKey();
 	gLineJump.handleLineJumpInput();
-	gEditorIndentation.handleTabKey();
 
 	if (editor_state.text_changed)
 	{
@@ -921,6 +920,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		// Process Shift+Tab for indentation removal. If handled, exit early.
 		if (gEditorIndentation.processIndentRemoval())
 			return;
+		gEditorIndentation.handleTabKey();
+
 
 		if (ctrl_pressed)
 		{
