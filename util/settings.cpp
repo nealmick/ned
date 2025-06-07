@@ -100,6 +100,7 @@ void Settings::renderSettingsWindow()
 	renderSyntaxColors();
 	renderToggleSettings();
 	renderShaderSettings();
+	renderKeybindsSettings();
 	handleWindowInput();
 
 	ImGui::End();
@@ -563,6 +564,30 @@ void Settings::renderShaderSlider(const char* label, const char* key, float min_
 		}
 	}
 	ImGui::Spacing();
+}
+
+void Settings::renderKeybindsSettings()
+{
+	ImGui::Spacing();
+	ImGui::TextUnformatted("Keybinds");
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	if (ImGui::Button("Open Keybinds File"))
+	{
+		std::string keybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "keybinds.json";
+		if (fs::exists(keybindsPath))
+		{
+			gFileExplorer.loadFileContent(keybindsPath);
+			showSettingsWindow = false; // Close settings window after opening keybinds
+		}
+		else
+		{
+			std::cerr << "[Settings] Keybinds file not found at: " << keybindsPath << std::endl;
+		}
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Edit keyboard shortcuts)");
 }
 
 void Settings::handleWindowInput()

@@ -142,6 +142,7 @@ class Settings
 	void renderShaderSettings();
 	void renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
 		const char* format, float default_val);
+	void renderKeybindsSettings();
 	void handleWindowInput();
 	void applyImGuiStyles(); // New function for handling ImGui styles
 };
