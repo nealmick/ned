@@ -3,8 +3,10 @@
 #include "../editor/editor_highlight.h" 
 #include "../files/files.h"				
 #include "../util/terminal.h"				
+#include "../util/keybinds.h"
 #include "config.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include <GLFW/glfw3.h>
 
 #include <algorithm> //
@@ -588,6 +590,25 @@ void Settings::renderKeybindsSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Edit keyboard shortcuts)");
+
+	// Check if we're using default keybinds
+	std::string keybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "keybinds.json";
+	std::string defaultKeybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "default-keybinds.json";
+	
+	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath)) {
+		ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Using default keybinds");
+		if (ImGui::Button("Restore Default Keybinds")) {
+			try {
+				fs::copy_file(defaultKeybindsPath, keybindsPath, fs::copy_options::overwrite_existing);
+				std::cout << "[Settings] Restored default keybinds" << std::endl;
+				gKeybinds.loadKeybinds(); // Reload keybinds
+			} catch (const fs::filesystem_error& e) {
+				std::cerr << "[Settings] Error restoring default keybinds: " << e.what() << std::endl;
+			}
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("(Reset to default configuration)");
+	}
 }
 
 void Settings::handleWindowInput()
@@ -616,4 +637,96 @@ void Settings::handleWindowInput()
 			}
 		}
 	}
+}
+
+void Settings::renderNotification(const std::string& message, float duration)
+{
+    static float notificationTimer = 0.0f;
+    static std::string currentMessage;
+    static bool showNotification = false;
+
+    // Update notification state
+    if (!message.empty()) {
+        currentMessage = message;
+        showNotification = true;
+        notificationTimer = duration;
+    }
+
+    if (showNotification) {
+        // Get viewport and calculate position
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImVec2 screenPos = viewport->Pos;
+        ImVec2 screenSize = viewport->Size;
+
+        // Calculate base dimensions
+        const float padding = 20.0f;
+        const float minWidth = 300.0f;
+        const float maxWidth = 400.0f;
+        const float minHeight = 60.0f;
+        const float maxHeight = 200.0f; // Maximum height before scrolling
+
+        // Calculate text size
+        ImVec2 textSize = ImGui::CalcTextSize(currentMessage.c_str(), nullptr, false, minWidth - 30.0f); // 30 = left + right padding
+        float contentWidth = textSize.x + 30.0f;
+        float contentHeight = textSize.y + 20.0f; // 20 = top + bottom padding
+
+        // Clamp dimensions
+        float width = ImClamp(contentWidth, minWidth, maxWidth);
+        float height = ImClamp(contentHeight, minHeight, maxHeight);
+
+        // Calculate notification position (bottom right)
+        ImVec2 notificationPos = ImVec2(
+            screenPos.x + screenSize.x - width - padding,
+            screenPos.y + screenSize.y - height - padding
+        );
+
+        // Set up window
+        ImGui::SetNextWindowPos(notificationPos);
+        ImGui::SetNextWindowSize(ImVec2(width, height));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 10));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
+        // Create window
+        if (ImGui::Begin("##Notification", nullptr, 
+            ImGuiWindowFlags_NoDecoration | 
+            ImGuiWindowFlags_NoMove | 
+            ImGuiWindowFlags_NoResize | 
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoFocusOnAppearing |
+            ImGuiWindowFlags_NoNav))
+        {
+            // Get background color from settings
+            auto& bg = getSettings()["backgroundColor"];
+            ImU32 bgColor = IM_COL32(
+                static_cast<int>(bg[0].get<float>() * 255),
+                static_cast<int>(bg[1].get<float>() * 255),
+                static_cast<int>(bg[2].get<float>() * 255),
+                255
+            );
+
+            // Draw background
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            ImVec2 p_min = ImGui::GetWindowPos();
+            ImVec2 p_max = ImVec2(p_min.x + width, p_min.y + height);
+            draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
+            draw_list->AddRect(p_min, p_max, IM_COL32(120, 120, 120, 255), 8.0f, 0, 1.0f);
+
+            // Draw text with minimal padding
+            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
+            ImGui::SetCursorPos(ImVec2(15, 10));
+            ImGui::TextWrapped("%s", currentMessage.c_str());
+            ImGui::PopStyleColor();
+
+            // Update timer
+            notificationTimer -= ImGui::GetIO().DeltaTime;
+            if (notificationTimer <= 0.0f) {
+                showNotification = false;
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(5);
+    }
 }
