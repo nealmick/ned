@@ -1270,7 +1270,8 @@ void Ned::renderFrame()
     renderMainWindow();
     gBookmarks.renderBookmarksWindow();
     gSettings.renderSettingsWindow();
-	gKeybinds.checkKeybindsFile(); 
+    gSettings.renderNotification("");
+    gKeybinds.checkKeybindsFile(); 
 
     handleUltraSimpleResizeOverlay();
 

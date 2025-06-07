@@ -11,7 +11,3 @@
     "ai_completion" : "g",
     "line_jump_key" : ";"
 }
-
-// press the key specified for the action
-// while holding down ctrl or command
-
