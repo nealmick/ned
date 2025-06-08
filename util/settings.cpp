@@ -73,14 +73,19 @@ void Settings::renderSettingsWindow()
 
 	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
 	float settings_window_width;
-	if (main_viewport_size.x < 1000.0f)
-	{
-		settings_window_width = main_viewport_size.x * 0.95f;
-	} else
-	{
-		settings_window_width = main_viewport_size.x * 0.75f;
+	float settings_window_height;
+	float current_font_size = settings.value("fontSize", 20.0f);
+
+	// Dynamic sizing based on viewport width and font size
+	if (main_viewport_size.x < 1100.0f) {
+		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
+		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
+	} else {
+		settings_window_width = main_viewport_size.x * 0.75f;  // 75% of viewport width
+		settings_window_height = main_viewport_size.y * 0.85f; // 85% of viewport height
 	}
-	ImVec2 window_size(settings_window_width, main_viewport_size.y * 0.85f);
+
+	ImVec2 window_size(settings_window_width, settings_window_height);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
 	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
