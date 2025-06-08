@@ -12,7 +12,7 @@
     "line_jump_key" : ";"
 }
 
+// while holding down ctrl or cmd
 // press the key specified for the action
-// while holding down ctrl or command
 // if the file is corrupted or invalid 
 // the default file will be loaded instead
