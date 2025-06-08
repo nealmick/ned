@@ -1,13 +1,96 @@
 {
-    "toggle_bookmarks_menu" : "b", 
-    "toggle_file_finder" : "p",
-    "toggle_settings_window" : ",",
-    "toggle_terminal" : "t",
-    "toggle_sidebar" : "s",
-    "lsp_symbol_info" : "i",
-    "lsp_find_ref" : "r",
-    "lsp_find_def" : "d",
-    "lsp_completion" : "l",
-    "ai_completion" : "g",
-    "line_jump_key" : ";"
+    "ai_completion": "g",
+    "backgroundColor": [
+        0.05816289037466049,
+        0.19437342882156372,
+        0.1578674018383026,
+        1.0000001192092896
+    ],
+    "bloom_intensity": 0.75,
+    "burnin_intensity": 0.9525200128555298,
+    "colorshift_intensity": 0.8999999761581421,
+    "curvature_intensity": 0.0,
+    "font": "SourceCodePro-Regular",
+    "fontSize": 20.0,
+    "jitter_intensity": 2.809999942779541,
+    "line_jump_key": ";",
+    "lsp_completion": "l",
+    "lsp_find_def": "d",
+    "lsp_find_ref": "r",
+    "lsp_symbol_info": "i",
+    "mac_background_opacity": 0.5,
+    "mac_blur_enabled": true,
+    "pixel_width": 5000.0,
+    "pixelation_intensity": -0.10999999940395355,
+    "rainbow": true,
+    "scanline_intensity": 0.20000000298023224,
+    "shader_toggle": true,
+    "splitPos": 0.2142857164144516,
+    "static_intensity": 0.20800000429153442,
+    "theme": "default",
+    "themes": {
+        "default": {
+            "background": [
+                0.2,
+                0.2,
+                0.2,
+                1.0
+            ],
+            "comment": [
+                0.4565933346748352,
+                0.4565933346748352,
+                0.4565933346748352,
+                0.8999999761581421
+            ],
+            "function": [
+                0.6752017140388489,
+                0.3185149133205414,
+                0.7726563811302185,
+                1.0
+            ],
+            "keyword": [
+                0.0,
+                0.5786033272743225,
+                0.9643363952636719,
+                1.0
+            ],
+            "number": [
+                0.6439791321754456,
+                0.3536583185195923,
+                0.7698838710784912,
+                1.0
+            ],
+            "string": [
+                0.08516374975442886,
+                0.6660587787628174,
+                0.6660587787628174,
+                1.0
+            ],
+            "text": [
+                0.680115282535553,
+                0.680115282535553,
+                0.680115282535553,
+                1.0
+            ],
+            "type": [
+                0.6007077097892761,
+                0.7665653228759766,
+                0.44595927000045776,
+                1.0
+            ],
+            "variable": [
+                0.3506303131580353,
+                0.7735447883605957,
+                0.8863282203674316,
+                1.0
+            ]
+        }
+    },
+    "toggle_bookmarks_menu": "b",
+    "toggle_file_finder": "p",
+    "toggle_settings_window": ",",
+    "toggle_sidebar": "s",
+    "toggle_terminal": "t",
+    "treesitter": true,
+    "vignet_intensity": 0.25
 }

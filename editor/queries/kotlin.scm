@@ -23,24 +23,12 @@
   "typealias"
 ] @keyword
 
-;; Function-related
-(function_declaration "fun" @keyword.function)
-(jump_expression "return" @keyword.return)
-(throw "throw" @keyword.exception)
-
-;; Control flow
-(when "when" @conditional)
-(else "else" @conditional)
 
 ;; Loops - Added based on AST patterns
 (for_statement "for" @repeat)
 (while_statement "while" @repeat)
 (do_while_statement "do" @repeat)
 
-;; Type declarations
-(class_declaration "class" @keyword)
-(interface_declaration "interface" @keyword)
-(object_declaration "object" @keyword)
 
 ;; Modifiers - Simplified list
 [
@@ -53,7 +41,6 @@
   "final"
   "override"
   "data"
-  "const"
 ] @keyword
 
 ;; Literals - Keep existing working parts
@@ -71,8 +58,9 @@
 (type_identifier) @type
 (user_type (type_identifier) @type)
 
-;; Comments
-(comment) @comment
+
+
+
 
 ;; Punctuation
 ["(" ")" "{" "}" "[" "]"] @punctuation.bracket

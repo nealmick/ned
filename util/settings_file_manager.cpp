@@ -530,8 +530,10 @@ std::vector<std::string> SettingsFileManager::getAvailableProfileFiles() {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string filename = entry.path().filename().string();
                 // Exclude "keybinds.json"
-                if (filename != "keybinds.json" &&  filename != "keybinds-default.json" ) {
+                if (filename == "keybinds.json" ||  filename == "default-keybinds.json" ||  filename == ".undo-redo-ned.json" ) {
+                }else{
                     availableProfileFiles.push_back(filename);
+
                 }
             }
         }
