@@ -610,8 +610,17 @@ void Ned::renderTopLeftMenu()
 				menuOpen = false;
 			}
 
-			// Window dragging
-			if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+			// Window dragging - only if clicking within the menu area
+			ImVec2 menuPos = ImGui::GetWindowPos();
+			ImVec2 menuSize = ImGui::GetWindowSize();
+			ImVec2 mousePos = ImGui::GetMousePos();
+			
+			bool isInMenuArea = mousePos.x >= menuPos.x && 
+							   mousePos.x <= menuPos.x + menuSize.x &&
+							   mousePos.y >= menuPos.y && 
+							   mousePos.y <= menuPos.y + menuSize.y;
+
+			if (isInMenuArea && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				isDraggingWindow = true;
 				// Store initial positions
 				glfwGetCursorPos(window, &dragStartMouseX, &dragStartMouseY);

@@ -46,8 +46,8 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     nswindow.titleVisibility = NSWindowTitleHidden;
     nswindow.hasShadow = YES;
     
-    // Enable background dragging
-    nswindow.movableByWindowBackground = YES;
+    // Disable background dragging
+    nswindow.movableByWindowBackground = NO;
     
     // Base transparency setup
     [nswindow setOpaque:NO];
