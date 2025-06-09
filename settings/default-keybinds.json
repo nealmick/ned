@@ -1,28 +1,33 @@
 {
+    "ai_completion": "g",
     "backgroundColor": [
-        0.11182449012994766,
-        0.31506848335266113,
-        0.026975031942129135,
-        0.0
+        0.05816289037466049,
+        0.19437342882156372,
+        0.1578674018383026,
+        1.0000001192092896
     ],
-    "bloom_intensity": 0.12999999523162842,
-    "burnin_intensity": 0.9409999847412109,
-    "colorshift_intensity": 0.6499999761581421,
-    "curvature_intensity": 0.09000000357627869,
-    "font": "VT100",
-    "fontSize": 26.0,
-    "jitter_intensity": 2.2899999618530273,
-    "mac_background_opacity": 0.6800000071525574,
+    "bloom_intensity": 0.75,
+    "burnin_intensity": 0.9525200128555298,
+    "colorshift_intensity": 0.8999999761581421,
+    "curvature_intensity": 0.0,
+    "font": "SourceCodePro-Regular",
+    "fontSize": 20.0,
+    "jitter_intensity": 2.809999942779541,
+    "line_jump_key": ";",
+    "lsp_completion": "l",
+    "lsp_find_def": "d",
+    "lsp_find_ref": "r",
+    "lsp_symbol_info": "i",
+    "mac_background_opacity": 0.5,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
-    "pixelation_intensity": -0.032999999821186066,
+    "pixelation_intensity": -0.10999999940395355,
     "rainbow": true,
-    "scanline_intensity": 0.3400000035762787,
+    "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
-    "splitPos": 0.3077601492404938,
-    "static_intensity": 0.3019999861717224,
+    "splitPos": 0.2142857164144516,
+    "static_intensity": 0.20800000429153442,
     "theme": "default",
-    "lsp_autocomplete": true,
     "themes": {
         "default": {
             "background": [
@@ -62,9 +67,9 @@
                 1.0
             ],
             "text": [
-                0.8698630332946777,
-                0.8698630332946777,
-                0.8698630332946777,
+                0.680115282535553,
+                0.680115282535553,
+                0.680115282535553,
                 1.0
             ],
             "type": [
@@ -81,6 +86,11 @@
             ]
         }
     },
+    "toggle_bookmarks_menu": "b",
+    "toggle_file_finder": "p",
+    "toggle_settings_window": ",",
+    "toggle_sidebar": "s",
+    "toggle_terminal": "t",
     "treesitter": true,
-    "vignet_intensity": 0.3700000047683716
+    "vignet_intensity": 0.25
 }

@@ -32,6 +32,15 @@ Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
 
+static double lastMouseX = 0.0;
+static double lastMouseY = 0.0;
+static double dragStartMouseX = 0.0;
+static double dragStartMouseY = 0.0;
+static int dragStartWindowX = 0;
+static int dragStartWindowY = 0;
+static int dragStartWindowWidth = 0;
+static int dragStartWindowHeight = 0;
+
 Ned::Ned()
 	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
 	  explorerWidth(0.0f), editorWidth(0.0f), initialized(false)
@@ -70,6 +79,7 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
+
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -272,6 +282,9 @@ bool Ned::initializeGraphics()
 	glfwSwapInterval(1);
 	glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
+	// Enable raw mouse motion for more accurate tracking
+	glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	
 	glewExperimental = GL_TRUE;
 	if (GLenum err = glewInit(); GLEW_OK != err)
 	{
@@ -428,19 +441,36 @@ void Ned::handleWindowDragging()
 			// Get current mouse position in screen coordinates
 			double currentMouseX, currentMouseY;
 			glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
-			int windowX, windowY;
+			
+			// Get current window position and size
+			int windowX, windowY, windowWidth, windowHeight;
 			glfwGetWindowPos(window, &windowX, &windowY);
-			ImVec2 currentScreenPos(windowX + currentMouseX, windowY + currentMouseY);
-
+			glfwGetWindowSize(window, &windowWidth, &windowHeight);
+			
 			// Calculate delta from initial position
-			ImVec2 delta(currentScreenPos.x - dragStartMousePos.x,
-						 currentScreenPos.y - dragStartMousePos.y);
-
+			double deltaX = currentMouseX - dragStartMouseX;
+			double deltaY = currentMouseY - dragStartMouseY;
+			
+			// Calculate new window position
+			int newX = dragStartWindowX + static_cast<int>(deltaX);
+			int newY = dragStartWindowY + static_cast<int>(deltaY);
+			
 			// Update window position
-			glfwSetWindowPos(window,
-							 static_cast<int>(dragStartWindowPos.x + delta.x),
-							 static_cast<int>(dragStartWindowPos.y + delta.y));
-		} else
+			glfwSetWindowPos(window, newX, newY);
+			
+			// If window size changed during drag (e.g., from snapping), update our reference points
+			if (windowWidth != dragStartWindowWidth || windowHeight != dragStartWindowHeight)
+			{
+				// Update drag start position to current position
+				dragStartWindowX = newX;
+				dragStartWindowY = newY;
+				dragStartMouseX = currentMouseX;
+				dragStartMouseY = currentMouseY;
+				dragStartWindowWidth = windowWidth;
+				dragStartWindowHeight = windowHeight;
+			}
+		}
+		else
 		{
 			isDraggingWindow = false;
 		}
@@ -474,8 +504,8 @@ void Ned::renderTopLeftMenu()
 	{
 		isHovered = true;
 	}
-	// isHovered = true;
-	//  Update hover state
+
+	// Update hover state
 	static bool menuOpen = false;
 	if (isHovered)
 	{
@@ -598,23 +628,24 @@ void Ned::renderTopLeftMenu()
 				menuOpen = false;
 			}
 
-			// Window dragging logic
-			bool isClicked =
-				ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
-			if (isClicked)
-			{
-				std::cout << "Dragging window...." << std::endl;
+			// Window dragging
+			if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				isDraggingWindow = true;
-
-				// Store initial positions
+				// Store initial positions and size
+				glfwGetCursorPos(window, &dragStartMouseX, &dragStartMouseY);
+				glfwGetWindowPos(window, &dragStartWindowX, &dragStartWindowY);
+				glfwGetWindowSize(window, &dragStartWindowWidth, &dragStartWindowHeight);
+			}
+			if (isDraggingWindow && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+				isDraggingWindow = false;
+			}
+			if (isDraggingWindow) {
 				double mouseX, mouseY;
 				glfwGetCursorPos(window, &mouseX, &mouseY);
-				int winX, winY;
-				glfwGetWindowPos(window, &winX, &winY);
-				dragStartMousePos = ImVec2(winX + mouseX, winY + mouseY);
-				dragStartWindowPos = ImVec2(winX, winY);
-
-				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+				// Calculate new window position based on initial positions
+				int newX = dragStartWindowX + (mouseX - dragStartMouseX);
+				int newY = dragStartWindowY + (mouseY - dragStartMouseY);
+				glfwSetWindowPos(window, newX, newY);
 			}
 
 			ImGui::End();
@@ -1270,7 +1301,8 @@ void Ned::renderFrame()
     renderMainWindow();
     gBookmarks.renderBookmarksWindow();
     gSettings.renderSettingsWindow();
-	gKeybinds.checkKeybindsFile(); 
+    gSettings.renderNotification("");
+    gKeybinds.checkKeybindsFile(); 
 
     handleUltraSimpleResizeOverlay();
 

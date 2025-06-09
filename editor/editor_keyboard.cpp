@@ -204,6 +204,23 @@ void EditorKeyboard::handleCharacterInput()
 		return;
 	}
 
+	// Only close LSP completion menu for specific characters
+	bool shouldCloseCompletion = false;
+	for (char c : inputText) {
+		// Close for space, dot (for method chaining), and other special characters
+		if (c == ' ' || c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+			c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
+			c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
+			c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
+			shouldCloseCompletion = true;
+			break;
+		}
+	}
+
+	if (shouldCloseCompletion) {
+		editor_state.block_input = false;
+	}
+
 	std::set<int> caret_positions_for_insertion; // Stores unique, sorted positions for new text
 	bool had_any_selections = false;
 
@@ -364,6 +381,17 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.multi_selections.clear(); // Important: clear multi-selections after typing
 
 	editor_state.text_changed = true;
+
+	// After processing the input, trigger LSP completion only if there was no space
+	if (!inputText.empty() && !shouldCloseCompletion && gSettings.getSettings()["lsp_autocomplete"]) {
+		// Get current line number and character offset
+		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+		int line_start = editor_state.editor_content_lines[current_line];
+		int char_offset = editor_state.cursor_index - line_start;
+
+		// Request completion
+		gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile, current_line, char_offset);
+	}
 }
 
 std::string CalculateIndentForPosition(const std::string &content,
@@ -805,7 +833,6 @@ void EditorKeyboard::handleTextInput()
 	handleBackspaceKey();
 	handleDeleteKey();
 	gLineJump.handleLineJumpInput();
-	gEditorIndentation.handleTabKey();
 
 	if (editor_state.text_changed)
 	{
@@ -921,6 +948,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		// Process Shift+Tab for indentation removal. If handled, exit early.
 		if (gEditorIndentation.processIndentRemoval())
 			return;
+		gEditorIndentation.handleTabKey();
+
 
 		if (ctrl_pressed)
 		{
