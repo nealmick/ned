@@ -7,20 +7,35 @@
 #include "imgui.h"
 #include <string>
 #include <vector>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
 
 using json = nlohmann::json;
+
+struct CompletionRequest {
+	std::string filePath;
+	int line;
+	int character;
+	int requestId;
+};
 
 struct CompletionDisplayItem
 {
 	std::string label;
 	std::string detail;
 	std::string insertText;
+	std::string sortText;  // Added for LSP server's sorting
 	int kind;
 	int startLine = -1;
 	int startChar = -1;
 	int endLine = -1;
 	int endChar = -1;
+	float score = 0.0f;  // Add score field for sorting
 };
+
 class LSPAutocomplete
 {
   public:
@@ -29,6 +44,7 @@ class LSPAutocomplete
 
 	void requestCompletion(const std::string &filePath, int line, int character);
 	void renderCompletions();
+	void processPendingResponses(); // New method to process responses in main thread
 
 	bool showCompletions = false;
 	int selectedCompletionIndex = 0;
@@ -39,6 +55,11 @@ class LSPAutocomplete
 
   private:
 	std::vector<CompletionDisplayItem> currentCompletionItems;
+	std::queue<CompletionRequest> requestQueue;
+	std::mutex queueMutex;
+	std::condition_variable queueCondition;
+	std::atomic<bool> shouldStop{false};
+	std::thread workerThread;
 
 	// --- Private Helper Functions for Rendering ---
 	bool shouldRender();
@@ -53,11 +74,11 @@ class LSPAutocomplete
 	static bool wasShowingLastFrame;
 
 	// requesting logic
-	std::string
-	formCompletionRequest(int requestId, const std::string &filePath, int line, int character);
+	std::string formCompletionRequest(int requestId, const std::string &filePath, int line, int character);
 	bool processResponse(const std::string &response, int requestId);
 	void parseCompletionResult(const json &result);
 	void updatePopupPosition();
+	void workerFunction(); // New method for background thread
 
 	void insertText(int row_start, int col__start, int row_end, int col__end, std::string text);
 

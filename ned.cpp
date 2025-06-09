@@ -39,6 +39,8 @@ static double dragStartMouseX = 0.0;
 static double dragStartMouseY = 0.0;
 static int dragStartWindowX = 0;
 static int dragStartWindowY = 0;
+static int dragStartWindowWidth = 0;
+static int dragStartWindowHeight = 0;
 
 Ned::Ned()
 	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
@@ -440,19 +442,36 @@ void Ned::handleWindowDragging()
 			// Get current mouse position in screen coordinates
 			double currentMouseX, currentMouseY;
 			glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
-			int windowX, windowY;
+			
+			// Get current window position and size
+			int windowX, windowY, windowWidth, windowHeight;
 			glfwGetWindowPos(window, &windowX, &windowY);
-			ImVec2 currentScreenPos(windowX + currentMouseX, windowY + currentMouseY);
-
+			glfwGetWindowSize(window, &windowWidth, &windowHeight);
+			
 			// Calculate delta from initial position
-			ImVec2 delta(currentScreenPos.x - dragStartMousePos.x,
-						 currentScreenPos.y - dragStartMousePos.y);
-
+			double deltaX = currentMouseX - dragStartMouseX;
+			double deltaY = currentMouseY - dragStartMouseY;
+			
+			// Calculate new window position
+			int newX = dragStartWindowX + static_cast<int>(deltaX);
+			int newY = dragStartWindowY + static_cast<int>(deltaY);
+			
 			// Update window position
-			glfwSetWindowPos(window,
-							 static_cast<int>(dragStartWindowPos.x + delta.x),
-							 static_cast<int>(dragStartWindowPos.y + delta.y));
-		} else
+			glfwSetWindowPos(window, newX, newY);
+			
+			// If window size changed during drag (e.g., from snapping), update our reference points
+			if (windowWidth != dragStartWindowWidth || windowHeight != dragStartWindowHeight)
+			{
+				// Update drag start position to current position
+				dragStartWindowX = newX;
+				dragStartWindowY = newY;
+				dragStartMouseX = currentMouseX;
+				dragStartMouseY = currentMouseY;
+				dragStartWindowWidth = windowWidth;
+				dragStartWindowHeight = windowHeight;
+			}
+		}
+		else
 		{
 			isDraggingWindow = false;
 		}
@@ -610,21 +629,13 @@ void Ned::renderTopLeftMenu()
 				menuOpen = false;
 			}
 
-			// Window dragging - only if clicking within the menu area
-			ImVec2 menuPos = ImGui::GetWindowPos();
-			ImVec2 menuSize = ImGui::GetWindowSize();
-			ImVec2 mousePos = ImGui::GetMousePos();
-			
-			bool isInMenuArea = mousePos.x >= menuPos.x && 
-							   mousePos.x <= menuPos.x + menuSize.x &&
-							   mousePos.y >= menuPos.y && 
-							   mousePos.y <= menuPos.y + menuSize.y;
-
-			if (isInMenuArea && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+			// Window dragging
+			if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				isDraggingWindow = true;
-				// Store initial positions
+				// Store initial positions and size
 				glfwGetCursorPos(window, &dragStartMouseX, &dragStartMouseY);
 				glfwGetWindowPos(window, &dragStartWindowX, &dragStartWindowY);
+				glfwGetWindowSize(window, &dragStartWindowWidth, &dragStartWindowHeight);
 			}
 			if (isDraggingWindow && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
 				isDraggingWindow = false;

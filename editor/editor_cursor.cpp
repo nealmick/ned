@@ -85,7 +85,8 @@ void EditorCursor::renderCursor()
 	bool has_multiple = !editor_state.multi_cursor_indices.empty();
 
 	// Render main cursor first
-	if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+	// Remove the window focus check since we want to show cursor even with completion menu
+	// if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
 	{
 		// Main cursor calculations
 		int main_cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
