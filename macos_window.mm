@@ -19,6 +19,10 @@ static NSWindow* configuredWindow = nil;
 - (BOOL)mouseDownCanMoveWindow {
     return YES;
 }
+
+- (void)mouseDown:(NSEvent *)event {
+    [self.window performWindowDragWithEvent:event];
+}
 @end
 
 void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
@@ -42,7 +46,7 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     nswindow.titleVisibility = NSWindowTitleHidden;
     nswindow.hasShadow = YES;
     
-    // Turn off background dragging
+    // Disable background dragging
     nswindow.movableByWindowBackground = NO;
     
     // Base transparency setup
@@ -85,7 +89,7 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     originalGlfwContentView.frame = appContainer.bounds;
     
     // Create draggable title bar area
-    CGFloat titleBarHeight = 24.0;
+    CGFloat titleBarHeight = 44.0;
     NSRect titleBarRect = NSMakeRect(0, contentRect.size.height - titleBarHeight, contentRect.size.width, titleBarHeight);
     DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect];
     titleBarView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;

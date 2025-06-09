@@ -111,10 +111,13 @@ class Settings
 		"VT100",
 		"Commodore64",
 		"Apple2",
+		"JetBrainsMonoNL-Regular",
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
 	
+	void renderNotification(const std::string& message, float duration = 2.0f);
+
   private:
 	json settings;			  // Holds the settings from the *active* file
 	std::string settingsPath; // Path to the *active* settings file (e.g., ned.json or test.json)
@@ -142,6 +145,7 @@ class Settings
 	void renderShaderSettings();
 	void renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
 		const char* format, float default_val);
+	void renderKeybindsSettings();
 	void handleWindowInput();
 	void applyImGuiStyles(); // New function for handling ImGui styles
 };

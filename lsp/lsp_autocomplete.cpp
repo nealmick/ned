@@ -12,14 +12,102 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
 LSPAutocomplete gLSPAutocomplete;
 bool LSPAutocomplete::wasShowingLastFrame = false;
 
-LSPAutocomplete::LSPAutocomplete() = default;
-LSPAutocomplete::~LSPAutocomplete() = default;
+LSPAutocomplete::LSPAutocomplete() {
+	// Start the worker thread
+	workerThread = std::thread(&LSPAutocomplete::workerFunction, this);
+}
+
+LSPAutocomplete::~LSPAutocomplete() {
+	// Signal the worker thread to stop
+	shouldStop = true;
+	queueCondition.notify_one();
+	
+	// Wait for the thread to finish
+	if (workerThread.joinable()) {
+		workerThread.join();
+	}
+}
+
+void LSPAutocomplete::workerFunction() {
+	while (!shouldStop) {
+		CompletionRequest request;
+		{
+			std::unique_lock<std::mutex> lock(queueMutex);
+			queueCondition.wait(lock, [this] { 
+				return !requestQueue.empty() || shouldStop; 
+			});
+			
+			if (shouldStop) {
+				break;
+			}
+			
+			request = requestQueue.front();
+			requestQueue.pop();
+		}
+
+		// Process the request
+		if (!gLSPManager.isInitialized()) {
+			std::cout << "\033[31mLSP Autocomplete:\033[0m Not initialized" << std::endl;
+			continue;
+		}
+
+		if (!gLSPManager.selectAdapterForFile(request.filePath)) {
+			std::cout << "\033[31mLSP Autocomplete:\033[0m No LSP adapter available for file: "
+					  << request.filePath << std::endl;
+			continue;
+		}
+
+		std::cout << "\033[35mLSP Autocomplete:\033[0m Processing request at line " << request.line
+				  << ", char " << request.character << " (ID: " << request.requestId << ")" << std::endl;
+
+		// Form and send request
+		std::string request_str = formCompletionRequest(request.requestId, request.filePath, request.line, request.character);
+		if (!gLSPManager.sendRequest(request_str)) {
+			std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request" << std::endl;
+			continue;
+		}
+
+		// Wait for response with timeout
+		const int MAX_ATTEMPTS = 15;
+		const int WAIT_MS = 50;
+		for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_MS));
+			int contentLength = 0;
+			std::string response = gLSPManager.readResponse(&contentLength);
+
+			if (!response.empty()) {
+				if (processResponse(response, request.requestId)) {
+					break;
+				}
+			}
+		}
+	}
+}
+
+void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, int character)
+{
+	int requestId = gEditorLSP.getNextRequestId();
+	
+	// Add request to queue
+	{
+		std::lock_guard<std::mutex> lock(queueMutex);
+		requestQueue.push({filePath, line, character, requestId});
+	}
+	queueCondition.notify_one();
+}
+
+void LSPAutocomplete::processPendingResponses() {
+	// This method is called from the main thread to process any UI updates
+	// Currently empty as we're handling UI updates directly in processResponse
+	// We could move UI updates here if needed
+}
 
 bool LSPAutocomplete::shouldRender()
 {
@@ -39,80 +127,55 @@ bool LSPAutocomplete::shouldRender()
 
 bool LSPAutocomplete::handleInputAndCheckClose()
 {
-	if (!editor_state.block_input)
-	{
-		// std::cout << "[renderCompletions] Showing, setting block_input =
-		// true" << std::endl; // Optional debug
-	}
-	editor_state.block_input = true;
-
 	bool closeAndUnblock = false;
 	bool navigationKeyPressed = false;
+
+	// Close completion menu for Delete, Backspace, or Space
+	if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace) || ImGui::IsKeyPressed(ImGuiKey_Space))
+	{
+		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on close
+	}
 
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		std::cout << "[renderCompletions] Escape pressed, hiding completions." << std::endl;
 		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on escape
 	} else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
 	{
 		if (!currentCompletionItems.empty())
 		{
-			// Only decrement if not already at the top (index 0)
 			if (selectedCompletionIndex > 0)
 			{
 				selectedCompletionIndex--;
 			}
 		}
 		navigationKeyPressed = true;
+		editor_state.block_input = true; // Only block input during navigation
+		resetPopupPosition(); // Reset position on navigation
 	} else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
 	{
 		if (!currentCompletionItems.empty())
 		{
-			// Only increment if not already at the bottom
 			if (selectedCompletionIndex < currentCompletionItems.size() - 1)
 			{
 				selectedCompletionIndex++;
 			}
 		}
 		navigationKeyPressed = true;
+		editor_state.block_input = true; // Only block input during navigation
+		resetPopupPosition(); // Reset position on navigation
 	} else if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 	{
-		if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size())
-		{
-			blockEnter = true;
-			const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
-
-			// Simplified debug output
-			std::cout << "\n---ENTER PRESSED---\n";
-			std::cout << "Selected text: " << selected_item.insertText << std::endl;
-			std::cout << "Start position: L" << selected_item.startLine << " C"
-					  << selected_item.startChar << std::endl;
-			std::cout << "End position: L" << selected_item.endLine << " C" << selected_item.endChar
-					  << std::endl;
-			std::cout.flush(); // Force immediate output
-			insertText(selected_item.startLine,
-					   selected_item.startChar,
-					   selected_item.endLine,
-					   selected_item.endChar,
-					   selected_item.insertText);
-
-			// TODO: Insert text
-		}
 		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on enter
 	} else if (ImGui::IsKeyPressed(ImGuiKey_Tab))
 	{
 		if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size())
 		{
 			blockTab = true;
 			const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
-			// Simplified debug output
-			std::cout << "\n---tab PRESSED---\n";
-			std::cout << "Selected text: " << selected_item.insertText << std::endl;
-			std::cout << "Start position: L" << selected_item.startLine << " C"
-					  << selected_item.startChar << std::endl;
-			std::cout << "End position: L" << selected_item.endLine << " C" << selected_item.endChar
-					  << std::endl;
-			std::cout.flush(); // Force immediate output
 			insertText(selected_item.startLine,
 					   selected_item.startChar,
 					   selected_item.endLine,
@@ -127,19 +190,29 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		ImGuiIO &io = ImGui::GetIO();
 		if (io.InputQueueCharacters.Size > 0)
 		{
-			std::cout << "[renderCompletions] Character key pressed, hiding "
-						 "completions."
-					  << std::endl;
-			closeAndUnblock = true;
+			// Check if any of the input characters should close the menu
+			bool shouldClose = false;
+			for (int n = 0; n < io.InputQueueCharacters.Size; n++)
+			{
+				char c = static_cast<char>(io.InputQueueCharacters[n]);
+				if (c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+					c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
+					c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
+					c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
+					shouldClose = true;
+					break;
+				}
+			}
+			if (shouldClose) {
+				closeAndUnblock = true;
+			}
 		} else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
 		{
 			std::cout << "[renderCompletions] Left Arrow pressed, hiding completions." << std::endl;
 			closeAndUnblock = true;
 		} else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
 		{
-			std::cout << "[renderCompletions] Right Arrow pressed, hiding "
-						 "completions."
-					  << std::endl;
+			std::cout << "[renderCompletions] Right Arrow pressed, hiding completions." << std::endl;
 			closeAndUnblock = true;
 		}
 	}
@@ -150,9 +223,12 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		editor_state.block_input = false;
 		showCompletions = false;
 		wasShowingLastFrame = false;
-		// std::cout << "[renderCompletions] Closing: Set block_input = false"
-		// << std::endl; // Optional debug
 		return true;
+	}
+
+	// If we're not navigating and not closing, ensure input is not blocked
+	if (!navigationKeyPressed) {
+		editor_state.block_input = false;
 	}
 
 	return false;
@@ -520,6 +596,20 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	currentCompletionItems.clear();
 	currentCompletionItems.reserve(items_json.size());
 
+	// Get the current word being typed for filtering
+	std::string currentWord;
+	int cursor_pos = editor_state.cursor_index;
+	int word_start = cursor_pos;
+	while (word_start > 0 && (isalnum(editor_state.fileContent[word_start - 1]) || 
+							 editor_state.fileContent[word_start - 1] == '_'))
+	{
+		word_start--;
+	}
+	if (word_start < cursor_pos)
+	{
+		currentWord = editor_state.fileContent.substr(word_start, cursor_pos - word_start);
+	}
+
 	for (const auto &item_json : items_json)
 	{
 		CompletionDisplayItem newItem;
@@ -530,6 +620,36 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		newItem.startChar = -1;
 		newItem.endLine = -1;
 		newItem.endChar = -1;
+
+		// Convert to lowercase for case-insensitive comparison
+		std::string label_lower = newItem.label;
+		std::transform(label_lower.begin(), label_lower.end(), label_lower.begin(), ::tolower);
+		std::string current_word_lower = currentWord;
+		std::transform(current_word_lower.begin(), current_word_lower.end(), current_word_lower.begin(), ::tolower);
+
+		// Skip if it doesn't match what we're typing
+		if (!currentWord.empty() && label_lower.find(current_word_lower) == std::string::npos) {
+			continue;
+		}
+
+		// Skip if the completion exactly matches what we've already typed
+		if (label_lower == current_word_lower) {
+			continue;
+		}
+
+		// Create a sort key that prioritizes:
+		// 1. Exact matches at the start
+		// 2. Shorter matches
+		// 3. Alphabetical order
+		std::string sortKey;
+		if (label_lower.find(current_word_lower) == 0) {
+			// Exact match at start gets highest priority
+			sortKey = "0" + label_lower;
+		} else {
+			// Other matches get lower priority
+			sortKey = "1" + label_lower;
+		}
+		newItem.sortText = sortKey;
 
 		bool hasTextEdit = false;
 		std::string positionInfo;
@@ -578,8 +698,7 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 			int word_start = cursor_pos;
 			int word_end = cursor_pos;
 
-			// Walk backwards to find word start (include underscores for
-			// Python)
+			// Walk backwards to find word start (include underscores for Python)
 			while (word_start > 0 && (isalnum(editor_state.fileContent[word_start - 1]) ||
 									  editor_state.fileContent[word_start - 1] == '_'))
 			{
@@ -618,6 +737,41 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		currentCompletionItems.push_back(newItem);
 	}
 
+	// Sort completions using our improved sorting logic
+	std::sort(currentCompletionItems.begin(), currentCompletionItems.end(),
+			  [&currentWord](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
+				  // Convert to lowercase for comparison
+				  std::string a_lower = a.label;
+				  std::string b_lower = b.label;
+				  std::transform(a_lower.begin(), a_lower.end(), a_lower.begin(), ::tolower);
+				  std::transform(b_lower.begin(), b_lower.end(), b_lower.begin(), ::tolower);
+
+				  // Check if either matches the current word exactly
+				  bool a_exact = (a_lower == currentWord);
+				  bool b_exact = (b_lower == currentWord);
+				  if (a_exact != b_exact) return a_exact > b_exact;
+
+				  // Check if either starts with the current word
+				  bool a_starts = (a_lower.find(currentWord) == 0);
+				  bool b_starts = (b_lower.find(currentWord) == 0);
+				  if (a_starts != b_starts) return a_starts > b_starts;
+
+				  // If both start with the word, prefer shorter matches
+				  if (a_starts && b_starts) {
+					  if (a.label.length() != b.label.length()) {
+						  return a.label.length() < b.label.length();
+					  }
+				  }
+
+				  // For non-prefix matches, prefer case-sensitive matches
+				  bool a_case_match = (a.label.find(currentWord) != std::string::npos);
+				  bool b_case_match = (b.label.find(currentWord) != std::string::npos);
+				  if (a_case_match != b_case_match) return a_case_match > b_case_match;
+
+				  // Finally, sort alphabetically
+				  return a.label < b.label;
+			  });
+
 	// Update UI state
 	if (!currentCompletionItems.empty())
 	{
@@ -630,76 +784,42 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	}
 }
 
-void LSPAutocomplete::updatePopupPosition()
-{
-	try
-	{
-		int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
-														  editor_state.fileContent,
-														  editor_state.cursor_index);
-		completionPopupPos = editor_state.text_pos;
-		completionPopupPos.x = cursor_x;
-		completionPopupPos.y += cursor_line * editor_state.line_height;
-		std::cout << ">>> [requestCompletion] Stored Anchor Pos: (" << completionPopupPos.x << ", "
-				  << completionPopupPos.y << ")" << std::endl;
-	} catch (const std::exception &e)
-	{
-		std::cerr << "!!! ERROR calculating cursor pos: " << e.what() << std::endl;
-		completionPopupPos = ImVec2(0, 0);
-	}
+void LSPAutocomplete::resetPopupPosition() {
+	lastPositionUpdate = std::chrono::steady_clock::time_point::min();
 }
 
-void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, int character)
-{
-	if (!gLSPManager.isInitialized())
-	{
-		std::cout << "\033[31mLSP Autocomplete:\033[0m Not initialized" << std::endl;
-		return;
-	}
+void LSPAutocomplete::updatePopupPosition() {
+	try {
+		auto now = std::chrono::steady_clock::now();
+		auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(
+			now - lastPositionUpdate).count();
 
-	if (!gLSPManager.selectAdapterForFile(filePath))
-	{
-		std::cout << "\033[31mLSP Autocomplete:\033[0m No LSP adapter "
-					 "available for file: "
-				  << filePath << std::endl;
-		return;
-	}
-
-	int requestId = gEditorLSP.getNextRequestId();
-	std::cout << "\033[35mLSP Autocomplete:\033[0m Requesting completions at line " << line
-			  << ", char " << character << " (ID: " << requestId << ")" << std::endl;
-
-	// Form and send request
-	std::string request = formCompletionRequest(requestId, filePath, line, character);
-	if (!gLSPManager.sendRequest(request))
-	{
-		std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request" << std::endl;
-		return;
-	}
-
-	// Await response
-	const int MAX_ATTEMPTS = 15;
-	const int WAIT_MS = 50;
-	for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt)
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_MS));
-		int contentLength = 0;
-		std::string response = gLSPManager.readResponse(&contentLength);
-
-		if (response.empty())
-		{
-			if (attempt == 0)
-				std::cout << "\033[35mLSP Autocomplete:\033[0m Waiting..." << std::endl;
-			continue;
+		// Only update position if it's been more than 2 seconds or we don't have a cached position
+		if (timeSinceLastUpdate > POSITION_CACHE_DURATION_MS || 
+			lastPositionUpdate == std::chrono::steady_clock::time_point::min()) {
+			
+			int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
+			float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
+															  editor_state.fileContent,
+															  editor_state.cursor_index);
+			completionPopupPos = editor_state.text_pos;
+			completionPopupPos.x = cursor_x;
+			completionPopupPos.y += cursor_line * editor_state.line_height;
+			
+			// Cache the new position and timestamp
+			lastPopupPos = completionPopupPos;
+			lastPositionUpdate = now;
+			
+			std::cout << ">>> [requestCompletion] Updated Anchor Pos: (" << completionPopupPos.x << ", "
+					  << completionPopupPos.y << ")" << std::endl;
+		} else {
+			// Reuse the cached position
+			completionPopupPos = lastPopupPos;
 		}
-
-		if (processResponse(response, requestId))
-		{
-			return; // Handled successfully
-		}
+	} catch (const std::exception &e) {
+		std::cerr << "!!! ERROR calculating cursor pos: " << e.what() << std::endl;
+		completionPopupPos = ImVec2(0, 0);
+		lastPopupPos = completionPopupPos;
+		lastPositionUpdate = std::chrono::steady_clock::now();
 	}
-
-	std::cout << "\033[31mLSP Autocomplete:\033[0m Timed out waiting for response ID " << requestId
-			  << "." << std::endl;
 }

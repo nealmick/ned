@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include "../util/settings.h"
 
 KeybindsManager gKeybinds;
 
@@ -62,13 +63,30 @@ void KeybindsManager::ensureUserKeybindsFileExists() {
 bool KeybindsManager::loadKeybindsFromFile(const std::string& filePath) {
     if (!settingsFileManager_.loadJsonFile(filePath, keybinds_)) {
         std::cerr << "[Keybinds] Failed to load or parse keybinds from " << filePath 
-                  << ". Keybinds will be empty." << std::endl;
+                  << ". Attempting to load default keybinds..." << std::endl;
+        
+        // Try to load default keybinds
+        fs::path defaultKeybindsPath = fs::path(filePath).parent_path() / "default-keybinds.json";
+        if (fs::exists(defaultKeybindsPath)) {
+            if (settingsFileManager_.loadJsonFile(defaultKeybindsPath.string(), keybinds_)) {
+                std::cout << "[Keybinds] Successfully loaded default keybinds from " << defaultKeybindsPath << std::endl;
+                processKeybinds();
+                gSettings.renderNotification("Error in keybinds.json\nLoaded default backup keybinds");
+                return true;
+            } else {
+                std::cerr << "[Keybinds] Failed to load default keybinds from " << defaultKeybindsPath << std::endl;
+            }
+        } else {
+            std::cerr << "[Keybinds] Default keybinds file not found at " << defaultKeybindsPath << std::endl;
+        }
+        
+        // If we get here, both regular and default keybinds failed
         keybinds_ = json::object(); 
-        processKeybinds(); // <<< --- FIX --- Ensure map is cleared/reset on failure
+        processKeybinds(); // Ensure map is cleared/reset on failure
         return false;
     }
     std::cout << "[Keybinds] Successfully loaded raw keybinds from " << filePath << std::endl;
-    processKeybinds(); // <<< --- FIX --- Process the loaded keybinds
+    processKeybinds(); // Process the loaded keybinds
     return true;
 }
 

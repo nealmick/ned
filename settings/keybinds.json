@@ -11,3 +11,8 @@
     "ai_completion" : "g",
     "line_jump_key" : ";"
 }
+
+// while holding down ctrl or cmd
+// press the key specified for the action
+// if the file is corrupted or invalid 
+// the default file will be loaded instead

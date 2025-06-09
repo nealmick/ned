@@ -318,6 +318,7 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
 		{"font", "SourceCodePro-Regular"},
 		{"fontSize", 20.0f},
 		{"jitter_intensity", 2.809999942779541},
+		{"lsp_autocomplete", true},
 		{"pixel_width", 5000.0},
 		{"pixelation_intensity", -0.10999999940395355},
 		{"rainbow", true},
@@ -530,8 +531,10 @@ std::vector<std::string> SettingsFileManager::getAvailableProfileFiles() {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string filename = entry.path().filename().string();
                 // Exclude "keybinds.json"
-                if (filename != "keybinds.json") {
+                if (filename == "keybinds.json" ||  filename == "default-keybinds.json" ||  filename == ".undo-redo-ned.json" ) {
+                }else{
                     availableProfileFiles.push_back(filename);
+
                 }
             }
         }
@@ -571,6 +574,7 @@ void SettingsFileManager::applyDefaultSettings(json& settings) {
         {"font", "SourceCodePro-Regular"},
         {"fontSize", 20.0f},
         {"jitter_intensity", 2.809999942779541},
+        {"lsp_autocomplete", true},
         {"pixel_width", 5000.0},
         {"pixelation_intensity", -0.10999999940395355},
         {"rainbow", true},
