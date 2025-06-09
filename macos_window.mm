@@ -19,6 +19,10 @@ static NSWindow* configuredWindow = nil;
 - (BOOL)mouseDownCanMoveWindow {
     return YES;
 }
+
+- (void)mouseDown:(NSEvent *)event {
+    [self.window performWindowDragWithEvent:event];
+}
 @end
 
 void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
@@ -42,8 +46,8 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     nswindow.titleVisibility = NSWindowTitleHidden;
     nswindow.hasShadow = YES;
     
-    // Turn off background dragging
-    nswindow.movableByWindowBackground = NO;
+    // Enable background dragging
+    nswindow.movableByWindowBackground = YES;
     
     // Base transparency setup
     [nswindow setOpaque:NO];

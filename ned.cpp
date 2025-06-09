@@ -32,6 +32,14 @@ Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
 
+// Add these at the top with other static variables
+static double lastMouseX = 0.0;
+static double lastMouseY = 0.0;
+static double dragStartMouseX = 0.0;
+static double dragStartMouseY = 0.0;
+static int dragStartWindowX = 0;
+static int dragStartWindowY = 0;
+
 Ned::Ned()
 	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
 	  explorerWidth(0.0f), editorWidth(0.0f), initialized(false)
@@ -70,6 +78,7 @@ void Ned::ShaderQuad::cleanup()
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
 }
+
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -272,6 +281,9 @@ bool Ned::initializeGraphics()
 	glfwSwapInterval(1);
 	glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
+	// Enable raw mouse motion for more accurate tracking
+	glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	
 	glewExperimental = GL_TRUE;
 	if (GLenum err = glewInit(); GLEW_OK != err)
 	{
@@ -474,8 +486,8 @@ void Ned::renderTopLeftMenu()
 	{
 		isHovered = true;
 	}
-	// isHovered = true;
-	//  Update hover state
+
+	// Update hover state
 	static bool menuOpen = false;
 	if (isHovered)
 	{
@@ -598,23 +610,23 @@ void Ned::renderTopLeftMenu()
 				menuOpen = false;
 			}
 
-			// Window dragging logic
-			bool isClicked =
-				ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
-			if (isClicked)
-			{
-				std::cout << "Dragging window...." << std::endl;
+			// Window dragging
+			if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				isDraggingWindow = true;
-
 				// Store initial positions
+				glfwGetCursorPos(window, &dragStartMouseX, &dragStartMouseY);
+				glfwGetWindowPos(window, &dragStartWindowX, &dragStartWindowY);
+			}
+			if (isDraggingWindow && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+				isDraggingWindow = false;
+			}
+			if (isDraggingWindow) {
 				double mouseX, mouseY;
 				glfwGetCursorPos(window, &mouseX, &mouseY);
-				int winX, winY;
-				glfwGetWindowPos(window, &winX, &winY);
-				dragStartMousePos = ImVec2(winX + mouseX, winY + mouseY);
-				dragStartWindowPos = ImVec2(winX, winY);
-
-				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+				// Calculate new window position based on initial positions
+				int newX = dragStartWindowX + (mouseX - dragStartMouseX);
+				int newY = dragStartWindowY + (mouseY - dragStartMouseY);
+				glfwSetWindowPos(window, newX, newY);
 			}
 
 			ImGui::End();

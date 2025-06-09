@@ -8,7 +8,7 @@
     "bloom_intensity": 0.8600000143051147,
     "burnin_intensity": 0.9049999713897705,
     "colorshift_intensity": 0.0,
-    "curvature_intensity": 0.07000000029802322,
+    "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
     "fontSize": 22.0,
     "jitter_intensity": 0.0,

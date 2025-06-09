@@ -32,6 +32,7 @@ class Ned
 	bool initialize();
 	void run();
 	void cleanup();
+	void stopWindowDragging() { isDraggingWindow = false; }
 
   private:
 	// Core structures
