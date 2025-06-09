@@ -127,13 +127,6 @@ bool LSPAutocomplete::shouldRender()
 
 bool LSPAutocomplete::handleInputAndCheckClose()
 {
-	if (!editor_state.block_input)
-	{
-		// std::cout << "[renderCompletions] Showing, setting block_input =
-		// true" << std::endl; // Optional debug
-	}
-	editor_state.block_input = true;
-
 	bool closeAndUnblock = false;
 	bool navigationKeyPressed = false;
 
@@ -141,52 +134,48 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 	if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace) || ImGui::IsKeyPressed(ImGuiKey_Space))
 	{
 		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on close
 	}
 
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		std::cout << "[renderCompletions] Escape pressed, hiding completions." << std::endl;
 		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on escape
 	} else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
 	{
 		if (!currentCompletionItems.empty())
 		{
-			// Only decrement if not already at the top (index 0)
 			if (selectedCompletionIndex > 0)
 			{
 				selectedCompletionIndex--;
 			}
 		}
 		navigationKeyPressed = true;
+		editor_state.block_input = true; // Only block input during navigation
+		resetPopupPosition(); // Reset position on navigation
 	} else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
 	{
 		if (!currentCompletionItems.empty())
 		{
-			// Only increment if not already at the bottom
 			if (selectedCompletionIndex < currentCompletionItems.size() - 1)
 			{
 				selectedCompletionIndex++;
 			}
 		}
 		navigationKeyPressed = true;
+		editor_state.block_input = true; // Only block input during navigation
+		resetPopupPosition(); // Reset position on navigation
 	} else if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 	{
-		// Just close the completion menu and let the editor handle the newline
 		closeAndUnblock = true;
+		resetPopupPosition(); // Reset position on enter
 	} else if (ImGui::IsKeyPressed(ImGuiKey_Tab))
 	{
 		if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size())
 		{
 			blockTab = true;
 			const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
-			// Simplified debug output
-			std::cout << "\n---tab PRESSED---\n";
-			std::cout << "Selected text: " << selected_item.insertText << std::endl;
-			std::cout << "Start position: L" << selected_item.startLine << " C"
-					  << selected_item.startChar << std::endl;
-			std::cout << "End position: L" << selected_item.endLine << " C" << selected_item.endChar
-					  << std::endl;
-			std::cout.flush(); // Force immediate output
 			insertText(selected_item.startLine,
 					   selected_item.startChar,
 					   selected_item.endLine,
@@ -201,19 +190,29 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		ImGuiIO &io = ImGui::GetIO();
 		if (io.InputQueueCharacters.Size > 0)
 		{
-			std::cout << "[renderCompletions] Character key pressed, hiding "
-						 "completions."
-					  << std::endl;
-			closeAndUnblock = true;
+			// Check if any of the input characters should close the menu
+			bool shouldClose = false;
+			for (int n = 0; n < io.InputQueueCharacters.Size; n++)
+			{
+				char c = static_cast<char>(io.InputQueueCharacters[n]);
+				if (c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+					c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
+					c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
+					c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
+					shouldClose = true;
+					break;
+				}
+			}
+			if (shouldClose) {
+				closeAndUnblock = true;
+			}
 		} else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
 		{
 			std::cout << "[renderCompletions] Left Arrow pressed, hiding completions." << std::endl;
 			closeAndUnblock = true;
 		} else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
 		{
-			std::cout << "[renderCompletions] Right Arrow pressed, hiding "
-						 "completions."
-					  << std::endl;
+			std::cout << "[renderCompletions] Right Arrow pressed, hiding completions." << std::endl;
 			closeAndUnblock = true;
 		}
 	}
@@ -224,9 +223,12 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		editor_state.block_input = false;
 		showCompletions = false;
 		wasShowingLastFrame = false;
-		// std::cout << "[renderCompletions] Closing: Set block_input = false"
-		// << std::endl; // Optional debug
 		return true;
+	}
+
+	// If we're not navigating and not closing, ensure input is not blocked
+	if (!navigationKeyPressed) {
+		editor_state.block_input = false;
 	}
 
 	return false;
@@ -630,6 +632,11 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 			continue;
 		}
 
+		// Skip if the completion exactly matches what we've already typed
+		if (label_lower == current_word_lower) {
+			continue;
+		}
+
 		// Create a sort key that prioritizes:
 		// 1. Exact matches at the start
 		// 2. Shorter matches
@@ -730,10 +737,39 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		currentCompletionItems.push_back(newItem);
 	}
 
-	// Sort completions using our simplified sorting logic
+	// Sort completions using our improved sorting logic
 	std::sort(currentCompletionItems.begin(), currentCompletionItems.end(),
-			  [](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
-				  return a.sortText < b.sortText;
+			  [&currentWord](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
+				  // Convert to lowercase for comparison
+				  std::string a_lower = a.label;
+				  std::string b_lower = b.label;
+				  std::transform(a_lower.begin(), a_lower.end(), a_lower.begin(), ::tolower);
+				  std::transform(b_lower.begin(), b_lower.end(), b_lower.begin(), ::tolower);
+
+				  // Check if either matches the current word exactly
+				  bool a_exact = (a_lower == currentWord);
+				  bool b_exact = (b_lower == currentWord);
+				  if (a_exact != b_exact) return a_exact > b_exact;
+
+				  // Check if either starts with the current word
+				  bool a_starts = (a_lower.find(currentWord) == 0);
+				  bool b_starts = (b_lower.find(currentWord) == 0);
+				  if (a_starts != b_starts) return a_starts > b_starts;
+
+				  // If both start with the word, prefer shorter matches
+				  if (a_starts && b_starts) {
+					  if (a.label.length() != b.label.length()) {
+						  return a.label.length() < b.label.length();
+					  }
+				  }
+
+				  // For non-prefix matches, prefer case-sensitive matches
+				  bool a_case_match = (a.label.find(currentWord) != std::string::npos);
+				  bool b_case_match = (b.label.find(currentWord) != std::string::npos);
+				  if (a_case_match != b_case_match) return a_case_match > b_case_match;
+
+				  // Finally, sort alphabetically
+				  return a.label < b.label;
 			  });
 
 	// Update UI state
@@ -748,22 +784,42 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	}
 }
 
-void LSPAutocomplete::updatePopupPosition()
-{
-	try
-	{
-		int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
-														  editor_state.fileContent,
-														  editor_state.cursor_index);
-		completionPopupPos = editor_state.text_pos;
-		completionPopupPos.x = cursor_x;
-		completionPopupPos.y += cursor_line * editor_state.line_height;
-		std::cout << ">>> [requestCompletion] Stored Anchor Pos: (" << completionPopupPos.x << ", "
-				  << completionPopupPos.y << ")" << std::endl;
-	} catch (const std::exception &e)
-	{
+void LSPAutocomplete::resetPopupPosition() {
+	lastPositionUpdate = std::chrono::steady_clock::time_point::min();
+}
+
+void LSPAutocomplete::updatePopupPosition() {
+	try {
+		auto now = std::chrono::steady_clock::now();
+		auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(
+			now - lastPositionUpdate).count();
+
+		// Only update position if it's been more than 2 seconds or we don't have a cached position
+		if (timeSinceLastUpdate > POSITION_CACHE_DURATION_MS || 
+			lastPositionUpdate == std::chrono::steady_clock::time_point::min()) {
+			
+			int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
+			float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
+															  editor_state.fileContent,
+															  editor_state.cursor_index);
+			completionPopupPos = editor_state.text_pos;
+			completionPopupPos.x = cursor_x;
+			completionPopupPos.y += cursor_line * editor_state.line_height;
+			
+			// Cache the new position and timestamp
+			lastPopupPos = completionPopupPos;
+			lastPositionUpdate = now;
+			
+			std::cout << ">>> [requestCompletion] Updated Anchor Pos: (" << completionPopupPos.x << ", "
+					  << completionPopupPos.y << ")" << std::endl;
+		} else {
+			// Reuse the cached position
+			completionPopupPos = lastPopupPos;
+		}
+	} catch (const std::exception &e) {
 		std::cerr << "!!! ERROR calculating cursor pos: " << e.what() << std::endl;
 		completionPopupPos = ImVec2(0, 0);
+		lastPopupPos = completionPopupPos;
+		lastPositionUpdate = std::chrono::steady_clock::now();
 	}
 }

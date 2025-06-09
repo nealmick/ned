@@ -111,6 +111,7 @@ class Settings
 		"VT100",
 		"Commodore64",
 		"Apple2",
+		"JetBrainsMonoNL-Regular",
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed

@@ -504,6 +504,16 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Syntax Highlighting)");
+
+	bool lspAutocomplete = settings.value("lsp_autocomplete", true);
+	if (ImGui::Checkbox("LSP Completion", &lspAutocomplete))
+	{
+		settings["lsp_autocomplete"] = lspAutocomplete;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Code completion & suggestions)");
 }
 
 void Settings::renderShaderSettings()

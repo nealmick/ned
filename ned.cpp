@@ -32,7 +32,6 @@ Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
 
-// Add these at the top with other static variables
 static double lastMouseX = 0.0;
 static double lastMouseY = 0.0;
 static double dragStartMouseX = 0.0;

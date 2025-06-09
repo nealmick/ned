@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <thread>
+#include <chrono>
 
 using json = nlohmann::json;
 
@@ -61,6 +62,11 @@ class LSPAutocomplete
 	std::atomic<bool> shouldStop{false};
 	std::thread workerThread;
 
+	// Position caching for smooth menu updates
+	ImVec2 lastPopupPos;
+	std::chrono::steady_clock::time_point lastPositionUpdate;
+	static constexpr int POSITION_CACHE_DURATION_MS = 2000; // 2 seconds
+
 	// --- Private Helper Functions for Rendering ---
 	bool shouldRender();
 	bool handleInputAndCheckClose(); // Returns true if the window should close
@@ -69,6 +75,7 @@ class LSPAutocomplete
 	void renderCompletionListItems();
 	bool handleClickOutside();
 	void finalizeRenderState();
+	void resetPopupPosition(); // New function to reset position cache
 
 	// State tracking for focus/frame logic
 	static bool wasShowingLastFrame;
