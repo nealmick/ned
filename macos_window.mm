@@ -89,7 +89,7 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     originalGlfwContentView.frame = appContainer.bounds;
     
     // Create draggable title bar area
-    CGFloat titleBarHeight = 24.0;
+    CGFloat titleBarHeight = 44.0;
     NSRect titleBarRect = NSMakeRect(0, contentRect.size.height - titleBarHeight, contentRect.size.width, titleBarHeight);
     DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect];
     titleBarView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
