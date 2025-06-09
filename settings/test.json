@@ -22,6 +22,7 @@
     "splitPos": 0.3077601492404938,
     "static_intensity": 0.3019999861717224,
     "theme": "default",
+    "lsp_autocomplete": true,
     "themes": {
         "default": {
             "background": [

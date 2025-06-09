@@ -204,10 +204,20 @@ void EditorKeyboard::handleCharacterInput()
 		return;
 	}
 
-	bool hasSpace = inputText.find(' ') != std::string::npos;
-	if (hasSpace) {
-		// Close LSP completion menu if it's open
-		gLSPAutocomplete.showCompletions = false;
+	// Only close LSP completion menu for specific characters
+	bool shouldCloseCompletion = false;
+	for (char c : inputText) {
+		// Close for space, dot (for method chaining), and other special characters
+		if (c == ' ' || c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+			c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
+			c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
+			c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
+			shouldCloseCompletion = true;
+			break;
+		}
+	}
+
+	if (shouldCloseCompletion) {
 		editor_state.block_input = false;
 	}
 
@@ -373,7 +383,7 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.text_changed = true;
 
 	// After processing the input, trigger LSP completion only if there was no space
-	if (!inputText.empty() && !hasSpace) {
+	if (!inputText.empty() && !shouldCloseCompletion && gSettings.getSettings()["lsp_autocomplete"]) {
 		// Get current line number and character offset
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 		int line_start = editor_state.editor_content_lines[current_line];
