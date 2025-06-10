@@ -12,9 +12,54 @@ EditorMouse gEditorMouse;
 
 EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false) {}
 
+// Helper function to check if a character is a word boundary
+bool isWordBoundary(char c) {
+	return c == ' ' || c == '.' || c == '(' || c == ')' || c == '{' || c == '}' || 
+		   c == '[' || c == ']' || c == ',' || c == ';' || c == ':' || c == '\n' || 
+		   c == '\t' || c == '\0' || c == '+' || c == '-' || c == '*' || c == '/' ||
+		   c == '%' || c == '=' || c == '!' || c == '<' || c == '>' || c == '&' ||
+		   c == '|' || c == '^' || c == '~' || c == '?' || c == '@' || c == '#' ||
+		   c == '$' || c == '\\' || c == '\'' || c == '"' || c == '`';
+}
+
+// Helper function to find word boundaries
+void findWordBoundaries(const std::string& text, int cursor_pos, int& start, int& end) {
+	// Find start boundary (move left until we hit a boundary)
+	start = cursor_pos;
+	while (start > 0 && !isWordBoundary(text[start - 1])) {
+		start--;
+	}
+	
+	// Find end boundary (move right until we hit a boundary)
+	end = cursor_pos;
+	while (end < text.size() && !isWordBoundary(text[end])) {
+		end++;
+	}
+}
+
 void EditorMouse::handleMouseInput()
 {
 	int char_index = getCharIndexFromCoords();
+
+	// Handle double click
+	if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+		// Find word boundaries
+		int start, end;
+		findWordBoundaries(editor_state.fileContent, char_index, start, end);
+		
+		// Set selection
+		editor_state.selection_active = true;
+		editor_state.selection_start = start;
+		editor_state.selection_end = end;
+		editor_state.cursor_index = end;
+		
+		// Update cursor column preference
+		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+		editor_state.cursor_column_prefered = 
+			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		
+		return;
+	}
 
 	// Handle left click
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
