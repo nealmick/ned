@@ -23,6 +23,35 @@ static NSWindow* configuredWindow = nil;
 - (void)mouseDown:(NSEvent *)event {
     [self.window performWindowDragWithEvent:event];
 }
+
+- (void)setFrame:(NSRect)frame {
+    // Ensure we maintain the 90% width ratio
+    NSRect windowFrame = self.window.frame;
+    frame.size.width = windowFrame.size.width * 0.90;
+    [super setFrame:frame];
+}
+
+- (void)viewDidEndLiveResize {
+    [super viewDidEndLiveResize];
+    // Force a frame update
+    [self setFrame:self.frame];
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    // Ensure proper initialization when view is added to window
+    if (self.window) {
+        [self setFrame:self.frame];
+    }
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    // Update frame to maintain 85% width ratio
+    NSRect windowFrame = self.window.frame;
+    CGFloat newWidth = windowFrame.size.width * 0.85;
+    self.frame = NSMakeRect(0, self.frame.origin.y, newWidth, self.frame.size.height);
+}
 @end
 
 void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
@@ -90,9 +119,14 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     
     // Create draggable title bar area
     CGFloat titleBarHeight = 44.0;
-    NSRect titleBarRect = NSMakeRect(0, contentRect.size.height - titleBarHeight, contentRect.size.width, titleBarHeight);
+    CGFloat titleBarWidth = contentRect.size.width * 0.90; // 90% of window width
+    NSRect titleBarRect = NSMakeRect(0, contentRect.size.height - titleBarHeight, titleBarWidth, titleBarHeight);
     DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect];
-    titleBarView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    titleBarView.autoresizingMask = NSViewMinYMargin | NSViewWidthSizable;
+    
+    // Ensure the view is properly set up
+    [titleBarView setWantsLayer:YES];
+    titleBarView.layer.backgroundColor = [[NSColor clearColor] CGColor];
     
     // Rebuild view hierarchy:
     nswindow.contentView = containerView;
