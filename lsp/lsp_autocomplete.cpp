@@ -476,12 +476,40 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId,
 												   int line,
 												   int character)
 {
-	// Determine if we're triggering after a '.' (common in Python)
+	// Determine trigger character and kind
+	char prev_char = '\0';
 	bool is_triggered_by_dot = false;
+	bool is_triggered_by_colon = false;
+	bool is_triggered_by_arrow = false;
+	
 	if (editor_state.cursor_index > 0)
 	{
-		char prev_char = editor_state.fileContent[editor_state.cursor_index - 1];
+		prev_char = editor_state.fileContent[editor_state.cursor_index - 1];
 		is_triggered_by_dot = (prev_char == '.');
+		is_triggered_by_colon = (prev_char == ':');
+		is_triggered_by_arrow = (prev_char == '>');
+	}
+
+	// Determine trigger kind
+	int triggerKind = 1; // Invoked
+	if (is_triggered_by_dot || is_triggered_by_colon || is_triggered_by_arrow)
+	{
+		triggerKind = 2; // TriggerCharacter
+	}
+
+	// Determine trigger character
+	std::string triggerChar = "null";
+	if (is_triggered_by_dot)
+	{
+		triggerChar = "\".\"";
+	}
+	else if (is_triggered_by_colon)
+	{
+		triggerChar = "\":\"";
+	}
+	else if (is_triggered_by_arrow)
+	{
+		triggerChar = "\">\"";
 	}
 
 	return std::string(R"({
@@ -503,9 +531,9 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId,
             },
             "context": {
                 "triggerKind": )" +
-		   (is_triggered_by_dot ? "1" : "2") + R"(,
+		   std::to_string(triggerKind) + R"(,
                 "triggerCharacter": )" +
-		   (is_triggered_by_dot ? "\".\"" : "null") + R"(
+		   triggerChar + R"(
             }
         }
     })";
@@ -566,14 +594,16 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	if (result.is_array())
 	{
 		items_json = result.get<std::vector<json>>();
-	} else if (result.is_object())
+	}
+	else if (result.is_object())
 	{
 		if (result.contains("items") && result["items"].is_array())
 		{
 			items_json = result["items"].get<std::vector<json>>();
 		}
 		is_incomplete = result.value("isIncomplete", false);
-	} else if (result.is_null())
+	}
+	else if (result.is_null())
 	{
 		std::cout << "\033[33mLSP Autocomplete:\033[0m No completions found "
 					 "(result is null)."
@@ -581,7 +611,8 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		currentCompletionItems.clear();
 		showCompletions = false;
 		return;
-	} else
+	}
+	else
 	{
 		std::cout << "\033[31mLSP Autocomplete:\033[0m Unexpected result format: "
 				  << result.type_name() << std::endl;
@@ -593,22 +624,30 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	std::cout << "\033[32mFound " << items_json.size() << " completions"
 			  << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
 
-	currentCompletionItems.clear();
-	currentCompletionItems.reserve(items_json.size());
-
-	// Get the current word being typed for filtering
+	// Universal word boundary detection that works for most languages
 	std::string currentWord;
 	int cursor_pos = editor_state.cursor_index;
 	int word_start = cursor_pos;
-	while (word_start > 0 && (isalnum(editor_state.fileContent[word_start - 1]) || 
-							 editor_state.fileContent[word_start - 1] == '_'))
+	
+	// Common identifier characters across languages
+	const std::string additionalWordChars = ".:$#@";
+	
+	while (word_start > 0)
 	{
+		char c = editor_state.fileContent[word_start - 1];
+		// Include characters that are typically part of identifiers
+		if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
+			break;
 		word_start--;
 	}
+	
 	if (word_start < cursor_pos)
 	{
 		currentWord = editor_state.fileContent.substr(word_start, cursor_pos - word_start);
 	}
+
+	// Use a map to deduplicate completions while preserving the best one
+	std::unordered_map<std::string, CompletionDisplayItem> uniqueItems;
 
 	for (const auto &item_json : items_json)
 	{
@@ -621,155 +660,134 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		newItem.endLine = -1;
 		newItem.endChar = -1;
 
-		// Convert to lowercase for case-insensitive comparison
-		std::string label_lower = newItem.label;
-		std::transform(label_lower.begin(), label_lower.end(), label_lower.begin(), ::tolower);
-		std::string current_word_lower = currentWord;
-		std::transform(current_word_lower.begin(), current_word_lower.end(), current_word_lower.begin(), ::tolower);
+		// Use server's sortText if available
+		newItem.sortText = item_json.value("sortText", newItem.label);
 
-		// Skip if it doesn't match what we're typing
-		if (!currentWord.empty() && label_lower.find(current_word_lower) == std::string::npos) {
-			continue;
-		}
+		// Create a unique key that preserves important distinctions
+		std::string uniqueKey = newItem.label + "|" + std::to_string(newItem.kind);
 
-		// Skip if the completion exactly matches what we've already typed
-		if (label_lower == current_word_lower) {
-			continue;
-		}
-
-		// Create a sort key that prioritizes:
-		// 1. Exact matches at the start
-		// 2. Shorter matches
-		// 3. Alphabetical order
-		std::string sortKey;
-		if (label_lower.find(current_word_lower) == 0) {
-			// Exact match at start gets highest priority
-			sortKey = "0" + label_lower;
-		} else {
-			// Other matches get lower priority
-			sortKey = "1" + label_lower;
-		}
-		newItem.sortText = sortKey;
-
-		bool hasTextEdit = false;
-		std::string positionInfo;
-
-		// First try to get textEdit data
-		if (item_json.contains("textEdit") && item_json["textEdit"].is_object())
+		// Only replace if we have a better sortText
+		auto it = uniqueItems.find(uniqueKey);
+		if (it == uniqueItems.end() || newItem.sortText < it->second.sortText)
 		{
-			const auto &textEdit = item_json["textEdit"];
-			if (textEdit.contains("newText") && textEdit["newText"].is_string())
+			bool hasTextEdit = false;
+			std::string positionInfo;
+
+			// First try to get textEdit data
+			if (item_json.contains("textEdit") && item_json["textEdit"].is_object())
 			{
-				newItem.insertText = textEdit["newText"].get<std::string>();
-
-				if (textEdit.contains("range") && textEdit["range"].is_object())
+				const auto &textEdit = item_json["textEdit"];
+				if (textEdit.contains("newText") && textEdit["newText"].is_string())
 				{
-					const auto &range = textEdit["range"];
-					if (range.contains("start") && range["start"].is_object() &&
-						range.contains("end") && range["end"].is_object())
+					newItem.insertText = textEdit["newText"].get<std::string>();
+
+					if (textEdit.contains("range") && textEdit["range"].is_object())
 					{
-						const auto &start = range["start"];
-						const auto &end = range["end"];
-
-						newItem.startLine = start.value("line", -1);
-						newItem.startChar = start.value("character", -1);
-						newItem.endLine = end.value("line", -1);
-						newItem.endChar = end.value("character", -1);
-
-						if (newItem.startLine != -1)
+						const auto &range = textEdit["range"];
+						if (range.contains("start") && range["start"].is_object() &&
+							range.contains("end") && range["end"].is_object())
 						{
-							positionInfo = "Replace from [L" + std::to_string(newItem.startLine) +
-										   ":C" + std::to_string(newItem.startChar) + "] to [L" +
-										   std::to_string(newItem.endLine) + ":C" +
-										   std::to_string(newItem.endChar) + "]";
+							const auto &start = range["start"];
+							const auto &end = range["end"];
+
+							newItem.startLine = start.value("line", -1);
+							newItem.startChar = start.value("character", -1);
+							newItem.endLine = end.value("line", -1);
+							newItem.endChar = end.value("character", -1);
 						}
 					}
+					hasTextEdit = true;
 				}
-				hasTextEdit = true;
 			}
+
+			// If no textEdit, calculate word boundaries
+			if (!hasTextEdit)
+			{
+				int word_start = cursor_pos;
+				int word_end = cursor_pos;
+
+				// Walk backwards to find word start
+				while (word_start > 0)
+				{
+					char c = editor_state.fileContent[word_start - 1];
+					if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
+						break;
+					word_start--;
+				}
+
+				// Walk forwards to find word end
+				while (word_end < editor_state.fileContent.size())
+				{
+					char c = editor_state.fileContent[word_end];
+					if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
+						break;
+					word_end++;
+				}
+
+				// Convert to line/character positions
+				auto [startLine, startChar] = getLineAndCharFromIndex(word_start);
+				auto [endLine, endChar] = getLineAndCharFromIndex(word_end);
+
+				newItem.startLine = startLine;
+				newItem.startChar = startChar;
+				newItem.endLine = endLine;
+				newItem.endChar = endChar;
+
+				// Get insert text from either insertText or label
+				if (item_json.contains("insertText") && item_json["insertText"].is_string())
+				{
+					newItem.insertText = item_json["insertText"].get<std::string>();
+				}
+				else
+				{
+					newItem.insertText = newItem.label;
+				}
+			}
+
+			// Universal relevance boosting based on prefix match
+			if (!currentWord.empty())
+			{
+				const std::string& label = newItem.label;
+				std::string labelLower = label;
+				std::transform(labelLower.begin(), labelLower.end(), labelLower.begin(), ::tolower);
+				std::string currentWordLower = currentWord;
+				std::transform(currentWordLower.begin(), currentWordLower.end(), currentWordLower.begin(), ::tolower);
+
+				// Tier 1: Exact prefix match (case-sensitive)
+				if (label.length() >= currentWord.length() && 
+					label.substr(0, currentWord.length()) == currentWord)
+				{
+					newItem.sortText = " " + newItem.sortText; // Space sorts before alphanumeric
+				}
+				// Tier 2: Case-insensitive prefix match
+				else if (labelLower.length() >= currentWordLower.length() && 
+						 labelLower.substr(0, currentWordLower.length()) == currentWordLower)
+				{
+					newItem.sortText = "!" + newItem.sortText; // ! sorts after space
+				}
+				// Tier 3: Contains match (case-insensitive)
+				else if (labelLower.find(currentWordLower) != std::string::npos)
+				{
+					newItem.sortText = "~" + newItem.sortText; // ~ sorts after !
+				}
+			}
+
+			uniqueItems[uniqueKey] = newItem;
 		}
-
-		// If no textEdit, calculate word boundaries
-		if (!hasTextEdit)
-		{
-			int cursor_pos = editor_state.cursor_index;
-
-			// Find current word boundaries
-			int word_start = cursor_pos;
-			int word_end = cursor_pos;
-
-			// Walk backwards to find word start (include underscores for Python)
-			while (word_start > 0 && (isalnum(editor_state.fileContent[word_start - 1]) ||
-									  editor_state.fileContent[word_start - 1] == '_'))
-			{
-				word_start--;
-			}
-
-			// Walk forwards to find word end
-			while (word_end < editor_state.fileContent.size() &&
-				   (isalnum(editor_state.fileContent[word_end]) ||
-					editor_state.fileContent[word_end] == '_'))
-			{
-				word_end++;
-			}
-
-			// Convert to line/character positions
-			auto [startLine, startChar] = getLineAndCharFromIndex(word_start);
-			auto [endLine, endChar] = getLineAndCharFromIndex(word_end);
-
-			newItem.startLine = startLine;
-			newItem.startChar = startChar;
-			newItem.endLine = endLine;
-			newItem.endChar = endChar;
-
-			// Get insert text from either insertText or label
-			if (item_json.contains("insertText") && item_json["insertText"].is_string())
-			{
-				newItem.insertText = item_json["insertText"].get<std::string>();
-			} else
-			{
-				newItem.insertText = newItem.label;
-			}
-
-			positionInfo = "Replace current word";
-		}
-
-		currentCompletionItems.push_back(newItem);
 	}
 
-	// Sort completions using our improved sorting logic
+	// Convert map to vector
+	currentCompletionItems.clear();
+	currentCompletionItems.reserve(uniqueItems.size());
+	for (const auto &pair : uniqueItems)
+	{
+		currentCompletionItems.push_back(pair.second);
+	}
+
+	// Sort completions using our universal sortText
 	std::sort(currentCompletionItems.begin(), currentCompletionItems.end(),
-			  [&currentWord](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
-				  // Convert to lowercase for comparison
-				  std::string a_lower = a.label;
-				  std::string b_lower = b.label;
-				  std::transform(a_lower.begin(), a_lower.end(), a_lower.begin(), ::tolower);
-				  std::transform(b_lower.begin(), b_lower.end(), b_lower.begin(), ::tolower);
-
-				  // Check if either matches the current word exactly
-				  bool a_exact = (a_lower == currentWord);
-				  bool b_exact = (b_lower == currentWord);
-				  if (a_exact != b_exact) return a_exact > b_exact;
-
-				  // Check if either starts with the current word
-				  bool a_starts = (a_lower.find(currentWord) == 0);
-				  bool b_starts = (b_lower.find(currentWord) == 0);
-				  if (a_starts != b_starts) return a_starts > b_starts;
-
-				  // If both start with the word, prefer shorter matches
-				  if (a_starts && b_starts) {
-					  if (a.label.length() != b.label.length()) {
-						  return a.label.length() < b.label.length();
-					  }
-				  }
-
-				  // For non-prefix matches, prefer case-sensitive matches
-				  bool a_case_match = (a.label.find(currentWord) != std::string::npos);
-				  bool b_case_match = (b.label.find(currentWord) != std::string::npos);
-				  if (a_case_match != b_case_match) return a_case_match > b_case_match;
-
-				  // Finally, sort alphabetically
-				  return a.label < b.label;
+			  [](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
+				  return a.sortText < b.sortText;
 			  });
 
 	// Update UI state
@@ -778,7 +796,8 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 		updatePopupPosition();
 		showCompletions = true;
 		selectedCompletionIndex = 0;
-	} else
+	}
+	else
 	{
 		showCompletions = false;
 	}
