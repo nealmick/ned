@@ -17,7 +17,7 @@
 // if the file is corrupted or invalid 
 // the default file will be loaded instead
 
-//Standard kebinds
+//Standard kebinds (can not be edited):
 // cmd + up/down : jump 5 lines up/down
 // cmd + left/right : jump to line start end
 // option + up/down : swap line up/down

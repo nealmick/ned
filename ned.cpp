@@ -841,7 +841,7 @@ void Ned::handleKeyboardShortcuts()
 		std::cout << "Toggled sidebar visibility" << std::endl;
 	}
 	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
-	 
+	
 	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false)){
 		gTerminal.toggleVisibility();
 		gFileExplorer.saveCurrentFile();
