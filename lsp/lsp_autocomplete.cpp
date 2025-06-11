@@ -67,10 +67,19 @@ void LSPAutocomplete::workerFunction() {
 		std::cout << "\033[35mLSP Autocomplete:\033[0m Processing request at line " << request.line
 				  << ", char " << request.character << " (ID: " << request.requestId << ")" << std::endl;
 
+		// Store the request for later coordinate retrieval
+		{
+			std::lock_guard<std::mutex> lock(activeRequestsMutex);
+			activeRequests[request.requestId] = request;
+		}
+
 		// Form and send request
 		std::string request_str = formCompletionRequest(request.requestId, request.filePath, request.line, request.character);
 		if (!gLSPManager.sendRequest(request_str)) {
 			std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request" << std::endl;
+			// Remove from active requests if send failed
+			std::lock_guard<std::mutex> lock(activeRequestsMutex);
+			activeRequests.erase(request.requestId);
 			continue;
 		}
 
@@ -237,14 +246,26 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 void LSPAutocomplete::insertText(
 	int row_start, int col__start, int row_end, int col__end, std::string text)
 {
-	int start_index = editor_state.editor_content_lines[row_start] + col__start;
-	int end_index = editor_state.editor_content_lines[row_end] + col__end;
-	if (start_index < 0 || end_index < 0 || start_index > end_index)
-	{
-		std::cerr << "Invalid positions - using cursor insertion" << std::endl;
+	int start_index, end_index;
+	
+	// Bounds check for row indices
+	if (row_start < 0 || row_start >= editor_state.editor_content_lines.size() ||
+		row_end < 0 || row_end >= editor_state.editor_content_lines.size()) {
+		std::cerr << "Invalid row positions - using cursor insertion" << std::endl;
 		start_index = end_index = editor_state.cursor_index;
+	} else {
+		start_index = editor_state.editor_content_lines[row_start] + col__start;
+		end_index = editor_state.editor_content_lines[row_end] + col__end;
+		
+		// Additional bounds checking
+		if (start_index < 0 || end_index < 0 || start_index > end_index ||
+			start_index > editor_state.fileContent.size() || end_index > editor_state.fileContent.size())
+		{
+			std::cerr << "Invalid positions - using cursor insertion" << std::endl;
+			start_index = end_index = editor_state.cursor_index;
+		}
 	}
-	std::cout << "index start" << start_index << "index_end" << end_index << std::endl;
+	// Debug output removed for performance
 
 	// Delete existing content in both buffers
 	if (start_index <= end_index && end_index <= editor_state.fileContent.size())
@@ -559,6 +580,11 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		{
 			std::cerr << "\033[31mLSP Autocomplete:\033[0m Error: " << j["error"].dump(2)
 					  << std::endl;
+			// Clean up failed request
+			{
+				std::lock_guard<std::mutex> lock(activeRequestsMutex);
+				activeRequests.erase(requestId);
+			}
 			currentCompletionItems.clear();
 			showCompletions = false;
 			return true;
@@ -567,7 +593,19 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		// Process result
 		if (j.contains("result"))
 		{
-			parseCompletionResult(j["result"]);
+			// Retrieve original request coordinates
+			int requestLine = -1, requestCharacter = -1;
+			{
+				std::lock_guard<std::mutex> lock(activeRequestsMutex);
+				auto it = activeRequests.find(requestId);
+				if (it != activeRequests.end()) {
+					requestLine = it->second.line;
+					requestCharacter = it->second.character;
+					activeRequests.erase(it); // Clean up completed request
+				}
+			}
+			
+			parseCompletionResult(j["result"], requestLine, requestCharacter);
 			return true;
 		}
 
@@ -575,18 +613,28 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		std::cout << "\033[31mLSP Autocomplete:\033[0m Response missing "
 					 "'result' field."
 				  << std::endl;
+		// Clean up failed request
+		{
+			std::lock_guard<std::mutex> lock(activeRequestsMutex);
+			activeRequests.erase(requestId);
+		}
 		currentCompletionItems.clear();
 		showCompletions = false;
 		return true;
 	} catch (const json::exception &e)
 	{
 		std::cerr << "\033[31mLSP Autocomplete:\033[0m JSON error: " << e.what() << std::endl;
+		// Clean up failed request
+		{
+			std::lock_guard<std::mutex> lock(activeRequestsMutex);
+			activeRequests.erase(requestId);
+		}
 		currentCompletionItems.clear();
 		showCompletions = false;
 		return true;
 	}
 }
-void LSPAutocomplete::parseCompletionResult(const json &result)
+void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine, int requestCharacter)
 {
 	std::vector<json> items_json;
 	bool is_incomplete = false;
@@ -624,26 +672,74 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 	std::cout << "\033[32mFound " << items_json.size() << " completions"
 			  << (is_incomplete ? " (incomplete list)" : "") << ":\033[0m" << std::endl;
 
-	// Universal word boundary detection that works for most languages
-	std::string currentWord;
-	int cursor_pos = editor_state.cursor_index;
-	int word_start = cursor_pos;
+	// Use the original request coordinates that were sent to server
+	int currentLine = requestLine;
+	int currentChar = requestCharacter;
 	
-	// Common identifier characters across languages
-	const std::string additionalWordChars = ".:$#@";
-	
-	while (word_start > 0)
-	{
-		char c = editor_state.fileContent[word_start - 1];
-		// Include characters that are typically part of identifiers
-		if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
-			break;
-		word_start--;
+	// Calculate the original cursor position when the request was made
+	int request_cursor_pos = -1;
+	if (currentLine >= 0 && currentLine < editor_state.editor_content_lines.size()) {
+		int line_start = editor_state.editor_content_lines[currentLine];
+		request_cursor_pos = line_start + currentChar;
+		
+		// Bounds check to ensure we don't exceed file content
+		if (request_cursor_pos < 0 || request_cursor_pos > editor_state.fileContent.size()) {
+			request_cursor_pos = editor_state.cursor_index;
+			auto [line, character] = getLineAndCharFromIndex(request_cursor_pos);
+			currentLine = line;
+			currentChar = character;
+		}
+	} else {
+		// Fallback to current cursor if coordinates are invalid
+		request_cursor_pos = editor_state.cursor_index;
+		auto [line, character] = getLineAndCharFromIndex(request_cursor_pos);
+		currentLine = line;
+		currentChar = character;
 	}
 	
-	if (word_start < cursor_pos)
+	// Find the start of the current word for filtering purposes
+	std::string currentWord;
+	int word_start = request_cursor_pos;
+	
+	// Smart word boundary detection for property access
+	// First, check if we're in a property access context (has a dot before cursor)
+	bool isPropertyAccess = false;
+	int lastDotPos = -1;
+	
+	// Look backwards to find the last dot
+	for (int i = request_cursor_pos - 1; i >= 0; i--) {
+		char c = editor_state.fileContent[i];
+		if (c == '.') {
+			lastDotPos = i;
+			isPropertyAccess = true;
+			break;
+		}
+		// Stop if we hit a space, newline, or other non-identifier character
+		if (!isalnum(c) && c != '_') {
+			break;
+		}
+	}
+	
+	if (isPropertyAccess && lastDotPos != -1) {
+		// For property access, word starts after the last dot
+		word_start = lastDotPos + 1;
+	} else {
+		// Normal word boundary detection
+		const std::string additionalWordChars = ":$#@"; // Removed . for better property handling
+		
+		while (word_start > 0)
+		{
+			char c = editor_state.fileContent[word_start - 1];
+			// Include characters that are typically part of identifiers
+			if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
+				break;
+			word_start--;
+		}
+	}
+	
+	if (word_start < request_cursor_pos && word_start >= 0 && request_cursor_pos <= editor_state.fileContent.size())
 	{
-		currentWord = editor_state.fileContent.substr(word_start, cursor_pos - word_start);
+		currentWord = editor_state.fileContent.substr(word_start, request_cursor_pos - word_start);
 	}
 
 	// Use a map to deduplicate completions while preserving the best one
@@ -673,6 +769,8 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 			bool hasTextEdit = false;
 			std::string positionInfo;
 
+			// Reduced debug output
+			
 			// First try to get textEdit data
 			if (item_json.contains("textEdit") && item_json["textEdit"].is_object())
 			{
@@ -694,44 +792,29 @@ void LSPAutocomplete::parseCompletionResult(const json &result)
 							newItem.startChar = start.value("character", -1);
 							newItem.endLine = end.value("line", -1);
 							newItem.endChar = end.value("character", -1);
+							
+							// Debug removed for performance
 						}
 					}
 					hasTextEdit = true;
 				}
+			} else {
+				// No textEdit found
 			}
 
-			// If no textEdit, calculate word boundaries
-			if (!hasTextEdit)
+			// If no textEdit OR textEdit has invalid coordinates, use server coordinates and LSP standard behavior
+			if (!hasTextEdit || newItem.startLine == -1 || newItem.startChar == -1 || newItem.endLine == -1 || newItem.endChar == -1)
 			{
-				int word_start = cursor_pos;
-				int word_end = cursor_pos;
+				// According to LSP spec, when no textEdit is provided, the completion
+				// replaces from the start of the current word to the cursor position
+				auto [wordStartLine, wordStartChar] = getLineAndCharFromIndex(word_start);
+				
+				newItem.startLine = wordStartLine;
+				newItem.startChar = wordStartChar;
+				newItem.endLine = currentLine;
+				newItem.endChar = currentChar;
 
-				// Walk backwards to find word start
-				while (word_start > 0)
-				{
-					char c = editor_state.fileContent[word_start - 1];
-					if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
-						break;
-					word_start--;
-				}
-
-				// Walk forwards to find word end
-				while (word_end < editor_state.fileContent.size())
-				{
-					char c = editor_state.fileContent[word_end];
-					if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
-						break;
-					word_end++;
-				}
-
-				// Convert to line/character positions
-				auto [startLine, startChar] = getLineAndCharFromIndex(word_start);
-				auto [endLine, endChar] = getLineAndCharFromIndex(word_end);
-
-				newItem.startLine = startLine;
-				newItem.startChar = startChar;
-				newItem.endLine = endLine;
-				newItem.endChar = endChar;
+				// Using calculated word boundaries
 
 				// Get insert text from either insertText or label
 				if (item_json.contains("insertText") && item_json["insertText"].is_string())
