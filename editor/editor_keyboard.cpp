@@ -208,7 +208,7 @@ void EditorKeyboard::handleCharacterInput()
 	bool shouldCloseCompletion = false;
 	for (char c : inputText) {
 		// Close for space, dot (for method chaining), and other special characters
-		if (c == ' ' || c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+		if (c == ' ' || c == ' ' || c == '(' || c == ')' || c == '[' || c == ']' || 
 			c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
 			c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
 			c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
@@ -216,7 +216,7 @@ void EditorKeyboard::handleCharacterInput()
 			break;
 		}
 	}
-
+	
 	if (shouldCloseCompletion) {
 		editor_state.block_input = false;
 	}
@@ -381,16 +381,11 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.multi_selections.clear(); // Important: clear multi-selections after typing
 
 	editor_state.text_changed = true;
+	//gEditor.updateLineStarts();
 
 	// After processing the input, trigger LSP completion only if there was no space
 	if (!inputText.empty() && !shouldCloseCompletion && gSettings.getSettings()["lsp_autocomplete"]) {
-		// Get current line number and character offset
-		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		int line_start = editor_state.editor_content_lines[current_line];
-		int char_offset = editor_state.cursor_index - line_start;
-
-		// Request completion
-		gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile, current_line, char_offset);
+		editor_state.get_autocomplete = true;
 	}
 }
 
@@ -1007,6 +1002,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		 
 			if (ImGui::IsKeyPressed(lsp_completion, false))
 			{
+				editor_state.get_autocomplete = false;
 				// Get current line number from editor_state
 				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
@@ -1020,7 +1016,21 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			}
 		}
 	}
+	handleTextInput();
+	
+	if(editor_state.get_autocomplete){
+		editor_state.get_autocomplete = false;
+				// Get current line number from editor_state
+				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
+				// Get character offset in current line
+				int line_start = editor_state.editor_content_lines[current_line];
+				int char_offset = editor_state.cursor_index - line_start;
+
+				gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile,
+												   current_line,
+												   char_offset);
+	}
 	if (ImGui::IsWindowHovered())
 	{
 		gEditorMouse.handleMouseInput();
@@ -1039,8 +1049,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 									   window_height,
 									   window_width);
 
-	// Call the refactored method in EditorKeyboard
-	handleTextInput();
 
 	if (ImGui::IsWindowFocused() && ctrl_pressed)
 		gEditorCopyPaste.processClipboardShortcuts();
