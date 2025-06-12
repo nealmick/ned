@@ -271,10 +271,10 @@ bool FileExplorer::readFileContent(const std::string &path)
 		// Add truncation notice if needed
 		if (isTruncated)
 		{
-			std::string notice = "\n\n[File truncated - showing first " +
+			std::string notice = "\n\n[File truncated - No Edits - showing first " +
 								 std::to_string(MAX_FILE_SIZE / (1024 * 1024)) + "MB of " +
 								 std::to_string(fileSize / (1024 * 1024)) + "MB]\n";
-			content += notice;
+			content = notice + content;
 		}
 
 		editor_state.fileContent = std::move(content);
@@ -309,18 +309,14 @@ void FileExplorer::updateFilePathStates(const std::string &path)
 	_unsavedChanges = false;
 }
 
-void FileExplorer::setupUndoManager(const std::string &path)
-{
-	auto it = fileUndoManagers.find(path);
-	if (it == fileUndoManagers.end())
-	{
-		it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-	}
-	currentUndoManager = &(it->second);
-	currentUndoManager->addState(editor_state.fileContent,
-								 0,
-								 editor_state.fileContent.size(),
-								 editor_state.cursor_index);
+void FileExplorer::setupUndoManager(const std::string& path) {
+    auto it = fileUndoManagers.find(path);
+    if (it == fileUndoManagers.end()) {
+        it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
+        // Initialize with current state
+        it->second.initialize(editor_state.fileContent, editor_state.cursor_index);
+    }
+    currentUndoManager = &(it->second);
 }
 
 void FileExplorer::handleLoadError()
@@ -369,17 +365,13 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 	}
 }
 
-void FileExplorer::addUndoState(int changeStart, int changeEnd)
-{
-	if (currentUndoManager)
-	{
-		currentUndoManager->addState(editor_state.fileContent,
-									 changeStart,
-									 changeEnd,
-									 editor_state.cursor_index);
-		saveUndoRedoState();
-	}
+void FileExplorer::addUndoState() {
+    if (currentUndoManager) {
+        currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
+        saveUndoRedoState();
+    }
 }
+
 void FileExplorer::renderFileContent()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
@@ -425,58 +417,55 @@ void FileExplorer::resetColorBuffer()
 
 	std::cout << "Reset " << new_size << " colors to white\n";
 }
-void FileExplorer::applyContentChange(const UndoRedoManager::State &state, bool preAllocate)
-{
-	gEditorHighlight.cancelHighlighting();
+// Updated Undo/Redo helpers
+void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isUndo) {
+    gEditorHighlight.cancelHighlighting();
+    
+    // Apply the operation to get new content
+    std::string newContent = isUndo ? op.apply(editor_state.fileContent)
+                                    : op.applyInverse(editor_state.fileContent);
+    
+    // Update editor state
+    editor_state.fileContent = newContent;
+    
+    // Set appropriate cursor position
+    int cursor_pos = isUndo ? op.cursor_before : op.cursor_after;
+    if (cursor_pos < 0) cursor_pos = 0;
+    if (cursor_pos > static_cast<int>(newContent.length())) {
+        cursor_pos = newContent.length();
+    }
+    editor_state.cursor_index = cursor_pos;
+    
+    // Reset selection state
+    editor_state.selection_start = editor_state.selection_end = cursor_pos;
+    editor_state.selection_active = false;
+    editor_state.multi_selections.clear();
+    
+    // Reset color buffer and trigger highlighting
+    resetColorBuffer();
+    gEditorHighlight.highlightContent(true);
 
-	if (preAllocate)
-	{
-		// Pre-allocate memory to prevent frequent reallocations (unchanged)
-		editor_state.fileContent.reserve(
-			std::max(editor_state.fileContent.capacity(), state.content.length() + 1024 * 1024));
-		editor_state.fileColors.reserve(
-			std::max(editor_state.fileColors.capacity(), state.content.length() + 1024 * 1024));
-	}
-
-	editor_state.fileContent = state.content;
-	
-	// Ensure cursor position is valid
-	int cursor_pos = state.cursor_index;
-	if (cursor_pos < 0) cursor_pos = 0;
-	if (cursor_pos > static_cast<int>(state.content.length())) {
-		cursor_pos = state.content.length();
-	}
-	editor_state.cursor_index = cursor_pos;
-	
-	// Reset selection state
-	editor_state.selection_start = editor_state.selection_end = cursor_pos;
-	editor_state.selection_active = false;
-	editor_state.multi_selections.clear();
-	
-	// Reset color buffer and trigger highlighting
-	resetColorBuffer();
-	gEditorHighlight.highlightContent(true);
-
-	_unsavedChanges = true;
-}
-void FileExplorer::handleUndo()
-{
-	if (currentUndoManager)
-	{
-		auto state = currentUndoManager->undo(editor_state.fileContent);
-		applyContentChange(state);
-		saveUndoRedoState();
-	}
+    _unsavedChanges = true;
 }
 
-void FileExplorer::handleRedo()
-{
-	if (currentUndoManager)
-	{
-		auto state = currentUndoManager->redo(editor_state.fileContent);
-		applyContentChange(state, true);
-		saveUndoRedoState();
-	}
+void FileExplorer::handleUndo() {
+    if (currentUndoManager) {
+        auto [op, valid] = currentUndoManager->undo();
+        if (valid) {
+            applyOperation(op, true);
+            saveUndoRedoState();
+        }
+    }
+}
+
+void FileExplorer::handleRedo() {
+    if (currentUndoManager) {
+        auto [op, valid] = currentUndoManager->redo();
+        if (valid) {
+            applyOperation(op, false);
+            saveUndoRedoState();
+        }
+    }
 }
 
 // In files.cpp

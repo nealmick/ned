@@ -843,7 +843,7 @@ void EditorKeyboard::handleTextInput()
 		gEditor.updateLineStarts();
 
 		// Add undo state with change range
-		gFileExplorer.addUndoState(line_start, line_end);
+		gFileExplorer.addUndoState();
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
 		editor_state.text_changed = false;
