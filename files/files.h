@@ -43,7 +43,7 @@ class FileExplorer
 	// Undo/Redo
 	void handleUndo();
 	void handleRedo();
-	void addUndoState(int changeStart, int changeEnd);
+	void addUndoState();
 	void saveUndoRedoState();
 	void loadUndoRedoState();
 
@@ -147,7 +147,9 @@ class FileExplorer
 	void updateFilePathStates(const std::string &path);
 
 	// Undo/Redo helpers
-	void applyContentChange(const UndoRedoManager::State &state, bool preAllocate = false);
+	void applyOperation(const UndoRedoManager::Operation& op, bool isUndo);
+
+
 	void resetColorBuffer();
 
 	// Find box helpers
