@@ -75,7 +75,7 @@ bool AITab::load_key()
 
 void AITab::tab_complete()
 {
-	if (!key_loaded || !gSettings.getAIAutocompleteMode())
+	if (!key_loaded)
 	{
 		return;
 	}
