@@ -458,6 +458,9 @@ void EditorKeyboard::handleEnterKey()
 	{
 		return;
 	}
+	if (gSettings.getSettings()["ai_autocomplete"]) {
+		gAITab.tab_complete();
+	}
 
 	std::vector<MultiSelectionRange> selections_to_delete;
 	bool selections_were_active = false;
@@ -924,7 +927,10 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
 			ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
 			ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
-			ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+			ImGui::IsKeyPressed(ImGuiKey_DownArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_Delete) ||
+			ImGui::IsKeyPressed(ImGuiKey_Backspace)||
+			ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
 			gAITab.dismiss_completion();
 		}
