@@ -5,24 +5,42 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <chrono>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 AITab gAITab;
 
-AITab::AITab()
+AITab::AITab() : 
+	key_loaded(load_key()),
+	request_active(false),
+	request_done(false),
+	has_ghost_text(false),
+	ghost_text_start(0),
+	ghost_text_end(0),
+	should_cancel(false),
+	last_request_time(std::chrono::steady_clock::now()),
+	pending_request(false),
+	active_thread_count(0)
 {
-	key_loaded = load_key();
-	if (key_loaded)
-	{
-		std::cout << "API key loaded successfully\n";
-	}
 }
 
 AITab::~AITab()
 {
-	if (worker.joinable())
+	should_cancel = true;
+	
 	{
-		worker.join();
-		std::cout << "Worker thread cleaned up\n";
+		std::lock_guard<std::mutex> lock(thread_mutex);
+		if (debounce_thread.joinable())
+		{
+			debounce_thread.detach();
+		}
+		
+		if (worker.joinable())
+		{
+			worker.detach();
+		}
 	}
 }
 
@@ -31,7 +49,6 @@ bool AITab::load_key()
 	const char *home_dir = getenv("HOME");
 	if (!home_dir)
 	{
-		std::cerr << "Error: HOME environment variable not set\n";
 		return false;
 	}
 
@@ -40,19 +57,14 @@ bool AITab::load_key()
 
 	if (!key_file.is_open())
 	{
-		std::cerr << "Open Router adapter : Could not open OpenRouter key file at " << key_path << "\n";
 		return false;
 	}
 
-	api_key =
-		std::string((std::istreambuf_iterator<char>(key_file)), std::istreambuf_iterator<char>());
-
-	// Trim whitespace
+	api_key = std::string((std::istreambuf_iterator<char>(key_file)), std::istreambuf_iterator<char>());
 	api_key.erase(api_key.find_last_not_of(" \n\r\t") + 1);
 
 	if (api_key.empty())
 	{
-		std::cerr << "Error: API key is empty\n";
 		return false;
 	}
 
@@ -61,49 +73,91 @@ bool AITab::load_key()
 
 void AITab::tab_complete()
 {
-	if (!key_loaded)
+	if (!key_loaded || !gSettings.getAIAutocompleteMode())
 	{
-		std::cerr << "Cannot complete - API key not loaded\n";
 		return;
 	}
-	if (!gSettings.getAIAutocompleteMode())
-	{
-		std::cout << "AI completion is disabled in settings\n";
-		return;
-	}
+
+	last_request_time = std::chrono::steady_clock::now();
+	pending_request = true;
+
 	if (request_active)
-	{ // Changed check
-		std::cout << "Request already in progress\n";
+	{
+		should_cancel = true;
+		std::cout << "Request canceled\n";
+	}
+
+	cleanup_old_threads();
+
+	if (!can_start_new_thread()) {
 		return;
 	}
 
-	if (worker.joinable())
-	{
-		if (request_done)
+	should_cancel = false;
+	increment_thread_count();
+	
+	debounce_thread = std::thread([this]() {
+		while (true)
 		{
-			worker.join();
-			request_done = false;
-		} else
-		{
-			std::cout << "Request already in progress\n";
-			return;
+			auto now = std::chrono::steady_clock::now();
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_request_time).count();
+			
+			if (elapsed >= 200)
+			{
+				break;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
-	}
 
-	std::cout << "Starting AI request...\n";
-	request_active = true;
-	worker = std::thread([this]() {
-		std::string prompt = collect_context();
-		response = OpenRouter::request(prompt, api_key);
-		request_done = true;
-		request_active = false;
+		if (pending_request)
+		{
+			request_active = true;
+			pending_request = false;
+
+			worker = std::thread([this]() {
+				if (should_cancel)
+				{
+					request_active = false;
+					decrement_thread_count();
+					return;
+				}
+
+				std::string prompt = collect_context();
+				if (should_cancel)
+				{
+					request_active = false;
+					decrement_thread_count();
+					return;
+				}
+
+				std::cout << "Requesting AI completion...\n";
+				std::string new_response = OpenRouter::request(prompt, api_key);
+				
+				if (should_cancel)
+				{
+					request_active = false;
+					decrement_thread_count();
+					return;
+				}
+
+				{
+					std::lock_guard<std::mutex> lock(thread_mutex);
+					response = std::move(new_response);
+					request_done = true;
+				}
+				request_active = false;
+				decrement_thread_count();
+			});
+		} else {
+			decrement_thread_count();
+		}
 	});
 }
+
 std::string AITab::collect_context() const
 {
 	const int cursor_pos = editor_state.cursor_index;
 
-	// Find current line number
 	int current_line = 0;
 	for (size_t i = 1; i < editor_state.editor_content_lines.size(); i++)
 	{
@@ -114,12 +168,10 @@ std::string AITab::collect_context() const
 		}
 	}
 
-	// Reduced context window for better focus (10 lines before, 5 after)
 	const int total_lines = editor_state.editor_content_lines.size();
 	const int start_line = std::max(0, current_line - 10);
 	const int end_line = std::min(total_lines - 1, current_line + 5);
 
-	// Get line start/end indices
 	const int context_start = editor_state.editor_content_lines[start_line];
 	int context_end = editor_state.editor_content_lines[end_line];
 	if (end_line + 1 < editor_state.editor_content_lines.size())
@@ -127,15 +179,10 @@ std::string AITab::collect_context() const
 		context_end = editor_state.editor_content_lines[end_line + 1];
 	}
 
-	// Extract the context string
-	std::string context =
-		editor_state.fileContent.substr(context_start, context_end - context_start);
-
-	// Insert unambiguous cursor marker with newlines for visibility
+	std::string context = editor_state.fileContent.substr(context_start, context_end - context_start);
 	const size_t cursor_pos_in_context = cursor_pos - context_start;
 	context.insert(cursor_pos_in_context, "\n [[CURSOR]]\n");
 
-	// Format prompt with clear structure
 	std::string prompt = "You are a code completion assistant. Replace "
 						 "[[CURSOR]] with appropriate code.\n"
 						 "File: " +
@@ -148,12 +195,9 @@ std::string AITab::collect_context() const
 						 "Respond only with the code that should replace "
 						 "[[CURSOR]]. No markdown, no explanations.\n";
 
-	std::cout << "\n=== Generated Prompt ===\n" << prompt << "\n=======================\n";
-
 	return prompt;
 }
 
-// Helper to get file extension for syntax highlighting
 std::string AITab::get_file_extension() const
 {
 	size_t dot_pos = gFileExplorer.currentFile.find_last_of('.');
@@ -166,28 +210,23 @@ std::string AITab::get_file_extension() const
 
 void AITab::update()
 {
-	if (worker.joinable() && request_done)
+	if (request_done)
 	{
-		worker.join();
-
-		std::cout << "\n=== AI Response ===" << std::endl;
-		std::cout << response << std::endl;
-		std::cout << "===================\n";
-
-		if (!response.empty() && response.find("error") == std::string::npos)
+		std::string current_response;
 		{
-			// If we already have ghost text, dismiss it first
+			std::lock_guard<std::mutex> lock(thread_mutex);
+			current_response = std::move(response);
+			request_done = false;
+		}
+
+		if (!current_response.empty() && current_response.find("error") == std::string::npos)
+		{
 			if (has_ghost_text)
 			{
 				dismiss_completion();
 			}
-			insert(response);
-		} else
-		{
-			std::cerr << "Error in AI response: " << response << "\n";
+			insert(current_response);
 		}
-
-		request_done = false;
 	}
 }
 
@@ -195,21 +234,22 @@ void AITab::insert(const std::string &code)
 {
 	if (code.empty()) return;
 
-	// Store ghost text state
+	if (has_ghost_text)
+	{
+		dismiss_completion();
+	}
+
 	ghost_text = code;
 	ghost_text_start = editor_state.cursor_index;
 	ghost_text_end = ghost_text_start + code.size();
 	has_ghost_text = true;
 
-	// Insert the ghost text into the content
 	editor_state.fileContent.insert(editor_state.cursor_index, code);
 	
-	// Insert gray colors for the ghost text
-	ImVec4 ghost_color = ImVec4(0.5f, 0.5f, 0.5f, 0.5f); // Gray with 50% opacity
+	ImVec4 ghost_color = ImVec4(0.5f, 0.5f, 0.5f, 0.5f);
 	editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index,
 								 code.size(), ghost_color);
 
-	// Use ghost_text_changed instead of text_changed
 	editor_state.ghost_text_changed = true;
 }
 
@@ -217,22 +257,20 @@ void AITab::accept_completion()
 {
 	if (!has_ghost_text) return;
 
-	// Change ghost text color to normal
 	for (int i = ghost_text_start; i < ghost_text_end; i++) {
-		editor_state.fileColors[i] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+		if (i < editor_state.fileColors.size()) {
+			editor_state.fileColors[i] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
 	}
 
-	// Move cursor to end of completion (one character before the end)
 	editor_state.cursor_index = ghost_text_end - 1;
 	editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 
-	// Clear ghost text state
 	has_ghost_text = false;
 	ghost_text.clear();
 	ghost_text_start = 0;
 	ghost_text_end = 0;
 
-	// Now set text_changed to trigger syntax highlighting
 	editor_state.text_changed = true;
 }
 
@@ -240,19 +278,76 @@ void AITab::dismiss_completion()
 {
 	if (!has_ghost_text) return;
 
-	// Remove the ghost text from content
+	if (ghost_text_start >= editor_state.fileContent.size() || 
+		ghost_text_end > editor_state.fileContent.size() ||
+		ghost_text_start >= editor_state.fileColors.size() ||
+		ghost_text_end > editor_state.fileColors.size()) {
+		has_ghost_text = false;
+		ghost_text.clear();
+		ghost_text_start = 0;
+		ghost_text_end = 0;
+		return;
+	}
+
 	editor_state.fileContent.erase(ghost_text_start, ghost_text_end - ghost_text_start);
-	
-	// Remove the ghost text colors
 	editor_state.fileColors.erase(editor_state.fileColors.begin() + ghost_text_start,
 								 editor_state.fileColors.begin() + ghost_text_end);
 
-	// Clear ghost text state
 	has_ghost_text = false;
 	ghost_text.clear();
 	ghost_text_start = 0;
 	ghost_text_end = 0;
 
-	// Use ghost_text_changed instead of text_changed
 	editor_state.ghost_text_changed = true;
+}
+
+void AITab::handle_editor_operation()
+{
+	if (has_ghost_text)
+	{
+		bool should_dismiss = false;
+		
+		if (editor_state.cursor_index < ghost_text_start || 
+			editor_state.cursor_index > ghost_text_end)
+		{
+			should_dismiss = true;
+		}
+		
+		if (editor_state.fileContent.size() < ghost_text_end ||
+			editor_state.fileColors.size() < ghost_text_end)
+		{
+			should_dismiss = true;
+		}
+		
+		if (should_dismiss)
+		{
+			dismiss_completion();
+		}
+	}
+}
+
+void AITab::cleanup_old_threads() {
+	std::lock_guard<std::mutex> lock(thread_mutex);
+	if (debounce_thread.joinable()) {
+		debounce_thread.detach();
+	}
+	if (worker.joinable()) {
+		worker.detach();
+	}
+}
+
+bool AITab::can_start_new_thread() {
+	std::lock_guard<std::mutex> lock(thread_mutex);
+	return active_thread_count < MAX_CONCURRENT_THREADS;
+}
+
+void AITab::increment_thread_count() {
+	std::lock_guard<std::mutex> lock(thread_mutex);
+	active_thread_count++;
+}
+
+void AITab::decrement_thread_count() {
+	std::lock_guard<std::mutex> lock(thread_mutex);
+	active_thread_count--;
+	thread_cv.notify_one();
 }
