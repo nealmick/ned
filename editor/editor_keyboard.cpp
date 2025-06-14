@@ -384,8 +384,14 @@ void EditorKeyboard::handleCharacterInput()
 	//gEditor.updateLineStarts();
 
 	// After processing the input, trigger LSP completion only if there was no space
-	if (!inputText.empty() && !shouldCloseCompletion && gSettings.getSettings()["lsp_autocomplete"]) {
-		editor_state.get_autocomplete = true;
+	if (!inputText.empty() && !shouldCloseCompletion) {
+		if (gSettings.getSettings()["lsp_autocomplete"]) {
+			editor_state.get_autocomplete = true;
+		}
+		// Trigger AI completion if enabled
+		if (gSettings.getSettings()["ai_autocomplete"]) {
+			gAITab.tab_complete();
+		}
 	}
 }
 
