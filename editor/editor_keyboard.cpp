@@ -930,6 +930,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			ImGui::IsKeyPressed(ImGuiKey_DownArrow) ||
 			ImGui::IsKeyPressed(ImGuiKey_Delete) ||
 			ImGui::IsKeyPressed(ImGuiKey_Backspace)||
+			ImGui::IsKeyPressed(ImGuiKey_Enter)||
 			ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
 			gAITab.dismiss_completion();
