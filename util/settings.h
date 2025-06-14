@@ -101,17 +101,24 @@ class Settings
 		return true; // Fallback
 	}
 
+	bool getAIAutocompleteMode() const
+	{
+		if (settings.contains("ai_autocomplete") && settings["ai_autocomplete"].is_boolean())
+		{
+			return settings["ai_autocomplete"].get<bool>();
+		}
+		return true; // Fallback
+	}
+
 	std::vector<std::string> fontNames = {
-		"IBM_MDA",
 		"SourceCodePro-Regular",
+		"JetBrainsMonoNL-Regular",
 		"NotoSansMono-Regular",
 		"NotoSansMono-Thin",
 		"NotoSansMono-Light",
 		"VT323-Regular",
+		"IBM_MDA",
 		"VT100",
-		"Commodore64",
-		"Apple2",
-		"JetBrainsMonoNL-Regular",
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
