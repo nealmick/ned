@@ -77,7 +77,7 @@ void Settings::renderSettingsWindow()
 	float current_font_size = settings.value("fontSize", 20.0f);
 
 	// Dynamic sizing based on viewport width and font size
-	if (main_viewport_size.x < 1100.0f) {
+	if (main_viewport_size.x < 1100.0f || current_font_size > 40) {
 		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
 		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
 	} else {
@@ -514,6 +514,16 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Code completion & suggestions)");
+
+	bool aiAutocomplete = settings.value("ai_autocomplete", true);
+	if (ImGui::Checkbox("AI Completion", &aiAutocomplete))
+	{
+		settings["ai_autocomplete"] = aiAutocomplete;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(AI-powered code completion)");
 }
 
 void Settings::renderShaderSettings()

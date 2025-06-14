@@ -850,6 +850,14 @@ void EditorKeyboard::handleTextInput()
 		editor_state.ensure_cursor_visible.horizontal = true;
 		editor_state.ensure_cursor_visible.vertical = true;
 	}
+	else if (editor_state.ghost_text_changed)
+	{
+		// For ghost text changes, just update line starts
+		gEditor.updateLineStarts();
+		editor_state.ghost_text_changed = false;
+		editor_state.ensure_cursor_visible.horizontal = true;
+		editor_state.ensure_cursor_visible.vertical = true;
+	}
 }
 
 void EditorKeyboard::processFontSizeAdjustment() {}
@@ -895,6 +903,25 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	{
 		gLSPAutocomplete.blockTab = false;
 		return;
+	}
+
+	// Handle AI completion first
+	if (gAITab.has_ghost_text)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_Tab))
+		{
+			gAITab.accept_completion();
+			return;
+		}
+		// Dismiss completion on any character input or arrow key
+		if (ImGui::GetIO().InputQueueCharacters.Size > 0 ||
+			ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+		{
+			gAITab.dismiss_completion();
+		}
 	}
 
 	// Process bookmarks first

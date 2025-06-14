@@ -66,6 +66,11 @@ void AITab::tab_complete()
 		std::cerr << "Cannot complete - API key not loaded\n";
 		return;
 	}
+	if (!gSettings.getAIAutocompleteMode())
+	{
+		std::cout << "AI completion is disabled in settings\n";
+		return;
+	}
 	if (request_active)
 	{ // Changed check
 		std::cout << "Request already in progress\n";
@@ -171,6 +176,11 @@ void AITab::update()
 
 		if (!response.empty() && response.find("error") == std::string::npos)
 		{
+			// If we already have ghost text, dismiss it first
+			if (has_ghost_text)
+			{
+				dismiss_completion();
+			}
 			insert(response);
 		} else
 		{
@@ -180,53 +190,69 @@ void AITab::update()
 		request_done = false;
 	}
 }
+
 void AITab::insert(const std::string &code)
 {
-	if (code.empty())
-	{
-		std::cerr << "No code to insert\n";
-		return;
+	if (code.empty()) return;
+
+	// Store ghost text state
+	ghost_text = code;
+	ghost_text_start = editor_state.cursor_index;
+	ghost_text_end = ghost_text_start + code.size();
+	has_ghost_text = true;
+
+	// Insert the ghost text into the content
+	editor_state.fileContent.insert(editor_state.cursor_index, code);
+	
+	// Insert gray colors for the ghost text
+	ImVec4 ghost_color = ImVec4(0.5f, 0.5f, 0.5f, 0.5f); // Gray with 50% opacity
+	editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index,
+								 code.size(), ghost_color);
+
+	// Use ghost_text_changed instead of text_changed
+	editor_state.ghost_text_changed = true;
+}
+
+void AITab::accept_completion()
+{
+	if (!has_ghost_text) return;
+
+	// Change ghost text color to normal
+	for (int i = ghost_text_start; i < ghost_text_end; i++) {
+		editor_state.fileColors[i] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
-	// Remove trailing newline if present
-	std::string cleaned_code = code;
-	if (!cleaned_code.empty() && cleaned_code.back() == '\n')
-	{
-		cleaned_code.pop_back();
-	}
+	// Move cursor to end of completion (one character before the end)
+	editor_state.cursor_index = ghost_text_end - 1;
+	editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 
-	const int original_pos = editor_state.cursor_index;
-	int insert_pos = original_pos;
-	int new_cursor_pos = insert_pos + cleaned_code.size();
+	// Clear ghost text state
+	has_ghost_text = false;
+	ghost_text.clear();
+	ghost_text_start = 0;
+	ghost_text_end = 0;
 
-	// Handle selection replacement
-	if (editor_state.selection_start != editor_state.selection_end)
-	{
-		int start = std::min(editor_state.selection_start, editor_state.selection_end);
-		int end = std::max(editor_state.selection_start, editor_state.selection_end);
-
-		editor_state.fileContent.replace(start, end - start, cleaned_code);
-		editor_state.fileColors.erase(editor_state.fileColors.begin() + start,
-									  editor_state.fileColors.begin() + end);
-		insert_pos = start;
-		new_cursor_pos = start + cleaned_code.size();
-	} else
-	{
-		editor_state.fileContent.insert(insert_pos, cleaned_code);
-		editor_state.fileColors.insert(editor_state.fileColors.begin() + insert_pos,
-									   cleaned_code.size(),
-									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-	}
-
-	// Update editor state with selection
-	editor_state.selection_start = insert_pos;
-	editor_state.selection_end = new_cursor_pos;
-	editor_state.selection_active = true;
-	editor_state.cursor_index = new_cursor_pos;
-
-	// Force editor to show the inserted text
+	// Now set text_changed to trigger syntax highlighting
 	editor_state.text_changed = true;
+}
 
-	// Trigger syntax highlighting
-	gEditorHighlight.highlightContent();
+void AITab::dismiss_completion()
+{
+	if (!has_ghost_text) return;
+
+	// Remove the ghost text from content
+	editor_state.fileContent.erase(ghost_text_start, ghost_text_end - ghost_text_start);
+	
+	// Remove the ghost text colors
+	editor_state.fileColors.erase(editor_state.fileColors.begin() + ghost_text_start,
+								 editor_state.fileColors.begin() + ghost_text_end);
+
+	// Clear ghost text state
+	has_ghost_text = false;
+	ghost_text.clear();
+	ghost_text_start = 0;
+	ghost_text_end = 0;
+
+	// Use ghost_text_changed instead of text_changed
+	editor_state.ghost_text_changed = true;
 }

@@ -116,6 +116,7 @@ struct EditorState
 	bool center_cursor_vertical = false;
 	// did text change or was edit made...
 	bool text_changed = false;
+	bool ghost_text_changed = false;  // New flag for ghost text changes
 
 	bool get_autocomplete = false;
 	EditorState()

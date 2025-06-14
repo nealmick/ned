@@ -11,8 +11,14 @@ class AITab
 	bool load_key();
 	void tab_complete();
 	void update(); // Call this in main loop
+	void accept_completion(); // New function to accept the completion
+	void dismiss_completion(); // New function to dismiss the completion
 
 	bool request_done = false;
+	bool has_ghost_text = false; // New flag to track if we have ghost text
+	std::string ghost_text; // The ghost text to show
+	int ghost_text_start = 0; // Start position of ghost text
+	int ghost_text_end = 0; // End position of ghost text
 
 	std::string response;
 

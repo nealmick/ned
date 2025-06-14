@@ -147,8 +147,7 @@ void EditorMouse::handleMouseClick(int char_index)
 		editor_state.selection_end = char_index;
 		editor_state.selection_active = false;
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		editor_state.cursor_column_prefered =
-			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		editor_state.cursor_column_prefered = editor_state.cursor_index - editor_state.editor_content_lines[current_line];
 	}
 	is_dragging = true;
 }
