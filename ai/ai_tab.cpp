@@ -11,6 +11,7 @@
 #include <condition_variable>
 
 AITab gAITab;
+std::atomic<bool> g_should_cancel{false};
 
 AITab::AITab() : 
 	key_loaded(load_key()),
@@ -29,6 +30,7 @@ AITab::AITab() :
 AITab::~AITab()
 {
 	should_cancel = true;
+	g_should_cancel = true;
 	
 	{
 		std::lock_guard<std::mutex> lock(thread_mutex);
@@ -78,14 +80,17 @@ void AITab::tab_complete()
 		return;
 	}
 
-	last_request_time = std::chrono::steady_clock::now();
-	pending_request = true;
-
+	// Cancel any active request first
 	if (request_active)
 	{
 		should_cancel = true;
+		g_should_cancel = true;
+		request_active = false;
 		std::cout << "Request canceled\n";
 	}
+
+	last_request_time = std::chrono::steady_clock::now();
+	pending_request = true;
 
 	cleanup_old_threads();
 
@@ -94,6 +99,7 @@ void AITab::tab_complete()
 	}
 
 	should_cancel = false;
+	g_should_cancel = false;
 	increment_thread_count();
 	
 	debounce_thread = std::thread([this]() {
@@ -102,14 +108,14 @@ void AITab::tab_complete()
 			auto now = std::chrono::steady_clock::now();
 			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_request_time).count();
 			
-			if (elapsed >= 200)
+			if (elapsed >= 500)
 			{
 				break;
 			}
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 
-		if (pending_request)
+		if (pending_request && !should_cancel)
 		{
 			request_active = true;
 			pending_request = false;
@@ -131,7 +137,13 @@ void AITab::tab_complete()
 				}
 
 				std::cout << "Requesting AI completion...\n";
-				std::string new_response = OpenRouter::request(prompt, api_key);
+				std::string new_response;
+				{
+					std::lock_guard<std::mutex> lock(thread_mutex);
+					if (!should_cancel) {
+						new_response = OpenRouter::request(prompt, api_key);
+					}
+				}
 				
 				if (should_cancel)
 				{
@@ -140,10 +152,14 @@ void AITab::tab_complete()
 					return;
 				}
 
+				// Only process non-empty responses that don't start with "error"
+				if (!new_response.empty() && new_response.find("error") != 0)
 				{
 					std::lock_guard<std::mutex> lock(thread_mutex);
-					response = std::move(new_response);
-					request_done = true;
+					if (!should_cancel) {
+						response = std::move(new_response);
+						request_done = true;
+					}
 				}
 				request_active = false;
 				decrement_thread_count();
@@ -215,11 +231,13 @@ void AITab::update()
 		std::string current_response;
 		{
 			std::lock_guard<std::mutex> lock(thread_mutex);
-			current_response = std::move(response);
-			request_done = false;
+			if (!should_cancel) {
+				current_response = std::move(response);
+				request_done = false;
+			}
 		}
 
-		if (!current_response.empty() && current_response.find("error") == std::string::npos)
+		if (!current_response.empty() && current_response.find("error") != 0)
 		{
 			if (has_ghost_text)
 			{
