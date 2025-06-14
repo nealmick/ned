@@ -506,8 +506,15 @@ void Settings::renderToggleSettings()
 	ImGui::TextDisabled("(Syntax Highlighting)");
 
 	bool lspAutocomplete = settings.value("lsp_autocomplete", true);
+	bool aiAutocomplete = settings.value("ai_autocomplete", true);
+
 	if (ImGui::Checkbox("LSP Completion", &lspAutocomplete))
 	{
+		// If LSP is being toggled ON, turn off AI completion
+		if (lspAutocomplete) {
+			aiAutocomplete = false;
+			settings["ai_autocomplete"] = false;
+		}
 		settings["lsp_autocomplete"] = lspAutocomplete;
 		settingsChanged = true;
 		saveSettings();
@@ -515,9 +522,13 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Code completion & suggestions)");
 
-	bool aiAutocomplete = settings.value("ai_autocomplete", true);
 	if (ImGui::Checkbox("AI Completion", &aiAutocomplete))
 	{
+		// If AI is being toggled ON, turn off LSP completion
+		if (aiAutocomplete) {
+			lspAutocomplete = false;
+			settings["lsp_autocomplete"] = false;
+		}
 		settings["ai_autocomplete"] = aiAutocomplete;
 		settingsChanged = true;
 		saveSettings();

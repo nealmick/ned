@@ -15,7 +15,20 @@ static NSWindow* configuredWindow = nil;
 @interface DraggableView : NSView
 @end
 
-@implementation DraggableView
+@implementation DraggableView {
+    CGFloat _leftMargin;
+    CGFloat _rightMargin;
+}
+
+- (instancetype)initWithFrame:(NSRect)frame leftMargin:(CGFloat)leftMargin rightMargin:(CGFloat)rightMargin {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _leftMargin = leftMargin;
+        _rightMargin = rightMargin;
+    }
+    return self;
+}
+
 - (BOOL)mouseDownCanMoveWindow {
     return YES;
 }
@@ -25,21 +38,20 @@ static NSWindow* configuredWindow = nil;
 }
 
 - (void)setFrame:(NSRect)frame {
-    // Ensure we maintain the 90% width ratio
     NSRect windowFrame = self.window.frame;
-    frame.size.width = windowFrame.size.width * 0.90;
+    frame.origin.x = _leftMargin;
+    frame.size.width = windowFrame.size.width - (_leftMargin + _rightMargin);
+    NSLog(@"Setting frame: x=%f, width=%f", frame.origin.x, frame.size.width);
     [super setFrame:frame];
 }
 
 - (void)viewDidEndLiveResize {
     [super viewDidEndLiveResize];
-    // Force a frame update
     [self setFrame:self.frame];
 }
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    // Ensure proper initialization when view is added to window
     if (self.window) {
         [self setFrame:self.frame];
     }
@@ -47,12 +59,123 @@ static NSWindow* configuredWindow = nil;
 
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
-    // Update frame to maintain 85% width ratio
-    NSRect windowFrame = self.window.frame;
-    CGFloat newWidth = windowFrame.size.width * 0.85;
-    self.frame = NSMakeRect(0, self.frame.origin.y, newWidth, self.frame.size.height);
+    [self setFrame:self.frame];
+}
+
+- (void)layout {
+    [super layout];
+    [self setFrame:self.frame];
+}
+
+// Make the view ignore mouse events except for dragging
+- (NSView *)hitTest:(NSPoint)point {
+    // Convert point to window coordinates
+    NSPoint windowPoint = [self convertPoint:point toView:nil];
+    
+    // Check if the point is in the left margin area (where the ImGui buttons are)
+    if (windowPoint.x < _leftMargin) {
+        return nil; // Let the event pass through to ImGui
+    }
+    
+    // For the rest of the view, allow dragging
+    return [super hitTest:point];
 }
 @end
+
+// Add window state change notification handling
+@interface WindowStateObserver : NSObject
+{
+    NSWindow* _window;
+    NSView* _titleBarView;
+    NSView* _appContainer;
+}
+
+- (instancetype)initWithWindow:(NSWindow*)window titleBarView:(NSView*)titleBarView appContainer:(NSView*)appContainer;
+- (void)windowDidMiniaturize:(NSNotification*)notification;
+- (void)windowDidDeminiaturize:(NSNotification*)notification;
+@end
+
+@implementation WindowStateObserver
+
+- (instancetype)initWithWindow:(NSWindow*)window titleBarView:(NSView*)titleBarView appContainer:(NSView*)appContainer {
+    self = [super init];
+    if (self) {
+        _window = [window retain];
+        _titleBarView = [titleBarView retain];
+        _appContainer = [appContainer retain];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                               selector:@selector(windowDidMiniaturize:)
+                                                   name:NSWindowDidMiniaturizeNotification
+                                                 object:window];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                               selector:@selector(windowDidDeminiaturize:)
+                                                   name:NSWindowDidDeminiaturizeNotification
+                                                 object:window];
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_window release];
+    [_titleBarView release];
+    [_appContainer release];
+    [super dealloc];
+}
+
+- (void)windowDidMiniaturize:(NSNotification*)notification {
+    NSLog(@"Window did miniaturize");
+    
+    // Force window to update its view hierarchy
+    [_window.contentView setNeedsDisplay:YES];
+    [_window.contentView setNeedsLayout:YES];
+    
+    // Ensure the window is properly focused
+    [_window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+    
+    // Force a complete redraw
+    [_window display];
+    
+    // Ensure the app container is visible and properly positioned
+    _appContainer.hidden = NO;
+    _appContainer.alphaValue = 1.0;
+    
+    // Force the window to update its first responder
+    [_window makeFirstResponder:_window.contentView];
+    
+    NSLog(@"Window restoration complete");
+}
+
+- (void)windowDidDeminiaturize:(NSNotification*)notification {
+    NSLog(@"Window did deminiaturize");
+    
+    // Force window to update its view hierarchy
+    [_window.contentView setNeedsDisplay:YES];
+    [_window.contentView setNeedsLayout:YES];
+    
+    // Ensure the window is properly focused
+    [_window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+    
+    // Force a complete redraw
+    [_window display];
+    
+    // Ensure the app container is visible and properly positioned
+    _appContainer.hidden = NO;
+    _appContainer.alphaValue = 1.0;
+    
+    // Force the window to update its first responder
+    [_window makeFirstResponder:_window.contentView];
+    
+    NSLog(@"Window restoration complete");
+}
+
+@end
+
+static WindowStateObserver* windowStateObserver = nil;
 
 void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     GLFWwindow* glfwWindow = (GLFWwindow*)window;
@@ -65,6 +188,7 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     }
     
     configuredWindow = nswindow;
+    NSLog(@"Configuring window: %@", nswindow);
 
     // Window style configuration
     nswindow.styleMask = NSWindowStyleMaskBorderless | 
@@ -119,16 +243,19 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     
     // Create draggable title bar area
     CGFloat titleBarHeight = 44.0;
-    CGFloat titleBarWidth = contentRect.size.width * 0.90; // 90% of window width
-    NSRect titleBarRect = NSMakeRect(0, contentRect.size.height - titleBarHeight, titleBarWidth, titleBarHeight);
-    DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect];
+    CGFloat windowWidth = contentRect.size.width;
+    CGFloat leftMargin = 100.0;  // Fixed 100px left margin
+    CGFloat rightMargin = 100.0;  // Fixed 100px right margin
+    CGFloat titleBarWidth = windowWidth - (leftMargin + rightMargin);
+    NSRect titleBarRect = NSMakeRect(leftMargin, contentRect.size.height - titleBarHeight, titleBarWidth, titleBarHeight);
+    DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect leftMargin:leftMargin rightMargin:rightMargin];
     titleBarView.autoresizingMask = NSViewMinYMargin | NSViewWidthSizable;
     
     // Ensure the view is properly set up
     [titleBarView setWantsLayer:YES];
     titleBarView.layer.backgroundColor = [[NSColor clearColor] CGColor];
     
-    // Rebuild view hierarchy:
+    // Rebuild view hierarchy with proper z-ordering:
     nswindow.contentView = containerView;
     [containerView addSubview:effectView];
     [containerView addSubview:appContainer];
@@ -138,12 +265,11 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     // Apply initial blur setting
     [effectView setHidden:!blurEnabled];
     
-    // --- FOCUS FIX STARTS HERE ---
-    [nswindow setInitialFirstResponder:originalGlfwContentView];
-    [nswindow makeFirstResponder:originalGlfwContentView];
-    [NSApp activateIgnoringOtherApps:YES];
-    [nswindow makeKeyAndOrderFront:nil];
-    // --- FOCUS FIX ENDS HERE ---
+    // Create and store window state observer
+    WindowStateObserver* observer = [[WindowStateObserver alloc] initWithWindow:nswindow 
+                                                                  titleBarView:titleBarView 
+                                                                  appContainer:appContainer];
+    [observer autorelease];
     
     // Store references for future updates
     appContainerView = appContainer;
@@ -152,8 +278,9 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     // Force window refresh
     [nswindow invalidateShadow];
     [nswindow display];
+    
+    NSLog(@"Window configuration complete");
 }
-
 
 void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
     // Ensure UI updates happen on main thread
@@ -181,6 +308,10 @@ void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
             // This additional call ensures the transparency is updated
             [configuredWindow setHasShadow:NO];
             [configuredWindow setHasShadow:YES];
+            
+            // Ensure the window is properly focused
+            [configuredWindow makeKeyAndOrderFront:nil];
+            [NSApp activateIgnoringOtherApps:YES];
         }
     });
 }

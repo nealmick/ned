@@ -252,9 +252,16 @@ void AITab::insert(const std::string &code)
 {
 	if (code.empty()) return;
 
+	std::lock_guard<std::mutex> lock(thread_mutex);
+	
 	if (has_ghost_text)
 	{
 		dismiss_completion();
+	}
+
+	// Ensure cursor index is within bounds
+	if (editor_state.cursor_index < 0 || editor_state.cursor_index > editor_state.fileContent.size()) {
+		return;
 	}
 
 	ghost_text = code;
@@ -265,6 +272,12 @@ void AITab::insert(const std::string &code)
 	editor_state.fileContent.insert(editor_state.cursor_index, code);
 	
 	ImVec4 ghost_color = ImVec4(0.5f, 0.5f, 0.5f, 0.5f);
+	
+	// Ensure we have enough space in fileColors
+	if (editor_state.fileColors.size() < editor_state.cursor_index + code.size()) {
+		editor_state.fileColors.resize(editor_state.cursor_index + code.size());
+	}
+	
 	editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index,
 								 code.size(), ghost_color);
 
@@ -296,7 +309,10 @@ void AITab::dismiss_completion()
 {
 	if (!has_ghost_text) return;
 
-	if (ghost_text_start >= editor_state.fileContent.size() || 
+	std::lock_guard<std::mutex> lock(thread_mutex);
+
+	// Validate indices before accessing
+	if (ghost_text_start < 0 || 
 		ghost_text_end > editor_state.fileContent.size() ||
 		ghost_text_start >= editor_state.fileColors.size() ||
 		ghost_text_end > editor_state.fileColors.size()) {
@@ -323,9 +339,15 @@ void AITab::handle_editor_operation()
 {
 	if (has_ghost_text)
 	{
+		std::lock_guard<std::mutex> lock(thread_mutex);
+		
 		bool should_dismiss = false;
 		
-		if (editor_state.cursor_index < ghost_text_start || 
+		// Validate cursor index
+		if (editor_state.cursor_index < 0 || editor_state.cursor_index > editor_state.fileContent.size()) {
+			should_dismiss = true;
+		}
+		else if (editor_state.cursor_index < ghost_text_start || 
 			editor_state.cursor_index > ghost_text_end)
 		{
 			should_dismiss = true;
@@ -346,6 +368,8 @@ void AITab::handle_editor_operation()
 
 void AITab::cleanup_old_threads() {
 	std::lock_guard<std::mutex> lock(thread_mutex);
+	
+	// Wait for threads to finish before detaching
 	if (debounce_thread.joinable()) {
 		debounce_thread.detach();
 	}
