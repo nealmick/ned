@@ -65,6 +65,7 @@ static NSWindow* configuredWindow = nil;
     [super layout];
     [self setFrame:self.frame];
 }
+
 @end
 
 // Custom view for top-left menu
@@ -74,6 +75,7 @@ static NSWindow* configuredWindow = nil;
 @property (nonatomic, strong) NSButton* maximizeButton;
 @property (nonatomic, assign) BOOL isHovered;
 @property (nonatomic, assign) int displayFrame;
+@property (nonatomic, assign) CGFloat currentOpacity;
 @end
 
 @implementation TopLeftMenuView {
@@ -82,6 +84,7 @@ static NSWindow* configuredWindow = nil;
     NSTrackingArea* _closeButtonTrackingArea;
     NSTrackingArea* _minimizeButtonTrackingArea;
     NSTrackingArea* _maximizeButtonTrackingArea;
+    NSTimer* _fadeTimer;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame window:(NSWindow*)window {
@@ -89,13 +92,15 @@ static NSWindow* configuredWindow = nil;
     if (self) {
         _window = window;
         _displayFrame = 0;
+        _currentOpacity = 0.0;
         self.wantsLayer = YES;
         self.layer.backgroundColor = [NSColor clearColor].CGColor;
+        self.alphaValue = 0.0;
         
         // Create traffic light buttons
         CGFloat buttonSize = 16.0;
         CGFloat spacing = 8.0;
-        CGFloat startX = 20.0;  // Increased from 12.0 to 25.0 for more left padding
+        CGFloat startX = 20.0;
         CGFloat y = (frame.size.height - buttonSize) / 2;
         
         // Close button (red)
@@ -109,7 +114,7 @@ static NSWindow* configuredWindow = nil;
         [self.closeButton setTarget:self];
         [self.closeButton setAction:@selector(closeButtonClicked:)];
         [self.closeButton setContentTintColor:[NSColor systemRedColor]];
-        [self.closeButton setHidden:YES];
+        [self.closeButton setAlphaValue:0.0];
         [self addSubview:self.closeButton];
         
         // Minimize button (yellow)
@@ -123,7 +128,7 @@ static NSWindow* configuredWindow = nil;
         [self.minimizeButton setTarget:self];
         [self.minimizeButton setAction:@selector(minimizeButtonClicked:)];
         [self.minimizeButton setContentTintColor:[NSColor systemYellowColor]];
-        [self.minimizeButton setHidden:YES];
+        [self.minimizeButton setAlphaValue:0.0];
         [self addSubview:self.minimizeButton];
         
         // Maximize button (green)
@@ -137,7 +142,7 @@ static NSWindow* configuredWindow = nil;
         [self.maximizeButton setTarget:self];
         [self.maximizeButton setAction:@selector(maximizeButtonClicked:)];
         [self.maximizeButton setContentTintColor:[NSColor systemGreenColor]];
-        [self.maximizeButton setHidden:YES];
+        [self.maximizeButton setAlphaValue:0.0];
         [self addSubview:self.maximizeButton];
         
         // Setup tracking areas
@@ -168,52 +173,6 @@ static NSWindow* configuredWindow = nil;
     return self;
 }
 
-- (void)closeButtonClicked:(id)sender {
-    [_window performClose:nil];
-}
-
-- (void)minimizeButtonClicked:(id)sender {
-    [_window miniaturize:nil];
-}
-
-- (void)maximizeButtonClicked:(id)sender {
-    [_window toggleFullScreen:nil];
-}
-
-- (void)mouseEntered:(NSEvent *)event {
-    if (event.trackingArea == _trackingArea) {
-        self.isHovered = YES;
-        [self.closeButton setHidden:NO];
-        [self.minimizeButton setHidden:NO];
-        [self.maximizeButton setHidden:NO];
-        [self setNeedsDisplay:YES];
-    } else if (event.trackingArea == _closeButtonTrackingArea) {
-        [self.closeButton setContentTintColor:[[NSColor systemRedColor] colorWithAlphaComponent:0.5]];
-    } else if (event.trackingArea == _minimizeButtonTrackingArea) {
-        [self.minimizeButton setContentTintColor:[[NSColor systemYellowColor] colorWithAlphaComponent:0.5]];
-    } else if (event.trackingArea == _maximizeButtonTrackingArea) {
-        [self.maximizeButton setContentTintColor:[[NSColor systemGreenColor] colorWithAlphaComponent:0.5]];
-    }
-}
-
-- (void)mouseExited:(NSEvent *)event {
-    if (event.trackingArea == _trackingArea) {
-        self.isHovered = NO;
-        if (_displayFrame >= 120) {
-            [self.closeButton setHidden:YES];
-            [self.minimizeButton setHidden:YES];
-            [self.maximizeButton setHidden:YES];
-        }
-        [self setNeedsDisplay:YES];
-    } else if (event.trackingArea == _closeButtonTrackingArea) {
-        [self.closeButton setContentTintColor:[NSColor systemRedColor]];
-    } else if (event.trackingArea == _minimizeButtonTrackingArea) {
-        [self.minimizeButton setContentTintColor:[NSColor systemYellowColor]];
-    } else if (event.trackingArea == _maximizeButtonTrackingArea) {
-        [self.maximizeButton setContentTintColor:[NSColor systemGreenColor]];
-    }
-}
-
 - (void)drawRect:(NSRect)dirtyRect {
     if (self.isHovered || _displayFrame < 120) {
         // Draw background with rounded corners (top-left and bottom-right only)
@@ -237,13 +196,64 @@ static NSWindow* configuredWindow = nil;
              controlPoint2:NSMakePoint(bounds.origin.x, bounds.origin.y)];
         [path closePath];
         
-        [[NSColor colorWithCalibratedWhite:0.25 alpha:1.0] setFill];  // Darker background (was 0.314)
+        // Apply the current opacity to the background colors
+        [[NSColor colorWithCalibratedWhite:0.25 alpha:self.alphaValue] setFill];
         [path fill];
         
-        // Draw border
-        [[NSColor colorWithCalibratedWhite:0.4 alpha:1.0] setStroke];  // Slightly darker border (was 0.471)
+        // Draw border with current opacity
+        [[NSColor colorWithCalibratedWhite:0.4 alpha:self.alphaValue] setStroke];
         [path setLineWidth:1.0];
         [path stroke];
+    }
+}
+
+- (void)fadeIn {
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0.2;
+        self.animator.alphaValue = 1.0;
+        self.closeButton.animator.alphaValue = 1.0;
+        self.minimizeButton.animator.alphaValue = 1.0;
+        self.maximizeButton.animator.alphaValue = 1.0;
+        [self setNeedsDisplay:YES];
+    } completionHandler:nil];
+}
+
+- (void)fadeOut {
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0.2;
+        self.animator.alphaValue = 0.0;
+        self.closeButton.animator.alphaValue = 0.0;
+        self.minimizeButton.animator.alphaValue = 0.0;
+        self.maximizeButton.animator.alphaValue = 0.0;
+        [self setNeedsDisplay:YES];
+    } completionHandler:nil];
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    if (event.trackingArea == _trackingArea) {
+        self.isHovered = YES;
+        [self fadeIn];
+    } else if (event.trackingArea == _closeButtonTrackingArea) {
+        [self.closeButton setContentTintColor:[[NSColor systemRedColor] colorWithAlphaComponent:0.5]];
+    } else if (event.trackingArea == _minimizeButtonTrackingArea) {
+        [self.minimizeButton setContentTintColor:[[NSColor systemYellowColor] colorWithAlphaComponent:0.5]];
+    } else if (event.trackingArea == _maximizeButtonTrackingArea) {
+        [self.maximizeButton setContentTintColor:[[NSColor systemGreenColor] colorWithAlphaComponent:0.5]];
+    }
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    if (event.trackingArea == _trackingArea) {
+        self.isHovered = NO;
+        if (_displayFrame >= 120) {
+            [self fadeOut];
+        }
+    } else if (event.trackingArea == _closeButtonTrackingArea) {
+        [self.closeButton setContentTintColor:[NSColor systemRedColor]];
+    } else if (event.trackingArea == _minimizeButtonTrackingArea) {
+        [self.minimizeButton setContentTintColor:[NSColor systemYellowColor]];
+    } else if (event.trackingArea == _maximizeButtonTrackingArea) {
+        [self.maximizeButton setContentTintColor:[NSColor systemGreenColor]];
     }
 }
 
@@ -251,17 +261,11 @@ static NSWindow* configuredWindow = nil;
     _displayFrame++;
     if (_displayFrame >= 120) {
         _displayFrame = 120;
-        // Hide buttons when initial display period ends
         if (!self.isHovered) {
-            [self.closeButton setHidden:YES];
-            [self.minimizeButton setHidden:YES];
-            [self.maximizeButton setHidden:YES];
+            [self fadeOut];
         }
     } else {
-        // Show buttons during initial display period
-        [self.closeButton setHidden:NO];
-        [self.minimizeButton setHidden:NO];
-        [self.maximizeButton setHidden:NO];
+        [self fadeIn];
     }
     [self setNeedsDisplay:YES];
 }
@@ -278,6 +282,18 @@ static NSWindow* configuredWindow = nil;
         ![self.maximizeButton hitTest:location]) {
         [_window performWindowDragWithEvent:event];
     }
+}
+
+- (void)closeButtonClicked:(id)sender {
+    [_window performClose:nil];
+}
+
+- (void)minimizeButtonClicked:(id)sender {
+    [_window miniaturize:nil];
+}
+
+- (void)maximizeButtonClicked:(id)sender {
+    [_window toggleFullScreen:nil];
 }
 
 @end
