@@ -285,7 +285,7 @@ static NSWindow* configuredWindow = nil;
 }
 
 - (void)closeButtonClicked:(id)sender {
-    [_window performClose:nil];
+    [NSApp terminate:nil];
 }
 
 - (void)minimizeButtonClicked:(id)sender {
