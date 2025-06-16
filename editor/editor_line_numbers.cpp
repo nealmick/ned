@@ -92,12 +92,38 @@ void EditorLineNumbers::renderLineNumbers()
 	}
 }
 
+float EditorLineNumbers::calculateRequiredLineNumberWidth() const {
+	// Get the maximum line number
+	int max_line_number = static_cast<int>(editor_state.editor_content_lines.size());
+	
+	// Calculate the number of digits in the max line number
+	int num_digits = 1;
+	int temp = max_line_number;
+	while (temp > 0) {
+		temp /= 10;
+		num_digits++;
+	}
+	
+	// Calculate width needed for the digits plus some padding
+	char test_buffer[32];
+	snprintf(test_buffer, sizeof(test_buffer), "%d", max_line_number);
+	float text_width = ImGui::CalcTextSize(test_buffer).x;
+	
+	// Add padding on both sides (2.0f on left, 10.0f on right)
+	return text_width + 2.0f + 10.0f;
+}
+
 ImVec2 EditorLineNumbers::createLineNumbersPanel()
 {
 	ImGui::BeginGroup();
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
+	
+	// Calculate dynamic width based on max line number
+	float dynamic_width = calculateRequiredLineNumberWidth();
+	editor_state.line_number_width = dynamic_width;
+	
 	ImGui::BeginChild("LineNumbers",
-					  ImVec2(editor_state.line_number_width, ImGui::GetContentRegionAvail().y),
+					  ImVec2(dynamic_width, ImGui::GetContentRegionAvail().y),
 					  false,
 					  ImGuiWindowFlags_NoScrollbar);
 	ImVec2 line_numbers_pos = ImGui::GetCursorScreenPos();
@@ -113,7 +139,8 @@ float EditorLineNumbers::calculateTextRightAlignedPosition(const char *text,
 														   float right_margin) const
 {
 	float text_width = ImGui::CalcTextSize(text).x;
-	return ImGui::GetCursorScreenPos().x + line_number_width - text_width - right_margin;
+	// Position text with 10.0f padding from the right edge
+	return ImGui::GetCursorScreenPos().x + line_number_width - text_width - 10.0f;
 }
 
 ImU32 EditorLineNumbers::calculateRainbowColor(float blink_time) const

@@ -10,7 +10,7 @@
     "burnin_intensity": 0.8999999761581421,
     "colorshift_intensity": 0.6700000166893005,
     "curvature_intensity": 0.0,
-    "font": "JetBrainsMonoNL-Regular",
+    "font": "SourceCodePro-Regular",
     "fontSize": 31.0,
     "jitter_intensity": 0.0,
     "lsp_autocomplete": false,

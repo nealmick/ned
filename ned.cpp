@@ -832,7 +832,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 	ImGui::PushFont(currentFont);
 
 	// Determine the base icon size (equal to font size)
-	float iconSize = ImGui::GetFontSize();
+	float iconSize = ImGui::GetFontSize() * 1.15f;
 	std::string currentFile = gFileExplorer.currentFile;
 
 	// Render left side (file icon and name)
@@ -890,7 +890,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		ImGui::SameLine();
 
 		// Settings icon (always in same position)
-		renderSettingsIcon(iconSize * 0.8f);
+		renderSettingsIcon(iconSize * 0.6f);
 	}
 	ImGui::EndGroup();
 
