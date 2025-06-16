@@ -9,6 +9,11 @@
 class Editor;
 extern Editor gEditor;
 
+// Constants for line number colors
+constexpr ImU32 DEFAULT_LINE_NUMBER_COLOR = IM_COL32(128, 128, 128, 255);
+constexpr ImU32 CURRENT_LINE_COLOR = IM_COL32(255, 255, 255, 255);
+constexpr int LINE_NUMBER_BUFFER_SIZE = 32;
+
 class EditorLineNumbers
 {
   public:
@@ -20,6 +25,8 @@ class EditorLineNumbers
 
 	// Layout functions
 	ImVec2 createLineNumbersPanel();
+
+	void setCurrentFilePath(const std::string& filepath);
 
   private:
 	// Color calculation helpers
@@ -38,13 +45,9 @@ class EditorLineNumbers
 	// Layout/positioning helpers
 	float calculateTextRightAlignedPosition(const char *text,
 											float line_number_width,
-											float right_margin = 8.0f) const;
+											float right_margin = 4.0f) const;
 
-	// Constants
-	const ImU32 DEFAULT_LINE_NUMBER_COLOR = IM_COL32(128, 128, 128, 255);
-	const ImU32 CURRENT_LINE_COLOR = IM_COL32(255, 255, 255, 255);
-	const ImU32 SELECTED_LINE_COLOR = IM_COL32(0, 40, 255, 200); // Neon blue color
-	static constexpr size_t LINE_NUMBER_BUFFER_SIZE = 16;
+	std::string current_filepath;
 };
 
 // Global instance

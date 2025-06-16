@@ -14,7 +14,5 @@ int main()
 	std::cout << "Starting NED..." << '\n';
 	ned.run();
 
-	
-
 	return 0;
 }

@@ -1,4 +1,5 @@
 {
+    "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
         0.0923076868057251,
@@ -13,14 +14,13 @@
     "fontSize": 23.0,
     "jitter_intensity": 0.0,
     "lsp_autocomplete": false,
-    "ai_autocomplete": true,
     "mac_background_opacity": 0.5899999737739563,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.03200000151991844,
     "rainbow": true,
     "scanline_intensity": 0.2199999988079071,
-    "settings_file": "solarized.json",
+    "settings_file": "ned.json",
     "shader_toggle": true,
     "splitPos": 0.24220962822437286,
     "static_intensity": 0.1550000011920929,

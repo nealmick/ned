@@ -28,6 +28,7 @@ EditorRender gEditorRender;
 
 void EditorRender::renderEditorFrame()
 {
+	
 	gEditorRender.renderEditorContent();
 
 	gFileFinder.renderWindow();

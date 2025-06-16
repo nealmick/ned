@@ -47,6 +47,8 @@ Ned::Ned()
 {
 }
 
+
+
 Ned::~Ned()
 {
 	if (initialized)
