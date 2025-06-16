@@ -5,6 +5,7 @@
 namespace IconDefinitions {
 static const std::vector<std::string> DEFAULT_ICONS = {"tf.svg",
 													   "cshtml.svg",
+													   "green-dot.svg",
 													   "rs.svg",
 													   "cmake.svg",
 													   "maximize-mac.svg",

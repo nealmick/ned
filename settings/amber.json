@@ -12,6 +12,7 @@
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
     "fontSize": 31.0,
+    "git_changed_lines": true,
     "jitter_intensity": 0.0,
     "lsp_autocomplete": false,
     "mac_background_opacity": 0.6800000071525574,

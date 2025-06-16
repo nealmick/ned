@@ -943,6 +943,20 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		{
 			gAITab.dismiss_completion();
 		}
+
+		
+	}
+	// Cancel any ongoing requests when arrow keys are pressed
+	if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_DownArrow)||			
+		ImGui::IsKeyPressed(ImGuiKey_Delete) ||
+		ImGui::IsKeyPressed(ImGuiKey_Backspace)||
+		ImGui::IsKeyPressed(ImGuiKey_Enter)||
+		ImGui::IsKeyPressed(ImGuiKey_Escape))
+	{
+		gAITab.cancel_request();
 	}
 
 	// Process bookmarks first

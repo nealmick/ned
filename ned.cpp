@@ -881,7 +881,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		// Brain icon (only visible when active)
 		if (gAITab.request_active)
 		{
-			ImGui::Image(gFileExplorer.getIcon("brain"), ImVec2(iconSize, iconSize));
+			ImGui::Image(gFileExplorer.getIcon("green-dot"), ImVec2(iconSize, iconSize));
 		} else
 		{
 			// Invisible placeholder to maintain layout

@@ -505,6 +505,16 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Syntax Highlighting)");
 
+	bool gitChangedLines = settings.value("git_changed_lines", true);
+	if (ImGui::Checkbox("Git Changed Lines", &gitChangedLines))
+	{
+		settings["git_changed_lines"] = gitChangedLines;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Highlight changed lines in git)");
+
 	bool lspAutocomplete = settings.value("lsp_autocomplete", true);
 	bool aiAutocomplete = settings.value("ai_autocomplete", true);
 
