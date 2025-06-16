@@ -13,6 +13,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <unordered_map>
 
 using json = nlohmann::json;
 
@@ -61,6 +62,10 @@ class LSPAutocomplete
 	std::condition_variable queueCondition;
 	std::atomic<bool> shouldStop{false};
 	std::thread workerThread;
+	
+	// Track active requests to preserve original coordinates
+	std::unordered_map<int, CompletionRequest> activeRequests;
+	std::mutex activeRequestsMutex;
 
 	// Position caching for smooth menu updates
 	ImVec2 lastPopupPos;
@@ -83,7 +88,7 @@ class LSPAutocomplete
 	// requesting logic
 	std::string formCompletionRequest(int requestId, const std::string &filePath, int line, int character);
 	bool processResponse(const std::string &response, int requestId);
-	void parseCompletionResult(const json &result);
+	void parseCompletionResult(const json &result, int requestLine, int requestCharacter);
 	void updatePopupPosition();
 	void workerFunction(); // New method for background thread
 

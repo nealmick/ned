@@ -1,5 +1,8 @@
 #pragma once
 #include <string>
+#include <atomic>
+
+extern std::atomic<bool> g_should_cancel;
 
 class OpenRouter
 {

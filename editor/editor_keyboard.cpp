@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <iostream>
 #include <set>
+#include "../editor/editor_git.h"
 // Global instance
 EditorKeyboard gEditorKeyboard;
 
@@ -208,7 +209,7 @@ void EditorKeyboard::handleCharacterInput()
 	bool shouldCloseCompletion = false;
 	for (char c : inputText) {
 		// Close for space, dot (for method chaining), and other special characters
-		if (c == ' ' || c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
+		if (c == ' ' || c == ' ' || c == '(' || c == ')' || c == '[' || c == ']' || 
 			c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
 			c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
 			c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
@@ -216,7 +217,7 @@ void EditorKeyboard::handleCharacterInput()
 			break;
 		}
 	}
-
+	
 	if (shouldCloseCompletion) {
 		editor_state.block_input = false;
 	}
@@ -381,16 +382,17 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.multi_selections.clear(); // Important: clear multi-selections after typing
 
 	editor_state.text_changed = true;
+	//gEditor.updateLineStarts();
 
 	// After processing the input, trigger LSP completion only if there was no space
-	if (!inputText.empty() && !shouldCloseCompletion && gSettings.getSettings()["lsp_autocomplete"]) {
-		// Get current line number and character offset
-		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		int line_start = editor_state.editor_content_lines[current_line];
-		int char_offset = editor_state.cursor_index - line_start;
-
-		// Request completion
-		gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile, current_line, char_offset);
+	if (!inputText.empty() && !shouldCloseCompletion) {
+		if (gSettings.getSettings()["lsp_autocomplete"]) {
+			editor_state.get_autocomplete = true;
+		}
+		// Trigger AI completion if enabled
+		if (gSettings.getSettings()["ai_autocomplete"]) {
+			gAITab.tab_complete();
+		}
 	}
 }
 
@@ -456,6 +458,9 @@ void EditorKeyboard::handleEnterKey()
 	if (!ImGui::IsKeyPressed(ImGuiKey_Enter))
 	{
 		return;
+	}
+	if (gSettings.getSettings()["ai_autocomplete"]) {
+		gAITab.tab_complete();
 	}
 
 	std::vector<MultiSelectionRange> selections_to_delete;
@@ -848,10 +853,24 @@ void EditorKeyboard::handleTextInput()
 		gEditor.updateLineStarts();
 
 		// Add undo state with change range
-		gFileExplorer.addUndoState(line_start, line_end);
+		gFileExplorer.addUndoState();
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
+
+		// Update Git tracking for the current file
+		if (!gFileExplorer.currentFile.empty()) {
+			EditorGit::getInstance().updateFileChanges(gFileExplorer.currentFile);
+		}
+
 		editor_state.text_changed = false;
+		editor_state.ensure_cursor_visible.horizontal = true;
+		editor_state.ensure_cursor_visible.vertical = true;
+	}
+	else if (editor_state.ghost_text_changed)
+	{
+		// For ghost text changes, just update line starts
+		gEditor.updateLineStarts();
+		editor_state.ghost_text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
 		editor_state.ensure_cursor_visible.vertical = true;
 	}
@@ -900,6 +919,30 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	{
 		gLSPAutocomplete.blockTab = false;
 		return;
+	}
+
+	// Handle AI completion first
+	if (gAITab.has_ghost_text)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_Tab))
+		{
+			gAITab.accept_completion();
+			return;
+		}
+		// Dismiss completion on any character input or arrow key
+		if (ImGui::GetIO().InputQueueCharacters.Size > 0 ||
+			ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_DownArrow) ||
+			ImGui::IsKeyPressed(ImGuiKey_Delete) ||
+			ImGui::IsKeyPressed(ImGuiKey_Backspace)||
+			ImGui::IsKeyPressed(ImGuiKey_Enter)||
+			ImGui::IsKeyPressed(ImGuiKey_Escape) ||
+			(ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X)))
+		{
+			gAITab.dismiss_completion();
+		}
 	}
 
 	// Process bookmarks first
@@ -1007,6 +1050,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		 
 			if (ImGui::IsKeyPressed(lsp_completion, false))
 			{
+				editor_state.get_autocomplete = false;
 				// Get current line number from editor_state
 				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
@@ -1020,7 +1064,21 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			}
 		}
 	}
+	handleTextInput();
+	
+	if(editor_state.get_autocomplete){
+		editor_state.get_autocomplete = false;
+				// Get current line number from editor_state
+				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 
+				// Get character offset in current line
+				int line_start = editor_state.editor_content_lines[current_line];
+				int char_offset = editor_state.cursor_index - line_start;
+
+				gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile,
+												   current_line,
+												   char_offset);
+	}
 	if (ImGui::IsWindowHovered())
 	{
 		gEditorMouse.handleMouseInput();
@@ -1039,8 +1097,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 									   window_height,
 									   window_width);
 
-	// Call the refactored method in EditorKeyboard
-	handleTextInput();
 
 	if (ImGui::IsWindowFocused() && ctrl_pressed)
 		gEditorCopyPaste.processClipboardShortcuts();

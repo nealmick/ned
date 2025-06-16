@@ -129,12 +129,7 @@ class Ned
 	ImVec2 dragStart;
 	ImVec2 initialWindowSize;
 
-	void renderTopLeftMenu();
-	bool menuHovered = false;
-	int controllsDisplayFrame = 0;
 	bool isDraggingWindow = false;
-	ImVec2 dragStartMousePos;
-	ImVec2 dragStartWindowPos;
 	void handleWindowDragging();
 
 	int m_sroLastWidth;
