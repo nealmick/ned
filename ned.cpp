@@ -2,11 +2,9 @@
 File: ned.cpp
 Description: Main application class implementation for NED text editor.
 */
-#include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_internal.h"
-// ned.cpp
 #ifdef __APPLE__
 #include "macos_window.h"
 #endif
