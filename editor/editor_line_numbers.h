@@ -46,6 +46,7 @@ class EditorLineNumbers
 	float calculateTextRightAlignedPosition(const char *text,
 											float line_number_width,
 											float right_margin = 4.0f) const;
+	float calculateRequiredLineNumberWidth() const;
 
 	std::string current_filepath;
 };
