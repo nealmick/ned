@@ -77,7 +77,7 @@ void Settings::renderSettingsWindow()
 	float current_font_size = settings.value("fontSize", 20.0f);
 
 	// Dynamic sizing based on viewport width and font size
-	if (main_viewport_size.x < 1100.0f) {
+	if (main_viewport_size.x < 1100.0f || current_font_size > 40) {
 		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
 		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
 	} else {
@@ -506,14 +506,35 @@ void Settings::renderToggleSettings()
 	ImGui::TextDisabled("(Syntax Highlighting)");
 
 	bool lspAutocomplete = settings.value("lsp_autocomplete", true);
+	bool aiAutocomplete = settings.value("ai_autocomplete", true);
+
 	if (ImGui::Checkbox("LSP Completion", &lspAutocomplete))
 	{
+		// If LSP is being toggled ON, turn off AI completion
+		if (lspAutocomplete) {
+			aiAutocomplete = false;
+			settings["ai_autocomplete"] = false;
+		}
 		settings["lsp_autocomplete"] = lspAutocomplete;
 		settingsChanged = true;
 		saveSettings();
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Code completion & suggestions)");
+
+	if (ImGui::Checkbox("AI Completion", &aiAutocomplete))
+	{
+		// If AI is being toggled ON, turn off LSP completion
+		if (aiAutocomplete) {
+			lspAutocomplete = false;
+			settings["lsp_autocomplete"] = false;
+		}
+		settings["ai_autocomplete"] = aiAutocomplete;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(AI-powered code completion)");
 }
 
 void Settings::renderShaderSettings()
@@ -713,23 +734,28 @@ void Settings::renderNotification(const std::string& message, float duration)
             ImGuiWindowFlags_NoFocusOnAppearing |
             ImGuiWindowFlags_NoNav))
         {
-            // Get background color from settings
+            // Get background color from settings and adjust opacity
             auto& bg = getSettings()["backgroundColor"];
             ImU32 bgColor = IM_COL32(
                 static_cast<int>(bg[0].get<float>() * 255),
                 static_cast<int>(bg[1].get<float>() * 255),
                 static_cast<int>(bg[2].get<float>() * 255),
-                255
+                230  // Increased opacity for better visibility
             );
 
-            // Draw background
+            // Draw background with a slightly darker border
             ImDrawList* draw_list = ImGui::GetWindowDrawList();
             ImVec2 p_min = ImGui::GetWindowPos();
             ImVec2 p_max = ImVec2(p_min.x + width, p_min.y + height);
+            
+            // Draw main background
             draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
-            draw_list->AddRect(p_min, p_max, IM_COL32(120, 120, 120, 255), 8.0f, 0, 1.0f);
+            
+            // Draw a subtle border
+            ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
+            draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
 
-            // Draw text with minimal padding
+            // Draw text with improved contrast
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
             ImGui::SetCursorPos(ImVec2(15, 10));
             ImGui::TextWrapped("%s", currentMessage.c_str());

@@ -19,6 +19,7 @@
 
 #include "../files/files.h"
 #include "../util/keybinds.h"
+#include "../util/terminal.h"
 
 class Bookmarks
 {
@@ -167,7 +168,7 @@ class Bookmarks
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 		
 		ImGuiKey toggleBookmarksKey = gKeybinds.getActionKey("toggle_bookmarks_menu");
-		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false))
+		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false) && !gTerminal.isTerminalVisible())
 		{
 			showBookmarksWindow = !showBookmarksWindow;
 		}
