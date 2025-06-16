@@ -1,4 +1,5 @@
 #include "editor_line_numbers.h"
+#include "editor_git.h"
 #include "../util/settings.h"
 #include "editor.h"
 #include <algorithm>
@@ -6,6 +7,12 @@
 
 // Global instance
 EditorLineNumbers gEditorLineNumbers;
+
+void EditorLineNumbers::setCurrentFilePath(const std::string& filepath) {
+	current_filepath = filepath;
+	EditorGit::getInstance().setCurrentFile(filepath);
+	EditorGit::getInstance().initializeFileTracking(filepath);
+}
 
 void EditorLineNumbers::renderLineNumbers()
 {
@@ -46,8 +53,10 @@ void EditorLineNumbers::renderLineNumbers()
 		float y_pos = editor_state.line_numbers_pos.y + (i * editor_state.line_height) -
 					  gEditorScroll.getScrollPosition().y;
 
-		// Format line number text
-		snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
+		// Format line number text with asterisk if edited
+		bool is_edited = EditorGit::getInstance().isLineEdited(i + 1);
+		snprintf(line_number_buffer, sizeof(line_number_buffer), "%s%d", 
+				is_edited ? "*" : "", i + 1);
 
 		// Determine color based on selection and current line
 		ImU32 line_number_color = determineLineNumberColor(i,

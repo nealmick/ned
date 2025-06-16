@@ -351,6 +351,9 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		setupUndoManager(path);
 		gEditorHighlight.highlightContent();
 
+		// Initialize Git tracking for the new file
+		gEditorLineNumbers.setCurrentFilePath(path);
+
 		notifyLSPFileOpen(path);
 
 		if (afterLoadCallback)

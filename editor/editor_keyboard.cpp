@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <iostream>
 #include <set>
+#include "../editor/editor_git.h"
 // Global instance
 EditorKeyboard gEditorKeyboard;
 
@@ -855,6 +856,12 @@ void EditorKeyboard::handleTextInput()
 		gFileExplorer.addUndoState();
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
+
+		// Update Git tracking for the current file
+		if (!gFileExplorer.currentFile.empty()) {
+			EditorGit::getInstance().updateFileChanges(gFileExplorer.currentFile);
+		}
+
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
 		editor_state.ensure_cursor_visible.vertical = true;
