@@ -5,6 +5,7 @@
 */
 #include "util/terminal.h"
 
+#include "files.h"
 #include "util/settings.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -391,7 +392,10 @@ void Terminal::startShell()
     // This is a heuristic; 100ms is a common value.
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    const char* initial_commands = "cd ~\nclear\n";
+    std::string command_str = std::string("cd ") + gFileExplorer.selectedFolder + "\nclear\n";
+
+    // 2. Now get the pointer. It's valid as long as command_str exists.
+    const char* initial_commands = command_str.c_str();
     ssize_t bytes_written = write(ptyFd, initial_commands, strlen(initial_commands));
     if (bytes_written == -1) {
         perror("write to pty (initial_commands for Apple) failed in parent");
