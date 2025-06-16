@@ -938,7 +938,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			ImGui::IsKeyPressed(ImGuiKey_Delete) ||
 			ImGui::IsKeyPressed(ImGuiKey_Backspace)||
 			ImGui::IsKeyPressed(ImGuiKey_Enter)||
-			ImGui::IsKeyPressed(ImGuiKey_Escape))
+			ImGui::IsKeyPressed(ImGuiKey_Escape) ||
+			(ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X)))
 		{
 			gAITab.dismiss_completion();
 		}
