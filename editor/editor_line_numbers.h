@@ -10,7 +10,7 @@ class Editor;
 extern Editor gEditor;
 
 // Constants for line number colors
-constexpr ImU32 DEFAULT_LINE_NUMBER_COLOR = IM_COL32(128, 128, 128, 255);
+constexpr ImU32 DEFAULT_LINE_NUMBER_COLOR = IM_COL32(128, 128, 128, 150);
 constexpr ImU32 CURRENT_LINE_COLOR = IM_COL32(255, 255, 255, 255);
 constexpr int LINE_NUMBER_BUFFER_SIZE = 32;
 

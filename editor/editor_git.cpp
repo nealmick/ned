@@ -13,47 +13,29 @@ EditorGit& EditorGit::getInstance() {
 }
 
 void EditorGit::setCurrentFile(const std::string& filepath) {
-    std::cout << "Setting current file to: " << filepath << std::endl;
     current_filepath = filepath;
 }
 
 void EditorGit::initializeFileTracking(const std::string& filepath) {
-    std::cout << "Initializing Git tracking for: " << filepath << std::endl;
-    
     if (!hasGitRepository(filepath)) {
-        std::cout << "No Git repository found for: " << filepath << std::endl;
         return;
     }
-    
-    std::cout << "Found Git repository, getting edited lines..." << std::endl;
-    // Get initial state of edited lines
     edited_lines_map[filepath] = getEditedLines(filepath);
-    std::cout << "Found " << edited_lines_map[filepath].size() << " edited lines" << std::endl;
 }
 
 bool EditorGit::isLineEdited(int line_number) const {
-    // Use the current filepath to look up edited lines
     auto it = edited_lines_map.find(current_filepath);
     if (it == edited_lines_map.end()) {
         return false;
     }
-    bool is_edited = it->second.find(line_number) != it->second.end();
-    if (is_edited) {
-        std::cout << "Line " << line_number << " is edited" << std::endl;
-    }
-    return is_edited;
+    return it->second.find(line_number) != it->second.end();
 }
 
 void EditorGit::updateFileChanges(const std::string& filepath) {
-    std::cout << "Updating Git changes for: " << filepath << std::endl;
     if (!hasGitRepository(filepath)) {
-        std::cout << "No Git repository found for: " << filepath << std::endl;
         return;
     }
-    
-    // Update the edited lines for this file
     edited_lines_map[filepath] = getEditedLines(filepath);
-    std::cout << "Updated edited lines count: " << edited_lines_map[filepath].size() << std::endl;
 }
 
 void EditorGit::clearFileTracking(const std::string& filepath) {
@@ -102,35 +84,117 @@ std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath) c
     
     std::string rel_path = getRelativePath(filepath);
     
-    // Execute git diff command
-    std::string cmd = "cd " + git_root + " && git diff --unified=0 " + rel_path;
+    std::string cmd = "cd " + git_root + " && git diff-index --quiet HEAD -- " + rel_path;
+    int status = system(cmd.c_str());
+    
+    if (status != 0) {
+        cmd = "cd " + git_root + " && git diff --unified=0 HEAD -- " + rel_path;
+        FILE* pipe = popen(cmd.c_str(), "r");
+        if (pipe) {
+            char buffer[128];
+            std::string result = "";
+            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+                result += buffer;
+            }
+            pclose(pipe);
+            
+            std::istringstream iss(result);
+            std::string line;
+            while (std::getline(iss, line)) {
+                if (line.length() >= 2 && line.substr(0, 2) == "@@") {
+                    size_t minus_pos = line.find("-");
+                    size_t plus_pos = line.find("+");
+                    if (minus_pos != std::string::npos && plus_pos != std::string::npos) {
+                        size_t old_comma_pos = line.find(",", minus_pos);
+                        int old_start = 0;
+                        int old_count = 0;
+                        if (old_comma_pos != std::string::npos) {
+                            old_start = std::stoi(line.substr(minus_pos + 1, old_comma_pos - minus_pos - 1));
+                            old_count = std::stoi(line.substr(old_comma_pos + 1, plus_pos - old_comma_pos - 1));
+                        }
+                        
+                        size_t new_comma_pos = line.find(",", plus_pos);
+                        int new_start = 0;
+                        int new_count = 0;
+                        if (new_comma_pos != std::string::npos) {
+                            new_start = std::stoi(line.substr(plus_pos + 1, new_comma_pos - plus_pos - 1));
+                            new_count = std::stoi(line.substr(new_comma_pos + 1));
+                        } else {
+                            new_start = std::stoi(line.substr(plus_pos + 1));
+                            new_count = 1;
+                        }
+                        
+                        if (old_count > 0 && new_count > 0) {
+                            for (int i = 0; i < old_count; ++i) {
+                                edited_lines.insert(old_start + i);
+                            }
+                        }
+                        else if (new_count > 0) {
+                            for (int i = 0; i < new_count; ++i) {
+                                edited_lines.insert(new_start + i);
+                            }
+                        }
+                        else if (old_count > 0) {
+                            for (int i = 0; i < old_count; ++i) {
+                                edited_lines.insert(old_start + i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    cmd = "cd " + git_root + " && git diff --staged --unified=0 -- " + rel_path;
     FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        return edited_lines;
-    }
-    
-    char buffer[128];
-    std::string result = "";
-    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-        result += buffer;
-    }
-    pclose(pipe);
-    
-    // Parse the diff output to find edited lines
-    std::istringstream iss(result);
-    std::string line;
-    while (std::getline(iss, line)) {
-        // Use string comparison instead of starts_with
-        if (line.length() >= 2 && line.substr(0, 2) == "@@") {
-            // Parse the line numbers from the diff header
-            size_t pos = line.find("+");
-            if (pos != std::string::npos) {
-                size_t comma_pos = line.find(",", pos);
-                if (comma_pos != std::string::npos) {
-                    int start_line = std::stoi(line.substr(pos + 1, comma_pos - pos - 1));
-                    int num_lines = std::stoi(line.substr(comma_pos + 1));
-                    for (int i = 0; i < num_lines; ++i) {
-                        edited_lines.insert(start_line + i);
+    if (pipe) {
+        char buffer[128];
+        std::string result = "";
+        while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+            result += buffer;
+        }
+        pclose(pipe);
+        
+        std::istringstream iss(result);
+        std::string line;
+        while (std::getline(iss, line)) {
+            if (line.length() >= 2 && line.substr(0, 2) == "@@") {
+                size_t minus_pos = line.find("-");
+                size_t plus_pos = line.find("+");
+                if (minus_pos != std::string::npos && plus_pos != std::string::npos) {
+                    size_t old_comma_pos = line.find(",", minus_pos);
+                    int old_start = 0;
+                    int old_count = 0;
+                    if (old_comma_pos != std::string::npos) {
+                        old_start = std::stoi(line.substr(minus_pos + 1, old_comma_pos - minus_pos - 1));
+                        old_count = std::stoi(line.substr(old_comma_pos + 1, plus_pos - old_comma_pos - 1));
+                    }
+                    
+                    size_t new_comma_pos = line.find(",", plus_pos);
+                    int new_start = 0;
+                    int new_count = 0;
+                    if (new_comma_pos != std::string::npos) {
+                        new_start = std::stoi(line.substr(plus_pos + 1, new_comma_pos - plus_pos - 1));
+                        new_count = std::stoi(line.substr(new_comma_pos + 1));
+                    } else {
+                        new_start = std::stoi(line.substr(plus_pos + 1));
+                        new_count = 1;
+                    }
+                    
+                    if (old_count > 0 && new_count > 0) {
+                        for (int i = 0; i < old_count; ++i) {
+                            edited_lines.insert(old_start + i);
+                        }
+                    }
+                    else if (new_count > 0) {
+                        for (int i = 0; i < new_count; ++i) {
+                            edited_lines.insert(new_start + i);
+                        }
+                    }
+                    else if (old_count > 0) {
+                        for (int i = 0; i < old_count; ++i) {
+                            edited_lines.insert(old_start + i);
+                        }
                     }
                 }
             }

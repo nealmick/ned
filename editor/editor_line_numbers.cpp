@@ -46,6 +46,11 @@ void EditorLineNumbers::renderLineNumbers()
 	int current_line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 														editor_state.cursor_index);
 
+	// Get text color from theme
+	auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
+	ImVec4 text_color = ImVec4(theme["text"][0], theme["text"][1], theme["text"][2], theme["text"][3]);
+	ImU32 text_color_u32 = ImGui::ColorConvertFloat4ToU32(text_color);
+
 	// Render each visible line number
 	for (int i = start_line; i < end_line; i++)
 	{
@@ -53,19 +58,29 @@ void EditorLineNumbers::renderLineNumbers()
 		float y_pos = editor_state.line_numbers_pos.y + (i * editor_state.line_height) -
 					  gEditorScroll.getScrollPosition().y;
 
-		// Format line number text with asterisk if edited
-		bool is_edited = EditorGit::getInstance().isLineEdited(i + 1);
-		snprintf(line_number_buffer, sizeof(line_number_buffer), "%s%d", 
-				is_edited ? "*" : "", i + 1);
+		// Format line number text
+		snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
 
-		// Determine color based on selection and current line
-		ImU32 line_number_color = determineLineNumberColor(i,
-														   current_line,
-														   selection_start_line,
-														   selection_end_line,
-														   editor_state.selection_active,
-														   rainbow_mode,
-														   rainbow_color);
+		// Determine color based on selection, current line, and edited status
+		ImU32 line_number_color;
+		bool is_edited = EditorGit::getInstance().isLineEdited(i + 1);
+		
+		if (i >= selection_start_line && i < selection_end_line && editor_state.selection_active)
+		{
+			line_number_color = rainbow_color;
+		}
+		else if (i == current_line)
+		{
+			line_number_color = rainbow_mode ? rainbow_color : CURRENT_LINE_COLOR;
+		}
+		else if (is_edited)
+		{
+			line_number_color = text_color_u32;
+		}
+		else
+		{
+			line_number_color = DEFAULT_LINE_NUMBER_COLOR;
+		}
 
 		// Calculate position for right-aligned text
 		float text_width = ImGui::CalcTextSize(line_number_buffer).x;
