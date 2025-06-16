@@ -12,7 +12,8 @@ EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
 void EditorCursor::spawnCursorAbove()
-{
+{	
+	std::cout << "Spawning cursor above" << std::endl;
 	// Store original cursor state
 	const int original_cursor = editor_state.cursor_index;
 
@@ -35,7 +36,8 @@ void EditorCursor::spawnCursorAbove()
 	// Find position using CHARACTER OFFSET (not visual column)
 	int new_cursor = target_start + std::min(original_char_offset, target_end - target_start);
 
-	// Add original cursor to multi-cursorsk(original_cursor);
+	// Add original cursor to multi-cursors
+	editor_state.multi_cursor_indices.push_back(original_cursor);
 	editor_state.multi_cursor_prefered_columns.push_back(original_char_offset);
 
 	// Update main cursor to new position
