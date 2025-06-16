@@ -1,10 +1,10 @@
 #include "editor_git.h"
 #include "files.h"
+#include "../util/settings.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
-#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -14,14 +14,16 @@ EditorGit& EditorGit::getInstance() {
 }
 
 void EditorGit::setCurrentFile(const std::string& filepath) {
-    std::cout << "Setting current file: " << filepath << std::endl;
     current_filepath = filepath;
 }
 
 void EditorGit::initializeFileTracking(const std::string& filepath) {
-    std::cout << "Initializing file tracking for: " << filepath << std::endl;
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        edited_lines_map[filepath] = std::unordered_set<int>();  // Initialize with empty set
+        return;
+    }
+    
     if (!hasGitRepository(filepath)) {
-        std::cout << "No git repository found for: " << filepath << std::endl;
         edited_lines_map[filepath] = std::unordered_set<int>();  // Initialize with empty set
         return;
     }
@@ -29,18 +31,24 @@ void EditorGit::initializeFileTracking(const std::string& filepath) {
 }
 
 bool EditorGit::isLineEdited(int line_number) const {
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        return false;
+    }
+    
     auto it = edited_lines_map.find(current_filepath);
     if (it == edited_lines_map.end()) {
-        std::cout << "No tracking data found for file" << std::endl;
         return false;
     }
     return it->second.find(line_number) != it->second.end();
 }
 
 void EditorGit::updateFileChanges(const std::string& filepath) {
-    std::cout << "Updating file changes for: " << filepath << std::endl;
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        edited_lines_map[filepath] = std::unordered_set<int>();  // Set empty set when disabled
+        return;
+    }
+    
     if (!hasGitRepository(filepath)) {
-        std::cout << "No git repository found, clearing tracking data" << std::endl;
         edited_lines_map[filepath] = std::unordered_set<int>();  // Set empty set for non-git files
         return;
     }
@@ -48,106 +56,92 @@ void EditorGit::updateFileChanges(const std::string& filepath) {
 }
 
 void EditorGit::clearFileTracking(const std::string& filepath) {
-    std::cout << "Clearing file tracking for: " << filepath << std::endl;
     edited_lines_map.erase(filepath);
 }
 
 bool EditorGit::hasGitRepository(const std::string& path) const {
-    std::cout << "Checking for git repository in project directory" << std::endl;
-    
-    // Use the project directory (selectedFolder) to check for git repository
-    std::string project_dir = gFileExplorer.selectedFolder;
-    
-    if (project_dir.empty()) {
-        std::cout << "No project directory set" << std::endl;
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
         return false;
     }
     
-    // Check if .git exists in the project directory
-    fs::path git_path = fs::path(project_dir) / ".git";
-    bool is_git = fs::exists(git_path);
+    std::string project_dir = gFileExplorer.selectedFolder;
     
-    std::cout << (is_git ? "Found git repository in project directory" : "No git repository in project directory") << std::endl;
-    return is_git;
+    if (project_dir.empty()) {
+        return false;
+    }
+    
+    fs::path git_path = fs::path(project_dir) / ".git";
+    return fs::exists(git_path);
 }
 
 std::string EditorGit::getGitRoot(const std::string& path) const {
-    std::cout << "Getting git root for project directory" << std::endl;
-    
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        return "";
+    }
     
     std::string project_dir = gFileExplorer.selectedFolder;
     
     if (project_dir.empty()) {
-        std::cout << "No project directory set" << std::endl;
         return "";
     }
     
-    // Check if .git exists in the project directory
     fs::path git_path = fs::path(project_dir) / ".git";
     if (!fs::exists(git_path)) {
-        std::cout << "No git repository in project directory" << std::endl;
         return "";
     }
     
-    std::cout << "Found git root at: " << project_dir << std::endl;
     return project_dir;
 }
 
 std::string EditorGit::getRelativePath(const std::string& filepath) const {
-    std::cout << "Getting relative path for: " << filepath << std::endl;
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        return filepath;
+    }
+    
     std::string git_root = getGitRoot(filepath);
     if (git_root.empty()) {
-        std::cout << "No git root found, returning absolute path" << std::endl;
         return filepath;
     }
     
     fs::path abs_path = fs::absolute(filepath);
     fs::path rel_path = fs::relative(abs_path, git_root);
-    std::cout << "Relative path: " << rel_path << std::endl;
     return rel_path.string();
 }
 
 std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath) const {
-    std::cout << "Getting edited lines for: " << filepath << std::endl;
     std::unordered_set<int> edited_lines;
     
-    // First check if we're in a git repository
+    if (!gSettings.getSettings().value("git_changed_lines", true)) {
+        return edited_lines;
+    }
+    
     if (!hasGitRepository(filepath)) {
-        std::cout << "No git repository found, returning empty set" << std::endl;
         return edited_lines;
     }
     
     std::string git_root = getGitRoot(filepath);
     if (git_root.empty()) {
-        std::cout << "Could not find git root, returning empty set" << std::endl;
         return edited_lines;
     }
     
     std::string rel_path = getRelativePath(filepath);
     if (rel_path.empty()) {
-        std::cout << "Could not determine relative path, returning empty set" << std::endl;
         return edited_lines;
     }
     
-    // Check if the file exists in git
     std::string check_cmd = "cd \"" + git_root + "\" && git ls-files --error-unmatch -- \"" + rel_path + "\" >/dev/null 2>&1";
-    std::cout << "Executing git check command: " << check_cmd << std::endl;
     int check_status = system(check_cmd.c_str());
     if (check_status != 0) {
-        std::cout << "File not tracked by git, returning empty set" << std::endl;
         return edited_lines;
     }
     
     std::string cmd = "cd \"" + git_root + "\" && git diff-index --quiet HEAD -- \"" + rel_path + "\"";
-    std::cout << "Executing git diff-index command: " << cmd << std::endl;
     int status = system(cmd.c_str());
     
     if (status != 0) {
         cmd = "cd \"" + git_root + "\" && git diff --unified=0 HEAD -- \"" + rel_path + "\"";
-        std::cout << "Executing git diff command: " << cmd << std::endl;
         FILE* pipe = popen(cmd.c_str(), "r");
         if (!pipe) {
-            std::cout << "Failed to create pipe for git diff" << std::endl;
             return edited_lines;
         }
         char buffer[128];
@@ -206,7 +200,7 @@ std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath) c
     cmd = "cd \"" + git_root + "\" && git diff --staged --unified=0 -- \"" + rel_path + "\"";
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
-        return edited_lines;  // Return empty set if pipe creation fails
+        return edited_lines;
     }
     char buffer[128];
     std::string result = "";

@@ -17,6 +17,7 @@ class AITab
 	void accept_completion(); // New function to accept the completion
 	void dismiss_completion(); // New function to dismiss the completion
 	void handle_editor_operation(); // New function to handle editor operations
+	void cancel_request(); // New function to cancel ongoing requests
 
 	bool request_done = false;
 	bool has_ghost_text = false; // New flag to track if we have ghost text

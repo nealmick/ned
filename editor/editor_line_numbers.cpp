@@ -96,17 +96,11 @@ float EditorLineNumbers::calculateRequiredLineNumberWidth() const {
 	// Get the maximum line number
 	int max_line_number = static_cast<int>(editor_state.editor_content_lines.size());
 	
-	// Calculate the number of digits in the max line number
-	int num_digits = 1;
-	int temp = max_line_number;
-	while (temp > 0) {
-		temp /= 10;
-		num_digits++;
-	}
-	
 	// Calculate width needed for the digits plus some padding
 	char test_buffer[32];
-	snprintf(test_buffer, sizeof(test_buffer), "%d", max_line_number);
+	// Use 99 as the minimum width reference to ensure 2-digit width
+	// Add 1 to max_line_number to account for potential new lines
+	snprintf(test_buffer, sizeof(test_buffer), "%d", std::max(max_line_number + 1, 99));
 	float text_width = ImGui::CalcTextSize(test_buffer).x;
 	
 	// Add padding on both sides (2.0f on left, 10.0f on right)

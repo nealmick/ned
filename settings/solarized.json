@@ -19,6 +19,7 @@
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.026000000536441803,
     "rainbow": true,
+    "git_changed_lines": true,
     "scanline_intensity": 0.699999988079071,
     "shader_toggle": true,
     "splitPos": 0.17952314019203186,
