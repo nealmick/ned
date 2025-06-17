@@ -14,7 +14,9 @@ public:
     void gitEditedLines();
     void printGitEditedLines();
     bool isLineEdited(const std::string& filePath, int lineNumber) const;
+    std::string gitPlusMinus(const std::string& filePath);
     std::map<std::string, std::vector<int>> editedLines;
+    std::string currentGitChanges;  // Store the current git changes string
 
 private:
     bool isGitInitialized();

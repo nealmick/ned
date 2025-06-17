@@ -1,5 +1,8 @@
 #pragma once
 #include "editor_types.h"
+#include "editor_git.h"
+#include "ai/ai_tab.h"
+
 #include "imgui.h"
 #include <string>
 #include <vector>
@@ -36,5 +39,4 @@ class EditorMouse
 	void handleMouseRelease();
 };
 
-// Global instance
 extern EditorMouse gEditorMouse;
