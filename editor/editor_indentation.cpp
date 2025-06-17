@@ -60,6 +60,7 @@ void EditorIndentation::handleTabKey()
 
 void EditorIndentation::handleMultiLineIndentation()
 {
+	// Determine the range to process
 	int start = getSelectionStart();
 	int end = getSelectionEnd();
 
@@ -69,37 +70,57 @@ void EditorIndentation::handleMultiLineIndentation()
 	// Find the end of the last line
 	int lastLineEnd = findLineEnd(end);
 
-	int tabsInserted = 0;
-	int lineStart = firstLineStart;
+	int totalTabsInserted = 0;
+	std::string newText;
+	newText.reserve(editor_state.fileContent.length());
 
-	// Insert tabs at the beginning of each selected line
-	while (lineStart < lastLineEnd)
+	// Copy text before the affected lines
+	newText.append(editor_state.fileContent.substr(0, firstLineStart));
+
+	// Process each line
+	size_t lineStart = firstLineStart;
+	while (lineStart <= lastLineEnd)
 	{
-		// Insert tab at the beginning of the line
-		editor_state.fileContent.insert(lineStart, 1, '\t');
-		editor_state.fileColors.insert(editor_state.fileColors.begin() + lineStart,
-									   1,
-									   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-		tabsInserted++;
+		size_t lineEnd = editor_state.fileContent.find('\n', lineStart);
+		if (lineEnd == std::string::npos || lineEnd > lastLineEnd)
+			lineEnd = lastLineEnd;
 
-		// Move to the next line
-		lineStart = editor_state.fileContent.find('\n', lineStart) + 1;
-		if (lineStart == 0)
-			break; 
-	}
-	if(editor_state.selection_start < editor_state.selection_end){
-		editor_state.selection_start +=1;
-		editor_state.selection_end +=tabsInserted;
-		editor_state.cursor_index +=tabsInserted;
-	}else{
-		editor_state.selection_start +=tabsInserted;
-		editor_state.selection_end +=1;
-		editor_state.cursor_index +=1;
+		// Add tab at the beginning of the line
+		newText.push_back('\t');
+		totalTabsInserted++;
 
+		// Copy the rest of the line
+		newText.append(editor_state.fileContent.substr(lineStart, lineEnd - lineStart));
 
+		if (lineEnd < lastLineEnd)
+			newText.push_back('\n');
+
+		lineStart = lineEnd + 1;
 	}
 
-	
+	// Copy text after the affected lines
+	newText.append(editor_state.fileContent.substr(lastLineEnd));
+
+	// Update text
+	editor_state.fileContent = std::move(newText);
+
+	// Update selection and cursor positions
+	if (editor_state.selection_start < editor_state.selection_end) {
+		editor_state.selection_start += 1;
+		editor_state.selection_end += totalTabsInserted;
+		editor_state.cursor_index += totalTabsInserted;
+	} else {
+		editor_state.selection_start += totalTabsInserted;
+		editor_state.selection_end += 1;
+		editor_state.cursor_index += 1;
+	}
+
+	// Update colors vector
+	auto &colors = editor_state.fileColors;
+	colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
+	colors.insert(colors.begin() + firstLineStart,
+				lastLineEnd - firstLineStart + totalTabsInserted,
+				ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
 }
 
 void EditorIndentation::handleSingleLineIndentation()
