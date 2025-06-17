@@ -859,10 +859,7 @@ void EditorKeyboard::handleTextInput()
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
 
-		// Update Git tracking for the current file
-		if (!gFileExplorer.currentFile.empty()) {
-			EditorGit::getInstance().updateFileChanges(gFileExplorer.currentFile);
-		}
+		
 
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
