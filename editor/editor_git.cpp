@@ -10,6 +10,8 @@
 #include <memory>
 #include <array>
 #include "../files/files.h"
+#include <map>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -36,118 +38,40 @@ std::string execCommand(const char* cmd) {
 }
 
 void EditorGit::gitEditedLines() {
-    if (gFileExplorer.selectedFolder.empty()) {
+    const char* cmd = "git diff --unified=0 --no-color | awk '\n/^diff --git a\\// {\n    if (file) print \"\";\n    file = substr($3, 3);\n    print \"file: \" file;\n    next\n}\n/^@@/ {\n    plus = index($0, \"+\");\n    comma = index(substr($0, plus+1), \",\");\n    if (comma > 0) {\n        new_line = substr($0, plus+1, comma-1) + 0;\n    } else {\n        new_line = substr($0, plus+1) + 0;\n    }\n    next\n}\n/^\\+/ && !/^\\+\\+\\+/ {\n    print new_line;\n    new_line++;\n}\n/^ / { new_line++; }\n'";
+    std::array<char, 256> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+        std::cerr << "Failed to run git diff awk command!" << std::endl;
         return;
     }
-
-    // Change to the project directory
-    fs::current_path(gFileExplorer.selectedFolder);
-
-    // Clear the edited lines map at the start
-    {
-        std::lock_guard<std::mutex> lock(editedLinesMutex);
-        editedLines.clear();
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
     }
-
-    // Get modified files (both tracked and untracked)
-    std::string gitStatus = execCommand("git status --porcelain");
-    std::istringstream statusStream(gitStatus);
+    std::istringstream iss(result);
     std::string line;
-    
-    std::unordered_map<std::string, std::set<int>> newEditedLines;
-
-    while (std::getline(statusStream, line)) {
-        if (line.empty()) continue;
-
-        // Parse the status line
-        std::string status = line.substr(0, 2);
-        std::string filepath = line.substr(3);
-
-        // Skip deleted files
-        if (status[0] == 'D' || status[1] == 'D') continue;
-
-        // Use git diff-index to compare against HEAD
-        std::string diffCmd = "git diff-index --unified=0 HEAD -- " + filepath;
-        std::string diff = execCommand(diffCmd.c_str());
-
-        // If no changes found with diff-index, try diff for staged changes
-        if (diff.empty()) {
-            diffCmd = "git diff --cached --unified=0 -- " + filepath;
-            diff = execCommand(diffCmd.c_str());
-        }
-
-        std::istringstream diffStream(diff);
-        std::string diffLine;
-        int currentLine = 0;
-        bool inHunk = false;
-
-        while (std::getline(diffStream, diffLine)) {
-            if (diffLine.compare(0, 2, "@@") == 0) {
-                // Parse the line number from the diff header
-                // Format: @@ -a,b +c,d @@
-                size_t plusPos = diffLine.find("+");
-                if (plusPos != std::string::npos) {
-                    size_t commaPos = diffLine.find(",", plusPos);
-                    if (commaPos != std::string::npos) {
-                        try {
-                            currentLine = std::stoi(diffLine.substr(plusPos + 1, commaPos - plusPos - 1));
-                            inHunk = true;
-                        } catch (const std::exception& e) {
-                            inHunk = false;
-                            continue;
-                        }
-                    }
-                }
-            } else if (inHunk) {
-                if (diffLine.compare(0, 1, "+") == 0 && diffLine.compare(0, 3, "+++") != 0) {
-                    // This is an added line
-                    newEditedLines[filepath].insert(currentLine);
-                    currentLine++;
-                } else if (diffLine.compare(0, 1, "-") == 0 && diffLine.compare(0, 3, "---") != 0) {
-                    // This is a removed line
-                    newEditedLines[filepath].insert(currentLine);
-                } else if (diffLine.compare(0, 1, " ") != 0 && diffLine.compare(0, 3, "---") != 0 && diffLine.compare(0, 3, "+++") != 0) {
-                    // Regular line, increment counter
-                    currentLine++;
-                }
-            }
+    std::string currentFile;
+    std::map<std::string, std::vector<int>> fileChanges;
+    while (std::getline(iss, line)) {
+        if (line.compare(0, 6, "file: ") == 0) {
+            currentFile = line.substr(6);
+        } else if (!line.empty()) {
+            int lineNum = std::stoi(line);
+            fileChanges[currentFile].push_back(lineNum);
         }
     }
-
-    // Update the edited lines map
-    {
-        std::lock_guard<std::mutex> lock(editedLinesMutex);
-        editedLines = std::move(newEditedLines);
-    }
+    // Update the map with the new changes
+    editedLines = fileChanges;
 }
 
 void EditorGit::printGitEditedLines() {
-    if (gFileExplorer.currentOpenFile.empty()) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(editedLinesMutex);
-    
-    // Get the filename without the path
-    std::string currentFile = fs::path(gFileExplorer.currentOpenFile).filename().string();
-    
-    // Try both the full path and just the filename
-    auto it = editedLines.find(gFileExplorer.currentOpenFile);
-    if (it == editedLines.end()) {
-        it = editedLines.find(currentFile);
-    }
-    
-    std::cout << "Current file: " << gFileExplorer.currentOpenFile << std::endl;
-    std::cout << "Edited lines:" << std::endl;
-    
-    if (it != editedLines.end() && !it->second.empty()) {
-        for (int line : it->second) {
-            std::cout << "line " << line << std::endl;
+    for (const auto& pair : editedLines) {
+        std::cout << "file: " << pair.first << std::endl;
+        for (int line : pair.second) {
+            std::cout << line << std::endl;
         }
-    } else {
-        std::cout << "No edited lines found" << std::endl;
     }
-    std::cout << "-------------------" << std::endl;
 }
 
 void EditorGit::backgroundTask() {
