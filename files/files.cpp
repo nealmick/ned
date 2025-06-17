@@ -27,6 +27,8 @@ using json = nlohmann::json;
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
 
+#include "../editor/editor_git.h"
+
 const std::string UNDO_FILE = ".undo-redo-ned.json";
 
 FileExplorer gFileExplorer;
@@ -187,6 +189,9 @@ void FileExplorer::openFolderDialog()
 		_showFileDialog = false;
 		showWelcomeScreen = false;
 		loadUndoRedoState();
+		
+		// Initialize git tracking for the project
+		gEditorGit.init();
 	} else if (result == NFD_CANCEL)
 	{
 		std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;

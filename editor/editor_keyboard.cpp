@@ -391,6 +391,7 @@ void EditorKeyboard::handleCharacterInput()
 		}
 		// Trigger AI completion if enabled
 		if (gSettings.getSettings()["ai_autocomplete"]) {
+			gAITab.cancel_request();
 			gAITab.tab_complete();
 		}
 	}
@@ -460,6 +461,7 @@ void EditorKeyboard::handleEnterKey()
 		return;
 	}
 	if (gSettings.getSettings()["ai_autocomplete"]) {
+		gAITab.cancel_request();
 		gAITab.tab_complete();
 	}
 
@@ -857,10 +859,7 @@ void EditorKeyboard::handleTextInput()
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
 
-		// Update Git tracking for the current file
-		if (!gFileExplorer.currentFile.empty()) {
-			EditorGit::getInstance().updateFileChanges(gFileExplorer.currentFile);
-		}
+		
 
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
@@ -943,6 +942,20 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		{
 			gAITab.dismiss_completion();
 		}
+
+		
+	}
+	// Cancel any ongoing requests when arrow keys are pressed
+	if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+		ImGui::IsKeyPressed(ImGuiKey_DownArrow)||			
+		ImGui::IsKeyPressed(ImGuiKey_Delete) ||
+		ImGui::IsKeyPressed(ImGuiKey_Backspace)||
+		ImGui::IsKeyPressed(ImGuiKey_Enter)||
+		ImGui::IsKeyPressed(ImGuiKey_Escape))
+	{
+		gAITab.cancel_request();
 	}
 
 	// Process bookmarks first
