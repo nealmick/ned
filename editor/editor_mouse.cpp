@@ -57,29 +57,38 @@ void EditorMouse::handleMouseInput()
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 		editor_state.cursor_column_prefered = 
 			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
-		
+		gAITab.cancel_request();
+		gAITab.dismiss_completion();
 		return;
 	}
 
 	// Handle left click
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
+		gAITab.cancel_request();
+		gAITab.dismiss_completion();
 		handleMouseClick(char_index);
 	}
 	// Handle drag
 	else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && is_dragging)
 	{
+		gAITab.cancel_request();
+		gAITab.dismiss_completion();
 		handleMouseDrag(char_index);
 	}
 	// Handle release
 	else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
 	{
+		gAITab.cancel_request();
+		gAITab.dismiss_completion();
 		handleMouseRelease();
 	}
 
 	// Handle right click for context menu
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 	{
+		gAITab.cancel_request();
+		gAITab.dismiss_completion();
 		// Store the position where the context menu should appear
 		context_menu_pos = ImGui::GetMousePos();
 		show_context_menu = true;

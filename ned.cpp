@@ -862,6 +862,15 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			truncateFilePath(currentFile, available_width, ImGui::GetFont());
 
 		ImGui::Text("%s", truncatedText.c_str());
+
+		// Add git changes info if available
+		if(gSettings.getSettings()["git_changed_lines"]){
+			if (!gEditorGit.currentGitChanges.empty()) {
+				ImGui::SameLine();
+				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
+			}
+		}
+		
 	}
 
 	// Right-aligned status area
