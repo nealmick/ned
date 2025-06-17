@@ -76,10 +76,14 @@ void EditorGit::printGitEditedLines() {
 
 void EditorGit::backgroundTask() {
     while (git_enabled) {
-        std::cout << "Checking for git changes" << std::endl;
-        gitEditedLines();
+        if (gSettings.getSettings()["git_changed_lines"]) {
+            //std::cout << "scanning for git changes" << std::endl;
+            gitEditedLines();
+        } else {
+            editedLines.clear();  // Clear the map when feature is disabled
+        }
         //printGitEditedLines();
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
