@@ -1,64 +1,28 @@
 #pragma once
-
-#include <string>
-#include <vector>
-#include <unordered_set>
-#include <memory>
-#include <unordered_map>
 #include <thread>
 #include <atomic>
+#include <string>
+#include <unordered_map>
+#include <set>
 #include <mutex>
 
 class EditorGit {
-public:
-    static EditorGit& getInstance();
-    ~EditorGit();
-    
-    // Initialize Git tracking for a file
-    void initializeFileTracking(const std::string& filepath);
-    
-    // Check if a line has been edited
-    bool isLineEdited(int line_number) const;
-    
-    // Update tracking when file changes
-    void updateFileChanges(const std::string& filepath);
-    
-    // Clear tracking for a file
-    void clearFileTracking(const std::string& filepath);
-
-    // Set the current file being tracked
-    void setCurrentFile(const std::string& filepath);
-
 private:
-    EditorGit();
-    EditorGit(const EditorGit&) = delete;
-    EditorGit& operator=(const EditorGit&) = delete;
+    std::thread backgroundThread;
+    std::atomic<bool> git_enabled{false};
+    void backgroundTask();
+    void gitEditedLines();
+    void printGitEditedLines();
 
-    // Background thread function
-    void checkGitStatus();
-    
-    // Check if a Git repository exists for the given path
-    bool hasGitRepository(const std::string& path) const;
-    
-    // Get the Git root directory for a given path
-    std::string getGitRoot(const std::string& path) const;
-    
-    // Get the relative path from Git root to the file
-    std::string getRelativePath(const std::string& filepath) const;
-    
-    // Get the list of edited lines from Git
-    std::unordered_set<int> getEditedLines(const std::string& filepath) const;
+    // Data structure to track edited lines
+    // Map of filename -> set of line numbers that are modified
+    std::unordered_map<std::string, std::set<int>> editedLines;
+    std::mutex editedLinesMutex; // Protect access to editedLines
 
-    // Map of filepath to edited lines
-    std::unordered_map<std::string, std::unordered_set<int>> edited_lines_map;
+public:
+    void init();
+    bool isGitInitialized();
     
-    // Current file being tracked
-    std::string current_filepath;
+};
 
-    // Background thread
-    std::thread worker_thread;
-    std::atomic<bool> should_stop{false};
-    
-    // Mutex for thread safety
-    mutable std::mutex lines_mutex;
-}; 
+extern EditorGit gEditorGit;

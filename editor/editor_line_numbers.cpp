@@ -10,8 +10,6 @@ EditorLineNumbers gEditorLineNumbers;
 
 void EditorLineNumbers::setCurrentFilePath(const std::string& filepath) {
 	current_filepath = filepath;
-	EditorGit::getInstance().setCurrentFile(filepath);
-	EditorGit::getInstance().initializeFileTracking(filepath);
 }
 
 void EditorLineNumbers::renderLineNumbers()
@@ -63,7 +61,7 @@ void EditorLineNumbers::renderLineNumbers()
 
 		// Determine color based on selection, current line, and edited status
 		ImU32 line_number_color;
-		bool is_edited = EditorGit::getInstance().isLineEdited(i + 1);
+		bool is_edited = false;/// add call to see if git line is edited 
 		
 		if (i >= selection_start_line && i < selection_end_line && editor_state.selection_active)
 		{
