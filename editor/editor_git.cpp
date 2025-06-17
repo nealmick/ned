@@ -78,7 +78,7 @@ void EditorGit::backgroundTask() {
     while (git_enabled) {
         std::cout << "Checking for git changes" << std::endl;
         gitEditedLines();
-        printGitEditedLines();
+        //printGitEditedLines();
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
     }
 }
@@ -97,6 +97,22 @@ void EditorGit::init() {
     if (git_enabled) {
         backgroundThread = std::thread(&EditorGit::backgroundTask, this);
     }
+}
+
+bool EditorGit::isLineEdited(const std::string& filePath, int lineNumber) const {
+    std::string relativePath = filePath;
+    if (filePath.find(gFileExplorer.selectedFolder) == 0) {
+        size_t folderLength = gFileExplorer.selectedFolder.length();
+        if (folderLength < filePath.length()) {
+            relativePath = filePath.substr(folderLength + 1);
+        }
+    }
+    auto it = editedLines.find(relativePath);
+    if (it != editedLines.end()) {
+        const auto& lines = it->second;
+        return std::find(lines.begin(), lines.end(), lineNumber) != lines.end();
+    }
+    return false;
 }
 
 EditorGit gEditorGit;
