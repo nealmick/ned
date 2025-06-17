@@ -13,6 +13,7 @@ public:
     void init();
     void gitEditedLines();
     void printGitEditedLines();
+    bool isLineEdited(const std::string& filePath, int lineNumber) const;
     std::map<std::string, std::vector<int>> editedLines;
 
 private:

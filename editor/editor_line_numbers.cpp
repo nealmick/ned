@@ -1,6 +1,7 @@
 #include "editor_line_numbers.h"
 #include "editor_git.h"
 #include "../util/settings.h"
+#include "../files/files.h"
 #include "editor.h"
 #include <algorithm>
 #include <cmath>
@@ -61,7 +62,7 @@ void EditorLineNumbers::renderLineNumbers()
 
 		// Determine color based on selection, current line, and edited status
 		ImU32 line_number_color;
-		bool is_edited = false;/// add call to see if git line is edited 
+		bool is_edited = gEditorGit.isLineEdited(gFileExplorer.currentFile, i + 1);
 		
 		if (i >= selection_start_line && i < selection_end_line && editor_state.selection_active)
 		{
