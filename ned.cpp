@@ -832,7 +832,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 	ImGui::PushFont(currentFont);
 
 	// Determine the base icon size (equal to font size)
-	float iconSize = ImGui::GetFontSize();
+	float iconSize = ImGui::GetFontSize() * 1.15f;
 	std::string currentFile = gFileExplorer.currentFile;
 
 	// Render left side (file icon and name)
@@ -862,6 +862,15 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			truncateFilePath(currentFile, available_width, ImGui::GetFont());
 
 		ImGui::Text("%s", truncatedText.c_str());
+
+		// Add git changes info if available
+		if(gSettings.getSettings()["git_changed_lines"]){
+			if (!gEditorGit.currentGitChanges.empty()) {
+				ImGui::SameLine();
+				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
+			}
+		}
+		
 	}
 
 	// Right-aligned status area
@@ -881,7 +890,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		// Brain icon (only visible when active)
 		if (gAITab.request_active)
 		{
-			ImGui::Image(gFileExplorer.getIcon("brain"), ImVec2(iconSize, iconSize));
+			ImGui::Image(gFileExplorer.getIcon("green-dot"), ImVec2(iconSize, iconSize));
 		} else
 		{
 			// Invisible placeholder to maintain layout
@@ -890,7 +899,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		ImGui::SameLine();
 
 		// Settings icon (always in same position)
-		renderSettingsIcon(iconSize * 0.8f);
+		renderSettingsIcon(iconSize * 0.6f);
 	}
 	ImGui::EndGroup();
 

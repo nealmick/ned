@@ -1,20 +1,21 @@
 {
+    "ai_autocomplete": true,
     "backgroundColor": [
         0.11182449012994766,
         0.31506848335266113,
         0.026975031942129135,
         0.0
     ],
-    "bloom_intensity": 0.12999999523162842,
+    "bloom_intensity": 0.4099999964237213,
     "burnin_intensity": 0.9409999847412109,
     "colorshift_intensity": 0.6499999761581421,
     "curvature_intensity": 0.09000000357627869,
     "font": "VT100",
     "fontSize": 26.0,
+    "git_changed_lines": true,
     "jitter_intensity": 2.2899999618530273,
     "lsp_autocomplete": false,
-    "ai_autocomplete": true,
-    "mac_background_opacity": 0.6800000071525574,
+    "mac_background_opacity": 0.5600000023841858,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.032999999821186066,
@@ -83,5 +84,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.3700000047683716
+    "vignet_intensity": 0.1599999964237213
 }
