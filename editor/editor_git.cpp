@@ -6,12 +6,37 @@
 #include <sstream>
 #include <cstdlib>
 #include <chrono>
+#include <thread>
+#include <mutex>
 
 namespace fs = std::filesystem;
+
+EditorGit::EditorGit() {
+    worker_thread = std::thread(&EditorGit::checkGitStatus, this);
+}
+
+EditorGit::~EditorGit() {
+    should_stop = true;
+    if (worker_thread.joinable()) {
+        worker_thread.join();
+    }
+}
 
 EditorGit& EditorGit::getInstance() {
     static EditorGit instance;
     return instance;
+}
+
+void EditorGit::checkGitStatus() {
+    while (!should_stop) {
+        if (gSettings.getSettings().value("git_changed_lines", true)) {
+            std::lock_guard<std::mutex> lock(lines_mutex);
+            if (!current_filepath.empty() && hasGitRepository(current_filepath)) {
+                edited_lines_map[current_filepath] = getEditedLines(current_filepath);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
 }
 
 void EditorGit::setCurrentFile(const std::string& filepath) {
@@ -20,15 +45,19 @@ void EditorGit::setCurrentFile(const std::string& filepath) {
 
 void EditorGit::initializeFileTracking(const std::string& filepath) {
     if (!gSettings.getSettings().value("git_changed_lines", true)) {
-        edited_lines_map[filepath] = std::unordered_set<int>();  // Initialize with empty set
+        std::lock_guard<std::mutex> lock(lines_mutex);
+        edited_lines_map[filepath] = std::unordered_set<int>();
         return;
     }
     
     if (!hasGitRepository(filepath)) {
-        edited_lines_map[filepath] = std::unordered_set<int>();  // Initialize with empty set
+        std::lock_guard<std::mutex> lock(lines_mutex);
+        edited_lines_map[filepath] = std::unordered_set<int>();
         return;
     }
-    edited_lines_map[filepath] = getEditedLines(filepath, true);  // Force refresh on initialization
+    
+    std::lock_guard<std::mutex> lock(lines_mutex);
+    edited_lines_map[filepath] = getEditedLines(filepath);
 }
 
 bool EditorGit::isLineEdited(int line_number) const {
@@ -36,6 +65,7 @@ bool EditorGit::isLineEdited(int line_number) const {
         return false;
     }
     
+    std::lock_guard<std::mutex> lock(lines_mutex);
     auto it = edited_lines_map.find(current_filepath);
     if (it == edited_lines_map.end()) {
         return false;
@@ -44,33 +74,12 @@ bool EditorGit::isLineEdited(int line_number) const {
 }
 
 void EditorGit::updateFileChanges(const std::string& filepath) {
-    if (!gSettings.getSettings().value("git_changed_lines", true)) {
-        edited_lines_map[filepath] = std::unordered_set<int>();  // Set empty set when disabled
-        return;
-    }
-    
-    if (!hasGitRepository(filepath)) {
-        edited_lines_map[filepath] = std::unordered_set<int>();  // Set empty set for non-git files
-        return;
-    }
-    edited_lines_map[filepath] = getEditedLines(filepath, true);  // Force refresh on file change
-}
-
-void EditorGit::forceRefresh(const std::string& filepath) {
-    if (!gSettings.getSettings().value("git_changed_lines", true)) {
-        return;
-    }
-    
-    if (!hasGitRepository(filepath)) {
-        return;
-    }
-    
-    edited_lines_map[filepath] = getEditedLines(filepath, true);
+    // No-op - background thread handles updates
 }
 
 void EditorGit::clearFileTracking(const std::string& filepath) {
+    std::lock_guard<std::mutex> lock(lines_mutex);
     edited_lines_map.erase(filepath);
-    git_cache.erase(filepath);
 }
 
 bool EditorGit::hasGitRepository(const std::string& path) const {
@@ -122,55 +131,34 @@ std::string EditorGit::getRelativePath(const std::string& filepath) const {
     return rel_path.string();
 }
 
-bool EditorGit::isCacheValid(const std::string& filepath) const {
-    auto it = git_cache.find(filepath);
-    if (it == git_cache.end()) {
-        return false;
-    }
-    auto now = std::chrono::system_clock::now();
-    return (now - it->second.last_update) < CACHE_DURATION;
-}
-
-void EditorGit::updateCache(const std::string& filepath, const std::unordered_set<int>& lines) {
-    GitCache cache;
-    cache.edited_lines = lines;
-    cache.last_update = std::chrono::system_clock::now();
-    cache.is_valid = true;
-    git_cache[filepath] = cache;
-}
-
-std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath, bool force_refresh) const {
+std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath) const {
+    std::unordered_set<int> edited_lines;
+    
     if (!gSettings.getSettings().value("git_changed_lines", true)) {
-        return std::unordered_set<int>();
+        return edited_lines;
     }
     
     if (!hasGitRepository(filepath)) {
-        return std::unordered_set<int>();
-    }
-    
-    // Check cache first, unless force refresh is requested
-    if (!force_refresh && isCacheValid(filepath)) {
-        return git_cache.at(filepath).edited_lines;
+        return edited_lines;
     }
     
     std::string git_root = getGitRoot(filepath);
     if (git_root.empty()) {
-        return std::unordered_set<int>();
+        return edited_lines;
     }
     
     std::string rel_path = getRelativePath(filepath);
     if (rel_path.empty()) {
-        return std::unordered_set<int>();
+        return edited_lines;
     }
     
-    // Combine git commands into a single call
-    std::string cmd = "cd \"" + git_root + "\" && git diff --unified=0 HEAD -- \"" + rel_path + "\" && git diff --staged --unified=0 -- \"" + rel_path + "\"";
+    // Get both staged and unstaged changes
+    std::string cmd = "cd \"" + git_root + "\" && git diff --unified=0 --no-color HEAD -- \"" + rel_path + "\" && git diff --staged --unified=0 --no-color -- \"" + rel_path + "\"";
     FILE* pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
-        return std::unordered_set<int>();
+        return edited_lines;
     }
     
-    std::unordered_set<int> edited_lines;
     char buffer[128];
     std::string result = "";
     while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
@@ -178,52 +166,31 @@ std::unordered_set<int> EditorGit::getEditedLines(const std::string& filepath, b
     }
     pclose(pipe);
     
-    // Parse the combined diff output
+    // Parse the diff output
     std::istringstream iss(result);
     std::string line;
+    edited_lines.reserve(100); // Pre-allocate space for common case
+    
     while (std::getline(iss, line)) {
         if (line.length() >= 2 && line.substr(0, 2) == "@@") {
             size_t minus_pos = line.find("-");
             size_t plus_pos = line.find("+");
             if (minus_pos != std::string::npos && plus_pos != std::string::npos) {
-                size_t old_comma_pos = line.find(",", minus_pos);
-                int old_start = 0;
-                int old_count = 0;
-                if (old_comma_pos != std::string::npos) {
-                    old_start = std::stoi(line.substr(minus_pos + 1, old_comma_pos - minus_pos - 1));
-                    old_count = std::stoi(line.substr(old_comma_pos + 1, plus_pos - old_comma_pos - 1));
-                }
-                
+                // For both deletions and additions, we want to use the new file's line numbers
                 size_t new_comma_pos = line.find(",", plus_pos);
-                int new_start = 0;
-                int new_count = 0;
                 if (new_comma_pos != std::string::npos) {
-                    new_start = std::stoi(line.substr(plus_pos + 1, new_comma_pos - plus_pos - 1));
-                    new_count = std::stoi(line.substr(new_comma_pos + 1));
-                } else {
-                    new_start = std::stoi(line.substr(plus_pos + 1));
-                    new_count = 1;
-                }
-                
-                // Optimize line insertion by pre-allocating space
-                if (old_count > 0) {
-                    edited_lines.reserve(edited_lines.size() + old_count);
-                    for (int i = 0; i < old_count; ++i) {
-                        edited_lines.insert(old_start + i);
-                    }
-                }
-                if (new_count > 0) {
-                    edited_lines.reserve(edited_lines.size() + new_count);
+                    int new_start = std::stoi(line.substr(plus_pos + 1, new_comma_pos - plus_pos - 1));
+                    int new_count = std::stoi(line.substr(new_comma_pos + 1));
                     for (int i = 0; i < new_count; ++i) {
                         edited_lines.insert(new_start + i);
                     }
+                } else {
+                    int new_start = std::stoi(line.substr(plus_pos + 1));
+                    edited_lines.insert(new_start);
                 }
             }
         }
     }
-    
-    // Update cache
-    const_cast<EditorGit*>(this)->updateCache(filepath, edited_lines);
     
     return edited_lines;
 } 
