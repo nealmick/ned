@@ -391,6 +391,7 @@ void EditorKeyboard::handleCharacterInput()
 		}
 		// Trigger AI completion if enabled
 		if (gSettings.getSettings()["ai_autocomplete"]) {
+			gAITab.cancel_request();
 			gAITab.tab_complete();
 		}
 	}
@@ -460,6 +461,7 @@ void EditorKeyboard::handleEnterKey()
 		return;
 	}
 	if (gSettings.getSettings()["ai_autocomplete"]) {
+		gAITab.cancel_request();
 		gAITab.tab_complete();
 	}
 

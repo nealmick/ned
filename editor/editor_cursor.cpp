@@ -377,6 +377,8 @@ void EditorCursor::cursorDown()
 	editor_state.cursor_index = original_main_cursor_index;
 	editor_state.cursor_column_prefered = original_main_cursor_pref_col;
 }
+
+
 void EditorCursor::moveCursorVertically(std::string &text, int line_delta)
 {
 	int main_current_line_num = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
