@@ -699,7 +699,45 @@ void Ned::handleKeyboardShortcuts()
 	ImGuiKey toggleSidebar = gKeybinds.getActionKey("toggle_sidebar");
 	 
 	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false)){
-		showSidebar = !showSidebar; // Toggle sidebar visibility
+		float windowWidth = ImGui::GetWindowWidth();
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float leftSplit = gSettings.getSplitPos();
+		float rightSplit = gSettings.getAgentSplitPos();
+
+		float explorerWidth = availableWidth * leftSplit;
+		float agentPaneWidth = availableWidth * rightSplit;
+		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
+
+		float rightSplitterX;
+		if (showSidebar) {
+			// [explorer][splitter][editor][splitter][agent]
+			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
+			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
+		} else {
+			// [editor][splitter][agent]
+			float editorWidth = availableWidth * rightSplit;
+			rightSplitterX = editorWidth;
+		}
+
+		// Toggle sidebar
+		showSidebar = !showSidebar;
+
+		// Recompute availableWidth after toggling
+		windowWidth = ImGui::GetWindowWidth();
+		availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float newRightSplit;
+		if (showSidebar) {
+			// [explorer][splitter][editor][splitter][agent]
+			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
+		} else {
+			// [editor][splitter][agent]
+			newRightSplit = rightSplitterX / availableWidth;
+		}
+		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
+
 		std::cout << "Toggled sidebar visibility" << std::endl;
 	}
 	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
