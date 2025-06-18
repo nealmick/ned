@@ -12,7 +12,7 @@
     "curvature_intensity": 0.0,
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 29.0,
-    "fps_target": 1000.0,
+    "fps_target": 148.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,
@@ -22,7 +22,7 @@
     "pixel_width": 5000.0,
     "pixelation_intensity": -0.026000000536441803,
     "rainbow": true,
-    "scanline_intensity": 0.699999988079071,
+    "scanline_intensity": 0.20999999344348907,
     "shader_toggle": true,
     "splitPos": 0.17952314019203186,
     "static_intensity": 0.4000000059604645,
@@ -66,9 +66,9 @@
                 1.0
             ],
             "text": [
-                0.680115282535553,
-                0.680115282535553,
-                0.680115282535553,
+                0.7552631497383118,
+                0.7433379888534546,
+                0.7433379888534546,
                 1.0
             ],
             "type": [
@@ -78,9 +78,9 @@
                 1.0
             ],
             "variable": [
-                0.4803886413574219,
-                0.4917491674423218,
-                0.4808385670185089,
+                0.5717658996582031,
+                0.5763157606124878,
+                0.5719460844993591,
                 1.0
             ]
         }

@@ -62,6 +62,7 @@ class Ned
 	GLFWwindow *window;
 	Shader crtShader;
 	ImFont *currentFont;
+	ImFont *largeFont; // Font for resolution overlay
 	FramebufferState fb;
 	TimingState timing;
 	ShaderQuad quad;
@@ -104,6 +105,7 @@ class Ned
 
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
+	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
 
 	// slow scrolling momentum accumulator
@@ -135,7 +137,7 @@ class Ned
 
 	int m_sroLastWidth;
 	int m_sroLastHeight;
-	int m_sroFramesToShow;
+	double m_sroStartTime;
 
 	// Declaration for the single overlay function
 	void handleUltraSimpleResizeOverlay(); // Renamed for clarity

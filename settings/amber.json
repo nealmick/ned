@@ -12,7 +12,7 @@
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
     "fontSize": 31.0,
-    "fps_target": 502.0,
+    "fps_target": 150.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,

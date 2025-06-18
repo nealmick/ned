@@ -361,6 +361,14 @@ void Ned::initializeResources()
 		std::cerr << "🔴 Failed to load font, using default font" << std::endl;
 		currentFont = ImGui::GetIO().Fonts->AddFontDefault();
 	}
+	
+	// Load large font for resolution overlay
+	largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
+	if (!largeFont)
+	{
+		std::cerr << "🔴 Failed to load large font, using default font" << std::endl;
+		largeFont = ImGui::GetIO().Fonts->AddFontDefault();
+	}
 }
 
 float Ned::clamp(float value, float min, float max)
@@ -437,6 +445,46 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 
 	return font;
 }
+
+ImFont *Ned::loadLargeFont(const std::string &fontName, float fontSize)
+{
+	ImGuiIO &io = ImGui::GetIO();
+
+	// Build the path from .app/Contents/Resources/fonts/
+	std::string resourcePath = Settings::getAppResourcesPath();
+	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
+
+	if (!std::filesystem::exists(fontPath))
+	{
+		std::cerr << "[Ned::loadLargeFont] Font does not exist: " << fontPath << std::endl;
+		return io.Fonts->AddFontDefault();
+	}
+
+	static const ImWchar ranges[] = {
+		0x0020, 0x00FF, // Basic Latin + Latin Supplement
+		0,
+	};
+	
+	ImFontConfig config;
+	config.MergeMode = false;
+	config.GlyphRanges = ranges;
+
+	// Don't clear existing fonts - just add the new one
+	ImFont *font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config, ranges);
+
+	if (!font)
+	{
+		std::cerr << "[Ned::loadLargeFont] Failed to load font: " << fontPath << std::endl;
+		return io.Fonts->AddFontDefault();
+	}
+
+	// After adding new fonts, re-create the OpenGL font texture
+	ImGui_ImplOpenGL3_DestroyFontsTexture();
+	ImGui_ImplOpenGL3_CreateFontsTexture();
+
+	return font;
+}
+
 void Ned::handleWindowDragging()
 {
 	if (isDraggingWindow)
@@ -1171,11 +1219,16 @@ void Ned::handleUltraSimpleResizeOverlay()
 	}
 	if (currentSizeIsValid && (currentWidth != m_sroLastWidth || currentHeight != m_sroLastHeight))
 	{
-		m_sroFramesToShow = 35;
+		m_sroStartTime = glfwGetTime();
 		m_sroLastWidth = currentWidth;
 		m_sroLastHeight = currentHeight;
 	}
-	if (m_sroFramesToShow > 0)
+	
+	double currentTime = glfwGetTime();
+	double elapsedTime = currentTime - m_sroStartTime;
+	const double displayDuration = 0.5; // Display for 0.5 seconds
+	
+	if (m_sroStartTime > 0.0 && elapsedTime < displayDuration)
 	{
 		ImDrawList *drawList = ImGui::GetForegroundDrawList();
 		ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -1190,7 +1243,7 @@ void Ned::handleUltraSimpleResizeOverlay()
 		char buffer[64];
 		snprintf(buffer, sizeof(buffer), "%d x %d", m_sroLastWidth, m_sroLastHeight);
 
-		ImFont *font = ImGui::GetFont();
+		ImFont *font = largeFont; // Use the large font instead of scaling
 		float targetFontSize = 52.0f;
 
 		ImVec2 textSize = font->CalcTextSizeA(targetFontSize, FLT_MAX, 0.0f, buffer);
@@ -1199,8 +1252,6 @@ void Ned::handleUltraSimpleResizeOverlay()
 								viewportPos.y + (viewportSize.y - textSize.y) * 0.5f);
 
 		drawList->AddText(font, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
-
-		m_sroFramesToShow--;
 	}
 }
 void Ned::handleFileDialog()
