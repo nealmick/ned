@@ -12,6 +12,7 @@
     "curvature_intensity": 0.0,
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 29.0,
+    "fps_target": 1000.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,

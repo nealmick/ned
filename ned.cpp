@@ -284,7 +284,7 @@ bool Ned::initializeGraphics()
 	}
 
 	glfwMakeContextCurrent(window);
-	glfwSwapInterval(1);
+	glfwSwapInterval(0);
 	glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
 	// Enable raw mouse motion for more accurate tracking
@@ -1339,8 +1339,21 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 {
 	auto frame_end = std::chrono::high_resolution_clock::now();
 	auto frame_duration = frame_end - frame_start;
-	std::this_thread::sleep_for(std::chrono::duration<double>(1.0 / TARGET_FPS) - frame_duration);
+	
+	// Get FPS target from settings directly
+	float fpsTarget = 120.0f;
+	if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+		fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+	}
+	// Only apply frame timing if FPS target is reasonable (not unlimited)
+	if (fpsTarget > 0.0f && fpsTarget < 10000.0f) {
+		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
+		if (frame_duration < targetFrameTime) {
+			std::this_thread::sleep_for(targetFrameTime - frame_duration);
+		}
+	}
 }
+
 void Ned::handleSettingsChanges()
 {
 	if (gSettings.hasSettingsChanged())

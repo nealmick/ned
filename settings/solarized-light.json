@@ -12,6 +12,7 @@
     "font": "SourceCodePro-Regular",
     "fontSize": 22.0,
     "jitter_intensity": 0.0,
+    "fps_target": 1000.0,
     "lsp_autocomplete": false,
     "ai_autocomplete": true,
     "git_changed_lines": true,
