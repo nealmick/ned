@@ -46,6 +46,7 @@ class FileExplorer
 	void addUndoState();
 	void saveUndoRedoState();
 	void loadUndoRedoState();
+	void forceSaveUndoState();  // Force save when needed (e.g., on app close)
 
 	// UI functions
 	void openFolderDialog();
@@ -121,6 +122,7 @@ class FileExplorer
 	bool _unsavedChanges = false;
 	std::string selectedFolder;
 	bool _showFileDialog = false;
+	bool _undoStateDirty = false;  // Track if undo state needs saving
 
   private:
 	std::map<std::string, ImTextureID> fileTypeIcons;
