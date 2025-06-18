@@ -1,5 +1,6 @@
 #include "editor_copy_paste.h"
 #include "editor.h"
+#include "../ai/ai_tab.h"
 #include "editor_highlight.h"
 #include <algorithm>
 
@@ -72,6 +73,9 @@ void EditorCopyPaste::cutSelectedText()
 
 void EditorCopyPaste::cutWholeLine()
 {
+	gAITab.cancel_request();
+	gAITab.dismiss_completion();
+
 	int line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												editor_state.cursor_index);
 	int line_start = editor_state.editor_content_lines[line];
@@ -93,6 +97,8 @@ void EditorCopyPaste::cutWholeLine()
 
 void EditorCopyPaste::pasteText()
 {
+	gAITab.cancel_request();
+	gAITab.dismiss_completion();
 	const char *clipboard_text = ImGui::GetClipboardText();
 	if (clipboard_text != nullptr)
 	{
