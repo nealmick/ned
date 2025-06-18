@@ -1134,12 +1134,12 @@ void Ned::renderAgentSplitter(float padding, float availableWidth)
     // Draw the splitter
     ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
 
-    // Drag logic
+    // Calculate the splitter's X position (left edge of agent pane)
+    float agentSplit = gSettings.getAgentSplitPos();
+    float splitterX = availableWidth - (availableWidth * agentSplit);
+
     static bool dragging = false;
     static float dragOffset = 0.0f;
-
-    float agentSplit = gSettings.getAgentSplitPos();
-    float splitterX = padding * 2 + (availableWidth - padding * 4 - 6) * agentSplit;
 
     if (ImGui::IsItemActive() && !dragging) {
         // Drag just started
@@ -1153,7 +1153,7 @@ void Ned::renderAgentSplitter(float padding, float availableWidth)
     }
     if (dragging) {
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
-        float new_split = clamp((mouseX - padding * 2) / (availableWidth - padding * 4 - 6), 0.1f, 0.9f);
+        float new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
         gSettings.setAgentSplitPos(new_split);
     }
 
@@ -1236,13 +1236,12 @@ void Ned::renderMainWindow()
 	if (showSidebar)
 	{
 		// First split: File Explorer vs. Editor+Agent
-		explorerWidth = availableWidth * gSettings.getSplitPos();
-		float rightAreaWidth = availableWidth - explorerWidth - 4.0f;
+		float leftSplit = gSettings.getSplitPos();
+		float rightSplit = gSettings.getAgentSplitPos();
 
-		// Second split: Editor vs. Agent Pane
-		float agentSplit = gSettings.getAgentSplitPos();
-		editorWidth = rightAreaWidth * agentSplit;
-		float agentPaneWidth = rightAreaWidth - editorWidth - 4.0f;
+		float explorerWidth = availableWidth * leftSplit;
+		float agentPaneWidth = availableWidth * rightSplit;
+		float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
 
 		// Render File Explorer
 		renderFileExplorer(explorerWidth);
@@ -1257,7 +1256,7 @@ void Ned::renderMainWindow()
 		ImGui::SameLine(0, 0);
 
 		// Render right splitter (new)
-		renderAgentSplitter(padding, rightAreaWidth); // New function, see below
+		renderAgentSplitter(padding, availableWidth); // New function, see below
 		ImGui::SameLine(0, 0);
 
 		// Render Agent Pane (new)
@@ -1265,7 +1264,7 @@ void Ned::renderMainWindow()
 	} else {
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
-		editorWidth = availableWidth * agentSplit;
+		float editorWidth = availableWidth * agentSplit;
 		float agentPaneWidth = availableWidth - editorWidth - 4.0f;
 
 		renderEditor(currentFont, editorWidth);
