@@ -956,6 +956,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		gAITab.cancel_request();
+
 	}
 
 	// Process bookmarks first
