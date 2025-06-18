@@ -29,6 +29,7 @@ Description: Main application class implementation for NED text editor.
 Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
+bool showAgentPane = true;
 
 // FPS counter variables
 static double fps_lastTime = 0.0;
@@ -740,6 +741,53 @@ void Ned::handleKeyboardShortcuts()
 
 		std::cout << "Toggled sidebar visibility" << std::endl;
 	}
+
+	ImGuiKey toggleAgent = gKeybinds.getActionKey("toggle_agent");
+	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false)) {
+		float windowWidth = ImGui::GetWindowWidth();
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float leftSplit = gSettings.getSplitPos();
+		float rightSplit = gSettings.getAgentSplitPos();
+
+		float explorerWidth = availableWidth * leftSplit;
+		float agentPaneWidth = availableWidth * rightSplit;
+		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
+
+		float rightSplitterX;
+		if (showSidebar) {
+			// [explorer][splitter][editor][splitter][agent]
+			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
+			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
+		} else {
+			// [editor][splitter][agent]
+			float editorWidth = availableWidth * rightSplit;
+			rightSplitterX = editorWidth;
+		}
+
+		// Toggle agent pane
+		showAgentPane = !showAgentPane;
+
+		// Recompute availableWidth after toggling
+		windowWidth = ImGui::GetWindowWidth();
+		availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float newRightSplit;
+		if (showAgentPane) {
+			// [explorer][splitter][editor][splitter][agent]
+			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
+		} else {
+			// [explorer][splitter][editor] (no agent)
+			// We want the editor to fill the space, so don't need to update split, but keep the value for restoration
+			// Optionally, you could store the agent pane width for restoration
+		}
+		if (showAgentPane) {
+			gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
+		}
+		std::cout << "Toggled agent pane visibility" << std::endl;
+	}
+
 	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
 	
 	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false)){
@@ -1227,7 +1275,7 @@ void Ned::renderAgentPane(float agentPaneWidth)
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
 
     ImGui::BeginChild("Agent Pane", ImVec2(agentPaneWidth, -1), true);
-    ImGui::Text("Hello World");
+    ImGui::Text("Agent");
     ImGui::EndChild();
 
     ImGui::PopStyleColor();
@@ -1287,7 +1335,7 @@ void Ned::renderMainWindow()
 
 		float explorerWidth = availableWidth * leftSplit;
 		float agentPaneWidth = availableWidth * rightSplit;
-		float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
+		float editorWidth = availableWidth - explorerWidth - (showAgentPane ? agentPaneWidth : 0.0f) - (padding * 2);
 
 		// Render File Explorer
 		renderFileExplorer(explorerWidth);
@@ -1299,25 +1347,27 @@ void Ned::renderMainWindow()
 
 		// Render Editor
 		renderEditor(currentFont, editorWidth);
-		ImGui::SameLine(0, 0);
-
-		// Render right splitter (new)
-		renderAgentSplitter(padding, availableWidth, showSidebar);
-		ImGui::SameLine(0, 0);
-
-		// Render Agent Pane (new)
-		renderAgentPane(agentPaneWidth);
+		if (showAgentPane) {
+			ImGui::SameLine(0, 0);
+			// Render right splitter (new)
+			renderAgentSplitter(padding, availableWidth, showSidebar);
+			ImGui::SameLine(0, 0);
+			// Render Agent Pane (new)
+			renderAgentPane(agentPaneWidth);
+		}
 	} else {
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
-		float editorWidth = availableWidth * agentSplit;
-		float agentPaneWidth = availableWidth - editorWidth - 4.0f;
+		float editorWidth = showAgentPane ? (availableWidth * agentSplit) : availableWidth;
+		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - 4.0f) : 0.0f;
 
 		renderEditor(currentFont, editorWidth);
-		ImGui::SameLine(0, 0);
-		renderAgentSplitter(padding, availableWidth, showSidebar);
-		ImGui::SameLine(0, 0);
-		renderAgentPane(agentPaneWidth);
+		if (showAgentPane) {
+			ImGui::SameLine(0, 0);
+			renderAgentSplitter(padding, availableWidth, showSidebar);
+			ImGui::SameLine(0, 0);
+			renderAgentPane(agentPaneWidth);
+		}
 	}
 	renderResizeHandles();
 	handleManualResizing();
