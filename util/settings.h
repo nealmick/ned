@@ -32,6 +32,14 @@ class Settings
 		settingsChanged = true;
 	}
 
+	float getAgentSplitPos() const { return agentSplitPos; }
+	void setAgentSplitPos(float pos)
+	{
+		agentSplitPos = pos;
+		settings["agent_split_pos"] = pos;
+		settingsChanged = true;
+	}
+
 	bool hasSettingsChanged() const { return settingsChanged; }
 	void resetSettingsChanged() { settingsChanged = false; }
 
@@ -129,6 +137,7 @@ class Settings
 	json settings;			  // Holds the settings from the *active* file
 	std::string settingsPath; // Path to the *active* settings file (e.g., ned.json or test.json)
 	float splitPos = 0.3f;	  // Default, will be overwritten by loaded settings
+	float agentSplitPos = 0.75f; // Default, will be overwritten by loaded settings
 
 	bool settingsChanged = false;
 	bool themeChanged = false;
