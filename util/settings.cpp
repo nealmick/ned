@@ -43,6 +43,7 @@ void Settings::loadSettings()
 	currentFontName = getCurrentFont();
 	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
+	agentSplitPos = settings.value("agent_split_pos", 0.75f);
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;

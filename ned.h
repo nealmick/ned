@@ -103,6 +103,10 @@ class Ned
 	void renderWithShader(int display_w, int display_h, double currentTime);
 	void renderFPSCounter();
 
+	// Add these declarations for the agent pane and its splitter
+	void renderAgentSplitter(float padding, float availableWidth);
+	void renderAgentPane(float agentPaneWidth);
+
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
 	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
