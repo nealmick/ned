@@ -20,14 +20,18 @@ public:
         // Helper to apply this operation to a string
         std::string apply(const std::string& current) const {
             std::string result = current;
-            result.replace(position, inserted.length(), removed);
+            if (position >= 0 && position <= static_cast<int>(result.length())) {
+                result.replace(position, inserted.length(), removed);
+            }
             return result;
         }
 
         // Helper to apply inverse (redo) operation
         std::string applyInverse(const std::string& current) const {
             std::string result = current;
-            result.replace(position, removed.length(), inserted);
+            if (position >= 0 && position <= static_cast<int>(result.length())) {
+                result.replace(position, removed.length(), inserted);
+            }
             return result;
         }
     };
@@ -39,56 +43,84 @@ public:
         j["undoStack"] = json::array();
         j["redoStack"] = json::array();
 
-        for (const auto& op : undoStack) {
+        // Only serialize recent operations to reduce memory usage
+        size_t undoCount = std::min(undoStack.size(), static_cast<size_t>(50));
+        for (size_t i = undoStack.size() - undoCount; i < undoStack.size(); ++i) {
             j["undoStack"].push_back({
-                {"position", op.position},
-                {"removed", op.removed},
-                {"inserted", op.inserted},
-                {"cursor_before", op.cursor_before},
-                {"cursor_after", op.cursor_after}
+                {"position", undoStack[i].position},
+                {"removed", undoStack[i].removed},
+                {"inserted", undoStack[i].inserted},
+                {"cursor_before", undoStack[i].cursor_before},
+                {"cursor_after", undoStack[i].cursor_after}
             });
         }
 
-        for (const auto& op : redoStack) {
+        size_t redoCount = std::min(redoStack.size(), static_cast<size_t>(20));
+        for (size_t i = redoStack.size() - redoCount; i < redoStack.size(); ++i) {
             j["redoStack"].push_back({
-                {"position", op.position},
-                {"removed", op.removed},
-                {"inserted", op.inserted},
-                {"cursor_before", op.cursor_before},
-                {"cursor_after", op.cursor_after}
+                {"position", redoStack[i].position},
+                {"removed", redoStack[i].removed},
+                {"inserted", redoStack[i].inserted},
+                {"cursor_before", redoStack[i].cursor_before},
+                {"cursor_after", redoStack[i].cursor_after}
             });
         }
         return j;
     }
 
     void fromJson(const json& j) {
-        maxStackSize = j.value("maxStackSize", 100);
-        lastCommittedState = j.value("lastCommittedState", "");
-        undoStack.clear();
-        redoStack.clear();
+        try {
+            maxStackSize = j.value("maxStackSize", 50); // Reduced default
+            lastCommittedState = j.value("lastCommittedState", "");
+            undoStack.clear();
+            redoStack.clear();
 
-        if (j.contains("undoStack")) {
-            for (const auto& item : j["undoStack"]) {
-                undoStack.push_back({
-                    item["position"].get<int>(),
-                    item["removed"].get<std::string>(),
-                    item["inserted"].get<std::string>(),
-                    item["cursor_before"].get<int>(),
-                    item["cursor_after"].get<int>()
-                });
+            if (j.contains("undoStack") && j["undoStack"].is_array()) {
+                for (const auto& item : j["undoStack"]) {
+                    if (item.is_object() && 
+                        item.contains("position") && item["position"].is_number() &&
+                        item.contains("removed") && item["removed"].is_string() &&
+                        item.contains("inserted") && item["inserted"].is_string() &&
+                        item.contains("cursor_before") && item["cursor_before"].is_number() &&
+                        item.contains("cursor_after") && item["cursor_after"].is_number()) {
+                        
+                        undoStack.push_back({
+                            item["position"].get<int>(),
+                            item["removed"].get<std::string>(),
+                            item["inserted"].get<std::string>(),
+                            item["cursor_before"].get<int>(),
+                            item["cursor_after"].get<int>()
+                        });
+                    }
+                }
             }
-        }
 
-        if (j.contains("redoStack")) {
-            for (const auto& item : j["redoStack"]) {
-                redoStack.push_back({
-                    item["position"].get<int>(),
-                    item["removed"].get<std::string>(),
-                    item["inserted"].get<std::string>(),
-                    item["cursor_before"].get<int>(),
-                    item["cursor_after"].get<int>()
-                });
+            if (j.contains("redoStack") && j["redoStack"].is_array()) {
+                for (const auto& item : j["redoStack"]) {
+                    if (item.is_object() && 
+                        item.contains("position") && item["position"].is_number() &&
+                        item.contains("removed") && item["removed"].is_string() &&
+                        item.contains("inserted") && item["inserted"].is_string() &&
+                        item.contains("cursor_before") && item["cursor_before"].is_number() &&
+                        item.contains("cursor_after") && item["cursor_after"].is_number()) {
+                        
+                        redoStack.push_back({
+                            item["position"].get<int>(),
+                            item["removed"].get<std::string>(),
+                            item["inserted"].get<std::string>(),
+                            item["cursor_before"].get<int>(),
+                            item["cursor_after"].get<int>()
+                        });
+                    }
+                }
             }
+        } catch (const std::exception& e) {
+            // If there's any error loading the JSON, just reset to empty state
+            std::cerr << "Error loading undo/redo state: " << e.what() << std::endl;
+            undoStack.clear();
+            redoStack.clear();
+            lastCommittedState = "";
+            maxStackSize = 50;
         }
     }
 
@@ -113,7 +145,7 @@ public:
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastAddTime).count();
 
-        if (elapsed >= 500) {  // 500ms debounce
+        if (elapsed >= 300) {  // Reduced debounce time for better responsiveness
             computeAndSaveOperation();
             hasPending = false;
         }
@@ -161,10 +193,15 @@ public:
                   << " Redo stack: " << redoStack.size() << std::endl;
     }
 
+    // Check if there are any operations to save
+    bool hasOperations() const {
+        return !undoStack.empty() || !redoStack.empty();
+    }
+
 private:
     std::vector<Operation> undoStack;
     std::vector<Operation> redoStack;
-    size_t maxStackSize = 100;
+    size_t maxStackSize = 50;  // Reduced from 100 to 50
     std::string lastCommittedState;  // Last known state after commit
 
     // Debounce members
@@ -182,7 +219,7 @@ private:
         }
     }
 
-    // Computes the difference between initial and final states
+    // Optimized diff computation
     void computeAndSaveOperation() {
         // Compute diff between initial and final states
         const std::string& oldStr = pendingInitialContent;
@@ -190,14 +227,16 @@ private:
         
         // Find first difference
         size_t start = 0;
-        size_t oldEnd = oldStr.size();
-        size_t newEnd = newStr.size();
+        size_t minLen = std::min(oldStr.length(), newStr.length());
         
-        while (start < oldEnd && start < newEnd && oldStr[start] == newStr[start]) {
+        while (start < minLen && oldStr[start] == newStr[start]) {
             start++;
         }
         
         // Find last difference
+        size_t oldEnd = oldStr.length();
+        size_t newEnd = newStr.length();
+        
         while (oldEnd > start && newEnd > start && 
                oldStr[oldEnd - 1] == newStr[newEnd - 1]) {
             oldEnd--;

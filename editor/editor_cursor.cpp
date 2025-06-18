@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <string>
-// Global instance
+
 EditorCursor gEditorCursor;
 
 EditorCursor::EditorCursor() {}
