@@ -1134,16 +1134,17 @@ void Ned::renderAgentSplitter(float padding, float availableWidth)
     // Draw the splitter
     ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
 
-    // Calculate the splitter's X position (left edge of agent pane)
-    float agentSplit = gSettings.getAgentSplitPos();
-    float splitterX = availableWidth - (availableWidth * agentSplit);
-
+    // Drag logic
     static bool dragging = false;
     static float dragOffset = 0.0f;
+
+    float rightSplit = gSettings.getAgentSplitPos();
+    float splitterX = availableWidth - (availableWidth * rightSplit); // <-- right edge
 
     if (ImGui::IsItemActive() && !dragging) {
         // Drag just started
         dragging = true;
+        // Calculate offset from mouse to splitter
         dragOffset = ImGui::GetMousePos().x - (ImGui::GetWindowPos().x + splitterX);
     }
     if (!ImGui::IsItemActive() && dragging) {
@@ -1153,6 +1154,7 @@ void Ned::renderAgentSplitter(float padding, float availableWidth)
     }
     if (dragging) {
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
+        // Calculate new right split as distance from right edge
         float new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
         gSettings.setAgentSplitPos(new_split);
     }
