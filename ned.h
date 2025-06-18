@@ -100,6 +100,7 @@ class Ned
 	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
+	void renderFPSCounter();
 
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
