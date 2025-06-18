@@ -545,6 +545,16 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(AI-powered code completion)");
+
+	bool fpsToggle = gSettings.getSettings()["fps_toggle"].get<bool>();
+	if (ImGui::Checkbox("FPS Counter", &fpsToggle))
+	{
+		settings["fps_toggle"] = fpsToggle;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show FPS counter overlay)");
 }
 
 void Settings::renderShaderSettings()

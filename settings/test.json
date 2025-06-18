@@ -22,6 +22,7 @@
     "rainbow": true,
     "scanline_intensity": 0.3400000035762787,
     "shader_toggle": true,
+    "fps_toggle": true,
     "splitPos": 0.3077601492404938,
     "static_intensity": 0.3019999861717224,
     "theme": "default",

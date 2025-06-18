@@ -30,6 +30,11 @@ Bookmarks gBookmarks;
 bool shader_toggle = false;
 bool showSidebar = true;
 
+// FPS counter variables
+static double fps_lastTime = 0.0;
+static int fps_frames = 0;
+static double fps_currentFPS = 0.0;
+
 static double lastMouseX = 0.0;
 static double lastMouseY = 0.0;
 static double dragStartMouseX = 0.0;
@@ -1099,6 +1104,15 @@ void Ned::renderMainWindow()
 
 void Ned::renderFrame()
 {
+    // Calculate FPS
+    double currentTime = glfwGetTime();
+    fps_frames++;
+    if (currentTime - fps_lastTime >= 1.0) {
+        fps_currentFPS = fps_frames / (currentTime - fps_lastTime);
+        fps_frames = 0;
+        fps_lastTime = currentTime;
+    }
+
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
 
@@ -1121,6 +1135,9 @@ void Ned::renderFrame()
     gKeybinds.checkKeybindsFile(); 
 
     handleUltraSimpleResizeOverlay();
+
+    // Render FPS counter overlay
+    renderFPSCounter();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -1280,7 +1297,43 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+void Ned::renderFPSCounter()
+{
+    // Check if FPS counter is enabled in settings
+    if (!gSettings.getSettings()["fps_toggle"].get<bool>()) {
+        return;
+    }
 
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 viewportPos = viewport->Pos;
+    ImVec2 viewportSize = viewport->Size;
+    
+    // Position in bottom right corner with some padding
+    const float padding = 10.0f;
+    const float fontSize = gSettings.getFontSize();
+    
+    // Format FPS text
+    char fpsText[32];
+    snprintf(fpsText, sizeof(fpsText), "%.1f", fps_currentFPS);
+    
+    // Calculate text size
+    ImVec2 textSize = ImGui::CalcTextSize(fpsText);
+    
+    // Position text in bottom right
+    ImVec2 textPos = ImVec2(
+        viewportPos.x + viewportSize.x - textSize.x - padding,
+        viewportPos.y + viewportSize.y - textSize.y - padding
+    );
+    
+    // Draw background rectangle for better visibility
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    ImVec2 bgMin = ImVec2(textPos.x - 5.0f, textPos.y - 2.0f);
+    ImVec2 bgMax = ImVec2(textPos.x + textSize.x + 5.0f, textPos.y + textSize.y + 2.0f);
+    drawList->AddRectFilled(bgMin, bgMax, IM_COL32(0, 0, 0, 180));
+    
+    // Draw FPS text
+    drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), fpsText);
+}
 
 void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
 {
