@@ -43,6 +43,7 @@ void Settings::loadSettings()
 	currentFontName = getCurrentFont();
 	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
+	agentSplitPos = settings.value("agent_split_pos", 0.75f);
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -545,6 +546,16 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(AI-powered code completion)");
+
+	bool fpsToggle = gSettings.getSettings()["fps_toggle"].get<bool>();
+	if (ImGui::Checkbox("FPS Counter", &fpsToggle))
+	{
+		settings["fps_toggle"] = fpsToggle;
+		settingsChanged = true;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show FPS counter overlay)");
 }
 
 void Settings::renderShaderSettings()
@@ -573,6 +584,10 @@ void Settings::renderShaderSettings()
 	renderShaderSlider("Burn-in", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
 	renderShaderSlider("Jitter", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
 	renderShaderSlider("Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
+	
+	
+	renderShaderSlider("FPS Target", "fps_target", 20.0f, 1000.0f, "%.0f", 120.0f);
+	ImGui::SameLine();
 }
 
 void Settings::renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 

@@ -62,6 +62,7 @@ class Ned
 	GLFWwindow *window;
 	Shader crtShader;
 	ImFont *currentFont;
+	ImFont *largeFont; // Font for resolution overlay
 	FramebufferState fb;
 	TimingState timing;
 	ShaderQuad quad;
@@ -73,7 +74,7 @@ class Ned
 	// Constants
 	static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
 	static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
-	static constexpr double TARGET_FPS = 60.0;
+	static constexpr double TARGET_FPS = 120.0; // Fallback value, actual FPS target comes from settings
 
 	// Core functions
 	bool initializeGraphics();
@@ -100,9 +101,15 @@ class Ned
 	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
+	void renderFPSCounter();
+
+	// Add these declarations for the agent pane and its splitter
+	void renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible);
+	void renderAgentPane(float agentPaneWidth);
 
 	// Utility functions
 	ImFont *loadFont(const std::string &fontName, float fontSize);
+	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
 
 	// slow scrolling momentum accumulator
@@ -134,7 +141,7 @@ class Ned
 
 	int m_sroLastWidth;
 	int m_sroLastHeight;
-	int m_sroFramesToShow;
+	double m_sroStartTime;
 
 	// Declaration for the single overlay function
 	void handleUltraSimpleResizeOverlay(); // Renamed for clarity

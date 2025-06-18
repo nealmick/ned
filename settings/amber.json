@@ -10,8 +10,10 @@
     "burnin_intensity": 0.8999999761581421,
     "colorshift_intensity": 0.6700000166893005,
     "curvature_intensity": 0.0,
-    "font": "SourceCodePro-Regular",
-    "fontSize": 31.0,
+    "font": "JetBrainsMonoNL-Regular",
+    "fontSize": 25.0,
+    "fps_target": 60.0,
+    "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,
     "lsp_autocomplete": false,
@@ -23,7 +25,8 @@
     "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
     "splitPos": 0.24250440299510956,
-    "static_intensity": 0.13699999451637268,
+    "agent_split_pos": 0.75220962822437286,
+    "static_intensity": 0.06499999761581421,
     "theme": "default",
     "themes": {
         "default": {

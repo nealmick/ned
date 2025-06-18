@@ -376,7 +376,12 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 void FileExplorer::addUndoState() {
     if (currentUndoManager) {
         currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
-        saveUndoRedoState();
+        
+        // Mark that we have unsaved undo state
+        _undoStateDirty = true;
+        
+        // Use a more efficient approach - let the existing debouncing in UndoRedoManager handle it
+        // The save will happen periodically through the existing update() calls
     }
 }
 
@@ -395,6 +400,16 @@ void FileExplorer::renderFileContent()
 	if (currentUndoManager)
 	{
 		currentUndoManager->update();
+	}
+
+	// Periodic save of undo state (every 3 seconds)
+	static auto lastSaveTime = std::chrono::steady_clock::now();
+	auto now = std::chrono::steady_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSaveTime).count();
+	
+	if (elapsed >= 3000 && _undoStateDirty) {
+		saveUndoRedoState();
+		lastSaveTime = now;
 	}
 
 	ImGui::PopStyleVar();
@@ -461,7 +476,7 @@ void FileExplorer::handleUndo() {
         auto [op, valid] = currentUndoManager->undo();
         if (valid) {
             applyOperation(op, true);
-            saveUndoRedoState();
+            _undoStateDirty = true;  // Mark as dirty instead of immediate save
         }
     }
 }
@@ -471,7 +486,7 @@ void FileExplorer::handleRedo() {
         auto [op, valid] = currentUndoManager->redo();
         if (valid) {
             applyOperation(op, false);
-            saveUndoRedoState();
+            _undoStateDirty = true;  // Mark as dirty instead of immediate save
         }
     }
 }
@@ -479,27 +494,48 @@ void FileExplorer::handleRedo() {
 // In files.cpp
 void FileExplorer::saveUndoRedoState()
 {
-	if (selectedFolder.empty())
+	if (selectedFolder.empty() || !_undoStateDirty)
 	{
-		std::cerr << "Cannot save undo state - no project folder selected\n";
-		return;
+		return; // Skip if no changes or no folder
 	}
 
 	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
 
-	json root;
-	for (const auto &[path, manager] : fileUndoManagers)
-	{
-		root["files"][path] = manager.toJson();
-	}
+	try {
+		json root;
+		bool hasChanges = false;
+		
+		for (const auto &[path, manager] : fileUndoManagers)
+		{
+			// Only serialize if the manager has operations
+			if (manager.hasOperations()) {
+				try {
+					root["files"][path] = manager.toJson();
+					hasChanges = true;
+				} catch (const std::exception& e) {
+					std::cerr << "Error serializing undo state for " << path << ": " << e.what() << "\n";
+					// Continue with other files
+				}
+			}
+		}
 
-	std::ofstream file(undoPath);
-	if (file)
-	{
-		file << root.dump(4);
-	} else
-	{
-		std::cerr << "Failed to save undo/redo state to " << undoPath << "\n";
+		// Only write to disk if there are actual changes
+		if (hasChanges) {
+			std::ofstream file(undoPath);
+			if (file)
+			{
+				file << root.dump(4);
+				_undoStateDirty = false; // Mark as saved
+			} else
+			{
+				std::cerr << "Failed to save undo/redo state to " << undoPath << "\n";
+			}
+		} else {
+			_undoStateDirty = false; // No changes to save
+		}
+	} catch (const std::exception& e) {
+		std::cerr << "Error saving undo/redo state: " << e.what() << "\n";
+		// Don't mark as saved if there was an error
 	}
 }
 
@@ -517,13 +553,28 @@ void FileExplorer::loadUndoRedoState()
 	{
 		json root;
 		file >> root;
-		for (auto &[key, value] : root["files"].items())
-		{
-			fileUndoManagers[key].fromJson(value);
+		
+		if (root.contains("files") && root["files"].is_object()) {
+			for (auto &[key, value] : root["files"].items())
+			{
+				try {
+					fileUndoManagers[key].fromJson(value);
+				} catch (const std::exception& e) {
+					std::cerr << "Error loading undo state for file " << key << ": " << e.what() << "\n";
+					// Continue loading other files even if one fails
+				}
+			}
 		}
 	} catch (const std::exception &e)
 	{
 		std::cerr << "Error loading undo/redo state: " << e.what() << "\n";
+		// If the file is corrupted, delete it to prevent future crashes
+		try {
+			fs::remove(undoPath);
+			std::cerr << "Removed corrupted undo/redo state file\n";
+		} catch (...) {
+			// Ignore errors when trying to delete the file
+		}
 	}
 }
 
@@ -563,4 +614,10 @@ void FileExplorer::saveCurrentFile()
 void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 {
 	gEditorLSP.didOpen(filePath, editor_state.fileContent);
+}
+
+void FileExplorer::forceSaveUndoState() {
+    if (_undoStateDirty) {
+        saveUndoRedoState();
+    }
 }
