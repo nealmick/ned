@@ -12,6 +12,7 @@
     "curvature_intensity": 0.0,
     "font": "SourceCodePro-Regular",
     "fontSize": 31.0,
+    "fps_target": 502.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,
@@ -24,7 +25,7 @@
     "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
     "splitPos": 0.24250440299510956,
-    "static_intensity": 0.13699999451637268,
+    "static_intensity": 0.06499999761581421,
     "theme": "default",
     "themes": {
         "default": {

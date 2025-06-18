@@ -138,7 +138,6 @@ class Settings
 
 	float currentFontSize = 0.0f; // Will be set by loadSettings()
 	int settingsCheckFrameCounter = 0;
-	const int SETTINGS_CHECK_INTERVAL = 60; // frames
 
 	SettingsFileManager settingsFileManager; // Handles all file operations
 

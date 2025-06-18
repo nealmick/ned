@@ -73,7 +73,7 @@ class Ned
 	// Constants
 	static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
 	static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
-	static constexpr double TARGET_FPS = 60.0;
+	static constexpr double TARGET_FPS = 120.0; // Fallback value, actual FPS target comes from settings
 
 	// Core functions
 	bool initializeGraphics();
