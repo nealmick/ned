@@ -104,7 +104,7 @@ class Ned
 	void renderFPSCounter();
 
 	// Add these declarations for the agent pane and its splitter
-	void renderAgentSplitter(float padding, float availableWidth);
+	void renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible);
 	void renderAgentPane(float agentPaneWidth);
 
 	// Utility functions

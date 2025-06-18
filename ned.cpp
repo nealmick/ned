@@ -1071,7 +1071,7 @@ void Ned::renderSplitter(float padding, float availableWidth)
 	ImGui::PopStyleColor(3);
 }
 
-void Ned::renderAgentSplitter(float padding, float availableWidth)
+void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible)
 {
     ImGui::SameLine(0, 0);
 
@@ -1139,23 +1139,29 @@ void Ned::renderAgentSplitter(float padding, float availableWidth)
     static float dragOffset = 0.0f;
 
     float rightSplit = gSettings.getAgentSplitPos();
-    float splitterX = availableWidth - (availableWidth * rightSplit); // <-- right edge
+    float splitterX;
+    if (sidebarVisible) {
+        splitterX = availableWidth - (availableWidth * rightSplit);
+    } else {
+        splitterX = availableWidth * rightSplit;
+    }
 
     if (ImGui::IsItemActive() && !dragging) {
-        // Drag just started
         dragging = true;
-        // Calculate offset from mouse to splitter
         dragOffset = ImGui::GetMousePos().x - (ImGui::GetWindowPos().x + splitterX);
     }
     if (!ImGui::IsItemActive() && dragging) {
-        // Drag just ended
         dragging = false;
         gSettings.saveSettings();
     }
     if (dragging) {
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
-        // Calculate new right split as distance from right edge
-        float new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
+        float new_split;
+        if (sidebarVisible) {
+            new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
+        } else {
+            new_split = clamp(mouseX / availableWidth, 0.1f, 0.9f);
+        }
         gSettings.setAgentSplitPos(new_split);
     }
 
@@ -1258,7 +1264,7 @@ void Ned::renderMainWindow()
 		ImGui::SameLine(0, 0);
 
 		// Render right splitter (new)
-		renderAgentSplitter(padding, availableWidth); // New function, see below
+		renderAgentSplitter(padding, availableWidth, showSidebar);
 		ImGui::SameLine(0, 0);
 
 		// Render Agent Pane (new)
@@ -1271,7 +1277,7 @@ void Ned::renderMainWindow()
 
 		renderEditor(currentFont, editorWidth);
 		ImGui::SameLine(0, 0);
-		renderAgentSplitter(padding, availableWidth);
+		renderAgentSplitter(padding, availableWidth, showSidebar);
 		ImGui::SameLine(0, 0);
 		renderAgentPane(agentPaneWidth);
 	}
