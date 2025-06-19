@@ -14,7 +14,5 @@ int main()
 	std::cout << "Starting NED..." << '\n';
 	ned.run();
 	
-	//write hello world 10 times
-	
 	return 0;
 }
