@@ -28,7 +28,7 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 	std::string response;
 	long http_code = 0;
 
-	if (curl)
+	if (curl)//testomg 
 	{
 		// Build JSON payload properly with escaping
 		json payload = {{"model", "meta-llama/llama-4-scout"},
