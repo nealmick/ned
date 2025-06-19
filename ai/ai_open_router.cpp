@@ -24,6 +24,7 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 		return ""; // Return immediately if cancelled
 	}
 
+	//std::cout << api_key << std::endl;
 	CURL *curl = curl_easy_init();
 	std::string response;
 	long http_code = 0;

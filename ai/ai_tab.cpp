@@ -50,7 +50,7 @@ bool AITab::load_key()
 {
 	std::string key = gSettingsFileManager.getOpenRouterKey();
 	api_key = key;
-	std::cout << "API Key: " << api_key << std::endl;
+	//std::cout << "API Key: " << api_key << std::endl;
 	if (api_key.empty()) {
 		return false;
 	}
