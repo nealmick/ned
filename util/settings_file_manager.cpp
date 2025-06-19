@@ -23,6 +23,8 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+SettingsFileManager gSettingsFileManager;
+
 SettingsFileManager::SettingsFileManager() {}
 
 std::string SettingsFileManager::getAppResourcesPath()

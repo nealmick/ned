@@ -48,28 +48,12 @@ AITab::~AITab()
 
 bool AITab::load_key()
 {
-	const char *home_dir = getenv("HOME");
-	if (!home_dir)
-	{
+	std::string key = gSettingsFileManager.getOpenRouterKey();
+	api_key = key;
+	std::cout << "API Key: " << api_key << std::endl;
+	if (api_key.empty()) {
 		return false;
 	}
-
-	std::string key_path = std::string(home_dir) + "/ned/.openrouter";
-	std::ifstream key_file(key_path);
-
-	if (!key_file.is_open())
-	{
-		return false;
-	}
-
-	api_key = std::string((std::istreambuf_iterator<char>(key_file)), std::istreambuf_iterator<char>());
-	api_key.erase(api_key.find_last_not_of(" \n\r\t") + 1);
-
-	if (api_key.empty())
-	{
-		return false;
-	}
-
 	return true;
 }
 

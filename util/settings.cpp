@@ -257,6 +257,7 @@ void Settings::renderOpenRouterKeyInput()
 	ImGui::SameLine();
 	if (ImGui::Button("Save") && keyChanged) {
 		settingsFileManager.setOpenRouterKey(std::string(openRouterKeyBuffer));
+		gAITab.load_key();
 		renderNotification("OpenRouter key saved!", 2.0f);
 		keyChanged = false;
 	}
