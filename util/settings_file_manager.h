@@ -48,3 +48,5 @@ private:
     void copyDefaultSettingsFiles(const fs::path& destDir);
      void updateLastModificationTime(const std::string& filePath);
 }; 
+
+extern SettingsFileManager gSettingsFileManager; 
