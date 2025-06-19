@@ -11,9 +11,13 @@ public:
     };
 
     void render(float agentPaneWidth);
-    void sendMessage(const std::string& msg);
+    void sendMessage(const char* msg);
+    void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
+    void printAllMessages() const;
 
 private:
     std::vector<Message> messages;
-    std::string inputBuffer;
+    char inputBuffer[256] = {0};
+    void renderMessageHistory(const ImVec2& size);
+    bool scrollToBottom = false;
 };
