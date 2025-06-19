@@ -1,4 +1,3 @@
-#include "editor_highlight.h"
 #include "../files/files.h"
 #include "editor.h"
 #include "editor_tree_sitter.h"
