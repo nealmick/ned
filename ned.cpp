@@ -47,8 +47,6 @@ static int dragStartWindowHeight = 0;
 
 float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
 
-constexpr float kAgentSplitterWidth = 6.0f;
-
 Ned::Ned()
 	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
 	  explorerWidth(0.0f), editorWidth(0.0f), initialized(false)
@@ -704,15 +702,24 @@ void Ned::handleKeyboardShortcuts()
 	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false)){
 		float windowWidth = ImGui::GetWindowWidth();
 		float padding = ImGui::GetStyle().WindowPadding.x;
-		float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+		float availableWidth = windowWidth - padding * 3 - 4.0f;
 
-		float agentPaneWidthPx;
+		float leftSplit = gSettings.getSplitPos();
+		float rightSplit = gSettings.getAgentSplitPos();
+
+		float explorerWidth = availableWidth * leftSplit;
+		float agentPaneWidth = availableWidth * rightSplit;
+		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
+
+		float rightSplitterX;
 		if (showSidebar) {
-			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
+			// [explorer][splitter][editor][splitter][agent]
+			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
+			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
 		} else {
-			float agentSplit = gSettings.getAgentSplitPos();
-			float editorWidth = availableWidth * agentSplit;
-			agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
+			// [editor][splitter][agent]
+			float editorWidth = availableWidth * rightSplit;
+			rightSplitterX = editorWidth;
 		}
 
 		// Toggle sidebar
@@ -720,14 +727,15 @@ void Ned::handleKeyboardShortcuts()
 
 		// Recompute availableWidth after toggling
 		windowWidth = ImGui::GetWindowWidth();
-		availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+		availableWidth = windowWidth - padding * 3 - 4.0f;
 
 		float newRightSplit;
 		if (showSidebar) {
-			newRightSplit = agentPaneWidthPx / availableWidth;
+			// [explorer][splitter][editor][splitter][agent]
+			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
 		} else {
-			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
-			newRightSplit = editorWidth / availableWidth;
+			// [editor][splitter][agent]
+			newRightSplit = rightSplitterX / availableWidth;
 		}
 		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
 
@@ -736,8 +744,47 @@ void Ned::handleKeyboardShortcuts()
 
 	ImGuiKey toggleAgent = gKeybinds.getActionKey("toggle_agent");
 	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false)) {
-		// Only toggle visibility, do not recalculate or set agentSplitPos
+		float windowWidth = ImGui::GetWindowWidth();
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float leftSplit = gSettings.getSplitPos();
+		float rightSplit = gSettings.getAgentSplitPos();
+
+		float explorerWidth = availableWidth * leftSplit;
+		float agentPaneWidth = availableWidth * rightSplit;
+		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
+
+		float rightSplitterX;
+		if (showSidebar) {
+			// [explorer][splitter][editor][splitter][agent]
+			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
+			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
+		} else {
+			// [editor][splitter][agent]
+			float editorWidth = availableWidth * rightSplit;
+			rightSplitterX = editorWidth;
+		}
+
+		// Toggle agent pane
 		showAgentPane = !showAgentPane;
+
+		// Recompute availableWidth after toggling
+		windowWidth = ImGui::GetWindowWidth();
+		availableWidth = windowWidth - padding * 3 - 4.0f;
+
+		float newRightSplit;
+		if (showAgentPane) {
+			// [explorer][splitter][editor][splitter][agent]
+			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
+		} else {
+			// [explorer][splitter][editor] (no agent)
+			// We want the editor to fill the space, so don't need to update split, but keep the value for restoration
+			// Optionally, you could store the agent pane width for restoration
+		}
+		if (showAgentPane) {
+			gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
+		}
 		std::cout << "Toggled agent pane visibility" << std::endl;
 	}
 
@@ -1180,7 +1227,7 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
     float rightSplit = gSettings.getAgentSplitPos();
     float splitterX;
     if (sidebarVisible) {
-        splitterX = availableWidth - (availableWidth * rightSplit) - kAgentSplitterWidth;
+        splitterX = availableWidth - (availableWidth * rightSplit);
     } else {
         splitterX = availableWidth * rightSplit;
     }
@@ -1197,7 +1244,7 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
         float new_split;
         if (sidebarVisible) {
-            new_split = clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth, 0.1f, 0.9f);
+            new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
         } else {
             new_split = clamp(mouseX / availableWidth, 0.1f, 0.9f);
         }
@@ -1278,7 +1325,7 @@ void Ned::renderMainWindow()
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
-	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth; // Account for splitter width
+	float availableWidth = windowWidth - padding * 3 - 4.0f; // Account for splitter width
 
 	if (showSidebar)
 	{
@@ -1312,7 +1359,7 @@ void Ned::renderMainWindow()
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
 		float editorWidth = showAgentPane ? (availableWidth * agentSplit) : availableWidth;
-		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
+		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - 4.0f) : 0.0f;
 
 		renderEditor(currentFont, editorWidth);
 		if (showAgentPane) {
