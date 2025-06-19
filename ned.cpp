@@ -706,22 +706,13 @@ void Ned::handleKeyboardShortcuts()
 		float padding = ImGui::GetStyle().WindowPadding.x;
 		float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
-		float leftSplit = gSettings.getSplitPos();
-		float rightSplit = gSettings.getAgentSplitPos();
-
-		float explorerWidth = availableWidth * leftSplit;
-		float agentPaneWidth = availableWidth * rightSplit;
-		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
-
-		float rightSplitterX;
+		float agentPaneWidthPx;
 		if (showSidebar) {
-			// [explorer][splitter][editor][splitter][agent]
-			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
-			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
+			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
 		} else {
-			// [editor][splitter][agent]
-			float editorWidth = availableWidth * rightSplit;
-			rightSplitterX = editorWidth;
+			float agentSplit = gSettings.getAgentSplitPos();
+			float editorWidth = availableWidth * agentSplit;
+			agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
 		}
 
 		// Toggle sidebar
@@ -733,11 +724,10 @@ void Ned::handleKeyboardShortcuts()
 
 		float newRightSplit;
 		if (showSidebar) {
-			// [explorer][splitter][editor][splitter][agent]
-			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
+			newRightSplit = agentPaneWidthPx / availableWidth;
 		} else {
-			// [editor][splitter][agent]
-			newRightSplit = rightSplitterX / availableWidth;
+			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
+			newRightSplit = editorWidth / availableWidth;
 		}
 		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
 

@@ -365,8 +365,8 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     CGFloat titleBarHeight = 44.0;
     CGFloat windowWidth = contentRect.size.width;
     CGFloat leftMargin = 100.0;  // Fixed 100px left margin
-    CGFloat rightMargin = 100.0;  // Fixed 100px right margin
-    CGFloat titleBarWidth = windowWidth - (leftMargin + rightMargin);
+    CGFloat titleBarWidth = windowWidth * 0.3; // 30% of window width
+    CGFloat rightMargin = windowWidth - (leftMargin + titleBarWidth); // Remaining space as right margin
     NSRect titleBarRect = NSMakeRect(leftMargin, contentRect.size.height - titleBarHeight, titleBarWidth, titleBarHeight);
     DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect leftMargin:leftMargin rightMargin:rightMargin];
     titleBarView.autoresizingMask = NSViewMinYMargin | NSViewWidthSizable;
