@@ -82,7 +82,7 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	if (extension == ".c")
 	{
 		return {tree_sitter_c(), query_prefix + "c.scm"};
-	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
+	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp" || extension == ".mm")
 	{
 		return {tree_sitter_cpp(), query_prefix + "cpp.scm"};
 	} else if (extension == ".js" || extension == ".jsx")

@@ -16,10 +16,5 @@ int main()
 	
 	//write hello world 10 times
 	
-	
-	
-
-	
-	
 	return 0;
 }

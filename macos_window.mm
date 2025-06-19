@@ -361,20 +361,7 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     originalGlfwContentView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     originalGlfwContentView.frame = appContainer.bounds;
     
-    // Create draggable title bar area
-    CGFloat titleBarHeight = 44.0;
-    CGFloat windowWidth = contentRect.size.width;
-    CGFloat leftMargin = 100.0;  // Fixed 100px left margin
-    CGFloat titleBarWidth = windowWidth * 0.3; // 30% of window width
-    CGFloat rightMargin = windowWidth - (leftMargin + titleBarWidth); // Remaining space as right margin
-    NSRect titleBarRect = NSMakeRect(leftMargin, contentRect.size.height - titleBarHeight, titleBarWidth, titleBarHeight);
-    DraggableView* titleBarView = [[DraggableView alloc] initWithFrame:titleBarRect leftMargin:leftMargin rightMargin:rightMargin];
-    titleBarView.autoresizingMask = NSViewMinYMargin | NSViewWidthSizable;
-    
-    // Ensure the view is properly set up
-    [titleBarView setWantsLayer:YES];
-    titleBarView.layer.backgroundColor = [[NSColor clearColor] CGColor];
-    
+
     // Create top-left menu view
     NSRect menuRect = NSMakeRect(0, contentRect.size.height - 40.0, 104.0, 40.0);  // Increased width from 96 to 104 for more padding
     TopLeftMenuView* menuView = [[TopLeftMenuView alloc] initWithFrame:menuRect window:nswindow];
@@ -385,11 +372,9 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     [containerView addSubview:effectView];
     [containerView addSubview:appContainer];
     [appContainer addSubview:originalGlfwContentView];
-    [containerView addSubview:titleBarView];
     [containerView addSubview:menuView];
     
     // Set the title bar view to be behind other views
-    titleBarView.layer.zPosition = -1;
     
     // Apply initial blur setting
     [effectView setHidden:!blurEnabled];
