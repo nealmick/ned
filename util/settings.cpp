@@ -102,10 +102,11 @@ void Settings::renderSettingsWindow()
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
 	renderWindowHeader();
-	renderOpenRouterKeyInput();
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
+	renderOpenRouterKeyInput();
+
 	renderSyntaxColors();
 	renderToggleSettings();
 	renderShaderSettings();
@@ -229,9 +230,13 @@ void Settings::renderOpenRouterKeyInput()
 		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
 		initialized = true;
 	}
-	ImGui::TextUnformatted("OpenRouter API Key:");
+	ImGui::Spacing();
+	ImGui::TextUnformatted("AI Settings");
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("OpenRouter Key:");
 	ImGui::SameLine();
-	ImGui::SetNextItemWidth(320.0f);
+	ImGui::SetNextItemWidth(400.0f);
 	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
 	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
 	bool isInputActive = ImGui::IsItemActive();
@@ -246,7 +251,7 @@ void Settings::renderOpenRouterKeyInput()
 	}
 	wasInputActive = isInputActive;
 	ImGui::SameLine();
-	if (ImGui::SmallButton(showOpenRouterKey ? "Hide" : "Show")) {
+	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0))) {
 		showOpenRouterKey = !showOpenRouterKey;
 	}
 	ImGui::SameLine();
