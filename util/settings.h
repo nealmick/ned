@@ -163,6 +163,7 @@ class Settings
 	void renderKeybindsSettings();
 	void handleWindowInput();
 	void applyImGuiStyles(); // New function for handling ImGui styles
+	void renderOpenRouterKeyInput();
 };
 
 extern Settings gSettings;

@@ -102,6 +102,7 @@ void Settings::renderSettingsWindow()
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
 	renderWindowHeader();
+	renderOpenRouterKeyInput();
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
@@ -212,6 +213,48 @@ void Settings::renderWindowHeader()
 				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 	ImGui::EndGroup();
 	ImGui::Separator();
+	ImGui::Spacing();
+}
+
+void Settings::renderOpenRouterKeyInput()
+{
+	static char openRouterKeyBuffer[128] = "";
+	static bool showOpenRouterKey = false;
+	static bool initialized = false;
+	static bool keyChanged = false;
+	static bool wasInputActive = false;
+	if (!initialized) {
+		std::string currentKey = settingsFileManager.getOpenRouterKey();
+		strncpy(openRouterKeyBuffer, currentKey.c_str(), sizeof(openRouterKeyBuffer) - 1);
+		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
+		initialized = true;
+	}
+	ImGui::TextUnformatted("OpenRouter API Key:");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(320.0f);
+	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
+	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
+	bool isInputActive = ImGui::IsItemActive();
+	if (inputChanged) {
+		keyChanged = true;
+	}
+	// Handle block_input logic
+	if (isInputActive && !wasInputActive) {
+		editor_state.block_input = true;
+	} else if (!isInputActive && wasInputActive) {
+		editor_state.block_input = false;
+	}
+	wasInputActive = isInputActive;
+	ImGui::SameLine();
+	if (ImGui::SmallButton(showOpenRouterKey ? "Hide" : "Show")) {
+		showOpenRouterKey = !showOpenRouterKey;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save") && keyChanged) {
+		settingsFileManager.setOpenRouterKey(std::string(openRouterKeyBuffer));
+		renderNotification("OpenRouter key saved!", 2.0f);
+		keyChanged = false;
+	}
 	ImGui::Spacing();
 }
 
@@ -744,6 +787,7 @@ void Settings::renderNotification(const std::string& message, float duration)
         // Set up window
         ImGui::SetNextWindowPos(notificationPos);
         ImGui::SetNextWindowSize(ImVec2(width, height));
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 10));
@@ -751,13 +795,16 @@ void Settings::renderNotification(const std::string& message, float duration)
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         // Create window
-        if (ImGui::Begin("##Notification", nullptr, 
-            ImGuiWindowFlags_NoDecoration | 
-            ImGuiWindowFlags_NoMove | 
-            ImGuiWindowFlags_NoResize | 
+        ImGuiWindowFlags notifFlags = ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav))
+            ImGuiWindowFlags_NoNav;
+#ifdef ImGuiWindowFlags_TopMost
+        notifFlags |= ImGuiWindowFlags_TopMost;
+#endif
+        if (ImGui::Begin("##Notification", nullptr, notifFlags))
         {
             // Get background color from settings and adjust opacity
             auto& bg = getSettings()["backgroundColor"];
