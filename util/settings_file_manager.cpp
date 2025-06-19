@@ -618,4 +618,38 @@ void SettingsFileManager::applyDefaultThemes(json& settings) {
             }}
         };
     }
+}
+
+// OpenRouter key management
+std::string SettingsFileManager::getOpenRouterKeyFilePath() {
+    // Place in the same settings directory as other profiles
+    std::string settingsDir = getAppResourcesPath() + "/settings";
+    return settingsDir + "/open_router_key.json";
+}
+
+std::string SettingsFileManager::getOpenRouterKey() {
+    std::string keyFilePath = getOpenRouterKeyFilePath();
+    json keyJson;
+    if (loadJsonFile(keyFilePath, keyJson)) {
+        if (keyJson.contains("key") && keyJson["key"].is_string()) {
+            return keyJson["key"].get<std::string>();
+        }
+    }
+    return "";
+}
+
+void SettingsFileManager::setOpenRouterKey(const std::string& key) {
+    std::string keyFilePath = getOpenRouterKeyFilePath();
+    fs::path settingsDir = fs::path(keyFilePath).parent_path();
+    if (!fs::exists(settingsDir)) {
+        try {
+            fs::create_directories(settingsDir);
+            std::cout << "[Settings] Created settings directory for OpenRouter key: " << settingsDir.string() << std::endl;
+        } catch (const fs::filesystem_error &e) {
+            std::cerr << "[Settings] Error creating settings directory for OpenRouter key: " << e.what() << std::endl;
+            return;
+        }
+    }
+    json keyJson = { {"key", key} };
+    saveJsonFile(keyFilePath, keyJson);
 } 

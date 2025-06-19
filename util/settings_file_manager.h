@@ -35,6 +35,11 @@ public:
      bool loadJsonFile(const std::string& filePath, json& jsonData);
     void saveJsonFile(const std::string& filePath, const json& jsonData);
 
+    // OpenRouter key management
+    static std::string getOpenRouterKeyFilePath();
+    std::string getOpenRouterKey();
+    void setOpenRouterKey(const std::string& key);
+
 private:
     fs::file_time_type lastSettingsModification;
     
