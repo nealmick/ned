@@ -22,6 +22,7 @@
 #include <iostream>
 #include <set>
 #include "../editor/editor_git.h"
+
 // Global instance
 EditorKeyboard gEditorKeyboard;
 
@@ -956,7 +957,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		gAITab.cancel_request();
-
 	}
 
 	// Process bookmarks first

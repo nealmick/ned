@@ -3,19 +3,26 @@
 #include <imgui.h>
 #include <vector>
 #include <string>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include "ai_open_router.h"
+#include "../util/settings_file_manager.h"
 
 class AIAgent {
 public:
     struct Message {
         std::string text;
         bool isAgent;
+        bool isStreaming = false;
     };
 
     AIAgent();
+    ~AIAgent();
     void render(float agentPaneWidth);
     void sendMessage(const char* msg);
     void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
-    void printAllMessages() const;
+    void printAllMessages();
 
 private:
     std::vector<Message> messages;
@@ -23,4 +30,13 @@ private:
     unsigned int frameCounter;
     void renderMessageHistory(const ImVec2& size);
     bool scrollToBottom = false;
+    bool shouldRestoreFocus = false;
+    
+    // Streaming support
+    std::atomic<bool> isStreaming{false};
+    std::atomic<bool> shouldCancelStreaming{false};
+    std::thread streamingThread;
+    std::mutex messagesMutex;
+    void startStreamingRequest(const std::string& prompt, const std::string& api_key);
+    void stopStreaming();
 };

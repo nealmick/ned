@@ -2,14 +2,118 @@
 #include <imgui.h>
 #include <iostream>
 #include <cstring>
+#include <cctype>
 #include "editor/editor.h" // for editor_state
 #include "util/settings.h"
 #include <imgui_internal.h> 
+#include <thread>
+#include <mutex>
 
 
 AIAgent::AIAgent() : frameCounter(0) {
     // Initialize input buffer
-    strncpy(inputBuffer, "Frame: 0", sizeof(inputBuffer));
+    strncpy(inputBuffer, "", sizeof(inputBuffer));
+    
+    // Initialize thread object to ensure it's in a valid state
+    streamingThread = std::thread();
+    
+    // Initialize focus restoration flag
+    shouldRestoreFocus = false;
+}
+
+AIAgent::~AIAgent() {
+    stopStreaming();
+}
+
+void AIAgent::stopStreaming() {
+    std::cout << "[AIAgent] Stopping streaming..." << std::endl;
+    
+    // If we are currently streaming, set the cancel flag
+    if (isStreaming.load()) {
+        shouldCancelStreaming.store(true);
+        isStreaming.store(false);
+    }
+
+    // Always handle thread cleanup if joinable, regardless of streaming state
+    if (streamingThread.joinable()) {
+        std::cout << "[AIAgent] Joining streaming thread..." << std::endl;
+        try {
+            streamingThread.join();
+            std::cout << "[AIAgent] Thread joined successfully" << std::endl;
+        } catch (const std::exception& e) {
+            std::cout << "[AIAgent] Exception during join: " << e.what() << std::endl;
+        }
+    }
+    
+    shouldCancelStreaming.store(false);
+}
+
+void AIAgent::startStreamingRequest(const std::string& prompt, const std::string& api_key) {
+    std::cout << "[Streaming] Starting streaming request for prompt: " << prompt << std::endl;
+    
+    // Safety check: ensure we're not already streaming
+    if (isStreaming.load()) {
+        std::cout << "[Streaming] Already streaming, aborting new request" << std::endl;
+        return;
+    }
+    
+    // Set streaming flag before creating thread
+    isStreaming.store(true);
+    
+    // Add a streaming message
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({"", true, true});
+    }
+    scrollToBottom = true;
+    
+    // Start streaming in a separate thread
+    try {
+        std::cout << "[Streaming] Creating streaming thread..." << std::endl;
+        streamingThread = std::thread([this, prompt, api_key]() {
+            std::cout << "[Streaming] Thread started, calling promptRequestStream" << std::endl;
+            
+            try {
+                bool success = OpenRouter::promptRequestStream(prompt, api_key, [this](const std::string& token) {
+                    try {
+                        std::cout << "[Streaming] Received token: '" << token << "'" << std::endl;
+                        std::cout << "[Streaming] About to add token to message. Token length: " << token.length() << std::endl;
+                        // Update the last message (which should be the streaming one)
+                        std::lock_guard<std::mutex> lock(messagesMutex);
+                        if (!messages.empty() && messages.back().isStreaming) {
+                            std::cout << "[Streaming] Adding token to message. Current message text: '" << messages.back().text << "'" << std::endl;
+                            messages.back().text += token;
+                            std::cout << "[Streaming] Message text after adding token: '" << messages.back().text << "'" << std::endl;
+                            scrollToBottom = true;
+                        } else {
+                            std::cout << "[Streaming] No streaming message found or message not streaming" << std::endl;
+                        }
+                    } catch (const std::exception& e) {
+                        std::cout << "[Streaming] Exception in token callback: " << e.what() << std::endl;
+                    }
+                }, &shouldCancelStreaming);
+                
+                std::cout << "[Streaming] Stream completed, success: " << success << std::endl;
+            } catch (const std::exception& e) {
+                std::cout << "[Streaming] Exception in streaming thread: " << e.what() << std::endl;
+            }
+            
+            // Mark streaming as complete
+            try {
+                std::lock_guard<std::mutex> lock(messagesMutex);
+                if (!messages.empty() && messages.back().isStreaming) {
+                    messages.back().isStreaming = false;
+                }
+                isStreaming.store(false);
+            } catch (const std::exception& e) {
+                std::cout << "[Streaming] Exception in cleanup: " << e.what() << std::endl;
+            }
+        });
+        std::cout << "[Streaming] Thread created successfully" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "[Streaming] Failed to create thread: " << e.what() << std::endl;
+        isStreaming.store(false);
+    }
 }
 
 void AIAgent::render(float agentPaneWidth) {
@@ -36,25 +140,31 @@ void AIAgent::render(float agentPaneWidth) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(
-        gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
-        gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
-        gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
-        1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(
-        gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.95f,
-        gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.95f,
-        gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.95f,
-        1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(
-        gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.7f,
-        gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.7f,
-        gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.7f,
-        1.0f));
+    
+    // Safe access to backgroundColor with null checks
+    auto& bgColor = gSettings.getSettings()["backgroundColor"];
+    float bgR = (bgColor.is_array() && bgColor.size() > 0 && !bgColor[0].is_null()) ? bgColor[0].get<float>() : 0.1f;
+    float bgG = (bgColor.is_array() && bgColor.size() > 1 && !bgColor[1].is_null()) ? bgColor[1].get<float>() : 0.1f;
+    float bgB = (bgColor.is_array() && bgColor.size() > 2 && !bgColor[2].is_null()) ? bgColor[2].get<float>() : 0.1f;
+    
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(bgR * 0.8f, bgG * 0.8f, bgB * 0.8f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(bgR * 0.95f, bgG * 0.95f, bgB * 0.95f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(bgR * 0.7f, bgG * 0.7f, bgB * 0.7f, 1.0f));
 
-    if (ImGui::Button("Send", ImVec2(60, 0))) {
-        sendMessage(inputBuffer);
-        inputBuffer[0] = '\0';
+    if (ImGui::Button("Send", ImVec2(80, 0))) {
+        const char* str = inputBuffer;
+        // Skip leading whitespace
+        while (*str && isspace((unsigned char)*str)) {
+            str++;
+        }
+
+        if (*str == '\0') {
+            // String is empty or contains only whitespace
+            gSettings.renderNotification("No prompt provided", 3.0f);
+        } else {
+            sendMessage(inputBuffer);
+            inputBuffer[0] = '\0';
+        }
     }
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(3);
@@ -73,8 +183,28 @@ void AIAgent::render(float agentPaneWidth) {
 
 void AIAgent::renderMessageHistory(const ImVec2& size) {
     ImGui::BeginChild("##AIAgentMessageHistory", size, false, ImGuiWindowFlags_HorizontalScrollbar);
-    for (const auto& msg : messages) {
-        ImGui::TextWrapped("%s%s", msg.isAgent ? "Agent: " : "User: ", msg.text.c_str());
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (size_t i = 0; i < messages.size(); ++i) {
+            const auto& msg = messages[i];
+            std::string displayText = msg.text;
+            if (msg.isStreaming) {
+                // Add a blinking cursor for streaming messages
+                static float cursorTime = 0.0f;
+                cursorTime += ImGui::GetIO().DeltaTime;
+                if (static_cast<int>(cursorTime * 2) % 2 == 0) {
+                    displayText += "▋";
+                }
+            }
+            ImGui::TextWrapped("%s%s", msg.isAgent ? "Agent: " : "User: ", displayText.c_str());
+            
+            // Add separator line between every other pair of messages
+            // After message 2, 4, 6, etc. (i is 0-indexed, so after i=1, 3, 5, etc.)
+            if (i > 0 && i % 2 == 1 && i < messages.size() - 1) {
+                ImGui::Separator();
+                ImGui::Spacing();
+            }
+        }
     }
     if (scrollToBottom) {
         ImGui::SetScrollHereY(1.0f);
@@ -83,49 +213,182 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     ImGui::EndChild();
 }
 
-void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding) {
-    // Draw the input
-    ImGui::InputTextMultiline("##AIAgentInput", inputBuffer, sizeof(inputBuffer), textBoxSize);
+// Helper function to handle word breaking and line wrapping
+static bool HandleWordBreakAndWrap(char* inputBuffer, size_t bufferSize, ImGuiInputTextState* state, float max_width, float text_box_x) {
+    int cursor = state->Stb.cursor;
+    // Find start of current line
+    int line_start = cursor;
+    while (line_start > 0 && inputBuffer[line_start - 1] != '\n') {
+        line_start--;
+    }
+    // Find end of current line
+    int line_end = cursor;
+    while (inputBuffer[line_end] != '\0' && inputBuffer[line_end] != '\n') {
+        line_end++;
+    }
+    // Extract current line
+    std::string current_line(inputBuffer + line_start, line_end - line_start);
+    // Measure width
+    float line_width = ImGui::CalcTextSize(current_line.c_str()).x;
+    // Calculate width of 3 average characters (use 'a' as a rough estimate)
+    float char_width = ImGui::CalcTextSize("aaa").x / 3.0f;
+    float wrap_trigger_width = max_width - char_width * 3.0f;
+    if (line_width <= wrap_trigger_width) return false;
+    // Find start of current word
+    int word_start = cursor;
+    while (word_start > line_start && !isspace(inputBuffer[word_start - 1])) {
+        word_start--;
+    }
+    // Check if there are any spaces before the start of the line
+    bool has_space = false;
+    for (int i = word_start - 1; i >= line_start; --i) {
+        if (isspace(inputBuffer[i])) {
+            has_space = true;
+            break;
+        }
+    }
+    bool all_spaces = true;
+    for (char c : current_line) {
+        if (!isspace(c)) {
+            all_spaces = false;
+            break;
+        }
+    }
+    // Check if the last character before the cursor is a space
+    bool last_char_is_space = (cursor > line_start && isspace(inputBuffer[cursor - 1]));
+    int insert_pos = word_start;
+    int move_cursor_to = cursor + 1; // default: after the cursor
+    if ((!has_space && word_start == line_start) || all_spaces || last_char_is_space) {
+        // No spaces before the start of the line, or line is all spaces, or last char is space: split three chars before the cursor (if possible)
+        insert_pos = (cursor - 3 > line_start) ? cursor - 3 : line_start;
+        move_cursor_to = insert_pos + 4; // after the split char and newline
+    } else {
+        // Normal word wrap
+        // Find end of current word
+        int word_end = cursor;
+        while (inputBuffer[word_end] != '\0' && !isspace(inputBuffer[word_end]) && inputBuffer[word_end] != '\n') {
+            word_end++;
+        }
+        move_cursor_to = word_end + 1; // after the word
+    }
+    // Insert newline
+    if (insert_pos >= line_start && insert_pos < (int)strlen(inputBuffer)) {
+        std::string before(inputBuffer, insert_pos);
+        std::string after(inputBuffer + insert_pos);
+        std::string new_text = before + "\n" + after;
+        strncpy(inputBuffer, new_text.c_str(), bufferSize);
+        // Update ImGui internal state
+        state->CurLenW = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, inputBuffer, nullptr);
+        state->CurLenA = (int)strlen(inputBuffer);
+        state->TextAIsValid = true;
+        // Move cursor after the split
+        state->Stb.cursor = move_cursor_to;
+        state->Stb.select_start = move_cursor_to;
+        state->Stb.select_end = move_cursor_to;
+        state->CursorAnimReset();
+        // Print debug info
+        std::cout << "[Wrap] Inserted newline at: " << insert_pos << ", moved cursor to: " << move_cursor_to << std::endl;
+        std::cout << "[Wrap] Buffer now: '" << inputBuffer << "'" << std::endl;
+        return true;
+    }
+    return false;
+}
 
-    // If focused, update the internal buffer directly
+void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding) {
+    // NOTE: Temporarily removed BeginChild/EndChild for diagnostics
+    // ImGui::BeginChild("InputScrollRegion", textBoxSize, false, ImGuiWindowFlags_HorizontalScrollbar);
+
+    // Apply custom styles
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+    
+    // Safe access to backgroundColor with null checks
+    auto& bgColor = gSettings.getSettings()["backgroundColor"];
+    float bgR = (bgColor.is_array() && bgColor.size() > 0 && !bgColor[0].is_null()) ? bgColor[0].get<float>() : 0.1f;
+    float bgG = (bgColor.is_array() && bgColor.size() > 1 && !bgColor[1].is_null()) ? bgColor[1].get<float>() : 0.1f;
+    float bgB = (bgColor.is_array() && bgColor.size() > 2 && !bgColor[2].is_null()) ? bgColor[2].get<float>() : 0.1f;
+    
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(bgR * 0.8f, bgG * 0.8f, bgB * 0.8f, 1.0f));
+
+    bool inputActive = ImGui::InputTextMultiline(
+        "##AIAgentInput",
+        inputBuffer,
+        sizeof(inputBuffer),
+        textBoxSize, // Use original textBoxSize
+        ImGuiInputTextFlags_NoHorizontalScroll
+    );
+
+    // Restore focus if needed
+    if (shouldRestoreFocus) {
+        ImGui::SetKeyboardFocusHere(-1);
+        shouldRestoreFocus = false;
+    }
+
+    // Check focus state immediately after the input widget
+    bool isFocused = ImGui::IsItemActive();
+
+    // Simple Enter key detection
+    static bool enterPressed = false;
+    if (isFocused && ImGui::IsKeyDown(ImGuiKey_Enter) && !enterPressed) {
+        enterPressed = true;
+        std::cout << "ENTER KEY DETECTED!" << std::endl;
+        ImGuiIO& io = ImGui::GetIO();
+        if (!io.KeyShift) {
+            std::cout << "No shift, processing message" << std::endl;
+            const char* str = inputBuffer;
+            // Skip leading whitespace
+            while (*str && isspace((unsigned char)*str)) {
+                str++;
+            }
+
+            if (*str == '\0') {
+                // String is empty or contains only whitespace
+                gSettings.renderNotification("No prompt provided", 3.0f);
+            } else {
+                std::cout << "Sending message: '" << inputBuffer << "'" << std::endl;
+                sendMessage(inputBuffer);
+                // Clear the input buffer and reset ImGui state
+                inputBuffer[0] = '\0';
+                ImGui::ClearActiveID();
+                // Set flag to restore focus on next frame
+                shouldRestoreFocus = true;
+            }
+        }
+    } else if (!ImGui::IsKeyDown(ImGuiKey_Enter)) {
+        enterPressed = false;
+    }
+
+    // Draw hint if empty and not focused
+    if (inputBuffer[0] == '\0' && !isFocused) {
+        ImVec2 pos = ImGui::GetItemRectMin();
+        ImVec2 padding = ImGui::GetStyle().FramePadding;
+        pos.x += padding.x + 2.0f;
+        pos.y += padding.y;
+        ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_TextDisabled), "prompt here");
+    }
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+
     ImGuiContext& g = *ImGui::GetCurrentContext();
     ImGuiWindow* window = g.CurrentWindow;
     ImGuiID id = window->GetID("##AIAgentInput");
     ImGuiInputTextState* state = ImGui::GetInputTextState(id);
-    static bool wasFocused = false;
-    bool isFocused = ImGui::IsItemActive();
-    if (state && isFocused) {
-        // Preserve cursor and selection
-        int cursor_pos = state->Stb.cursor;
-        int select_start = state->Stb.select_start;
-        int select_end = state->Stb.select_end;
-        // Update frame counter and buffer
-        frameCounter++;
-        char frameText[64];
-        snprintf(frameText, sizeof(frameText), "Frame: %u", frameCounter);
-        strncpy(inputBuffer, frameText, sizeof(inputBuffer));
-        // Update internal state
-        state->CurLenW = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, inputBuffer, nullptr);
-        state->CurLenA = (int)strlen(inputBuffer);
-        state->TextAIsValid = true;
-        // Set cursor to a random position in the string (1-7 or up to len)
-        int len = (int)strlen(inputBuffer);
-        if (len > 0) {
-            int random_pos = 1 + (rand() % (len < 7 ? len : 7));
-            state->Stb.cursor = random_pos;
-            state->Stb.select_start = random_pos;
-            state->Stb.select_end = random_pos;
-        }
-        state->CursorAnimReset();
-    } else if (!isFocused) {
-        // If not focused, update buffer normally
-        frameCounter++;
-        char frameText[64];
-        snprintf(frameText, sizeof(frameText), "Frame: %u", frameCounter);
-        strncpy(inputBuffer, frameText, sizeof(inputBuffer));
+
+    bool did_wrap = false;
+    if (isFocused && state) {
+        // Check if we need to wrap the text
+        did_wrap = HandleWordBreakAndWrap(inputBuffer, sizeof(inputBuffer), state, textBoxWidth - 10.0f, textBoxWidth);
     }
 
-    // Restore block input state logic
+    if (isFocused && (ImGui::IsItemEdited() || did_wrap)) {
+        // Auto-scroll to bottom when text is edited or wrapped
+        ImGui::SetScrollHereY(1.0f);
+    }
+
+    static bool wasFocused = false;
     if (isFocused != wasFocused) {
         if (isFocused) {
             editor_state.block_input = true;
@@ -139,20 +402,54 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
     if (isFocused) {
         editor_state.block_input = true;
     }
+
+    // ImGui::EndChild();
 }
 
-void AIAgent::printAllMessages() const {
+void AIAgent::printAllMessages() {
     std::cout << "--- Message History ---" << std::endl;
-    for (const auto& msg : messages) {
-        std::cout << (msg.isAgent ? "Agent: " : "User: ") << msg.text << std::endl;
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& msg : messages) {
+            std::cout << (msg.isAgent ? "Agent: " : "User: ") << msg.text << std::endl;
+        }
     }
     std::cout << "-----------------------" << std::endl;
 }
 
 void AIAgent::sendMessage(const char* msg) {
-    messages.push_back({msg ? msg : "", false}); // User message, avoid null
+    std::cout << "[AIAgent] sendMessage called with: " << (msg ? msg : "null") << std::endl;
+    
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({msg ? msg : "", false}); // User message, avoid null
+    }
     std::cout << "sending message: " << msg << std::endl;
     printAllMessages();
     scrollToBottom = true;
-    // In the future, trigger agent response here
+    
+    // Get API key from settings
+    std::string api_key = gSettingsFileManager.getOpenRouterKey();
+    if (api_key.empty()) {
+        // Add error message if no API key is configured
+        {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false});
+        }
+        scrollToBottom = true;
+        return;
+    }
+    
+    // Stop any existing streaming and wait for it to finish
+    stopStreaming();
+    
+    // Ensure we're not streaming before starting a new request
+    if (isStreaming.load()) {
+        std::cout << "[AIAgent] Still streaming after stop, aborting new request" << std::endl;
+        return;
+    }
+    
+    // Start streaming request (this will set isStreaming to true internally)
+    std::cout << "[AIAgent] Starting new streaming request" << std::endl;
+    startStreamingRequest(msg, api_key);
 }
