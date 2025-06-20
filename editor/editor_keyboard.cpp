@@ -892,6 +892,11 @@ void EditorKeyboard::processSelectAll()
 
 void EditorKeyboard::processTextEditorInput()
 {
+	if (ImGui::IsWindowHovered())
+	{
+		gEditorMouse.handleMouseInput();
+		gEditorScroll.processMouseWheelScrolling();
+	}
 	if (!editor_state.block_input)
 	{
 		handleEditorKeyboardInput();
@@ -1093,11 +1098,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 												   current_line,
 												   char_offset);
 	}
-	if (ImGui::IsWindowHovered())
-	{
-		gEditorMouse.handleMouseInput();
-		gEditorScroll.processMouseWheelScrolling();
-	}
+
 
 	// Handle arrow key visibility
 	handleArrowKeyVisibility();
