@@ -67,6 +67,8 @@ private:
     float lastFrameW = -1.0f;
     float lastFrameH = -1.0f;
     
+    float lastFontSize = -1.0f;
+    
     void updatePosition(const ImVec2& pos, const ImVec2& size);
     void syncText();
 };

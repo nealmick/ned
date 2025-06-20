@@ -41,7 +41,13 @@
         // Configure appearance
         [self setBackgroundColor:[NSColor clearColor]];
         [self setTextColor:[NSColor textColor]];
-        [self setFont:[NSFont systemFontOfSize:13.0]];
+        // Set font size to match ImGui font size
+        float imguiFontSize = 13.0f;
+        #ifdef __cplusplus
+        imguiFontSize = ImGui::GetFontSize();
+        imguiFontSize = imguiFontSize * .8;
+        #endif
+        [self setFont:[NSFont systemFontOfSize:imguiFontSize]];
         
         // Remove borders and make it look like a native input
         [self setDrawsBackground:NO];
@@ -90,6 +96,11 @@
 }
 
 - (void)keyDown:(NSEvent*)event {
+    // Check for Cmd+A
+    if (([event modifierFlags] & NSEventModifierFlagCommand) && [[event charactersIgnoringModifiers] isEqualToString:@"a"]) {
+        [self selectAll:nil];
+        return;
+    }
     if ([event keyCode] == 36) { // Enter key
         if ([event modifierFlags] & NSEventModifierFlagShift) {
             // Shift+Enter: insert newline
@@ -125,6 +136,18 @@
     // Update text container size for word wrapping
     NSTextContainer* container = [self textContainer];
     [container setContainerSize:NSMakeSize(frame.size.width, FLT_MAX)];
+}
+
+- (void)doCommandBySelector:(SEL)commandSelector {
+    if (commandSelector == @selector(insertNewline:)) {
+        self.enterPressed = YES;
+        if (_owner) {
+            _owner->handleTextChange();
+        }
+        // Don't call super for Enter, since you handle it
+        return;
+    }
+    [super doCommandBySelector:commandSelector];
 }
 
 @end
@@ -182,6 +205,13 @@ bool NativeTextInput::render(const ImVec2& size, const char* label) {
         static char buffer[1024] = {0};
         std::cout << "NativeTextInput::render - using ImGui fallback" << std::endl;
         return ImGui::InputTextMultiline(label, buffer, sizeof(buffer), size);
+    }
+    
+    // Dynamically update font size to match ImGui
+    float imguiFontSize = ImGui::GetFontSize();
+    if (imguiFontSize != lastFontSize) {
+        [(__bridge NativeTextInputView*)textView setFont:[NSFont systemFontOfSize:imguiFontSize]];
+        lastFontSize = imguiFontSize * .8;;
     }
     
     // Get the current ImGui cursor position
