@@ -1333,6 +1333,14 @@ void Ned::renderMainWindow()
 
 void Ned::renderFrame()
 {
+    // Block ImGui keyboard input if native input is focused
+    ImGuiIO& io = ImGui::GetIO();
+    if (gAIAgent.getNativeInput() && gAIAgent.getNativeInput()->isFocused()) {
+        io.WantCaptureKeyboard = false;
+    } else {
+        io.WantCaptureKeyboard = true;
+    }
+
     // Calculate FPS
     double currentTime = glfwGetTime();
     fps_frames++;
