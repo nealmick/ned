@@ -5,6 +5,22 @@
 #include "editor/editor.h" // for editor_state
 #include "util/settings.h"
 
+AIAgent::AIAgent() {
+    nativeInput = new NativeTextInput();
+    nativeInput->setTextChangedCallback([this](const std::string& text) {
+        this->onTextChanged(text);
+    });
+    nativeInput->setEnterPressedCallback([this]() {
+        this->onEnterPressed();
+    });
+}
+
+AIAgent::~AIAgent() {
+    if (nativeInput) {
+        delete nativeInput;
+        nativeInput = nullptr;
+    }
+}
 
 void AIAgent::render(float agentPaneWidth) {
     float inputWidth = ImGui::GetContentRegionAvail().x;
@@ -47,8 +63,9 @@ void AIAgent::render(float agentPaneWidth) {
         1.0f));
 
     if (ImGui::Button("Send", ImVec2(60, 0))) {
-        sendMessage(inputBuffer);
-        inputBuffer[0] = '\0';
+        sendMessage(currentInputText.c_str());
+        currentInputText.clear();
+        nativeInput->clear();
     }
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(3);
@@ -90,20 +107,24 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
         gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
         1.0f));
 
-    ImGui::InputTextMultiline("##AIAgentInput", inputBuffer, sizeof(inputBuffer), textBoxSize);
-    bool isFocused = ImGui::IsItemActive();
-    if (isFocused != wasFocused) {
+    // Use native text input widget instead of ImGui InputTextMultiline
+    if (nativeInput) {
+        nativeInput->render(textBoxSize, "##AIAgentInput");
+        bool isFocused = nativeInput->isFocused();
+        if (isFocused != wasFocused) {
+            if (isFocused) {
+                editor_state.block_input = true;
+                std::cout << "focused" << std::endl;
+            } else {
+                editor_state.block_input = false;
+                std::cout << "unfocused" << std::endl;
+            }
+            wasFocused = isFocused;
+        }
         if (isFocused) {
             editor_state.block_input = true;
-            std::cout << "focused" << std::endl;
-        } else {
-            editor_state.block_input = false;
-            std::cout << "unfocused" << std::endl;
         }
-        wasFocused = isFocused;
-    }
-    if (isFocused) {
-        editor_state.block_input = true;
+        std::cout << editor_state.block_input << std::endl;
     }
 
     ImGui::PopStyleColor(2);
@@ -125,4 +146,16 @@ void AIAgent::sendMessage(const char* msg) {
     printAllMessages();
     scrollToBottom = true;
     // In the future, trigger agent response here
+}
+
+void AIAgent::onTextChanged(const std::string& text) {
+    currentInputText = text;
+}
+
+void AIAgent::onEnterPressed() {
+    if (!currentInputText.empty()) {
+        sendMessage(currentInputText.c_str());
+        currentInputText.clear();
+        nativeInput->clear();
+    }
 }
