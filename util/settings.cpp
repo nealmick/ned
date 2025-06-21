@@ -48,20 +48,16 @@ void Settings::loadSettings()
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
 	agentSplitPos = settings.value("agent_split_pos", 0.75f);
 	
-	// Check if this is the first load of this specific settings file and agent split position is over 0.5
-	// Reset the processed flag if we're loading a different settings file
+	// On first load of this specific settings file, always reset agent split pos to 0.3
 	if (previousSettingsPath != settingsPath) {
 		agentSplitPosProcessed = false;
 	}
-	
-	if (!agentSplitPosProcessed && agentSplitPos > 0.5f) {
+	if (!agentSplitPosProcessed && !settings.value("sidebar_visible", true)) {
 		float originalValue = agentSplitPos;
-		agentSplitPos = 0.3f;
+		agentSplitPos = 0.7f;
 		settings["agent_split_pos"] = agentSplitPos;
 		settingsChanged = true;
 		std::cout << "[Settings] Reset agent_split_pos from " << originalValue << " to 0.3 on first load of " << settingsPath << std::endl;
-		
-		// Save the settings immediately so the change persists to the file
 		settingsFileManager.saveSettings(settings, settingsPath);
 	}
 	agentSplitPosProcessed = true;
@@ -556,6 +552,24 @@ void Settings::renderToggleSettings()
 	ImGui::Separator();
 	ImGui::Spacing();
 
+	bool sidebarVisible = settings.value("sidebar_visible", true);
+	if (ImGui::Checkbox("File Explorer", &sidebarVisible))
+	{
+		toggleSidebar();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide file explorer sidebar)");
+
+	bool agentPaneVisible = settings.value("agent_pane_visible", true);
+	if (ImGui::Checkbox("Agent Pane", &agentPaneVisible))
+	{
+		toggleAgentPane();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide AI agent panel)");
+
+	ImGui::Spacing();
+
 	bool rainbowMode = getRainbowMode();
 	if (ImGui::Checkbox("Rainbow Mode", &rainbowMode))
 	{
@@ -870,4 +884,61 @@ void Settings::renderNotification(const std::string& message, float duration)
         ImGui::End();
         ImGui::PopStyleVar(5);
     }
+}
+
+void Settings::toggleSidebar()
+{
+	// Duplicate the logic from handleKeyboardShortcuts
+	extern bool showSidebar;
+	
+	// Get current window dimensions (we'll need to approximate this)
+	float windowWidth = 1200.0f; // Default window width
+	float padding = 8.0f; // Default padding
+	float kAgentSplitterWidth = 6.0f;
+	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+
+	float agentPaneWidthPx;
+	if (showSidebar) {
+		agentPaneWidthPx = availableWidth * getAgentSplitPos();
+	} else {
+		float agentSplit = getAgentSplitPos();
+		float editorWidth = availableWidth * agentSplit;
+		agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
+	}
+
+	// Toggle sidebar
+	showSidebar = !showSidebar;
+
+	// Save sidebar visibility setting
+	settings["sidebar_visible"] = showSidebar;
+	saveSettings();
+
+	// Recompute availableWidth after toggling
+	availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+
+	float newRightSplit;
+	if (showSidebar) {
+		newRightSplit = agentPaneWidthPx / availableWidth;
+	} else {
+		float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
+		newRightSplit = editorWidth / availableWidth;
+	}
+	setAgentSplitPos(std::max(0.1f, std::min(0.9f, newRightSplit)));
+
+	std::cout << "Toggled sidebar visibility from settings" << std::endl;
+}
+
+void Settings::toggleAgentPane()
+{
+	// Duplicate the logic from handleKeyboardShortcuts
+	extern bool showAgentPane;
+	
+	// Only toggle visibility, do not recalculate or set agentSplitPos
+	showAgentPane = !showAgentPane;
+	
+	// Save agent pane visibility setting
+	settings["agent_pane_visible"] = showAgentPane;
+	saveSettings();
+	
+	std::cout << "Toggled agent pane visibility from settings" << std::endl;
 }

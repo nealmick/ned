@@ -334,7 +334,9 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
 		{"vignet_intensity", 0.25},
 	 	{"mac_background_opacity", 0.5},
     	{"mac_blur_enabled", true},
-        {"fps_target", 120.0}
+        {"fps_target", 120.0},
+        {"sidebar_visible", true},
+        {"agent_pane_visible", true}
     };
 	for (const auto &[key, value] : defaults)
 	{
@@ -506,7 +508,7 @@ void SettingsFileManager::checkSettingsFile(const std::string& settingsPath, jso
             "colorshift_intensity", "bloom_intensity", "static_intensity",
             "jitter_intensity", "pixelation_intensity", "pixel_width",
             "vignet_intensity", "mac_background_opacity", "mac_blur_enabled",
-            "fps_target"
+            "fps_target", "sidebar_visible", "agent_pane_visible"
         };
 
         for (const auto &key : checkKeys) {
@@ -594,7 +596,9 @@ void SettingsFileManager::applyDefaultSettings(json& settings) {
         {"vignet_intensity", 0.25},
         {"mac_background_opacity", 0.5},
         {"mac_blur_enabled", true},
-        {"fps_target", 120.0}
+        {"fps_target", 120.0},
+        {"sidebar_visible", true},
+        {"agent_pane_visible", true}
     };
 
     for (const auto &[key, value] : defaults) {
