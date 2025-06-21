@@ -243,6 +243,7 @@ target_include_directories(ned PRIVATE
   ${GLEW_INCLUDE_DIRS}
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
+  lib/utfcpp/source
 )
 
 # ================
