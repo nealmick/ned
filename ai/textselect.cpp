@@ -14,7 +14,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <utf8.h>
-#include <iostream>
+
 // Calculates the midpoint between two numbers.
 template <typename T>
 constexpr T midpoint(T a, T b) {
