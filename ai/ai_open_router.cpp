@@ -284,8 +284,6 @@ std::string OpenRouter::promptRequest(const std::string &prompt, const std::stri
 
 size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::string *data)
 {
-	std::cout << "[WriteDataStream] Called with size: " << size * nmemb << std::endl;
-	
 	if (g_should_cancel) {
 		return 0; // Stop receiving data if cancelled
 	}
@@ -293,8 +291,6 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 	// Read the data properly
 	const char* charPtr = static_cast<const char*>(ptr);
 	std::string chunk(charPtr, size * nmemb);
-	
-	std::cout << "[WriteDataStream] Raw chunk content: '" << chunk << "'" << std::endl;
 	
 	// Process Server-Sent Events (SSE) format
 	std::string buffer = chunk;
@@ -307,15 +303,12 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 		// Skip empty lines
 		if (line.empty()) continue;
 		
-		std::cout << "[WriteDataStream] Processing line: '" << line << "'" << std::endl;
-		
 		// Check for data line
 		if (line.substr(0, 5) == "data:") {
 			std::string jsonData = line.substr(5);
 			
 			// Check for [DONE] message
 			if (jsonData == "[DONE]") {
-				std::cout << "[WriteDataStream] Received [DONE] message" << std::endl;
 				return size * nmemb; // End of stream
 			}
 			
@@ -325,27 +318,17 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 					if (result["choices"][0].contains("delta") && 
 						result["choices"][0]["delta"].contains("content")) {
 						std::string content = result["choices"][0]["delta"]["content"].get<std::string>();
-						std::cout << "[CONTENT] Extracted: '" << content << "'" << std::endl;
 						if (!content.empty()) {
 							// Thread-safe callback access
 							std::lock_guard<std::mutex> lock(g_callbackMutex);
 							if (g_currentTokenCallback) {
-								std::cout << "[WriteDataStream] Calling token callback with: '" << content << "'" << std::endl;
 								g_currentTokenCallback(content);
-							} else {
-								std::cout << "[WriteDataStream] No valid callback available" << std::endl;
 							}
-						} else {
-							std::cout << "[WriteDataStream] Content is empty" << std::endl;
 						}
-					} else {
-						std::cout << "[WriteDataStream] No content found in delta" << std::endl;
 					}
-				} else {
-					std::cout << "[WriteDataStream] No choices array found" << std::endl;
 				}
 			} catch (const json::exception &e) {
-				std::cout << "[WriteDataStream] JSON parse error: " << e.what() << std::endl;
+				// JSON parse error - silently handle
 			}
 		}
 	}
@@ -357,36 +340,28 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 									std::function<void(const std::string&)> tokenCallback,
 									std::atomic<bool>* cancelFlag)
 {
-	std::cout << "[OpenRouter] Starting streaming request" << std::endl;
-	
 	try {
 		if (cancelFlag && cancelFlag->load()) {
-			std::cout << "[OpenRouter] Request cancelled before start" << std::endl;
 			return false; // Return immediately if cancelled
 		}
 
 		// Ensure CURL is initialized
 		if (!initializeCURL()) {
-			std::cout << "[OpenRouter] Failed to initialize CURL" << std::endl;
 			return false;
 		}
 
 		CURL *curl = curl_easy_init();
 		if (!curl) {
-			std::cout << "[OpenRouter] Failed to create CURL easy handle" << std::endl;
 			return false;
 		}
 		
 		long http_code = 0;
-
-		std::cout << "[OpenRouter] CURL initialized successfully" << std::endl;
 		
 		// Set the global callback with mutex protection
 		{
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = tokenCallback;
 		}
-		std::cout << "[OpenRouter] Global callback set: " << (tokenCallback ? "valid" : "null") << std::endl;
 		
 		// Build JSON payload for streaming conversation
 		json payload = {{"model", "meta-llama/llama-4-scout"},
@@ -403,7 +378,6 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		headers = curl_slist_append(headers, "Accept: text/event-stream");
 
 		std::string json_str = payload.dump();
-		std::cout << "[OpenRouter] Request payload: " << json_str << std::endl;
 
 		curl_easy_setopt(curl, CURLOPT_URL, "https://openrouter.ai/api/v1/chat/completions");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -413,16 +387,13 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout for streaming
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connect timeout
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals
-
-		std::cout << "[OpenRouter] Starting request" << std::endl;
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			std::cout << "[OpenRouter] curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
+			// curl_easy_perform failed - silently handle
 		}
 		
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-		std::cout << "[OpenRouter] Final HTTP code: " << http_code << std::endl;
 
 		// Cleanup
 		curl_easy_cleanup(curl);
@@ -436,23 +407,21 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 
 		return http_code == 200;
 	} catch (const std::exception& e) {
-		std::cout << "[OpenRouter] Exception in promptRequestStream: " << e.what() << std::endl;
 		// Clear the global callback in case of exception
 		try {
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = nullptr;
 		} catch (...) {
-			std::cout << "[OpenRouter] Failed to clear callback after exception" << std::endl;
+			// Failed to clear callback after exception - silently handle
 		}
 		return false;
 	} catch (...) {
-		std::cout << "[OpenRouter] Unknown exception in promptRequestStream" << std::endl;
 		// Clear the global callback in case of exception
 		try {
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = nullptr;
 		} catch (...) {
-			std::cout << "[OpenRouter] Failed to clear callback after unknown exception" << std::endl;
+			// Failed to clear callback after unknown exception - silently handle
 		}
 		return false;
 	}
