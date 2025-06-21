@@ -146,7 +146,11 @@ void AIAgent::render(float agentPaneWidth) {
 
     // Render message history above the send button and input
     float historyHeight = windowHeight * 0.7f;
-    ImVec2 historySize = ImVec2(textBoxWidth - 2 * horizontalPadding + 50.0f, historyHeight);
+    // Account for scroll bar width and padding to prevent overflow
+    float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
+    float historyWidth = textBoxWidth - 2 * horizontalPadding - scrollbarWidth + 45.0f; // Subtract scrollbar width and extra padding
+    if (historyWidth < 50.0f) historyWidth = 50.0f; // Minimum width
+    ImVec2 historySize = ImVec2(historyWidth, historyHeight);
     renderMessageHistory(historySize);
     ImGui::Spacing();
 
@@ -194,7 +198,7 @@ void AIAgent::render(float agentPaneWidth) {
     
     // Calculate text box height based on font size
     float fontSize = ImGui::GetFontSize();
-    int numLines = (fontSize > 30.0f) ? 2 : 3.5; // 2 lines for large fonts, 3 for normal fonts
+    int numLines = (fontSize > 30.0f) ? 2 : 3; // 2 lines for large fonts, 3 for normal fonts
     ImVec2 textBoxSize = ImVec2(textBoxWidth - 2 * horizontalPadding, lineHeight * numLines + 16.0f);
     
     AgentInput(textBoxSize, textBoxWidth - 2 * horizontalPadding, horizontalPadding);
@@ -337,7 +341,9 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     ImVec2 borderMin = pos;
     ImVec2 borderMax = ImVec2(pos.x + size.x, pos.y + size.y);
     // Draw border manually
+
     /*
+    
     ImGui::GetWindowDrawList()->AddRect(
         borderMin, 
         borderMax, 
@@ -348,13 +354,21 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     );
     */
 
-    // Use vertical scrollbar only
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | 
-                            ImGuiWindowFlags_AlwaysVerticalScrollbar;
+    // Use vertical scrollbar only when needed
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove;
+    
+    // Apply custom styling for the scrollable area
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 13.0f); // Make scrollbar wider for better usability
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent background
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Hide scrollbar track
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.4f, 0.4f, 0.4f, 0.5f)); // Completely transparent by default
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.55f, 0.55f, 0.55f, 0.8f)); // Show on hover
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.7f, 0.7f, 0.7f, 0.9f)); // Show when active
     
     ImGui::BeginChild("text", size, false, flags);
 
-    // Render each line as TextUnformatted (or TextWrapped if you want word wrap)
     for (size_t i = 0; i < messageDisplayLines.size(); ++i) {
         ImGui::TextWrapped("%s", messageDisplayLines[i].c_str());
     }
@@ -381,6 +395,10 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     }
 
     ImGui::EndChild();
+    
+    // Restore styles
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(3);
 }
 
 // Helper function to handle word breaking and line wrapping
