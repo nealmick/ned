@@ -62,6 +62,16 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
         return;
     }
     
+    // Build conversation history from existing messages
+    std::string fullPrompt;
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& msg : messages) {
+            fullPrompt += (msg.isAgent ? "Assistant: " : "User: ") + msg.text + "\n";
+        }
+    }
+    fullPrompt += "User: " + prompt;
+    
     // Set streaming flag before creating thread
     isStreaming.store(true);
     
@@ -75,9 +85,9 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
     
     // Start streaming in a separate thread
     try {
-        streamingThread = std::thread([this, prompt, api_key]() {
+        streamingThread = std::thread([this, fullPrompt, api_key]() {
             try {
-                bool success = OpenRouter::promptRequestStream(prompt, api_key, [this](const std::string& token) {
+                bool success = OpenRouter::promptRequestStream(fullPrompt, api_key, [this](const std::string& token) {
                     try {
                         // UTF-8 safe streaming: buffer incomplete bytes
                         std::string combined = utf8_buffer + token;
@@ -156,7 +166,11 @@ void AIAgent::render(float agentPaneWidth) {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(bgR * 0.95f, bgG * 0.95f, bgB * 0.95f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(bgR * 0.7f, bgG * 0.7f, bgB * 0.7f, 1.0f));
 
-    if (ImGui::Button("Send", ImVec2(80, 0))) {
+    // Calculate button size based on font size
+    ImVec2 textSize = ImGui::CalcTextSize("Send");
+    ImVec2 buttonSize = ImVec2(textSize.x + 16.0f, 0); // Add padding for comfortable button size
+
+    if (ImGui::Button("Send", buttonSize)) {
         const char* str = inputBuffer;
         // Skip leading whitespace
         while (*str && isspace((unsigned char)*str)) {
@@ -177,7 +191,12 @@ void AIAgent::render(float agentPaneWidth) {
     ImGui::Spacing();
 
     float lineHeight = ImGui::GetTextLineHeightWithSpacing();
-    ImVec2 textBoxSize = ImVec2(textBoxWidth - 2 * horizontalPadding, lineHeight * 3 + 16.0f); // Subtract padding from the size, not the width
+    
+    // Calculate text box height based on font size
+    float fontSize = ImGui::GetFontSize();
+    int numLines = (fontSize > 30.0f) ? 2 : 3.5; // 2 lines for large fonts, 3 for normal fonts
+    ImVec2 textBoxSize = ImVec2(textBoxWidth - 2 * horizontalPadding, lineHeight * numLines + 16.0f);
+    
     AgentInput(textBoxSize, textBoxWidth - 2 * horizontalPadding, horizontalPadding);
     ImGui::EndGroup(); // End vertical group
 

@@ -1640,6 +1640,10 @@ void Ned::handleFontReload()
 		ImGui::GetIO().Fonts->Clear();
 		currentFont =
 			loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
+		
+		// Also reload largeFont since it was cleared above
+		largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
+		
 		ImGui::GetIO().Fonts->Build();
 		ImGui_ImplOpenGL3_CreateFontsTexture();
 		gSettings.resetFontChanged();
