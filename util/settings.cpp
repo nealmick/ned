@@ -39,11 +39,33 @@ Settings::Settings() : splitPos(0.3f) {
 
 void Settings::loadSettings()
 {
+	// Store the previous settings path to detect if we're loading a different file
+	std::string previousSettingsPath = settingsPath;
+	
 	settingsFileManager.loadSettings(settings, settingsPath);
 	currentFontName = getCurrentFont();
 	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
 	agentSplitPos = settings.value("agent_split_pos", 0.75f);
+	
+	// Check if this is the first load of this specific settings file and agent split position is over 0.5
+	// Reset the processed flag if we're loading a different settings file
+	if (previousSettingsPath != settingsPath) {
+		agentSplitPosProcessed = false;
+	}
+	
+	if (!agentSplitPosProcessed && agentSplitPos > 0.5f) {
+		float originalValue = agentSplitPos;
+		agentSplitPos = 0.3f;
+		settings["agent_split_pos"] = agentSplitPos;
+		settingsChanged = true;
+		std::cout << "[Settings] Reset agent_split_pos from " << originalValue << " to 0.3 on first load of " << settingsPath << std::endl;
+		
+		// Save the settings immediately so the change persists to the file
+		settingsFileManager.saveSettings(settings, settingsPath);
+	}
+	agentSplitPosProcessed = true;
+	
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;

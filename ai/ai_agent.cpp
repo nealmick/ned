@@ -38,8 +38,6 @@ AIAgent::~AIAgent() {
 }
 
 void AIAgent::stopStreaming() {
-    std::cout << "[AIAgent] Stopping streaming..." << std::endl;
-    
     // If we are currently streaming, set the cancel flag
     if (isStreaming.load()) {
         shouldCancelStreaming.store(true);
@@ -48,12 +46,10 @@ void AIAgent::stopStreaming() {
 
     // Always handle thread cleanup if joinable, regardless of streaming state
     if (streamingThread.joinable()) {
-        std::cout << "[AIAgent] Joining streaming thread..." << std::endl;
         try {
             streamingThread.join();
-            std::cout << "[AIAgent] Thread joined successfully" << std::endl;
         } catch (const std::exception& e) {
-            std::cout << "[AIAgent] Exception during join: " << e.what() << std::endl;
+            // Exception during join - silently handle
         }
     }
     
@@ -61,11 +57,8 @@ void AIAgent::stopStreaming() {
 }
 
 void AIAgent::startStreamingRequest(const std::string& prompt, const std::string& api_key) {
-    std::cout << "[Streaming] Starting streaming request for prompt: " << prompt << std::endl;
-    
     // Safety check: ensure we're not already streaming
     if (isStreaming.load()) {
-        std::cout << "[Streaming] Already streaming, aborting new request" << std::endl;
         return;
     }
     
@@ -82,10 +75,7 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
     
     // Start streaming in a separate thread
     try {
-        std::cout << "[Streaming] Creating streaming thread..." << std::endl;
         streamingThread = std::thread([this, prompt, api_key]() {
-            std::cout << "[Streaming] Thread started, calling promptRequestStream" << std::endl;
-            
             try {
                 bool success = OpenRouter::promptRequestStream(prompt, api_key, [this](const std::string& token) {
                     try {
@@ -106,19 +96,12 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
                         }
                         utf8_buffer = std::string(valid_end, combined.end());
                         scrollToBottom = true;
-
-                        for (unsigned char c : token) {
-                            printf("%02X ", c);
-                        }
-                        printf("\n");
                     } catch (const std::exception& e) {
-                        std::cout << "[Streaming] Exception in token callback: " << e.what() << std::endl;
+                        // Exception in token callback - silently handle
                     }
                 }, &shouldCancelStreaming);
-                
-                std::cout << "[Streaming] Stream completed, success: " << success << std::endl;
             } catch (const std::exception& e) {
-                std::cout << "[Streaming] Exception in streaming thread: " << e.what() << std::endl;
+                // Exception in streaming thread - silently handle
             }
             
             // Mark streaming as complete
@@ -130,12 +113,10 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
                 }
                 isStreaming.store(false);
             } catch (const std::exception& e) {
-                std::cout << "[Streaming] Exception in cleanup: " << e.what() << std::endl;
+                // Exception in cleanup - silently handle
             }
         });
-        std::cout << "[Streaming] Thread created successfully" << std::endl;
     } catch (const std::exception& e) {
-        std::cout << "[Streaming] Failed to create thread: " << e.what() << std::endl;
         isStreaming.store(false);
     }
 }
@@ -316,7 +297,6 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     if (std::abs(currentWidth - lastKnownWidth) > 1.0f) { // Small threshold to avoid unnecessary rebuilds
         messageDisplayLinesDirty.store(true);
         lastKnownWidth = currentWidth;
-        std::cout << "[AIAgent] Width changed from " << lastKnownWidth << " to " << currentWidth << ", triggering rebuild" << std::endl;
     }
     
     if (messageDisplayLinesDirty.load()) {
@@ -457,9 +437,6 @@ static bool HandleWordBreakAndWrap(char* inputBuffer, size_t bufferSize, ImGuiIn
         state->Stb.select_start = move_cursor_to;
         state->Stb.select_end = move_cursor_to;
         state->CursorAnimReset();
-        // Print debug info
-        std::cout << "[Wrap] Inserted newline at: " << insert_pos << ", moved cursor to: " << move_cursor_to << std::endl;
-        std::cout << "[Wrap] Buffer now: '" << inputBuffer << "'" << std::endl;
         return true;
     }
     return false;
@@ -513,10 +490,8 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
     static bool enterPressed = false;
     if (isFocused && ImGui::IsKeyDown(ImGuiKey_Enter) && !enterPressed) {
         enterPressed = true;
-        std::cout << "ENTER KEY DETECTED!" << std::endl;
         ImGuiIO& io = ImGui::GetIO();
         if (!io.KeyShift) {
-            std::cout << "No shift, processing message" << std::endl;
             const char* str = inputBuffer;
             // Skip leading whitespace
             while (*str && isspace((unsigned char)*str)) {
@@ -527,7 +502,6 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
                 // String is empty or contains only whitespace
                 gSettings.renderNotification("No prompt provided", 3.0f);
             } else {
-                std::cout << "Sending message: '" << inputBuffer << "'" << std::endl;
                 sendMessage(inputBuffer);
                 // Clear the input buffer and reset ImGui state
                 inputBuffer[0] = '\0';
@@ -572,10 +546,8 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
     if (isFocused != wasFocused) {
         if (isFocused) {
             editor_state.block_input = true;
-            std::cout << "focused" << std::endl;
         } else {
             editor_state.block_input = false;
-            std::cout << "unfocused" << std::endl;
         }
         wasFocused = isFocused;
     }
@@ -587,18 +559,10 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
 }
 
 void AIAgent::printAllMessages() {
-    std::cout << "--- Message History ---" << std::endl;
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        for (const auto& msg : messages) {
-            std::cout << (msg.isAgent ? "Agent: " : "User: ") << msg.text << std::endl;
-        }
-    }
-    std::cout << "-----------------------" << std::endl;
+    // Function kept for compatibility but no longer prints anything
 }
 
 void AIAgent::sendMessage(const char* msg) {
-    std::cout << "[AIAgent] sendMessage called with: " << (msg ? msg : "null") << std::endl;
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         messages.push_back({msg ? msg : "", false});
@@ -607,8 +571,6 @@ void AIAgent::sendMessage(const char* msg) {
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
-    std::cout << "sending message: " << msg << std::endl;
-    printAllMessages();
     
     // Get API key from settings
     std::string api_key = gSettingsFileManager.getOpenRouterKey();
@@ -627,11 +589,9 @@ void AIAgent::sendMessage(const char* msg) {
     
     // Ensure we're not streaming before starting a new request
     if (isStreaming.load()) {
-        std::cout << "[AIAgent] Still streaming after stop, aborting new request" << std::endl;
         return;
     }
     
     // Start streaming request (this will set isStreaming to true internally)
-    std::cout << "[AIAgent] Starting new streaming request" << std::endl;
     startStreamingRequest(msg, api_key);
 }

@@ -132,7 +132,7 @@ bool Ned::initialize()
 
 void Ned::renderResizeHandles()
 {
-	const float resizeBorder = 100.0f;   // <--- CHANGE THIS VALUE
+	const float resizeBorder = 10.0f;   // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
 	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
 
@@ -1206,11 +1206,11 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
         float new_split;
         float leftSplit = gSettings.getSplitPos();
-        float maxRightSplit = sidebarVisible ? (0.9f - leftSplit) : 0.9f;
+        float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
         if (sidebarVisible) {
-            new_split = clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth, 0.1f, maxRightSplit);
+            new_split = clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth, 0.15f, maxRightSplit);
         } else {
-            new_split = clamp(mouseX / availableWidth, 0.1f, maxRightSplit);
+            new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
         }
         gSettings.setAgentSplitPos(new_split);
     }

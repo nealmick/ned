@@ -144,6 +144,7 @@ class Settings
 	bool fontChanged = false;
 	bool fontSizeChanged = false;
 	bool blockInput = false;
+	bool agentSplitPosProcessed = false; // Track if we've processed agent split pos for current file
 
 	float currentFontSize = 0.0f; // Will be set by loadSettings()
 	int settingsCheckFrameCounter = 0;
