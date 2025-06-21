@@ -17,6 +17,7 @@
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader.h"
+#include "ai/ai_agent.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -148,11 +149,13 @@ class Ned
 	float lastOpacity = 0.5f;
    bool lastBlurEnabled = false;
 	        
+	AIAgent gAIAgent;
 };
 
 // Global scope
 extern Bookmarks gBookmarks;
 extern bool shader_toggle;
 extern bool showSidebar;
+extern bool showAgentPane;
 
 

@@ -80,6 +80,12 @@ void EditorCursor::spawnCursorBelow()
 
 void EditorCursor::renderCursor()
 {
+	// Hide cursor when input is blocked
+	if (editor_state.block_input)
+	{
+		return;
+	}
+
 	ImDrawList *draw_list = ImGui::GetWindowDrawList();
 	const float cursor_thickness = 2.0f;
 	bool rainbow_mode = gSettings.getRainbowMode();

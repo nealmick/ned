@@ -22,6 +22,7 @@
 #include <iostream>
 #include <set>
 #include "../editor/editor_git.h"
+
 // Global instance
 EditorKeyboard gEditorKeyboard;
 
@@ -891,6 +892,11 @@ void EditorKeyboard::processSelectAll()
 
 void EditorKeyboard::processTextEditorInput()
 {
+	if (ImGui::IsWindowHovered())
+	{
+		gEditorMouse.handleMouseInput();
+		gEditorScroll.processMouseWheelScrolling();
+	}
 	if (!editor_state.block_input)
 	{
 		handleEditorKeyboardInput();
@@ -956,7 +962,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 		ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
 		gAITab.cancel_request();
-
 	}
 
 	// Process bookmarks first
@@ -1093,11 +1098,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 												   current_line,
 												   char_offset);
 	}
-	if (ImGui::IsWindowHovered())
-	{
-		gEditorMouse.handleMouseInput();
-		gEditorScroll.processMouseWheelScrolling();
-	}
+
 
 	// Handle arrow key visibility
 	handleArrowKeyVisibility();

@@ -87,5 +87,7 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.10000000149011612
+    "vignet_intensity": 0.10000000149011612,
+    "sidebar_visible": true,
+    "agent_pane_visible": true
 }

@@ -25,6 +25,8 @@ Description: Main application class implementation for NED text editor.
 #include <iostream>
 #include <thread>
 
+#include "ai/ai_agent.h"
+
 // global scope
 Bookmarks gBookmarks;
 bool shader_toggle = false;
@@ -46,6 +48,10 @@ static int dragStartWindowWidth = 0;
 static int dragStartWindowHeight = 0;
 
 float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
+
+constexpr float kAgentSplitterWidth = 6.0f;
+
+AIAgent gAIAgent;
 
 Ned::Ned()
 	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
@@ -101,6 +107,20 @@ bool Ned::initialize()
         std::cout << "Failed to load initial keybinds." << std::endl;
     }
 
+	// Load sidebar visibility settings
+	showSidebar = gSettings.getSettings().value("sidebar_visible", true);
+	showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
+
+	// Adjust agent split position if sidebar is hidden (first load only)
+	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar) {
+		float currentAgentSplitPos = gSettings.getAgentSplitPos();
+		float originalValue = currentAgentSplitPos;
+		// When sidebar is hidden, the agent split position represents editor width, not agent pane width
+		// So we need to invert it: 1 - saved_agent_position
+		float newAgentSplitPos = 1.0f - currentAgentSplitPos;
+		gSettings.setAgentSplitPos(newAgentSplitPos);
+		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to " << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
+	}
 
 	
 #ifdef __APPLE__
@@ -126,7 +146,7 @@ bool Ned::initialize()
 
 void Ned::renderResizeHandles()
 {
-	const float resizeBorder = 100.0f;   // <--- CHANGE THIS VALUE
+	const float resizeBorder = 10.0f;   // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
 	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
 
@@ -702,40 +722,34 @@ void Ned::handleKeyboardShortcuts()
 	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false)){
 		float windowWidth = ImGui::GetWindowWidth();
 		float padding = ImGui::GetStyle().WindowPadding.x;
-		float availableWidth = windowWidth - padding * 3 - 4.0f;
+		float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
-		float leftSplit = gSettings.getSplitPos();
-		float rightSplit = gSettings.getAgentSplitPos();
-
-		float explorerWidth = availableWidth * leftSplit;
-		float agentPaneWidth = availableWidth * rightSplit;
-		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
-
-		float rightSplitterX;
+		float agentPaneWidthPx;
 		if (showSidebar) {
-			// [explorer][splitter][editor][splitter][agent]
-			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
-			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
+			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
 		} else {
-			// [editor][splitter][agent]
-			float editorWidth = availableWidth * rightSplit;
-			rightSplitterX = editorWidth;
+			float agentSplit = gSettings.getAgentSplitPos();
+			float editorWidth = availableWidth * agentSplit;
+			agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
 		}
 
 		// Toggle sidebar
 		showSidebar = !showSidebar;
 
+		// Save sidebar visibility setting
+		gSettings.getSettings()["sidebar_visible"] = showSidebar;
+		gSettings.saveSettings();
+
 		// Recompute availableWidth after toggling
 		windowWidth = ImGui::GetWindowWidth();
-		availableWidth = windowWidth - padding * 3 - 4.0f;
+		availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 		float newRightSplit;
 		if (showSidebar) {
-			// [explorer][splitter][editor][splitter][agent]
-			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
+			newRightSplit = agentPaneWidthPx / availableWidth;
 		} else {
-			// [editor][splitter][agent]
-			newRightSplit = rightSplitterX / availableWidth;
+			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
+			newRightSplit = editorWidth / availableWidth;
 		}
 		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
 
@@ -744,47 +758,13 @@ void Ned::handleKeyboardShortcuts()
 
 	ImGuiKey toggleAgent = gKeybinds.getActionKey("toggle_agent");
 	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false)) {
-		float windowWidth = ImGui::GetWindowWidth();
-		float padding = ImGui::GetStyle().WindowPadding.x;
-		float availableWidth = windowWidth - padding * 3 - 4.0f;
-
-		float leftSplit = gSettings.getSplitPos();
-		float rightSplit = gSettings.getAgentSplitPos();
-
-		float explorerWidth = availableWidth * leftSplit;
-		float agentPaneWidth = availableWidth * rightSplit;
-		float splitterWidth = 0.0f; // Adjust if you use a nonzero splitter width
-
-		float rightSplitterX;
-		if (showSidebar) {
-			// [explorer][splitter][editor][splitter][agent]
-			float editorWidth = availableWidth - explorerWidth - agentPaneWidth - (padding * 2);
-			rightSplitterX = explorerWidth + splitterWidth + editorWidth + splitterWidth;
-		} else {
-			// [editor][splitter][agent]
-			float editorWidth = availableWidth * rightSplit;
-			rightSplitterX = editorWidth;
-		}
-
-		// Toggle agent pane
+		// Only toggle visibility, do not recalculate or set agentSplitPos
 		showAgentPane = !showAgentPane;
-
-		// Recompute availableWidth after toggling
-		windowWidth = ImGui::GetWindowWidth();
-		availableWidth = windowWidth - padding * 3 - 4.0f;
-
-		float newRightSplit;
-		if (showAgentPane) {
-			// [explorer][splitter][editor][splitter][agent]
-			newRightSplit = (availableWidth - rightSplitterX) / availableWidth;
-		} else {
-			// [explorer][splitter][editor] (no agent)
-			// We want the editor to fill the space, so don't need to update split, but keep the value for restoration
-			// Optionally, you could store the agent pane width for restoration
-		}
-		if (showAgentPane) {
-			gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
-		}
+		
+		// Save agent pane visibility setting
+		gSettings.getSettings()["agent_pane_visible"] = showAgentPane;
+		gSettings.saveSettings();
+		
 		std::cout << "Toggled agent pane visibility" << std::endl;
 	}
 
@@ -967,14 +947,31 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 	// Minimum case
 	return root_part + "...";
 }
+
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
+	float windowWidth = ImGui::GetWindowWidth();
+	printf("Header Window Width: %.1f\n", windowWidth);
+	
+	// Disable git changes if window width is less than 250
+	bool showGitChanges = windowWidth >= 250.0f;
+	
 	ImGui::BeginGroup();
 	ImGui::PushFont(currentFont);
 
 	// Determine the base icon size (equal to font size)
 	float iconSize = ImGui::GetFontSize() * 1.15f;
 	std::string currentFile = gFileExplorer.currentFile;
+
+	// Calculate space needed for right-aligned status area
+	const float rightPadding = 25.0f;							// Space from window edge
+	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
+
+	// Calculate space needed for git changes if enabled and available
+	float gitChangesWidth = 0.0f;
+	if(showGitChanges && gSettings.getSettings()["git_changed_lines"] && !gEditorGit.currentGitChanges.empty()) {
+		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x + ImGui::GetStyle().ItemSpacing.x;
+	}
 
 	// Render left side (file icon and name)
 	if (currentFile.empty())
@@ -993,10 +990,10 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::SameLine();
 		}
 
-		// Calculate available width for the text
+		// Calculate available width for the text, accounting for all elements
 		float x_cursor = ImGui::GetCursorPosX();
 		float x_right_group = ImGui::GetWindowWidth();
-		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - 60.0f;
+		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - totalStatusWidth - gitChangesWidth;
 
 		// Truncate the file path to fit available space
 		std::string truncatedText =
@@ -1004,8 +1001,8 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 
 		ImGui::Text("%s", truncatedText.c_str());
 
-		// Add git changes info if available
-		if(gSettings.getSettings()["git_changed_lines"]){
+		// Add git changes info if available and window is wide enough
+		if(showGitChanges && gSettings.getSettings()["git_changed_lines"]){
 			if (!gEditorGit.currentGitChanges.empty()) {
 				ImGui::SameLine();
 				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
@@ -1015,9 +1012,6 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 	}
 
 	// Right-aligned status area
-	const float rightPadding = 25.0f;							// Space from window edge
-	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
-
 	// Position at far right edge
 	ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
 
@@ -1150,8 +1144,13 @@ void Ned::renderSplitter(float padding, float availableWidth)
 	if (is_active)
 	{
 		const float mouse_x = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
-		const float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
-		gSettings.setSplitPos(clamp(new_split, 0.1f, 0.9f));
+		float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
+		// Clamp so that editor is always at least 10% of availableWidth
+		float rightSplit = gSettings.getAgentSplitPos();
+		bool agentPaneVisible = showAgentPane;
+		float maxLeftSplit = agentPaneVisible ? (0.9f - rightSplit) : 0.9f;
+		new_split = clamp(new_split, 0.1f, maxLeftSplit);
+		gSettings.setSplitPos(new_split);
 	}
 
 	ImGui::PopStyleColor(3);
@@ -1227,7 +1226,7 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
     float rightSplit = gSettings.getAgentSplitPos();
     float splitterX;
     if (sidebarVisible) {
-        splitterX = availableWidth - (availableWidth * rightSplit);
+        splitterX = availableWidth - (availableWidth * rightSplit) - kAgentSplitterWidth;
     } else {
         splitterX = availableWidth * rightSplit;
     }
@@ -1243,10 +1242,12 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
     if (dragging) {
         float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
         float new_split;
+        float leftSplit = gSettings.getSplitPos();
+        float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
         if (sidebarVisible) {
-            new_split = clamp((availableWidth - mouseX) / availableWidth, 0.1f, 0.9f);
+            new_split = clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth, 0.15f, maxRightSplit);
         } else {
-            new_split = clamp(mouseX / availableWidth, 0.1f, 0.9f);
+            new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
         }
         gSettings.setAgentSplitPos(new_split);
     }
@@ -1271,15 +1272,7 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 
 void Ned::renderAgentPane(float agentPaneWidth)
 {
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
-
-    ImGui::BeginChild("Agent Pane", ImVec2(agentPaneWidth, -1), true);
-    ImGui::Text("Agent");
-    ImGui::EndChild();
-
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    gAIAgent.render(agentPaneWidth);
 }
 
 void Ned::renderMainWindow()
@@ -1325,7 +1318,7 @@ void Ned::renderMainWindow()
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
-	float availableWidth = windowWidth - padding * 3 - 4.0f; // Account for splitter width
+	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth; // Account for splitter width
 
 	if (showSidebar)
 	{
@@ -1359,7 +1352,7 @@ void Ned::renderMainWindow()
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
 		float editorWidth = showAgentPane ? (availableWidth * agentSplit) : availableWidth;
-		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - 4.0f) : 0.0f;
+		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
 
 		renderEditor(currentFont, editorWidth);
 		if (showAgentPane) {
@@ -1648,6 +1641,10 @@ void Ned::handleSettingsChanges()
 		
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
+		// Update sidebar visibility from settings
+		showSidebar = gSettings.getSettings().value("sidebar_visible", true);
+		showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
+
 		if (gSettings.hasThemeChanged())
 		{
 			gEditorHighlight.setTheme(gSettings.getCurrentTheme());
@@ -1684,6 +1681,10 @@ void Ned::handleFontReload()
 		ImGui::GetIO().Fonts->Clear();
 		currentFont =
 			loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
+		
+		// Also reload largeFont since it was cleared above
+		largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
+		
 		ImGui::GetIO().Fonts->Build();
 		ImGui_ImplOpenGL3_CreateFontsTexture();
 		gSettings.resetFontChanged();

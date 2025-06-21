@@ -23,6 +23,8 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+SettingsFileManager gSettingsFileManager;
+
 SettingsFileManager::SettingsFileManager() {}
 
 std::string SettingsFileManager::getAppResourcesPath()
@@ -332,7 +334,9 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
 		{"vignet_intensity", 0.25},
 	 	{"mac_background_opacity", 0.5},
     	{"mac_blur_enabled", true},
-        {"fps_target", 120.0}
+        {"fps_target", 120.0},
+        {"sidebar_visible", true},
+        {"agent_pane_visible", true}
     };
 	for (const auto &[key, value] : defaults)
 	{
@@ -504,7 +508,7 @@ void SettingsFileManager::checkSettingsFile(const std::string& settingsPath, jso
             "colorshift_intensity", "bloom_intensity", "static_intensity",
             "jitter_intensity", "pixelation_intensity", "pixel_width",
             "vignet_intensity", "mac_background_opacity", "mac_blur_enabled",
-            "fps_target"
+            "fps_target", "sidebar_visible", "agent_pane_visible"
         };
 
         for (const auto &key : checkKeys) {
@@ -535,7 +539,7 @@ std::vector<std::string> SettingsFileManager::getAvailableProfileFiles() {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string filename = entry.path().filename().string();
                 // Exclude "keybinds.json"
-                if (filename == "keybinds.json" ||  filename == "default-keybinds.json" ||  filename == ".undo-redo-ned.json" ) {
+                if (filename == "keybinds.json" ||  filename == "open_router_key.json" ||  filename == "default-keybinds.json" ||  filename == ".undo-redo-ned.json" ) {
                 }else{
                     availableProfileFiles.push_back(filename);
 
@@ -592,7 +596,9 @@ void SettingsFileManager::applyDefaultSettings(json& settings) {
         {"vignet_intensity", 0.25},
         {"mac_background_opacity", 0.5},
         {"mac_blur_enabled", true},
-        {"fps_target", 120.0}
+        {"fps_target", 120.0},
+        {"sidebar_visible", true},
+        {"agent_pane_visible", true}
     };
 
     for (const auto &[key, value] : defaults) {
@@ -618,4 +624,38 @@ void SettingsFileManager::applyDefaultThemes(json& settings) {
             }}
         };
     }
+}
+
+// OpenRouter key management
+std::string SettingsFileManager::getOpenRouterKeyFilePath() {
+    // Place in the same settings directory as other profiles
+    std::string settingsDir = getAppResourcesPath() + "/settings";
+    return settingsDir + "/open_router_key.json";
+}
+
+std::string SettingsFileManager::getOpenRouterKey() {
+    std::string keyFilePath = getOpenRouterKeyFilePath();
+    json keyJson;
+    if (loadJsonFile(keyFilePath, keyJson)) {
+        if (keyJson.contains("key") && keyJson["key"].is_string()) {
+            return keyJson["key"].get<std::string>();
+        }
+    }
+    return "";
+}
+
+void SettingsFileManager::setOpenRouterKey(const std::string& key) {
+    std::string keyFilePath = getOpenRouterKeyFilePath();
+    fs::path settingsDir = fs::path(keyFilePath).parent_path();
+    if (!fs::exists(settingsDir)) {
+        try {
+            fs::create_directories(settingsDir);
+            std::cout << "[Settings] Created settings directory for OpenRouter key: " << settingsDir.string() << std::endl;
+        } catch (const fs::filesystem_error &e) {
+            std::cerr << "[Settings] Error creating settings directory for OpenRouter key: " << e.what() << std::endl;
+            return;
+        }
+    }
+    json keyJson = { {"key", key} };
+    saveJsonFile(keyFilePath, keyJson);
 } 
