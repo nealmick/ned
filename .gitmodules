@@ -58,3 +58,6 @@
 [submodule "lib/tree-sitter-ruby"]
 	path = lib/tree-sitter-ruby
 	url = https://github.com/tree-sitter/tree-sitter-ruby
+[submodule "lib/utfcpp"]
+	path = lib/utfcpp
+	url = https://github.com/nemtrif/utfcpp.git

@@ -150,6 +150,7 @@ set(APP_SOURCES
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
 file(GLOB_RECURSE LSP_SOURCES       "lsp/*.cpp")
 file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
+file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
 # ImGui sources (explicitly listed for stability)
@@ -191,11 +192,15 @@ add_executable(ned
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
   ${AI_SOURCES}
+  ${AI_MM_SOURCES}
   ${FILES_SOURCES}
   ${IMGUI_SOURCES}
 )
 
-
+# Set Objective-C++ compilation for AI sources
+if(APPLE)
+  set_source_files_properties(${AI_MM_SOURCES} PROPERTIES COMPILE_FLAGS "-x objective-c++")
+endif()
 
 # =====================
 # macOS Window Management
@@ -238,6 +243,7 @@ target_include_directories(ned PRIVATE
   ${GLEW_INCLUDE_DIRS}
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
+  lib/utfcpp/source
 )
 
 # ================

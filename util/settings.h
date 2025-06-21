@@ -79,6 +79,12 @@ class Settings
 	bool hasFontSizeChanged() const { return fontSizeChanged; }
 	void resetFontSizeChanged() { fontSizeChanged = false; }
 
+	bool isAgentSplitPosProcessed() const { return agentSplitPosProcessed; }
+
+	// Toggle functions for sidebar and agent pane
+	void toggleSidebar();
+	void toggleAgentPane();
+
 	bool showSettingsWindow = false;
 	void renderSettingsWindow();
 	void toggleSettingsWindow()
@@ -144,6 +150,7 @@ class Settings
 	bool fontChanged = false;
 	bool fontSizeChanged = false;
 	bool blockInput = false;
+	bool agentSplitPosProcessed = false; // Track if we've processed agent split pos for current file
 
 	float currentFontSize = 0.0f; // Will be set by loadSettings()
 	int settingsCheckFrameCounter = 0;
@@ -163,6 +170,7 @@ class Settings
 	void renderKeybindsSettings();
 	void handleWindowInput();
 	void applyImGuiStyles(); // New function for handling ImGui styles
+	void renderOpenRouterKeyInput();
 };
 
 extern Settings gSettings;

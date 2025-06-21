@@ -39,11 +39,29 @@ Settings::Settings() : splitPos(0.3f) {
 
 void Settings::loadSettings()
 {
+	// Store the previous settings path to detect if we're loading a different file
+	std::string previousSettingsPath = settingsPath;
+	
 	settingsFileManager.loadSettings(settings, settingsPath);
 	currentFontName = getCurrentFont();
 	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
 	agentSplitPos = settings.value("agent_split_pos", 0.75f);
+	
+	// On first load of this specific settings file, always reset agent split pos to 0.3
+	if (previousSettingsPath != settingsPath) {
+		agentSplitPosProcessed = false;
+	}
+	if (!agentSplitPosProcessed && !settings.value("sidebar_visible", true)) {
+		float originalValue = agentSplitPos;
+		agentSplitPos = 0.7f;
+		settings["agent_split_pos"] = agentSplitPos;
+		settingsChanged = true;
+		std::cout << "[Settings] Reset agent_split_pos from " << originalValue << " to 0.3 on first load of " << settingsPath << std::endl;
+		settingsFileManager.saveSettings(settings, settingsPath);
+	}
+	agentSplitPosProcessed = true;
+	
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -105,6 +123,8 @@ void Settings::renderSettingsWindow()
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
+	renderOpenRouterKeyInput();
+
 	renderSyntaxColors();
 	renderToggleSettings();
 	renderShaderSettings();
@@ -212,6 +232,53 @@ void Settings::renderWindowHeader()
 				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 	ImGui::EndGroup();
 	ImGui::Separator();
+	ImGui::Spacing();
+}
+
+void Settings::renderOpenRouterKeyInput()
+{
+	static char openRouterKeyBuffer[128] = "";
+	static bool showOpenRouterKey = false;
+	static bool initialized = false;
+	static bool keyChanged = false;
+	static bool wasInputActive = false;
+	if (!initialized) {
+		std::string currentKey = settingsFileManager.getOpenRouterKey();
+		strncpy(openRouterKeyBuffer, currentKey.c_str(), sizeof(openRouterKeyBuffer) - 1);
+		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
+		initialized = true;
+	}
+	ImGui::Spacing();
+	ImGui::TextUnformatted("AI Settings");
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::TextUnformatted("OpenRouter Key:");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(400.0f);
+	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
+	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
+	bool isInputActive = ImGui::IsItemActive();
+	if (inputChanged) {
+		keyChanged = true;
+	}
+	// Handle block_input logic
+	if (isInputActive && !wasInputActive) {
+		editor_state.block_input = true;
+	} else if (!isInputActive && wasInputActive) {
+		editor_state.block_input = false;
+	}
+	wasInputActive = isInputActive;
+	ImGui::SameLine();
+	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0))) {
+		showOpenRouterKey = !showOpenRouterKey;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save") && keyChanged) {
+		settingsFileManager.setOpenRouterKey(std::string(openRouterKeyBuffer));
+		gAITab.load_key();
+		renderNotification("OpenRouter key saved!", 2.0f);
+		keyChanged = false;
+	}
 	ImGui::Spacing();
 }
 
@@ -485,6 +552,24 @@ void Settings::renderToggleSettings()
 	ImGui::Separator();
 	ImGui::Spacing();
 
+	bool sidebarVisible = settings.value("sidebar_visible", true);
+	if (ImGui::Checkbox("File Explorer", &sidebarVisible))
+	{
+		toggleSidebar();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide file explorer sidebar)");
+
+	bool agentPaneVisible = settings.value("agent_pane_visible", true);
+	if (ImGui::Checkbox("Agent Pane", &agentPaneVisible))
+	{
+		toggleAgentPane();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide AI agent panel)");
+
+	ImGui::Spacing();
+
 	bool rainbowMode = getRainbowMode();
 	if (ImGui::Checkbox("Rainbow Mode", &rainbowMode))
 	{
@@ -744,6 +829,7 @@ void Settings::renderNotification(const std::string& message, float duration)
         // Set up window
         ImGui::SetNextWindowPos(notificationPos);
         ImGui::SetNextWindowSize(ImVec2(width, height));
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 10));
@@ -751,13 +837,16 @@ void Settings::renderNotification(const std::string& message, float duration)
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         // Create window
-        if (ImGui::Begin("##Notification", nullptr, 
-            ImGuiWindowFlags_NoDecoration | 
-            ImGuiWindowFlags_NoMove | 
-            ImGuiWindowFlags_NoResize | 
+        ImGuiWindowFlags notifFlags = ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav))
+            ImGuiWindowFlags_NoNav;
+#ifdef ImGuiWindowFlags_TopMost
+        notifFlags |= ImGuiWindowFlags_TopMost;
+#endif
+        if (ImGui::Begin("##Notification", nullptr, notifFlags))
         {
             // Get background color from settings and adjust opacity
             auto& bg = getSettings()["backgroundColor"];
@@ -795,4 +884,61 @@ void Settings::renderNotification(const std::string& message, float duration)
         ImGui::End();
         ImGui::PopStyleVar(5);
     }
+}
+
+void Settings::toggleSidebar()
+{
+	// Duplicate the logic from handleKeyboardShortcuts
+	extern bool showSidebar;
+	
+	// Get current window dimensions (we'll need to approximate this)
+	float windowWidth = 1200.0f; // Default window width
+	float padding = 8.0f; // Default padding
+	float kAgentSplitterWidth = 6.0f;
+	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+
+	float agentPaneWidthPx;
+	if (showSidebar) {
+		agentPaneWidthPx = availableWidth * getAgentSplitPos();
+	} else {
+		float agentSplit = getAgentSplitPos();
+		float editorWidth = availableWidth * agentSplit;
+		agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
+	}
+
+	// Toggle sidebar
+	showSidebar = !showSidebar;
+
+	// Save sidebar visibility setting
+	settings["sidebar_visible"] = showSidebar;
+	saveSettings();
+
+	// Recompute availableWidth after toggling
+	availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
+
+	float newRightSplit;
+	if (showSidebar) {
+		newRightSplit = agentPaneWidthPx / availableWidth;
+	} else {
+		float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
+		newRightSplit = editorWidth / availableWidth;
+	}
+	setAgentSplitPos(std::max(0.1f, std::min(0.9f, newRightSplit)));
+
+	std::cout << "Toggled sidebar visibility from settings" << std::endl;
+}
+
+void Settings::toggleAgentPane()
+{
+	// Duplicate the logic from handleKeyboardShortcuts
+	extern bool showAgentPane;
+	
+	// Only toggle visibility, do not recalculate or set agentSplitPos
+	showAgentPane = !showAgentPane;
+	
+	// Save agent pane visibility setting
+	settings["agent_pane_visible"] = showAgentPane;
+	saveSettings();
+	
+	std::cout << "Toggled agent pane visibility from settings" << std::endl;
 }
