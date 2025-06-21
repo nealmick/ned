@@ -107,6 +107,20 @@ bool Ned::initialize()
         std::cout << "Failed to load initial keybinds." << std::endl;
     }
 
+	// Load sidebar visibility settings
+	showSidebar = gSettings.getSettings().value("sidebar_visible", true);
+	showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
+
+	// Adjust agent split position if sidebar is hidden (first load only)
+	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar) {
+		float currentAgentSplitPos = gSettings.getAgentSplitPos();
+		float originalValue = currentAgentSplitPos;
+		// When sidebar is hidden, the agent split position represents editor width, not agent pane width
+		// So we need to invert it: 1 - saved_agent_position
+		float newAgentSplitPos = 1.0f - currentAgentSplitPos;
+		gSettings.setAgentSplitPos(newAgentSplitPos);
+		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to " << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
+	}
 
 	
 #ifdef __APPLE__
@@ -722,6 +736,10 @@ void Ned::handleKeyboardShortcuts()
 		// Toggle sidebar
 		showSidebar = !showSidebar;
 
+		// Save sidebar visibility setting
+		gSettings.getSettings()["sidebar_visible"] = showSidebar;
+		gSettings.saveSettings();
+
 		// Recompute availableWidth after toggling
 		windowWidth = ImGui::GetWindowWidth();
 		availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
@@ -742,6 +760,11 @@ void Ned::handleKeyboardShortcuts()
 	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false)) {
 		// Only toggle visibility, do not recalculate or set agentSplitPos
 		showAgentPane = !showAgentPane;
+		
+		// Save agent pane visibility setting
+		gSettings.getSettings()["agent_pane_visible"] = showAgentPane;
+		gSettings.saveSettings();
+		
 		std::cout << "Toggled agent pane visibility" << std::endl;
 	}
 
@@ -924,14 +947,31 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 	// Minimum case
 	return root_part + "...";
 }
+
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
+	float windowWidth = ImGui::GetWindowWidth();
+	printf("Header Window Width: %.1f\n", windowWidth);
+	
+	// Disable git changes if window width is less than 250
+	bool showGitChanges = windowWidth >= 250.0f;
+	
 	ImGui::BeginGroup();
 	ImGui::PushFont(currentFont);
 
 	// Determine the base icon size (equal to font size)
 	float iconSize = ImGui::GetFontSize() * 1.15f;
 	std::string currentFile = gFileExplorer.currentFile;
+
+	// Calculate space needed for right-aligned status area
+	const float rightPadding = 25.0f;							// Space from window edge
+	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
+
+	// Calculate space needed for git changes if enabled and available
+	float gitChangesWidth = 0.0f;
+	if(showGitChanges && gSettings.getSettings()["git_changed_lines"] && !gEditorGit.currentGitChanges.empty()) {
+		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x + ImGui::GetStyle().ItemSpacing.x;
+	}
 
 	// Render left side (file icon and name)
 	if (currentFile.empty())
@@ -950,10 +990,10 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 			ImGui::SameLine();
 		}
 
-		// Calculate available width for the text
+		// Calculate available width for the text, accounting for all elements
 		float x_cursor = ImGui::GetCursorPosX();
 		float x_right_group = ImGui::GetWindowWidth();
-		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - 60.0f;
+		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - totalStatusWidth - gitChangesWidth;
 
 		// Truncate the file path to fit available space
 		std::string truncatedText =
@@ -961,8 +1001,8 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 
 		ImGui::Text("%s", truncatedText.c_str());
 
-		// Add git changes info if available
-		if(gSettings.getSettings()["git_changed_lines"]){
+		// Add git changes info if available and window is wide enough
+		if(showGitChanges && gSettings.getSettings()["git_changed_lines"]){
 			if (!gEditorGit.currentGitChanges.empty()) {
 				ImGui::SameLine();
 				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
@@ -972,9 +1012,6 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 	}
 
 	// Right-aligned status area
-	const float rightPadding = 25.0f;							// Space from window edge
-	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
-
 	// Position at far right edge
 	ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
 
@@ -1603,6 +1640,10 @@ void Ned::handleSettingsChanges()
 
 		
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+
+		// Update sidebar visibility from settings
+		showSidebar = gSettings.getSettings().value("sidebar_visible", true);
+		showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
 
 		if (gSettings.hasThemeChanged())
 		{

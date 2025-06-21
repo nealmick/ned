@@ -79,6 +79,12 @@ class Settings
 	bool hasFontSizeChanged() const { return fontSizeChanged; }
 	void resetFontSizeChanged() { fontSizeChanged = false; }
 
+	bool isAgentSplitPosProcessed() const { return agentSplitPosProcessed; }
+
+	// Toggle functions for sidebar and agent pane
+	void toggleSidebar();
+	void toggleAgentPane();
+
 	bool showSettingsWindow = false;
 	void renderSettingsWindow();
 	void toggleSettingsWindow()

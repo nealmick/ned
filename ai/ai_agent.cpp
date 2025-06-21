@@ -539,7 +539,31 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
         ImVec2 padding = ImGui::GetStyle().FramePadding;
         pos.x += padding.x + 2.0f;
         pos.y += padding.y;
-        ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_TextDisabled), "prompt here");
+        
+        // Calculate available width for hint text
+        float availableWidth = textBoxWidth - padding.x * 2.0f - 4.0f; // Account for padding and small buffer
+        
+        // Choose appropriate hint text based on font size and available width
+        const char* hintText = "prompt here";
+        float fontSize = ImGui::GetFontSize();
+        ImVec2 textSize = ImGui::CalcTextSize(hintText);
+        
+        // If the text is too wide for the container, use a shorter version
+        if (textSize.x > availableWidth) {
+            if (fontSize > 20.0f) {
+                hintText = "prompt..."; // Very short for large fonts
+            } else if (textSize.x > availableWidth * 0.8f) {
+                hintText = "prompt"; // Shorter version for medium fonts
+            }
+        }
+        
+        // Recalculate text size with the potentially shorter text
+        textSize = ImGui::CalcTextSize(hintText);
+        
+        // Only draw if the text actually fits
+        if (textSize.x <= availableWidth) {
+            ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_TextDisabled), hintText);
+        }
     }
 
     ImGui::PopStyleColor(2);

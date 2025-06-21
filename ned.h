@@ -156,5 +156,6 @@ class Ned
 extern Bookmarks gBookmarks;
 extern bool shader_toggle;
 extern bool showSidebar;
+extern bool showAgentPane;
 
 
