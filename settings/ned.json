@@ -1,6 +1,6 @@
 {
     "agent_pane_width": 207998896.0,
-    "agent_split_pos": 0.6559835076332092,
+    "agent_split_pos": 0.29444506764411926,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -14,7 +14,7 @@
     "curvature_intensity": 0.05000000074505806,
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 27.0,
-    "fps_target": 34.0,
+    "fps_target": 49.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 2.509999990463257,

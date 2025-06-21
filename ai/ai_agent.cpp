@@ -8,9 +8,16 @@
 #include <imgui_internal.h> 
 #include <thread>
 #include <mutex>
+#include "textselect.hpp"
+#include <utf8.h>
 
+// ImGuiTextSelect integration for selectable/copyable message history
+// Requires textselect.cpp/textselect.hpp and utfcpp (utf8.h) in the include path
+// See: https://github.com/WhaleConnect/mGuiTextSelect
 
-AIAgent::AIAgent() : frameCounter(0) {
+AIAgent::AIAgent() : frameCounter(0),
+    textSelect([](size_t){ return ""; }, []{ return 0; }, true) // dummy accessors, word wrap enabled
+{
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
     
@@ -19,6 +26,9 @@ AIAgent::AIAgent() : frameCounter(0) {
     
     // Initialize focus restoration flag
     shouldRestoreFocus = false;
+
+    // Initialize utf8_buffer to empty
+    utf8_buffer.clear();
 }
 
 AIAgent::~AIAgent() {
@@ -64,6 +74,7 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         messages.push_back({"", true, true});
+        messageDisplayLinesDirty = true;
     }
     scrollToBottom = true;
     
@@ -76,18 +87,28 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
             try {
                 bool success = OpenRouter::promptRequestStream(prompt, api_key, [this](const std::string& token) {
                     try {
-                        std::cout << "[Streaming] Received token: '" << token << "'" << std::endl;
-                        std::cout << "[Streaming] About to add token to message. Token length: " << token.length() << std::endl;
-                        // Update the last message (which should be the streaming one)
-                        std::lock_guard<std::mutex> lock(messagesMutex);
-                        if (!messages.empty() && messages.back().isStreaming) {
-                            std::cout << "[Streaming] Adding token to message. Current message text: '" << messages.back().text << "'" << std::endl;
-                            messages.back().text += token;
-                            std::cout << "[Streaming] Message text after adding token: '" << messages.back().text << "'" << std::endl;
-                            scrollToBottom = true;
-                        } else {
-                            std::cout << "[Streaming] No streaming message found or message not streaming" << std::endl;
+                        // UTF-8 safe streaming: buffer incomplete bytes
+                        std::string combined = utf8_buffer + token;
+                        auto valid_end = combined.begin();
+                        try {
+                            valid_end = utf8::find_invalid(combined.begin(), combined.end());
+                        } catch (...) {
+                            valid_end = combined.begin();
                         }
+                        {
+                            std::lock_guard<std::mutex> lock(messagesMutex);
+                            if (!messages.empty() && messages.back().isStreaming) {
+                                messages.back().text += std::string(combined.begin(), valid_end);
+                                messageDisplayLinesDirty = true;
+                            }
+                        }
+                        utf8_buffer = std::string(valid_end, combined.end());
+                        scrollToBottom = true;
+
+                        for (unsigned char c : token) {
+                            printf("%02X ", c);
+                        }
+                        printf("\n");
                     } catch (const std::exception& e) {
                         std::cout << "[Streaming] Exception in token callback: " << e.what() << std::endl;
                     }
@@ -103,6 +124,7 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
                 std::lock_guard<std::mutex> lock(messagesMutex);
                 if (!messages.empty() && messages.back().isStreaming) {
                     messages.back().isStreaming = false;
+                    messageDisplayLinesDirty = true;
                 }
                 isStreaming.store(false);
             } catch (const std::exception& e) {
@@ -181,31 +203,70 @@ void AIAgent::render(float agentPaneWidth) {
     ImGui::EndGroup();
 }
 
-void AIAgent::renderMessageHistory(const ImVec2& size) {
-    ImGui::BeginChild("##AIAgentMessageHistory", size, false, ImGuiWindowFlags_HorizontalScrollbar);
+void AIAgent::rebuildMessageDisplayLines() {
+    std::vector<Message> messagesCopy;
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        for (size_t i = 0; i < messages.size(); ++i) {
-            const auto& msg = messages[i];
-            std::string displayText = msg.text;
-            if (msg.isStreaming) {
-                // Add a blinking cursor for streaming messages
-                static float cursorTime = 0.0f;
-                cursorTime += ImGui::GetIO().DeltaTime;
-                if (static_cast<int>(cursorTime * 2) % 2 == 0) {
-                    displayText += "▋";
-                }
-            }
-            ImGui::TextWrapped("%s%s", msg.isAgent ? "Agent: " : "User: ", displayText.c_str());
-            
-            // Add separator line between every other pair of messages
-            // After message 2, 4, 6, etc. (i is 0-indexed, so after i=1, 3, 5, etc.)
-            if (i > 0 && i % 2 == 1 && i < messages.size() - 1) {
-                ImGui::Separator();
-                ImGui::Spacing();
+        messagesCopy = messages;
+    }
+    messageDisplayLines.clear();
+    for (size_t i = 0; i < messagesCopy.size(); ++i) {
+        const auto& msg = messagesCopy[i];
+        std::string displayText = msg.text;
+        displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
+        size_t start = 0;
+        while (start < displayText.size()) {
+            size_t end = displayText.find('\n', start);
+            if (end == std::string::npos) {
+                messageDisplayLines.push_back(displayText.substr(start));
+                break;
+            } else {
+                messageDisplayLines.push_back(displayText.substr(start, end - start));
+                start = end + 1;
             }
         }
+        if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
+            messageDisplayLines.push_back("--- next message ---");
+        }
     }
+}
+
+void AIAgent::renderMessageHistory(const ImVec2& size) {
+    if (messageDisplayLinesDirty.load()) {
+        rebuildMessageDisplayLines();
+        textSelect = TextSelect(
+            [this](size_t idx) -> std::string_view {
+                if (idx < messageDisplayLines.size())
+                    return messageDisplayLines[idx];
+                return "";
+            },
+            [this]() -> size_t { return messageDisplayLines.size(); },
+            true // word wrap
+        );
+        messageDisplayLinesDirty.store(false);
+    }
+
+    ImGui::BeginChild("text", size, false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar);
+
+    ImVector<TextSelect::SubLine> subLines = textSelect.getSubLines();
+    for (const auto& subLine : subLines) {
+        ImGui::TextUnformatted(subLine.string.data(), subLine.string.data() + subLine.string.size());
+    }
+
+    textSelect.update();
+
+    if (ImGui::BeginPopupContextWindow()) {
+        ImGui::BeginDisabled(!textSelect.hasSelection());
+        if (ImGui::MenuItem("Copy", "Ctrl+C")) {
+            textSelect.copy();
+        }
+        ImGui::EndDisabled();
+        if (ImGui::MenuItem("Select all", "Ctrl+A")) {
+            textSelect.selectAll();
+        }
+        ImGui::EndPopup();
+    }
+
     if (scrollToBottom) {
         ImGui::SetScrollHereY(1.0f);
         scrollToBottom = false;
@@ -422,7 +483,8 @@ void AIAgent::sendMessage(const char* msg) {
     
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({msg ? msg : "", false}); // User message, avoid null
+        messages.push_back({msg ? msg : "", false});
+        messageDisplayLinesDirty = true;
     }
     std::cout << "sending message: " << msg << std::endl;
     printAllMessages();

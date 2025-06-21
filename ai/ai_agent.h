@@ -8,6 +8,7 @@
 #include <mutex>
 #include "ai_open_router.h"
 #include "../util/settings_file_manager.h"
+#include "textselect.hpp"
 
 class AIAgent {
 public:
@@ -39,4 +40,9 @@ private:
     std::mutex messagesMutex;
     void startStreamingRequest(const std::string& prompt, const std::string& api_key);
     void stopStreaming();
+    std::string utf8_buffer; // Buffer for incomplete UTF-8 bytes during streaming
+    std::vector<std::string> messageDisplayLines;
+    std::atomic<bool> messageDisplayLinesDirty{true};
+    TextSelect textSelect;
+    void rebuildMessageDisplayLines();
 };
