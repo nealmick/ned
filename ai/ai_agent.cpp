@@ -17,7 +17,8 @@
 
 AIAgent::AIAgent() : frameCounter(0),
     textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
-    forceScrollToBottomNextFrame(false)
+    forceScrollToBottomNextFrame(false),
+    lastKnownWidth(0.0f)
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
@@ -153,8 +154,8 @@ void AIAgent::render(float agentPaneWidth) {
     ImGui::BeginGroup(); // Vertical stack for message history, button, and input
 
     // Render message history above the send button and input
-    float historyHeight = windowHeight * 0.6f;
-    ImVec2 historySize = ImVec2(textBoxWidth - 2 * horizontalPadding, historyHeight);
+    float historyHeight = windowHeight * 0.7f;
+    ImVec2 historySize = ImVec2(textBoxWidth - 2 * horizontalPadding + 50.0f, historyHeight);
     renderMessageHistory(historySize);
     ImGui::Spacing();
 
@@ -211,28 +212,113 @@ void AIAgent::rebuildMessageDisplayLines() {
         messagesCopy = messages;
     }
     messageDisplayLines.clear();
+    
+    // Calculate available width for text (accounting for padding, scrollbar, and some buffer)
+    float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
+    float childPadding = ImGui::GetStyle().ChildRounding * 2.0f; // Account for child window padding
+    float availableWidth = lastKnownWidth - scrollbarWidth - childPadding - 8.0f; // scrollbar + child padding + buffer
+    if (availableWidth < 50.0f) availableWidth = 50.0f; // Minimum width
+    
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         std::string displayText = msg.text;
         displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
+        
+        // Handle both existing newlines and word wrapping
         size_t start = 0;
         while (start < displayText.size()) {
-            size_t end = displayText.find('\n', start);
-            if (end == std::string::npos) {
-                messageDisplayLines.push_back(displayText.substr(start));
+            // First, find the next existing newline
+            size_t nextNewline = displayText.find('\n', start);
+            if (nextNewline == std::string::npos) {
+                // No more newlines, wrap the remaining text
+                std::string remainingText = displayText.substr(start);
+                wrapTextToWidth(remainingText, availableWidth);
                 break;
             } else {
-                messageDisplayLines.push_back(displayText.substr(start, end - start));
-                start = end + 1;
+                // Found a newline, wrap the text up to it
+                std::string lineText = displayText.substr(start, nextNewline - start);
+                wrapTextToWidth(lineText, availableWidth);
+                start = nextNewline + 1;
             }
         }
+        
         if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
             messageDisplayLines.push_back("--- next message ---");
         }
     }
 }
 
+// Helper function to wrap text to a specific width
+void AIAgent::wrapTextToWidth(const std::string& text, float maxWidth) {
+    if (text.empty()) {
+        messageDisplayLines.push_back("");
+        return;
+    }
+    
+    // Add a small buffer to prevent character cutoff
+    float safeWidth = maxWidth - 4.0f; // 4px buffer
+    
+    std::string currentLine;
+    std::string currentWord;
+    
+    for (size_t i = 0; i < text.size(); ++i) {
+        char c = text[i];
+        
+        if (c == ' ' || c == '\t') {
+            // End of word, try to add it to current line
+            if (!currentWord.empty()) {
+                std::string testLine = currentLine + (currentLine.empty() ? "" : " ") + currentWord;
+                float lineWidth = ImGui::CalcTextSize(testLine.c_str()).x;
+                
+                if (lineWidth-10.0f <= safeWidth) {
+                    currentLine = testLine;
+                } else {
+                    // Word doesn't fit, start new line
+                    if (!currentLine.empty()) {
+                        messageDisplayLines.push_back(currentLine);
+                    }
+                    currentLine = currentWord;
+                }
+                currentWord.clear();
+            }
+            // Don't add spaces to currentLine here - they'll be added when we add the next word
+        } else {
+            // Add character to current word
+            currentWord += c;
+        }
+    }
+    
+    // Handle the last word
+    if (!currentWord.empty()) {
+        std::string testLine = currentLine + (currentLine.empty() ? "" : " ") + currentWord;
+        float lineWidth = ImGui::CalcTextSize(testLine.c_str()).x;
+        
+        if (lineWidth <= safeWidth) {
+            currentLine = testLine;
+        } else {
+            // Last word doesn't fit, start new line
+            if (!currentLine.empty()) {
+                messageDisplayLines.push_back(currentLine);
+            }
+            currentLine = currentWord;
+        }
+    }
+    
+    // Add the final line if not empty
+    if (!currentLine.empty()) {
+        messageDisplayLines.push_back(currentLine);
+    }
+}
+
 void AIAgent::renderMessageHistory(const ImVec2& size) {
+    // Check if width has changed and trigger rebuild if needed
+    float currentWidth = size.x;
+    if (std::abs(currentWidth - lastKnownWidth) > 1.0f) { // Small threshold to avoid unnecessary rebuilds
+        messageDisplayLinesDirty.store(true);
+        lastKnownWidth = currentWidth;
+        std::cout << "[AIAgent] Width changed from " << lastKnownWidth << " to " << currentWidth << ", triggering rebuild" << std::endl;
+    }
+    
     if (messageDisplayLinesDirty.load()) {
         rebuildMessageDisplayLines();
         textSelect = TextSelect(
@@ -246,14 +332,32 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
         );
         messageDisplayLinesDirty.store(false);
     }
-    ImGui::BeginChild("text", size, false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar);
+    
+    // Get the position for drawing the border
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2 borderMin = pos;
+    ImVec2 borderMax = ImVec2(pos.x + size.x, pos.y + size.y);
+    // Draw border manually
+    /*
+    ImGui::GetWindowDrawList()->AddRect(
+        borderMin, 
+        borderMax, 
+        ImGui::GetColorU32(ImVec4(0.5f, 0.5f, 0.5f, 1.0f)), 
+        4.0f, // rounding
+        0,    // flags
+        2.0f  // thickness
+    );
+    */
 
-    // Set left padding if you want, but do it before the loop
-    ImGui::SetCursorPosX(8.0f);
+    // Use vertical scrollbar only
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | 
+                            ImGuiWindowFlags_AlwaysVerticalScrollbar;
+    
+    ImGui::BeginChild("text", size, false, flags);
 
     // Render each line as TextUnformatted (or TextWrapped if you want word wrap)
     for (size_t i = 0; i < messageDisplayLines.size(); ++i) {
-        ImGui::TextWrapped(messageDisplayLines[i].c_str());
+        ImGui::TextWrapped("%s", messageDisplayLines[i].c_str());
     }
 
     // Let TextSelect handle selection and copy

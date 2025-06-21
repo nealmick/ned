@@ -45,7 +45,9 @@ private:
     std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;
     void rebuildMessageDisplayLines();
+    void wrapTextToWidth(const std::string& text, float maxWidth);
     bool userScrolledUp = false; // Tracks if user has manually scrolled up in message history
     bool justAutoScrolled = false; // Prevents userScrolledUp from being set right after auto-scroll
     bool forceScrollToBottomNextFrame = false;
+    float lastKnownWidth = 0.0f; // Track last known width for detecting changes
 };
