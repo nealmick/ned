@@ -16,7 +16,8 @@
 // See: https://github.com/WhaleConnect/mGuiTextSelect
 
 AIAgent::AIAgent() : frameCounter(0),
-    textSelect([](size_t){ return ""; }, []{ return 0; }, true) // dummy accessors, word wrap enabled
+    textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
+    forceScrollToBottomNextFrame(false)
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
@@ -245,15 +246,24 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
         );
         messageDisplayLinesDirty.store(false);
     }
-
     ImGui::BeginChild("text", size, false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar);
 
-    ImVector<TextSelect::SubLine> subLines = textSelect.getSubLines();
-    for (const auto& subLine : subLines) {
-        ImGui::TextUnformatted(subLine.string.data(), subLine.string.data() + subLine.string.size());
+    // Set left padding if you want, but do it before the loop
+    ImGui::SetCursorPosX(8.0f);
+
+    // Render each line as TextUnformatted (or TextWrapped if you want word wrap)
+    for (size_t i = 0; i < messageDisplayLines.size(); ++i) {
+        ImGui::TextWrapped(messageDisplayLines[i].c_str());
     }
 
+    // Let TextSelect handle selection and copy
     textSelect.update();
+
+    // Scroll to bottom if the flag is set
+    if (scrollToBottom) {
+        ImGui::SetScrollHereY(1.0f);
+        scrollToBottom = false;
+    }
 
     if (ImGui::BeginPopupContextWindow()) {
         ImGui::BeginDisabled(!textSelect.hasSelection());
@@ -267,10 +277,6 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
         ImGui::EndPopup();
     }
 
-    if (scrollToBottom) {
-        ImGui::SetScrollHereY(1.0f);
-        scrollToBottom = false;
-    }
     ImGui::EndChild();
 }
 
@@ -353,6 +359,15 @@ static bool HandleWordBreakAndWrap(char* inputBuffer, size_t bufferSize, ImGuiIn
         return true;
     }
     return false;
+}
+
+// Returns a substring of s from character index start to end (exclusive)
+static std::string_view utf8_substr(std::string_view s, std::size_t start, std::size_t end) {
+    auto it_start = s.begin();
+    utf8::unchecked::advance(it_start, start);
+    auto it_end = it_start;
+    utf8::unchecked::advance(it_end, end - start);
+    return std::string_view(&*it_start, it_end - it_start);
 }
 
 void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding) {
@@ -480,15 +495,16 @@ void AIAgent::printAllMessages() {
 
 void AIAgent::sendMessage(const char* msg) {
     std::cout << "[AIAgent] sendMessage called with: " << (msg ? msg : "null") << std::endl;
-    
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         messages.push_back({msg ? msg : "", false});
         messageDisplayLinesDirty = true;
     }
+    userScrolledUp = false;
+    scrollToBottom = true;
+    forceScrollToBottomNextFrame = true;
     std::cout << "sending message: " << msg << std::endl;
     printAllMessages();
-    scrollToBottom = true;
     
     // Get API key from settings
     std::string api_key = gSettingsFileManager.getOpenRouterKey();

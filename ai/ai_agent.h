@@ -45,4 +45,7 @@ private:
     std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;
     void rebuildMessageDisplayLines();
+    bool userScrolledUp = false; // Tracks if user has manually scrolled up in message history
+    bool justAutoScrolled = false; // Prevents userScrolledUp from being set right after auto-scroll
+    bool forceScrollToBottomNextFrame = false;
 };
