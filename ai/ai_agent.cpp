@@ -70,7 +70,11 @@ void AIAgent::startStreamingRequest(const std::string& prompt, const std::string
             fullPrompt += (msg.isAgent ? "Assistant: " : "User: ") + msg.text + "\n";
         }
     }
-    fullPrompt += "User: " + prompt;
+    
+    // Print the final prompt for debugging
+    std::cout << "=== FINAL PROMPT SENT TO API ===" << std::endl;
+    std::cout << fullPrompt << std::endl;
+    std::cout << "=== END PROMPT ===" << std::endl;
     
     // Set streaming flag before creating thread
     isStreaming.store(true);
@@ -226,7 +230,7 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
+        displayText = (msg.isAgent ? "\n####Agent: " : "\n####User: ") + displayText;
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
