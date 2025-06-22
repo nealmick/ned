@@ -3,7 +3,7 @@
 #include <iostream>
 #include <cstring>
 #include <cctype>
-#include "editor/editor.h" // for editor_state
+#include "editor/editor.h"
 #include "util/settings.h"
 #include <imgui_internal.h> 
 #include <thread>
