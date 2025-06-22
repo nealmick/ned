@@ -1,0 +1,61 @@
+#pragma once
+
+#include <string>
+#include <vector>
+#include <functional>
+#include <unordered_map>
+
+namespace MCP {
+
+struct ToolParameter {
+    std::string name;
+    std::string type;
+    std::string description;
+    bool required;
+};
+
+struct ToolDefinition {
+    std::string name;
+    std::string description;
+    std::vector<ToolParameter> parameters;
+    // The function to call for this tool (could be std::function<void(const std::unordered_map<std::string, std::string>&)>)
+};
+
+struct ToolCall {
+    std::string toolName;
+    std::unordered_map<std::string, std::string> parameters;
+};
+
+class Manager {
+public:
+    Manager();
+    ~Manager() = default;
+
+    void registerTool(const ToolDefinition& toolDef);
+    std::vector<ToolDefinition> getToolDefinitions() const;
+    std::string getToolDescriptionsJSON() const;
+
+    // Parse LLM response for tool calls
+    std::string parseAndExecuteToolCalls(const std::string& llmResponse);
+    
+    // Check if response contains tool calls
+    bool hasToolCalls(const std::string& response) const;
+
+    // Route a tool call by name and parameters (parameters as string map for now)
+    bool routeToolCall(const std::string& toolName, const std::unordered_map<std::string, std::string>& params);
+
+private:
+    std::vector<ToolDefinition> toolDefinitions;
+    // Optionally, a map from tool name to function pointer for routing
+    
+    // Parse a single tool call from string
+    ToolCall parseToolCall(const std::string& toolCallStr) const;
+    
+    // Execute a tool call and return result
+    std::string executeToolCall(const ToolCall& toolCall) const;
+    
+    // Get tool definition by name
+    const ToolDefinition* getToolDefinition(const std::string& name) const;
+};
+
+} // namespace MCP 

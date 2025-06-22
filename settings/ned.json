@@ -1,6 +1,6 @@
 {
     "agent_pane_visible": true,
-    "agent_split_pos": 0.33169206976890564,
+    "agent_split_pos": 0.6213224530220032,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -27,7 +27,7 @@
     "scanline_intensity": 0.2199999988079071,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": true,
+    "sidebar_visible": false,
     "splitPos": 0.17797784507274628,
     "static_intensity": 0.3970000147819519,
     "theme": "default",
