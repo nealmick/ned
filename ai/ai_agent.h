@@ -9,7 +9,7 @@
 #include "ai_open_router.h"
 #include "../util/settings_file_manager.h"
 #include "textselect.hpp"
-#include "mcp/mcp_manager.h"
+#include "agent_request.h"
 
 class AIAgent {
 public:
@@ -34,17 +34,11 @@ private:
     bool scrollToBottom = false;
     bool shouldRestoreFocus = false;
     
-    // MCP Manager for tool definitions and routing
-    MCP::Manager mcpManager;
+    // Agent request handler
+    AgentRequest agentRequest;
     
-    // Streaming support
-    std::atomic<bool> isStreaming{false};
-    std::atomic<bool> shouldCancelStreaming{false};
-    std::thread streamingThread;
+    // Message display and UI
     std::mutex messagesMutex;
-    void startStreamingRequest(const std::string& prompt, const std::string& api_key);
-    void stopStreaming();
-    std::string utf8_buffer; // Buffer for incomplete UTF-8 bytes during streaming
     std::vector<std::string> messageDisplayLines;
     std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;
@@ -54,16 +48,7 @@ private:
     bool justAutoScrolled = false; // Prevents userScrolledUp from being set right after auto-scroll
     bool forceScrollToBottomNextFrame = false;
     float lastKnownWidth = 0.0f; // Track last known width for detecting changes
-
-    // Handle tool calls in LLM response
-    std::string handleToolCalls(const std::string& response);
     
-    // Flag to indicate we need to send conversation back to LLM after tool processing
-    std::atomic<bool> needsToolResultResponse{false};
-    
-    // Counter to prevent infinite tool call loops
-    std::atomic<int> toolCallProcessingCount{0};
-    
-    // Track last tool call to prevent repetition
-    std::string lastToolCall;
+    // Helper method for stopping streaming
+    void stopStreaming();
 };

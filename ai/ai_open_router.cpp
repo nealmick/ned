@@ -389,6 +389,14 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
+			curl_easy_cleanup(curl);
+			curl_slist_free_all(headers);
+			// Clear the global callback with mutex protection
+			{
+				std::lock_guard<std::mutex> lock(g_callbackMutex);
+				g_currentTokenCallback = nullptr;
+			}
+			return false;
 		}
 		
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
