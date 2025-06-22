@@ -39,14 +39,38 @@ std::string Manager::getToolDescriptionsJSON() const {
 }
 
 bool Manager::hasToolCalls(const std::string& response) const {
-    return response.find("TOOL_CALL:") != std::string::npos;
+    // Only treat as a tool call if it's a pure tool call (no additional text)
+    std::string trimmed = response;
+    // Trim leading and trailing whitespace
+    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
+    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
+    
+    // Check if it starts with TOOL_CALL: (allowing for spaces) and contains no other significant text
+    std::regex toolCallStartRegex(R"(\s*TOOL_CALL\s*:)");
+    if (std::regex_search(trimmed, toolCallStartRegex)) {
+        // Look for any text after the tool call that isn't just whitespace or newlines
+        size_t newline = trimmed.find('\n');
+        if (newline == std::string::npos) {
+            // No newlines, so it's just the tool call
+            return true;
+        } else {
+            // Check if there's any non-whitespace content after the first line
+            std::string afterFirstLine = trimmed.substr(newline + 1);
+            if (afterFirstLine.find_first_not_of(" \t\n\r") == std::string::npos) {
+                // Only whitespace after the tool call
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
     std::string result = llmResponse;
     
     // Find all tool calls in the response - more flexible regex to handle malformed calls
-    std::regex toolCallRegex(R"(TOOL_CALL:([^:\n]+):([^:\n]+)(?:=([^:\n]+))?)");
+    // Updated regex to handle spaces around TOOL_CALL: and be more flexible
+    std::regex toolCallRegex(R"(\s*TOOL_CALL\s*:\s*([^:\n]+)\s*:\s*([^:\n]+)(?:\s*=\s*([^:\n]+))?\s*)");
     std::smatch match;
     std::string::const_iterator searchStart(result.cbegin());
     
@@ -80,15 +104,23 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     ToolCall toolCall;
     
     // Parse format: TOOL_CALL:toolName:param1=value1:param2=value2
-    std::regex toolCallRegex(R"(TOOL_CALL:([^:]+):(.+))");
+    // Updated regex to handle spaces around TOOL_CALL: and be more flexible
+    std::regex toolCallRegex(R"(\s*TOOL_CALL\s*:\s*([^:]+)\s*:\s*(.+))");
     std::smatch match;
     
     if (std::regex_match(toolCallStr, match, toolCallRegex)) {
         toolCall.toolName = match[1].str();
+        // Trim whitespace from tool name
+        toolCall.toolName.erase(0, toolCall.toolName.find_first_not_of(" \t"));
+        toolCall.toolName.erase(toolCall.toolName.find_last_not_of(" \t") + 1);
+        
         std::string paramsStr = match[2].str();
+        // Trim whitespace from params string
+        paramsStr.erase(0, paramsStr.find_first_not_of(" \t"));
+        paramsStr.erase(paramsStr.find_last_not_of(" \t") + 1);
         
         // Parse parameters - handle both param=value and paramvalue formats
-        std::regex paramRegex(R"(([^=]+)(?:=([^:]+))?)");
+        std::regex paramRegex(R"(([^=\s]+)\s*=\s*([^:\s]+))");
         std::sregex_iterator paramIter(paramsStr.begin(), paramsStr.end(), paramRegex);
         std::sregex_iterator paramEnd;
         
@@ -96,17 +128,11 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
             std::string paramName = (*paramIter)[1].str();
             std::string paramValue = (*paramIter)[2].str();
             
-            // If no equals sign was found, treat the entire remaining string as the value
-            if (paramValue.empty() && paramIter->size() > 1) {
-                // Extract the value from the original string after the parameter name
-                size_t paramStart = paramsStr.find(paramName);
-                if (paramStart != std::string::npos) {
-                    size_t valueStart = paramStart + paramName.length();
-                    if (valueStart < paramsStr.length()) {
-                        paramValue = paramsStr.substr(valueStart);
-                    }
-                }
-            }
+            // Trim whitespace from parameter name and value
+            paramName.erase(0, paramName.find_first_not_of(" \t"));
+            paramName.erase(paramName.find_last_not_of(" \t") + 1);
+            paramValue.erase(0, paramValue.find_first_not_of(" \t"));
+            paramValue.erase(paramValue.find_last_not_of(" \t") + 1);
             
             toolCall.parameters[paramName] = paramValue;
         }

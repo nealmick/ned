@@ -3,14 +3,14 @@
 #include <iostream>
 #include <cstring>
 #include <cctype>
-#include "editor/editor.h"
+#include "editor/editor.h" // for editor_state
 #include "util/settings.h"
 #include <imgui_internal.h> 
 #include <thread>
 #include <mutex>
 #include "textselect.hpp"
 #include <utf8.h>
-#include "mcp/mcp_file_system.h"
+#include "agent_request.h"
 
 // ImGuiTextSelect integration for selectable/copyable message history
 // Requires textselect.cpp/textselect.hpp and utfcpp (utf8.h) in the include path
@@ -24,28 +24,8 @@ AIAgent::AIAgent() : frameCounter(0),
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
     
-    // Initialize thread object to ensure it's in a valid state
-    streamingThread = std::thread();
-    
     // Initialize focus restoration flag
     shouldRestoreFocus = false;
-
-    // Initialize utf8_buffer to empty
-    utf8_buffer.clear();
-
-    // Initialize MCP Manager and register tools
-    MCP::ToolParameter pathParam;
-    pathParam.name = "path";
-    pathParam.type = "string";
-    pathParam.description = "The directory path to list files from";
-    pathParam.required = true;
-
-    MCP::ToolDefinition listFilesTool;
-    listFilesTool.name = "listFiles";
-    listFilesTool.description = "List all files and directories in a given path";
-    listFilesTool.parameters.push_back(pathParam);
-
-    mcpManager.registerTool(listFilesTool);
 }
 
 AIAgent::~AIAgent() {
@@ -53,146 +33,10 @@ AIAgent::~AIAgent() {
 }
 
 void AIAgent::stopStreaming() {
-    // If we are currently streaming, set the cancel flag
-    if (isStreaming.load()) {
-        shouldCancelStreaming.store(true);
-        isStreaming.store(false);
-    }
-
-    // Always handle thread cleanup if joinable, regardless of streaming state
-    if (streamingThread.joinable()) {
-        try {
-            streamingThread.join();
-        } catch (...) {
-        }
-    }
-    
-    shouldCancelStreaming.store(false);
-}
-
-void AIAgent::startStreamingRequest(const std::string& prompt, const std::string& api_key) {
-    // Safety check: ensure we're not already streaming
-    if (isStreaming.load()) {
-        return;
-    }
-    
-    // Ensure any previous thread is fully cleaned up
-    stopStreaming();
-    
-    // Double-check that we're not streaming after cleanup
-    if (isStreaming.load()) {
-        return;
-    }
-    
-    // Build conversation history from existing messages
-    std::string fullPrompt;
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        for (const auto& msg : messages) {
-            fullPrompt += (msg.isAgent ? "Assistant: " : "User: ") + msg.text + "\n";
-        }
-    }
-    
-    // Add tool definitions to the prompt
-    std::string toolDefinitions = mcpManager.getToolDescriptionsJSON();
-    fullPrompt += "\nAvailable tools:\n" + toolDefinitions + "\n\n";
-    fullPrompt += "To use a tool, respond with: TOOL_CALL:toolName:param=value\n";
-    fullPrompt += "Example: TOOL_CALL:listFiles:path=/home/user\n\n";
-    fullPrompt += "IMPORTANT: After using a tool, provide your final answer to the user's question.\n";
-    fullPrompt += "Do not make the same tool call multiple times.\n\n";
-    
-    // Print the full prompt before sending to API
-    std::cout << "---------------" << std::endl;
-    std::cout << "SENDING PROMPT TO AGENT:" << std::endl;
-    std::cout << "---------------" << std::endl;
-    std::cout << fullPrompt << std::endl;
-    std::cout << "---------------" << std::endl;
-    
-    // Set streaming flag before creating thread
-    isStreaming.store(true);
-    shouldCancelStreaming.store(false);
-    
-    // Add a streaming message
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({"", true, true});
-        messageDisplayLinesDirty = true;
-    }
-    scrollToBottom = true;
-    
-    // Start streaming in a separate thread
-    try {
-        streamingThread = std::thread([this, fullPrompt, api_key]() {
-            try {
-                bool success = OpenRouter::promptRequestStream(fullPrompt, api_key, [this](const std::string& token) {
-                    try {
-                        // Check if we should cancel
-                        if (shouldCancelStreaming.load()) {
-                            return;
-                        }
-                        
-                        // UTF-8 safe streaming: buffer incomplete bytes
-                        std::string combined = utf8_buffer + token;
-                        auto valid_end = combined.begin();
-                        try {
-                            valid_end = utf8::find_invalid(combined.begin(), combined.end());
-                        } catch (...) {
-                            valid_end = combined.begin();
-                        }
-                        {
-                            std::lock_guard<std::mutex> lock(messagesMutex);
-                            if (!messages.empty() && messages.back().isStreaming) {
-                                messages.back().text += std::string(combined.begin(), valid_end);
-                                messageDisplayLinesDirty = true;
-                            }
-                        }
-                        utf8_buffer = std::string(valid_end, combined.end());
-                        scrollToBottom = true;
-                    } catch (const std::exception& e) {
-                    }
-                }, &shouldCancelStreaming);
-                
-                if (!success) {
-                }
-            } catch (const std::exception& e) {
-            }
-            
-            // Mark streaming as complete
-            try {
-                std::lock_guard<std::mutex> lock(messagesMutex);
-                if (!messages.empty() && messages.back().isStreaming) {
-                    messages.back().isStreaming = false;
-                    messageDisplayLinesDirty.store(true);
-                    
-                    // Print the full response received from agent
-                    std::cout << "---------------" << std::endl;
-                    std::cout << "RECEIVED RESPONSE FROM AGENT:" << std::endl;
-                    std::cout << "---------------" << std::endl;
-                    std::cout << messages.back().text << std::endl;
-                    std::cout << "---------------" << std::endl;
-                    
-                    // Process tool calls if any
-                    std::string processedResponse = handleToolCalls(messages.back().text);
-                    if (processedResponse != messages.back().text) {
-                        messages.back().text = processedResponse;
-                        messageDisplayLinesDirty.store(true);
-                        
-                        // Don't automatically send conversation back to LLM
-                        // The agent should provide the final answer in the same response
-                        // needsToolResultResponse.store(true);
-                    }
-                }
-                isStreaming.store(false);
-            } catch (const std::exception& e) {
-            }
-        });
-    } catch (const std::exception& e) {
-    }
+    agentRequest.stopRequest();
 }
 
 void AIAgent::render(float agentPaneWidth) {
-    // Removed automatic re-sending logic - agent should provide final answer in same response
-    
     float inputWidth = ImGui::GetContentRegionAvail().x;
     float windowHeight = ImGui::GetWindowHeight();
     float horizontalPadding = 16.0f;
@@ -287,7 +131,7 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "\n####Agent: " : "\n####User: ") + displayText;
+        displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
@@ -402,6 +246,18 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     ImVec2 borderMin = pos;
     ImVec2 borderMax = ImVec2(pos.x + size.x, pos.y + size.y);
     // Draw border manually
+
+    /*
+    
+    ImGui::GetWindowDrawList()->AddRect(
+        borderMin, 
+        borderMax, 
+        ImGui::GetColorU32(ImVec4(0.5f, 0.5f, 0.5f, 1.0f)), 
+        4.0f, // rounding
+        0,    // flags
+        2.0f  // thickness
+    );
+    */
 
     // Use vertical scrollbar only when needed
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove;
@@ -673,18 +529,9 @@ void AIAgent::printAllMessages() {
 }
 
 void AIAgent::sendMessage(const char* msg) {
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({msg ? msg : "", false});
-        messageDisplayLinesDirty = true;
-    }
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
-    
-    // Reset tool call processing counter for new conversation
-    toolCallProcessingCount.store(0);
-    lastToolCall.clear(); // Reset last tool call for new conversation
     
     // Get API key from settings
     std::string api_key = gSettingsFileManager.getOpenRouterKey();
@@ -702,36 +549,53 @@ void AIAgent::sendMessage(const char* msg) {
     stopStreaming();
     
     // Ensure we're not streaming before starting a new request
-    if (isStreaming.load()) {
+    if (agentRequest.isProcessing()) {
         return;
     }
     
-    // Start streaming request (this will set isStreaming to true internally)
-    startStreamingRequest(msg, api_key);
-}
-
-std::string AIAgent::handleToolCalls(const std::string& response) {
-    if (mcpManager.hasToolCalls(response)) {
-        // Check if this response already contains tool results (indicating it's a follow-up response)
-        if (response.find("Tool Result:") != std::string::npos) {
-            return response;
+    // Build conversation history from existing messages (before adding the new message)
+    std::string fullPrompt;
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& m : messages) {
+            fullPrompt += (m.isAgent ? "Assistant: " : "User: ") + m.text + "\n";
         }
-        
-        // Check if we've processed too many tool calls to prevent infinite loops
-        if (toolCallProcessingCount.load() >= 3) {
-            return response;
-        }
-        
-        // Check if this is the same tool call as the last one (prevent repetition)
-        if (response == lastToolCall) {
-            return response; // Don't process the same tool call twice
-        }
-        lastToolCall = response;
-        
-        toolCallProcessingCount.fetch_add(1);
-        std::string processed = mcpManager.parseAndExecuteToolCalls(response);
-        return processed;
-    } else {
-        return response;
     }
+    fullPrompt += "User: " + std::string(msg ? msg : "");
+    std::cout << "sending prompt here ya go boss:"  << fullPrompt << std::endl;
+    
+    // Now add the user message to the conversation history
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({msg ? msg : "", false});
+        messageDisplayLinesDirty = true;
+    }
+    
+    // Add a streaming message
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({"", true, true});
+        messageDisplayLinesDirty = true;
+    }
+    scrollToBottom = true;
+    
+    agentRequest.sendMessage(
+        fullPrompt, api_key,
+        [this](const std::string& token) {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().text += token;
+                messageDisplayLinesDirty = true;
+            }
+            scrollToBottom = true;
+        },
+        [this]() {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().isStreaming = false;
+                messageDisplayLinesDirty = true;
+            }
+            scrollToBottom = true;
+        }
+    );
 }
