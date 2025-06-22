@@ -1,6 +1,6 @@
 {
     "agent_pane_visible": true,
-    "agent_split_pos": 0.26450115442276,
+    "agent_split_pos": 0.3183760643005371,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -12,7 +12,7 @@
     "burnin_intensity": 0.949999988079071,
     "colorshift_intensity": 2.2100000381469727,
     "curvature_intensity": 0.05000000074505806,
-    "font": "JetBrainsMonoNL-Regular",
+    "font": "VT100",
     "fontSize": 23.0,
     "fps_target": 49.0,
     "fps_toggle": true,
@@ -26,7 +26,7 @@
     "rainbow": true,
     "scanline_intensity": 0.2199999988079071,
     "settings_file": "ned.json",
-    "shader_toggle": false,
+    "shader_toggle": true,
     "sidebar_visible": true,
     "splitPos": 0.2446996420621872,
     "static_intensity": 0.3970000147819519,

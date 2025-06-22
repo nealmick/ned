@@ -951,7 +951,6 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
 	float windowWidth = ImGui::GetWindowWidth();
-	printf("Header Window Width: %.1f\n", windowWidth);
 	
 	// Disable git changes if window width is less than 250
 	bool showGitChanges = windowWidth >= 250.0f;
