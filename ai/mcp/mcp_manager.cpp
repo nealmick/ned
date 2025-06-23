@@ -19,6 +19,34 @@ Manager::Manager() {
     
     listFilesTool.parameters.push_back(pathParam);
     registerTool(listFilesTool);
+    
+    // Register createFile tool
+    ToolDefinition createFileTool;
+    createFileTool.name = "createFile";
+    createFileTool.description = "Create a new empty file at the specified path. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    
+    ToolParameter createFilePathParam;
+    createFilePathParam.name = "path";
+    createFilePathParam.type = "string";
+    createFilePathParam.description = "File path to create (supports ~ for home directory). Parent directories will be created automatically.";
+    createFilePathParam.required = true;
+    
+    createFileTool.parameters.push_back(createFilePathParam);
+    registerTool(createFileTool);
+    
+    // Register createFolder tool
+    ToolDefinition createFolderTool;
+    createFolderTool.name = "createFolder";
+    createFolderTool.description = "Create a new folder at the specified path. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    
+    ToolParameter createFolderPathParam;
+    createFolderPathParam.name = "path";
+    createFolderPathParam.type = "string";
+    createFolderPathParam.description = "Folder path to create (supports ~ for home directory). Parent directories will be created automatically.";
+    createFolderPathParam.required = true;
+    
+    createFolderTool.parameters.push_back(createFolderPathParam);
+    registerTool(createFolderTool);
 }
 
 void Manager::registerTool(const ToolDefinition& toolDef) {
@@ -103,7 +131,10 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
         // Replace the tool call with the result
         size_t pos = result.find(toolCallStr);
         if (pos != std::string::npos) {
-            std::string replacement = "Tool Result: " + toolResult;
+            std::string replacement = "\n\n=== TOOL EXECUTION RESULT ===\n";
+            replacement += "Tool: " + toolCall.toolName + "\n";
+            replacement += "Result: " + toolResult + "\n";
+            replacement += "=== END TOOL RESULT ===\n\n";
             result.replace(pos, toolCallStr.length(), replacement);
             
             // Update search start position to avoid infinite loops
@@ -185,6 +216,34 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             return resultStr;
         } else {
             return "Error: Missing 'path' parameter for listFiles tool";
+        }
+    } else if (toolCall.toolName == "createFile") {
+        auto it = toolCall.parameters.find("path");
+        if (it != toolCall.parameters.end()) {
+            FileSystemServer fsServer;
+            bool success = fsServer.createFile(it->second);
+            
+            if (success) {
+                return "Success: File '" + it->second + "' created successfully.";
+            } else {
+                return "Error: Failed to create file '" + it->second + "'. The file may already exist or there may be permission issues.";
+            }
+        } else {
+            return "Error: Missing 'path' parameter for createFile tool";
+        }
+    } else if (toolCall.toolName == "createFolder") {
+        auto it = toolCall.parameters.find("path");
+        if (it != toolCall.parameters.end()) {
+            FileSystemServer fsServer;
+            bool success = fsServer.createFolder(it->second);
+            
+            if (success) {
+                return "Success: Folder '" + it->second + "' created successfully.";
+            } else {
+                return "Error: Failed to create folder '" + it->second + "'. The folder may already exist or there may be permission issues.";
+            }
+        } else {
+            return "Error: Missing 'path' parameter for createFolder tool";
         }
     }
     

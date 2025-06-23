@@ -44,7 +44,7 @@ void AIAgent::render(float agentPaneWidth) {
     // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
-        sendMessage("The tool call has been completed and the results are shown above. Please analyze and explain the results to the user.");
+        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###");
     }
     
     float inputWidth = ImGui::GetContentRegionAvail().x;
@@ -569,7 +569,9 @@ void AIAgent::sendMessage(const char* msg) {
     mcpInstructions += "1. To use a tool, respond with: TOOL_CALL:toolName:param1=value1:param2=value2\n";
     mcpInstructions += "2. Only use tools when necessary to answer the user's request\n";
     mcpInstructions += "3. Never include tool calls in your response unless you actually need to use a tool\n";
-    mcpInstructions += "4. Available tools:\n";
+    mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
+    mcpInstructions += "5. Tool results will be clearly marked with '=== TOOL EXECUTION RESULT ===' and '=== END TOOL RESULT ===' markers. Always wait for and analyze these results before proceeding.\n";
+    mcpInstructions += "6. Available tools:\n";
     for (const auto& tool : tools) {
         mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
         for (const auto& param : tool.parameters) {

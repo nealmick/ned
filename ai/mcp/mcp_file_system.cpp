@@ -1,5 +1,6 @@
 #include "mcp_file_system.h"
 #include <filesystem>
+#include <fstream>
 
 namespace MCP {
 
@@ -54,6 +55,77 @@ std::vector<std::string> FileSystemServer::listFiles(const std::string& path) {
     }
     
     return files;
+}
+
+bool FileSystemServer::createFile(const std::string& path) {
+    try {
+        std::string expandedPath = path;
+        
+        // Handle tilde expansion for home directory
+        if (path.length() > 0 && path[0] == '~') {
+            const char* homeDir = std::getenv("HOME");
+            if (homeDir) {
+                expandedPath = std::string(homeDir) + path.substr(1);
+            }
+        }
+        
+        std::filesystem::path fsPath(expandedPath);
+        
+        // Check if file already exists
+        if (std::filesystem::exists(fsPath)) {
+            return false; // File already exists
+        }
+        
+        // Create parent directories if they don't exist
+        std::filesystem::path parentPath = fsPath.parent_path();
+        if (!parentPath.empty() && !std::filesystem::exists(parentPath)) {
+            std::filesystem::create_directories(parentPath);
+        }
+        
+        // Create the file
+        std::ofstream file(fsPath);
+        if (file.is_open()) {
+            file.close();
+            return true; // File created successfully
+        } else {
+            return false; // Failed to create file
+        }
+        
+    } catch (const std::exception& e) {
+        return false; // Exception occurred
+    } catch (...) {
+        return false; // Unknown error occurred
+    }
+}
+
+bool FileSystemServer::createFolder(const std::string& path) {
+    try {
+        std::string expandedPath = path;
+        
+        // Handle tilde expansion for home directory
+        if (path.length() > 0 && path[0] == '~') {
+            const char* homeDir = std::getenv("HOME");
+            if (homeDir) {
+                expandedPath = std::string(homeDir) + path.substr(1);
+            }
+        }
+        
+        std::filesystem::path fsPath(expandedPath);
+        
+        // Check if folder already exists
+        if (std::filesystem::exists(fsPath)) {
+            return false; // Folder already exists
+        }
+        
+        // Create the folder and all parent directories
+        bool success = std::filesystem::create_directories(fsPath);
+        return success;
+        
+    } catch (const std::exception& e) {
+        return false; // Exception occurred
+    } catch (...) {
+        return false; // Unknown error occurred
+    }
 }
 
 } // namespace MCP 
