@@ -44,7 +44,7 @@ void AIAgent::render(float agentPaneWidth) {
     // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
-        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###");
+        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###", true);
     }
     
     float inputWidth = ImGui::GetContentRegionAvail().x;
@@ -100,7 +100,7 @@ void AIAgent::render(float agentPaneWidth) {
             // String is empty or contains only whitespace
             gSettings.renderNotification("No prompt provided", 3.0f);
         } else {
-            sendMessage(inputBuffer);
+            sendMessage(inputBuffer, false);
             inputBuffer[0] = '\0';
         }
     }
@@ -140,6 +140,12 @@ void AIAgent::rebuildMessageDisplayLines() {
     
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
+        
+        // Skip hidden messages
+        if (msg.hide_message) {
+            continue;
+        }
+        
         std::string displayText = msg.text;
         displayText = (msg.isAgent ? "##### Agent: " : "##### User: ") + displayText;
         
@@ -454,7 +460,7 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
                 // String is empty or contains only whitespace
                 gSettings.renderNotification("No prompt provided", 3.0f);
             } else {
-                sendMessage(inputBuffer);
+                sendMessage(inputBuffer, false);
                 // Clear the input buffer and reset ImGui state
                 inputBuffer[0] = '\0';
                 ImGui::ClearActiveID();
@@ -538,11 +544,11 @@ void AIAgent::printAllMessages() {
     // Function kept for compatibility but no longer prints anything
 }
 
-void AIAgent::sendMessage(const char* msg) {
+void AIAgent::sendMessage(const char* msg, bool hide_message) {
     // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
-        sendMessage("Complete the message with the tool call results");
+        sendMessage("Complete the message with the tool call results", false);
         return;
     }
     
@@ -556,7 +562,7 @@ void AIAgent::sendMessage(const char* msg) {
         // Add error message if no API key is configured
         {
             std::lock_guard<std::mutex> lock(messagesMutex);
-            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false});
+            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false, false});
         }
         scrollToBottom = true;
         return;
@@ -612,14 +618,14 @@ void AIAgent::sendMessage(const char* msg) {
     // Now add the user message to the conversation history
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({msg ? msg : "", false});
+        messages.push_back({msg ? msg : "", false, false, hide_message});
         messageDisplayLinesDirty = true;
     }
     
     // Add a streaming message
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({"", true, true});
+        messages.push_back({"", true, true, false});
         messageDisplayLinesDirty = true;
     }
     scrollToBottom = true;
