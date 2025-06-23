@@ -336,7 +336,9 @@ void SettingsFileManager::loadSettings(json& settings, std::string& settingsPath
     	{"mac_blur_enabled", true},
         {"fps_target", 120.0},
         {"sidebar_visible", true},
-        {"agent_pane_visible", true}
+        {"agent_pane_visible", true},
+        {"agent_model", "deepseek/deepseek-chat-v3-0324"},
+        {"completion_model", "meta-llama/llama-4-scout"}
     };
 	for (const auto &[key, value] : defaults)
 	{
@@ -508,7 +510,7 @@ void SettingsFileManager::checkSettingsFile(const std::string& settingsPath, jso
             "colorshift_intensity", "bloom_intensity", "static_intensity",
             "jitter_intensity", "pixelation_intensity", "pixel_width",
             "vignet_intensity", "mac_background_opacity", "mac_blur_enabled",
-            "fps_target", "sidebar_visible", "agent_pane_visible"
+            "fps_target", "sidebar_visible", "agent_pane_visible", "agent_model", "completion_model"
         };
 
         for (const auto &key : checkKeys) {
@@ -598,7 +600,9 @@ void SettingsFileManager::applyDefaultSettings(json& settings) {
         {"mac_blur_enabled", true},
         {"fps_target", 120.0},
         {"sidebar_visible", true},
-        {"agent_pane_visible", true}
+        {"agent_pane_visible", true},
+        {"agent_model", "deepseek/deepseek-chat-v3-0324"},
+        {"completion_model", "meta-llama/llama-4-scout"}
     };
 
     for (const auto &[key, value] : defaults) {
