@@ -26,8 +26,12 @@ public:
     void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
     void printAllMessages();
 
-private:
+    // Make messages public so it can be accessed from agent_request.cpp
     std::vector<Message> messages;
+    std::mutex messagesMutex;
+    bool needsFollowUpMessage = false; // Flag to trigger follow-up message
+
+private:
     char inputBuffer[256] = {0};
     unsigned int frameCounter;
     void renderMessageHistory(const ImVec2& size);
@@ -38,7 +42,6 @@ private:
     AgentRequest agentRequest;
     
     // Message display and UI
-    std::mutex messagesMutex;
     std::vector<std::string> messageDisplayLines;
     std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;

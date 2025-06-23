@@ -1,4 +1,4 @@
-	![NED Logo](https://github.com/user-attachments/assets/ee2b3e88-b9b4-45f6-9b91-3b4d489e9c84)
+![NED Logo](https://github.com/user-attachments/assets/ee2b3e88-b9b4-45f6-9b91-3b4d489e9c84)
 # A Simple Text Editor
 NED is a lightweight retro-style text editor with cool shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
 

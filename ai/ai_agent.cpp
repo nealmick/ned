@@ -11,6 +11,10 @@
 #include "textselect.hpp"
 #include <utf8.h>
 #include "agent_request.h"
+#include "mcp/mcp_manager.h"
+
+// External global MCP manager instance
+extern MCP::Manager gMCPManager;
 
 // ImGuiTextSelect integration for selectable/copyable message history
 // Requires textselect.cpp/textselect.hpp and utfcpp (utf8.h) in the include path
@@ -37,6 +41,12 @@ void AIAgent::stopStreaming() {
 }
 
 void AIAgent::render(float agentPaneWidth) {
+    // Check if we need to send a follow-up message from a tool call
+    if (needsFollowUpMessage) {
+        needsFollowUpMessage = false;
+        sendMessage("The tool call has been completed and the results are shown above. Please analyze and explain the results to the user.");
+    }
+    
     float inputWidth = ImGui::GetContentRegionAvail().x;
     float windowHeight = ImGui::GetWindowHeight();
     float horizontalPadding = 16.0f;
@@ -131,7 +141,7 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
+        displayText = (msg.isAgent ? "##### Agent: " : "##### User: ") + displayText;
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
@@ -152,7 +162,7 @@ void AIAgent::rebuildMessageDisplayLines() {
         }
         
         if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
-            messageDisplayLines.push_back("--- next message ---");
+            //messageDisplayLines.push_back("--- next message ---");
         }
     }
 }
@@ -529,6 +539,13 @@ void AIAgent::printAllMessages() {
 }
 
 void AIAgent::sendMessage(const char* msg) {
+    // Check if we need to send a follow-up message from a tool call
+    if (needsFollowUpMessage) {
+        needsFollowUpMessage = false;
+        sendMessage("Complete the message with the tool call results");
+        return;
+    }
+    
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
@@ -545,6 +562,23 @@ void AIAgent::sendMessage(const char* msg) {
         return;
     }
     
+    // Get tool definitions from MCP manager and create instructions string
+    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
+    
+    std::string mcpInstructions = "SYSTEM: You are an AI assistant with access to file system tools. Follow these system rules:\n\n";
+    mcpInstructions += "1. To use a tool, respond with: TOOL_CALL:toolName:param1=value1:param2=value2\n";
+    mcpInstructions += "2. Only use tools when necessary to answer the user's request\n";
+    mcpInstructions += "3. Never include tool calls in your response unless you actually need to use a tool\n";
+    mcpInstructions += "4. Available tools:\n";
+    for (const auto& tool : tools) {
+        mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
+        for (const auto& param : tool.parameters) {
+            mcpInstructions += "     - " + param.name + " (" + param.type + "): " + param.description + "\n";
+        }
+        mcpInstructions += "\n";
+    }
+    
+    
     // Stop any existing streaming and wait for it to finish
     stopStreaming();
     
@@ -558,10 +592,14 @@ void AIAgent::sendMessage(const char* msg) {
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         for (const auto& m : messages) {
-            fullPrompt += (m.isAgent ? "Assistant: " : "User: ") + m.text + "\n";
+            fullPrompt += (m.isAgent ? "#Assistant: " : "#User: ") + m.text + "\n";
         }
     }
-    fullPrompt += "User: " + std::string(msg ? msg : "");
+    fullPrompt += "User: " + std::string(msg ? msg : "") + "\n";
+    
+    // Add MCP instructions to the beginning of the prompt
+    fullPrompt = mcpInstructions + "\n" + fullPrompt;
+    
     std::cout << "sending prompt here ya go boss:"  << fullPrompt << std::endl;
     
     // Now add the user message to the conversation history
@@ -584,18 +622,24 @@ void AIAgent::sendMessage(const char* msg) {
         [this](const std::string& token) {
             std::lock_guard<std::mutex> lock(messagesMutex);
             if (!messages.empty() && messages.back().isStreaming) {
-                messages.back().text += token;
+                messages.back().text += token; // Add tokens as they arrive during streaming
                 messageDisplayLinesDirty = true;
             }
             scrollToBottom = true;
         },
-        [this]() {
+        [this](const std::string& finalResult, bool hadToolCall) {
             std::lock_guard<std::mutex> lock(messagesMutex);
             if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().text = finalResult; // Replace with final result (including tool call results)
                 messages.back().isStreaming = false;
                 messageDisplayLinesDirty = true;
             }
             scrollToBottom = true;
+            if (hadToolCall) {
+                std::cout << "Had tool call: true" << std::endl;
+                std::cout << "sending message to complete the message with the tool call results" << std::endl;
+                needsFollowUpMessage = true; // Set flag to send follow-up message on next frame
+            }
         }
     );
 }

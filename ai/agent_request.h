@@ -8,7 +8,7 @@
 class AgentRequest {
 public:
     using StreamingCallback = std::function<void(const std::string&)>;
-    using CompleteCallback = std::function<void()>;
+    using CompleteCallback = std::function<void(const std::string&, bool)>;
 
     AgentRequest();
     ~AgentRequest();
