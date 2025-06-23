@@ -363,7 +363,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		}
 		
 		// Build JSON payload for streaming conversation
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", "deepseek/deepseek-chat-v3-0324"},
 						{"messages",
 						 {{{"role", "user"}, {"content", prompt}}}},
 						{"temperature", 0.7},

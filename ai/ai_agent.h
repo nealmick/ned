@@ -17,12 +17,13 @@ public:
         std::string text;
         bool isAgent;
         bool isStreaming = false;
+        bool hide_message = false;
     };
 
     AIAgent();
     ~AIAgent();
     void render(float agentPaneWidth);
-    void sendMessage(const char* msg);
+    void sendMessage(const char* msg, bool hide_message = false);
     void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
     void printAllMessages();
 
