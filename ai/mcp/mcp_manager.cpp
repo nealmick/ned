@@ -5,7 +5,21 @@
 
 namespace MCP {
 
-Manager::Manager() {}
+Manager::Manager() {
+    // Register default tools
+    ToolDefinition listFilesTool;
+    listFilesTool.name = "listFiles";
+    listFilesTool.description = "List files in a directory. Supports tilde (~) expansion for home directory paths (e.g., ~/Documents, ~/ned/)";
+    
+    ToolParameter pathParam;
+    pathParam.name = "path";
+    pathParam.type = "string";
+    pathParam.description = "Directory path to list files from (supports ~ for home directory)";
+    pathParam.required = true;
+    
+    listFilesTool.parameters.push_back(pathParam);
+    registerTool(listFilesTool);
+}
 
 void Manager::registerTool(const ToolDefinition& toolDef) {
     toolDefinitions.push_back(toolDef);
@@ -148,6 +162,20 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             FileSystemServer fsServer;
             auto files = fsServer.listFiles(it->second);
             
+            // Check for special error markers
+            if (!files.empty()) {
+                if (files[0] == "DIRECTORY_NOT_FOUND") {
+                    return "Error: Directory '" + it->second + "' does not exist.";
+                } else if (files[0] == "NOT_A_DIRECTORY") {
+                    return "Error: '" + it->second + "' is not a directory.";
+                } else if (files[0] == "DIRECTORY_EMPTY") {
+                    return "Directory '" + it->second + "' is empty.";
+                } else if (files[0].substr(0, 6) == "ERROR:") {
+                    return files[0]; // Return the error message as-is
+                }
+            }
+            
+            // Normal case - directory exists and has files
             std::ostringstream result;
             result << "Files in " << it->second << ":\n";
             for (const auto& file : files) {
@@ -178,3 +206,6 @@ bool Manager::routeToolCall(const std::string& toolName, const std::unordered_ma
 }
 
 } // namespace MCP 
+
+// Global MCP manager instance
+MCP::Manager gMCPManager; 

@@ -2,6 +2,14 @@
 #include <utf8.h>
 #include "ai_open_router.h"
 #include <iostream>
+#include "mcp/mcp_manager.h"
+#include "ai_agent.h"
+
+// External global MCP manager instance
+extern MCP::Manager gMCPManager;
+
+// External global AI agent instance
+extern AIAgent gAIAgent;
 
 AgentRequest::AgentRequest() {}
 AgentRequest::~AgentRequest() { stopRequest(); }
@@ -44,6 +52,16 @@ void AgentRequest::sendMessage(const std::string& prompt, const std::string& api
         isStreaming.store(false);
         std::cout << "fgot final repsoine here for ya boss:" << std::endl;
         std::cout << *fullResponse << std::endl;
-        if (onComplete) onComplete();
+        
+        // Parse for tool calls
+        std::string finalResult = *fullResponse;
+        bool hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
+        if (hadToolCall) {
+            std::cout << "Tool call detected in response!" << std::endl;
+            finalResult = gMCPManager.parseAndExecuteToolCalls(*fullResponse);
+            std::cout << "Tool call result: " << finalResult << std::endl;
+        }
+        
+        if (onComplete) onComplete(finalResult, hadToolCall);
     });
 }
