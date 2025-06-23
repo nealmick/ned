@@ -566,12 +566,17 @@ void AIAgent::sendMessage(const char* msg) {
     std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
     
     std::string mcpInstructions = "SYSTEM: You are an AI assistant with access to file system tools. Follow these system rules:\n\n";
-    mcpInstructions += "1. To use a tool, respond with: TOOL_CALL:toolName:param1=value1:param2=value2\n";
-    mcpInstructions += "2. Only use tools when necessary to answer the user's request\n";
-    mcpInstructions += "3. Never include tool calls in your response unless you actually need to use a tool\n";
+    mcpInstructions += "1. To use a tool, respond with EXACTLY this format: TOOL_CALL:toolName:param1=value1:param2=value2\n";
+    mcpInstructions += "   - Use TOOL_CALL (not TOOL) followed by a colon\n";
+    mcpInstructions += "   - No spaces around the colons\n";
+    mcpInstructions += "   - Example: TOOL_CALL:listFiles:path=~/test/\n";
+    mcpInstructions += "   - Example: TOOL_CALL:createFile:path=~/test/readme.txt\n";
+    mcpInstructions += "2. ONLY use tools when necessary to answer the user's request\n";
+    mcpInstructions += "3. NEVER include tool calls in your response unless you actually need to use a tool\n";
     mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
     mcpInstructions += "5. Tool results will be clearly marked with '=== TOOL EXECUTION RESULT ===' and '=== END TOOL RESULT ===' markers. Always wait for and analyze these results before proceeding.\n";
-    mcpInstructions += "6. Available tools:\n";
+    mcpInstructions += "6. IMPORTANT: Do NOT say things like 'Waiting for tool execution result' or 'Let me check' - just make the tool call directly.\n";
+    mcpInstructions += "7. Available tools:\n";
     for (const auto& tool : tools) {
         mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
         for (const auto& param : tool.parameters) {

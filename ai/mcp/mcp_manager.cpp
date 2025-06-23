@@ -2,6 +2,7 @@
 #include "mcp_file_system.h"
 #include <sstream>
 #include <regex>
+#include <iostream>
 
 namespace MCP {
 
@@ -81,38 +82,26 @@ std::string Manager::getToolDescriptionsJSON() const {
 }
 
 bool Manager::hasToolCalls(const std::string& response) const {
-    // Only treat as a tool call if it's a pure tool call (no additional text)
-    std::string trimmed = response;
-    // Trim leading and trailing whitespace
-    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
-    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
-    
-    // Check if it starts with TOOL_CALL: (allowing for spaces) and contains no other significant text
-    std::regex toolCallStartRegex(R"(\s*TOOL_CALL\s*:)");
-    if (std::regex_search(trimmed, toolCallStartRegex)) {
-        // Look for any text after the tool call that isn't just whitespace or newlines
-        size_t newline = trimmed.find('\n');
-        if (newline == std::string::npos) {
-            // No newlines, so it's just the tool call
-            return true;
-        } else {
-            // Check if there's any non-whitespace content after the first line
-            std::string afterFirstLine = trimmed.substr(newline + 1);
-            if (afterFirstLine.find_first_not_of(" \t\n\r") == std::string::npos) {
-                // Only whitespace after the tool call
-                return true;
-            }
-        }
+    // Look for tool calls with flexible format matching
+    // Accept both TOOL_CALL: and TOOL: formats
+    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*([^:\n]+(?:\s*=\s*[^:\n]+)?(?:\s*:\s*[^:\n]+(?:\s*=\s*[^:\n]+)?)*))");
+    bool found = std::regex_search(response, toolCallRegex);
+    std::cout << "hasToolCalls: searching for tool calls in response" << std::endl;
+    std::cout << "hasToolCalls: found = " << (found ? "true" : "false") << std::endl;
+    if (found) {
+        std::smatch match;
+        std::regex_search(response, match, toolCallRegex);
+        std::cout << "hasToolCalls: matched: " << match.str() << std::endl;
     }
-    return false;
+    return found;
 }
 
 std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
     std::string result = llmResponse;
     
-    // Find all tool calls in the response - more flexible regex to handle malformed calls
-    // Updated regex to handle spaces around TOOL_CALL: and be more flexible
-    std::regex toolCallRegex(R"(\s*TOOL_CALL\s*:\s*([^:\n]+)\s*:\s*([^:\n]+)(?:\s*=\s*([^:\n]+))?\s*)");
+    // Find all tool calls in the response with flexible format matching
+    // Accept both TOOL_CALL: and TOOL: formats
+    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*([^:\n]+(?:\s*=\s*[^:\n]+)?(?:\s*:\s*[^:\n]+(?:\s*=\s*[^:\n]+)?)*))");
     std::smatch match;
     std::string::const_iterator searchStart(result.cbegin());
     
@@ -125,20 +114,29 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
         // Parse the tool call
         ToolCall toolCall = parseToolCall(toolCallStr);
         
-        // Execute the tool call
-        std::string toolResult = executeToolCall(toolCall);
-        
-        // Replace the tool call with the result
-        size_t pos = result.find(toolCallStr);
-        if (pos != std::string::npos) {
-            std::string replacement = "\n\n=== TOOL EXECUTION RESULT ===\n";
-            replacement += "Tool: " + toolCall.toolName + "\n";
-            replacement += "Result: " + toolResult + "\n";
-            replacement += "=== END TOOL RESULT ===\n\n";
-            result.replace(pos, toolCallStr.length(), replacement);
+        // Only execute if we have a valid tool name
+        if (!toolCall.toolName.empty()) {
+            // Execute the tool call
+            std::string toolResult = executeToolCall(toolCall);
             
-            // Update search start position to avoid infinite loops
-            searchStart = result.cbegin() + pos + replacement.length();
+            // Replace the tool call with the result
+            size_t pos = result.find(toolCallStr);
+            if (pos != std::string::npos) {
+                std::string replacement = "\n\n=== TOOL EXECUTION RESULT ===\n";
+                replacement += "Tool: " + toolCall.toolName + "\n";
+                replacement += "Result: " + toolResult + "\n";
+                replacement += "=== END TOOL RESULT ===\n\n";
+                result.replace(pos, toolCallStr.length(), replacement);
+                
+                // Update search start position to avoid infinite loops
+                searchStart = result.cbegin() + pos + replacement.length();
+            }
+        } else {
+            // Skip invalid tool calls and move search position
+            size_t pos = result.find(toolCallStr);
+            if (pos != std::string::npos) {
+                searchStart = result.cbegin() + pos + toolCallStr.length();
+            }
         }
     }
     
@@ -148,9 +146,8 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
 ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     ToolCall toolCall;
     
-    // Parse format: TOOL_CALL:toolName:param1=value1:param2=value2
-    // Updated regex to handle spaces around TOOL_CALL: and be more flexible
-    std::regex toolCallRegex(R"(\s*TOOL_CALL\s*:\s*([^:]+)\s*:\s*(.+))");
+    // Parse format: (TOOL_CALL|TOOL):toolName:param1=value1:param2=value2
+    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*(.+))");
     std::smatch match;
     
     if (std::regex_match(toolCallStr, match, toolCallRegex)) {
@@ -164,7 +161,7 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
         paramsStr.erase(0, paramsStr.find_first_not_of(" \t"));
         paramsStr.erase(paramsStr.find_last_not_of(" \t") + 1);
         
-        // Parse parameters - handle both param=value and paramvalue formats
+        // Parse parameters - split by : and then by = for each parameter
         std::regex paramRegex(R"(([^=\s]+)\s*=\s*([^:\s]+))");
         std::sregex_iterator paramIter(paramsStr.begin(), paramsStr.end(), paramRegex);
         std::sregex_iterator paramEnd;

@@ -55,7 +55,10 @@ void AgentRequest::sendMessage(const std::string& prompt, const std::string& api
         
         // Parse for tool calls
         std::string finalResult = *fullResponse;
+        std::cout << "checking for tool calls" << std::endl;
+        std::cout << "Response content: " << *fullResponse << std::endl;
         bool hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
+        std::cout << "hasToolCalls returned: " << (hadToolCall ? "true" : "false") << std::endl;
         if (hadToolCall) {
             std::cout << "Tool call detected in response!" << std::endl;
             finalResult = gMCPManager.parseAndExecuteToolCalls(*fullResponse);
