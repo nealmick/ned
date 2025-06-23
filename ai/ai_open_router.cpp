@@ -1,5 +1,6 @@
 #include "ai_open_router.h"
 #include "../lib/json.hpp"
+#include "../util/settings.h"
 #include <curl/curl.h>
 #include <iostream>
 #include <atomic>
@@ -72,7 +73,7 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 	if (curl)//testomg 
 	{
 		// Build JSON payload properly with escaping
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", gSettings.getCompletionModel()},
 						{"messages",
 						 {{{"role", "system"},
 						   {"content", "Respond ONLY with code completion. No explanations."}},
@@ -182,7 +183,7 @@ std::string OpenRouter::promptRequest(const std::string &prompt, const std::stri
 	if (curl)
 	{
 		// Build JSON payload for general conversation (no code completion system prompt)
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", gSettings.getAgentModel()},
 						{"messages",
 						 {{{"role", "user"}, {"content", prompt}}}},
 						{"temperature", 0.7},
@@ -363,7 +364,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		}
 		
 		// Build JSON payload for streaming conversation
-		json payload = {{"model", "deepseek/deepseek-chat-v3-0324"},
+		json payload = {{"model", gSettings.getAgentModel()},
 						{"messages",
 						 {{{"role", "user"}, {"content", prompt}}}},
 						{"temperature", 0.7},

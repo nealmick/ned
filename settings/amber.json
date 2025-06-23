@@ -1,5 +1,6 @@
 {
     "ai_autocomplete": true,
+    "agent_model": "deepseek/deepseek-chat-v3-0324",
     "backgroundColor": [
         0.25846153497695923,
         0.18769749999046326,
@@ -9,6 +10,7 @@
     "bloom_intensity": 0.10000000149011612,
     "burnin_intensity": 0.8999999761581421,
     "colorshift_intensity": 0.6700000166893005,
+    "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.0,
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 25.0,

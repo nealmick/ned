@@ -124,6 +124,24 @@ class Settings
 		return true; // Fallback
 	}
 
+	std::string getAgentModel() const
+	{
+		if (settings.contains("agent_model") && settings["agent_model"].is_string())
+		{
+			return settings["agent_model"].get<std::string>();
+		}
+		return "deepseek/deepseek-chat-v3-0324"; // Fallback
+	}
+
+	std::string getCompletionModel() const
+	{
+		if (settings.contains("completion_model") && settings["completion_model"].is_string())
+		{
+			return settings["completion_model"].get<std::string>();
+		}
+		return "meta-llama/llama-4-scout"; // Fallback
+	}
+
 	std::vector<std::string> fontNames = {
 		"SourceCodePro-Regular",
 		"JetBrainsMonoNL-Regular",

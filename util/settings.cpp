@@ -4,6 +4,7 @@
 #include "../files/files.h"				
 #include "../util/terminal.h"				
 #include "../util/keybinds.h"
+#include "../ai/ai_tab.h"
 #include "config.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -238,36 +239,51 @@ void Settings::renderWindowHeader()
 void Settings::renderOpenRouterKeyInput()
 {
 	static char openRouterKeyBuffer[128] = "";
+	static char agentModelBuffer[128] = "";
+	static char completionModelBuffer[128] = "";
 	static bool showOpenRouterKey = false;
 	static bool initialized = false;
 	static bool keyChanged = false;
+	static bool agentModelChanged = false;
+	static bool completionModelChanged = false;
 	static bool wasInputActive = false;
+	
+	// Reset initialization when profile changes
+	if (profileJustSwitched) {
+		initialized = false;
+	}
+	
 	if (!initialized) {
 		std::string currentKey = settingsFileManager.getOpenRouterKey();
 		strncpy(openRouterKeyBuffer, currentKey.c_str(), sizeof(openRouterKeyBuffer) - 1);
 		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
+		
+		std::string currentAgentModel = getAgentModel();
+		strncpy(agentModelBuffer, currentAgentModel.c_str(), sizeof(agentModelBuffer) - 1);
+		agentModelBuffer[sizeof(agentModelBuffer) - 1] = '\0';
+		
+		std::string currentCompletionModel = getCompletionModel();
+		strncpy(completionModelBuffer, currentCompletionModel.c_str(), sizeof(completionModelBuffer) - 1);
+		completionModelBuffer[sizeof(completionModelBuffer) - 1] = '\0';
+		
 		initialized = true;
 	}
 	ImGui::Spacing();
 	ImGui::TextUnformatted("AI Settings");
 	ImGui::Separator();
 	ImGui::Spacing();
-	ImGui::TextUnformatted("OpenRouter Key:");
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(400.0f);
+	
+	// Set a consistent width for all inputs
+	const float inputWidth = 400.0f;
+	
+	// OpenRouter Key Input
+	ImGui::SetNextItemWidth(inputWidth);
 	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
 	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
 	bool isInputActive = ImGui::IsItemActive();
 	if (inputChanged) {
 		keyChanged = true;
 	}
-	// Handle block_input logic
-	if (isInputActive && !wasInputActive) {
-		editor_state.block_input = true;
-	} else if (!isInputActive && wasInputActive) {
-		editor_state.block_input = false;
-	}
-	wasInputActive = isInputActive;
 	ImGui::SameLine();
 	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0))) {
 		showOpenRouterKey = !showOpenRouterKey;
@@ -279,7 +295,56 @@ void Settings::renderOpenRouterKeyInput()
 		renderNotification("OpenRouter key saved!", 2.0f);
 		keyChanged = false;
 	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("OpenRouter Key");
 	ImGui::Spacing();
+	
+	// Agent Model Input
+	ImGui::SetNextItemWidth(inputWidth);
+	bool agentModelInputChanged = ImGui::InputText("##agentmodel", agentModelBuffer, sizeof(agentModelBuffer));
+	bool isAgentModelActive = ImGui::IsItemActive();
+	if (agentModelInputChanged) {
+		agentModelChanged = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save##agent") && agentModelChanged) {
+		settings["agent_model"] = std::string(agentModelBuffer);
+		settingsChanged = true;
+		saveSettings();
+		renderNotification("Agent model saved!", 2.0f);
+		agentModelChanged = false;
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("Agent Model");
+	ImGui::Spacing();
+	
+	// Completion Model Input
+	ImGui::SetNextItemWidth(inputWidth);
+	bool completionModelInputChanged = ImGui::InputText("##completionmodel", completionModelBuffer, sizeof(completionModelBuffer));
+	bool isCompletionModelActive = ImGui::IsItemActive();
+	if (completionModelInputChanged) {
+		completionModelChanged = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save##completion") && completionModelChanged) {
+		settings["completion_model"] = std::string(completionModelBuffer);
+		settingsChanged = true;
+		saveSettings();
+		renderNotification("Completion model saved!", 2.0f);
+		completionModelChanged = false;
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("Completion Model");
+	ImGui::Spacing();
+	
+	// Handle block_input logic for all inputs
+	bool anyInputActive = isInputActive || isAgentModelActive || isCompletionModelActive;
+	if (anyInputActive && !wasInputActive) {
+		editor_state.block_input = true;
+	} else if (!anyInputActive && wasInputActive) {
+		editor_state.block_input = false;
+	}
+	wasInputActive = anyInputActive;
 }
 
 void Settings::renderProfileSelector()
