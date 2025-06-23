@@ -891,63 +891,38 @@ void Settings::renderNotification(const std::string& message, float duration)
             screenPos.y + screenSize.y - height - padding
         );
 
-        // Set up window
-        ImGui::SetNextWindowPos(notificationPos);
-        ImGui::SetNextWindowSize(ImVec2(width, height));
+        // Use foreground draw list to ensure it's always on top
+        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+        
+        // Get background color from settings and adjust opacity
+        auto& bg = getSettings()["backgroundColor"];
+        ImU32 bgColor = IM_COL32(
+            static_cast<int>(bg[0].get<float>() * 255),
+            static_cast<int>(bg[1].get<float>() * 255),
+            static_cast<int>(bg[2].get<float>() * 255),
+            230  // Increased opacity for better visibility
+        );
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 10));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        // Draw background with rounded corners
+        ImVec2 p_min = notificationPos;
+        ImVec2 p_max = ImVec2(notificationPos.x + width, notificationPos.y + height);
+        
+        // Draw main background
+        draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
+        
+        // Draw a subtle border
+        ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
+        draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
 
-        // Create window
-        ImGuiWindowFlags notifFlags = ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoSavedSettings |
-            ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav;
-#ifdef ImGuiWindowFlags_TopMost
-        notifFlags |= ImGuiWindowFlags_TopMost;
-#endif
-        if (ImGui::Begin("##Notification", nullptr, notifFlags))
-        {
-            // Get background color from settings and adjust opacity
-            auto& bg = getSettings()["backgroundColor"];
-            ImU32 bgColor = IM_COL32(
-                static_cast<int>(bg[0].get<float>() * 255),
-                static_cast<int>(bg[1].get<float>() * 255),
-                static_cast<int>(bg[2].get<float>() * 255),
-                230  // Increased opacity for better visibility
-            );
+        // Draw text with improved contrast
+        ImVec2 textPos = ImVec2(notificationPos.x + 15, notificationPos.y + 10);
+        draw_list->AddText(textPos, IM_COL32(255, 255, 255, 255), currentMessage.c_str());
 
-            // Draw background with a slightly darker border
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            ImVec2 p_min = ImGui::GetWindowPos();
-            ImVec2 p_max = ImVec2(p_min.x + width, p_min.y + height);
-            
-            // Draw main background
-            draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
-            
-            // Draw a subtle border
-            ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
-            draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
-
-            // Draw text with improved contrast
-            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
-            ImGui::SetCursorPos(ImVec2(15, 10));
-            ImGui::TextWrapped("%s", currentMessage.c_str());
-            ImGui::PopStyleColor();
-
-            // Update timer
-            notificationTimer -= ImGui::GetIO().DeltaTime;
-            if (notificationTimer <= 0.0f) {
-                showNotification = false;
-            }
+        // Update timer
+        notificationTimer -= ImGui::GetIO().DeltaTime;
+        if (notificationTimer <= 0.0f) {
+            showNotification = false;
         }
-        ImGui::End();
-        ImGui::PopStyleVar(5);
     }
 }
 
