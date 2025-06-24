@@ -1,5 +1,6 @@
 #include "ai_open_router.h"
 #include "../lib/json.hpp"
+#include "../util/settings.h"
 #include <curl/curl.h>
 #include <iostream>
 #include <atomic>
@@ -24,20 +25,15 @@ bool OpenRouter::initializeCURL() {
 	std::lock_guard<std::mutex> lock(g_curlInitMutex);
 	
 	if (curl_initialized.load()) {
-		std::cout << "[OpenRouter] CURL already initialized" << std::endl;
 		return true; // Already initialized
 	}
 	
-	std::cout << "[OpenRouter] Initializing CURL..." << std::endl;
-	
 	CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
 	if (res != CURLE_OK) {
-		std::cout << "[OpenRouter] curl_global_init() failed: " << curl_easy_strerror(res) << std::endl;
 		return false;
 	}
 	
 	curl_initialized.store(true);
-	std::cout << "[OpenRouter] CURL global initialization successful" << std::endl;
 	return true;
 }
 
@@ -45,10 +41,8 @@ void OpenRouter::cleanupCURL() {
 	std::lock_guard<std::mutex> lock(g_curlInitMutex);
 	
 	if (curl_initialized.load()) {
-		std::cout << "[OpenRouter] Cleaning up CURL..." << std::endl;
 		curl_global_cleanup();
 		curl_initialized.store(false);
-		std::cout << "[OpenRouter] CURL global cleanup completed" << std::endl;
 	}
 }
 
@@ -69,11 +63,9 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 
 	// Ensure CURL is initialized
 	if (!initializeCURL()) {
-		std::cout << "[OpenRouter] Failed to initialize CURL" << std::endl;
 		return "";
 	}
 
-	//std::cout << api_key << std::endl;
 	CURL *curl = curl_easy_init();
 	std::string response;
 	long http_code = 0;
@@ -81,7 +73,7 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 	if (curl)//testomg 
 	{
 		// Build JSON payload properly with escaping
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", gSettings.getCompletionModel()},
 						{"messages",
 						 {{{"role", "system"},
 						   {"content", "Respond ONLY with code completion. No explanations."}},
@@ -181,7 +173,6 @@ std::string OpenRouter::promptRequest(const std::string &prompt, const std::stri
 
 	// Ensure CURL is initialized
 	if (!initializeCURL()) {
-		std::cout << "[OpenRouter] Failed to initialize CURL" << std::endl;
 		return "";
 	}
 
@@ -192,7 +183,7 @@ std::string OpenRouter::promptRequest(const std::string &prompt, const std::stri
 	if (curl)
 	{
 		// Build JSON payload for general conversation (no code completion system prompt)
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", gSettings.getAgentModel()},
 						{"messages",
 						 {{{"role", "user"}, {"content", prompt}}}},
 						{"temperature", 0.7},
@@ -284,56 +275,65 @@ std::string OpenRouter::promptRequest(const std::string &prompt, const std::stri
 
 size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::string *data)
 {
-	if (g_should_cancel) {
-		return 0; // Stop receiving data if cancelled
-	}
-	
-	// Read the data properly
-	const char* charPtr = static_cast<const char*>(ptr);
-	std::string chunk(charPtr, size * nmemb);
-	
-	// Process Server-Sent Events (SSE) format
-	std::string buffer = chunk;
-	size_t pos = 0;
-	while ((pos = buffer.find('\n', pos)) != std::string::npos) {
-		std::string line = buffer.substr(0, pos);
-		buffer.erase(0, pos + 1);
-		pos = 0;
+	try {
+		if (g_should_cancel) {
+			return 0; // Stop receiving data if cancelled
+		}
 		
-		// Skip empty lines
-		if (line.empty()) continue;
+		// Read the data properly
+		const char* charPtr = static_cast<const char*>(ptr);
+		if (!charPtr) {
+			return 0;
+		}
 		
-		// Check for data line
-		if (line.substr(0, 5) == "data:") {
-			std::string jsonData = line.substr(5);
+		std::string chunk(charPtr, size * nmemb);
+		
+		// Process Server-Sent Events (SSE) format
+		std::string buffer = chunk;
+		size_t pos = 0;
+		while ((pos = buffer.find('\n', pos)) != std::string::npos) {
+			std::string line = buffer.substr(0, pos);
+			buffer.erase(0, pos + 1);
+			pos = 0;
 			
-			// Check for [DONE] message
-			if (jsonData == "[DONE]") {
-				return size * nmemb; // End of stream
-			}
+			// Skip empty lines
+			if (line.empty()) continue;
 			
-			try {
-				json result = json::parse(jsonData);
-				if (result.contains("choices") && result["choices"].is_array() && !result["choices"].empty()) {
-					if (result["choices"][0].contains("delta") && 
-						result["choices"][0]["delta"].contains("content")) {
-						std::string content = result["choices"][0]["delta"]["content"].get<std::string>();
-						if (!content.empty()) {
-							// Thread-safe callback access
-							std::lock_guard<std::mutex> lock(g_callbackMutex);
-							if (g_currentTokenCallback) {
-								g_currentTokenCallback(content);
+			// Check for data line
+			if (line.substr(0, 5) == "data:") {
+				std::string jsonData = line.substr(5);
+				
+				// Check for [DONE] message
+				if (jsonData == "[DONE]") {
+					return size * nmemb; // End of stream
+				}
+				
+				try {
+					json result = json::parse(jsonData);
+					if (result.contains("choices") && result["choices"].is_array() && !result["choices"].empty()) {
+						if (result["choices"][0].contains("delta") && 
+							result["choices"][0]["delta"].contains("content")) {
+							std::string content = result["choices"][0]["delta"]["content"].get<std::string>();
+							if (!content.empty()) {
+								// Thread-safe callback access
+								std::lock_guard<std::mutex> lock(g_callbackMutex);
+								if (g_currentTokenCallback) {
+									g_currentTokenCallback(content);
+								}
 							}
 						}
 					}
+				} catch (const json::exception &e) {
 				}
-			} catch (const json::exception &e) {
-				// JSON parse error - silently handle
 			}
 		}
+		
+		return size * nmemb;
+	} catch (const std::exception& e) {
+		return 0;
+	} catch (...) {
+		return 0;
 	}
-	
-	return size * nmemb;
 }
 
 bool OpenRouter::promptRequestStream(const std::string &prompt, const std::string &api_key, 
@@ -364,7 +364,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		}
 		
 		// Build JSON payload for streaming conversation
-		json payload = {{"model", "meta-llama/llama-4-scout"},
+		json payload = {{"model", gSettings.getAgentModel()},
 						{"messages",
 						 {{{"role", "user"}, {"content", prompt}}}},
 						{"temperature", 0.7},
@@ -378,7 +378,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		headers = curl_slist_append(headers, "Accept: text/event-stream");
 
 		std::string json_str = payload.dump();
-
+		
 		curl_easy_setopt(curl, CURLOPT_URL, "https://openrouter.ai/api/v1/chat/completions");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
@@ -390,7 +390,14 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			// curl_easy_perform failed - silently handle
+			curl_easy_cleanup(curl);
+			curl_slist_free_all(headers);
+			// Clear the global callback with mutex protection
+			{
+				std::lock_guard<std::mutex> lock(g_callbackMutex);
+				g_currentTokenCallback = nullptr;
+			}
+			return false;
 		}
 		
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
@@ -407,22 +414,8 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 
 		return http_code == 200;
 	} catch (const std::exception& e) {
-		// Clear the global callback in case of exception
-		try {
-			std::lock_guard<std::mutex> lock(g_callbackMutex);
-			g_currentTokenCallback = nullptr;
-		} catch (...) {
-			// Failed to clear callback after exception - silently handle
-		}
 		return false;
 	} catch (...) {
-		// Clear the global callback in case of exception
-		try {
-			std::lock_guard<std::mutex> lock(g_callbackMutex);
-			g_currentTokenCallback = nullptr;
-		} catch (...) {
-			// Failed to clear callback after unknown exception - silently handle
-		}
 		return false;
 	}
 }

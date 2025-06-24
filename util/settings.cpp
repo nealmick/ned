@@ -4,6 +4,7 @@
 #include "../files/files.h"				
 #include "../util/terminal.h"				
 #include "../util/keybinds.h"
+#include "../ai/ai_tab.h"
 #include "config.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -114,12 +115,25 @@ void Settings::renderSettingsWindow()
 							ImVec2(0.5f, 0.5f));
 	ImGuiWindowFlags windowFlags =
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_Modal;
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
 
 	applyImGuiStyles();
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
+	// Fixed header section with padding
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 	renderWindowHeader();
+	ImGui::PopStyleVar();
+	
+	// Calculate remaining space for scrollable content
+	ImVec2 contentSize = ImGui::GetContentRegionAvail();
+	float contentHeight = contentSize.y; // Use full available height instead of subtracting header height
+	
+	// Create a child window for scrollable content with padding
+	ImGuiWindowFlags childFlags = ImGuiWindowFlags_AlwaysVerticalScrollbar;
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 5.0f)); // Reduced bottom padding from 15.0f to 5.0f
+	ImGui::BeginChild("SettingsContent", ImVec2(0, contentHeight), false, childFlags);
+	
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
@@ -129,11 +143,15 @@ void Settings::renderSettingsWindow()
 	renderToggleSettings();
 	renderShaderSettings();
 	renderKeybindsSettings();
+	
+	ImGui::EndChild();
+	ImGui::PopStyleVar();
+	
 	handleWindowInput();
 
 	ImGui::End();
 	ImGui::PopStyleColor(8);
-	ImGui::PopStyleVar(5);
+	ImGui::PopStyleVar(6);
 
 	if (profileJustSwitched)
 	{
@@ -160,6 +178,7 @@ void Settings::applyImGuiStyles()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 15.0f)); // Left/top/bottom padding, no right padding
 
 	// Apply colors
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(
@@ -180,7 +199,7 @@ void Settings::applyImGuiStyles()
 		bgR * FRAME_BG_MULTIPLIER,
 		bgG * FRAME_BG_MULTIPLIER,
 		bgB * FRAME_BG_MULTIPLIER,
-		1.0f
+		0.0f  // Make scrollbar track transparent
 	));
 
 	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(
@@ -205,6 +224,9 @@ void Settings::renderWindowHeader()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when window loses focus
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	wasFocused = isFocused;
 
@@ -221,6 +243,9 @@ void Settings::renderWindowHeader()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when close button is clicked
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
@@ -231,43 +256,60 @@ void Settings::renderWindowHeader()
 				 ImVec2(1, 1),
 				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 	ImGui::EndGroup();
+	
+	// Add horizontal line to separate header from content
 	ImGui::Separator();
-	ImGui::Spacing();
 }
 
 void Settings::renderOpenRouterKeyInput()
 {
 	static char openRouterKeyBuffer[128] = "";
+	static char agentModelBuffer[128] = "";
+	static char completionModelBuffer[128] = "";
 	static bool showOpenRouterKey = false;
 	static bool initialized = false;
 	static bool keyChanged = false;
+	static bool agentModelChanged = false;
+	static bool completionModelChanged = false;
 	static bool wasInputActive = false;
+	
+	// Reset initialization when profile changes
+	if (profileJustSwitched) {
+		initialized = false;
+	}
+	
 	if (!initialized) {
 		std::string currentKey = settingsFileManager.getOpenRouterKey();
 		strncpy(openRouterKeyBuffer, currentKey.c_str(), sizeof(openRouterKeyBuffer) - 1);
 		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
+		
+		std::string currentAgentModel = getAgentModel();
+		strncpy(agentModelBuffer, currentAgentModel.c_str(), sizeof(agentModelBuffer) - 1);
+		agentModelBuffer[sizeof(agentModelBuffer) - 1] = '\0';
+		
+		std::string currentCompletionModel = getCompletionModel();
+		strncpy(completionModelBuffer, currentCompletionModel.c_str(), sizeof(completionModelBuffer) - 1);
+		completionModelBuffer[sizeof(completionModelBuffer) - 1] = '\0';
+		
 		initialized = true;
 	}
 	ImGui::Spacing();
 	ImGui::TextUnformatted("AI Settings");
 	ImGui::Separator();
 	ImGui::Spacing();
-	ImGui::TextUnformatted("OpenRouter Key:");
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(400.0f);
+	
+	// Set a consistent width for all inputs
+	const float inputWidth = 400.0f;
+	const float openRouterInputWidth = 340.0f; // Smaller width to account for extra Show/Hide button
+	
+	// OpenRouter Key Input
+	ImGui::SetNextItemWidth(openRouterInputWidth);
 	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
 	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
 	bool isInputActive = ImGui::IsItemActive();
 	if (inputChanged) {
 		keyChanged = true;
 	}
-	// Handle block_input logic
-	if (isInputActive && !wasInputActive) {
-		editor_state.block_input = true;
-	} else if (!isInputActive && wasInputActive) {
-		editor_state.block_input = false;
-	}
-	wasInputActive = isInputActive;
 	ImGui::SameLine();
 	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0))) {
 		showOpenRouterKey = !showOpenRouterKey;
@@ -279,11 +321,62 @@ void Settings::renderOpenRouterKeyInput()
 		renderNotification("OpenRouter key saved!", 2.0f);
 		keyChanged = false;
 	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("OpenRouter Key");
 	ImGui::Spacing();
+	
+	// Agent Model Input
+	ImGui::SetNextItemWidth(inputWidth);
+	bool agentModelInputChanged = ImGui::InputText("##agentmodel", agentModelBuffer, sizeof(agentModelBuffer));
+	bool isAgentModelActive = ImGui::IsItemActive();
+	if (agentModelInputChanged) {
+		agentModelChanged = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save##agent") && agentModelChanged) {
+		settings["agent_model"] = std::string(agentModelBuffer);
+		settingsChanged = true;
+		saveSettings();
+		renderNotification("Agent model saved!", 2.0f);
+		agentModelChanged = false;
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("Agent Model");
+	ImGui::Spacing();
+	
+	// Completion Model Input
+	ImGui::SetNextItemWidth(inputWidth);
+	bool completionModelInputChanged = ImGui::InputText("##completionmodel", completionModelBuffer, sizeof(completionModelBuffer));
+	bool isCompletionModelActive = ImGui::IsItemActive();
+	if (completionModelInputChanged) {
+		completionModelChanged = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save##completion") && completionModelChanged) {
+		settings["completion_model"] = std::string(completionModelBuffer);
+		settingsChanged = true;
+		saveSettings();
+		renderNotification("Completion model saved!", 2.0f);
+		completionModelChanged = false;
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("Completion Model");
+	ImGui::Spacing();
+	
+	// Handle block_input logic for all inputs
+	bool anyInputActive = isInputActive || isAgentModelActive || isCompletionModelActive;
+	if (anyInputActive && !wasInputActive) {
+		editor_state.block_input = true;
+	} else if (!anyInputActive && wasInputActive) {
+		editor_state.block_input = false;
+	}
+	wasInputActive = anyInputActive;
 }
 
 void Settings::renderProfileSelector()
 {
+	ImGui::Spacing();
+	
 	std::vector<std::string> availableProfileFiles = settingsFileManager.getAvailableProfileFiles();
 	std::string currentActiveFilename = "ned.json";
 
@@ -764,6 +857,9 @@ void Settings::handleWindowInput()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when window is closed via Escape
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered() &&
 		!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow |
@@ -780,6 +876,9 @@ void Settings::handleWindowInput()
 				showSettingsWindow = false;
 				if (settingsChanged)
 					saveSettings();
+				// Set editor_state.block_input to false when window is closed via clicking outside
+				extern struct EditorState editor_state;
+				editor_state.block_input = false;
 			}
 		}
 	}
@@ -826,63 +925,38 @@ void Settings::renderNotification(const std::string& message, float duration)
             screenPos.y + screenSize.y - height - padding
         );
 
-        // Set up window
-        ImGui::SetNextWindowPos(notificationPos);
-        ImGui::SetNextWindowSize(ImVec2(width, height));
+        // Use foreground draw list to ensure it's always on top
+        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+        
+        // Get background color from settings and adjust opacity
+        auto& bg = getSettings()["backgroundColor"];
+        ImU32 bgColor = IM_COL32(
+            static_cast<int>(bg[0].get<float>() * 255),
+            static_cast<int>(bg[1].get<float>() * 255),
+            static_cast<int>(bg[2].get<float>() * 255),
+            230  // Increased opacity for better visibility
+        );
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 10));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        // Draw background with rounded corners
+        ImVec2 p_min = notificationPos;
+        ImVec2 p_max = ImVec2(notificationPos.x + width, notificationPos.y + height);
+        
+        // Draw main background
+        draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
+        
+        // Draw a subtle border
+        ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
+        draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
 
-        // Create window
-        ImGuiWindowFlags notifFlags = ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoSavedSettings |
-            ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav;
-#ifdef ImGuiWindowFlags_TopMost
-        notifFlags |= ImGuiWindowFlags_TopMost;
-#endif
-        if (ImGui::Begin("##Notification", nullptr, notifFlags))
-        {
-            // Get background color from settings and adjust opacity
-            auto& bg = getSettings()["backgroundColor"];
-            ImU32 bgColor = IM_COL32(
-                static_cast<int>(bg[0].get<float>() * 255),
-                static_cast<int>(bg[1].get<float>() * 255),
-                static_cast<int>(bg[2].get<float>() * 255),
-                230  // Increased opacity for better visibility
-            );
+        // Draw text with improved contrast
+        ImVec2 textPos = ImVec2(notificationPos.x + 15, notificationPos.y + 10);
+        draw_list->AddText(textPos, IM_COL32(255, 255, 255, 255), currentMessage.c_str());
 
-            // Draw background with a slightly darker border
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            ImVec2 p_min = ImGui::GetWindowPos();
-            ImVec2 p_max = ImVec2(p_min.x + width, p_min.y + height);
-            
-            // Draw main background
-            draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
-            
-            // Draw a subtle border
-            ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
-            draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
-
-            // Draw text with improved contrast
-            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 255, 255));
-            ImGui::SetCursorPos(ImVec2(15, 10));
-            ImGui::TextWrapped("%s", currentMessage.c_str());
-            ImGui::PopStyleColor();
-
-            // Update timer
-            notificationTimer -= ImGui::GetIO().DeltaTime;
-            if (notificationTimer <= 0.0f) {
-                showNotification = false;
-            }
+        // Update timer
+        notificationTimer -= ImGui::GetIO().DeltaTime;
+        if (notificationTimer <= 0.0f) {
+            showNotification = false;
         }
-        ImGui::End();
-        ImGui::PopStyleVar(5);
     }
 }
 
@@ -941,4 +1015,18 @@ void Settings::toggleAgentPane()
 	saveSettings();
 	
 	std::cout << "Toggled agent pane visibility from settings" << std::endl;
+}
+
+void Settings::toggleSettingsWindow()
+{
+	showSettingsWindow = !showSettingsWindow;
+	if (showSettingsWindow)
+	{
+		ClosePopper::closeAllExcept(ClosePopper::Type::Settings);
+	}
+	blockInput = showSettingsWindow;
+	
+	// Set editor_state.block_input to match the settings window state
+	extern struct EditorState editor_state;
+	editor_state.block_input = showSettingsWindow;
 }

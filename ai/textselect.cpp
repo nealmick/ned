@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <utf8.h>
+#include "../editor/editor.h"
 
 // Calculates the midpoint between two numbers.
 template <typename T>
@@ -500,8 +501,11 @@ void TextSelect::update() {
 
     // Keyboard shortcuts
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) {
-        selectAll();
-    } else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) {
+        //selectAll();
+        //interfered with the text selection on the main window
+        //need to fix and make copy work when selection is active
+    } else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C) && !editor_state.selection_active) {
         copy();
+        //interfered with the text selection on the main window
     }
 }

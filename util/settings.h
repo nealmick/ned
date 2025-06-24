@@ -87,15 +87,7 @@ class Settings
 
 	bool showSettingsWindow = false;
 	void renderSettingsWindow();
-	void toggleSettingsWindow()
-	{
-		showSettingsWindow = !showSettingsWindow;
-		if (showSettingsWindow)
-		{
-			ClosePopper::closeAllExcept(ClosePopper::Type::Settings);
-		}
-		blockInput = showSettingsWindow;
-	}
+	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }
 
 	bool getRainbowMode() const
@@ -122,6 +114,24 @@ class Settings
 			return settings["ai_autocomplete"].get<bool>();
 		}
 		return true; // Fallback
+	}
+
+	std::string getAgentModel() const
+	{
+		if (settings.contains("agent_model") && settings["agent_model"].is_string())
+		{
+			return settings["agent_model"].get<std::string>();
+		}
+		return "deepseek/deepseek-chat-v3-0324"; // Fallback
+	}
+
+	std::string getCompletionModel() const
+	{
+		if (settings.contains("completion_model") && settings["completion_model"].is_string())
+		{
+			return settings["completion_model"].get<std::string>();
+		}
+		return "meta-llama/llama-4-scout"; // Fallback
 	}
 
 	std::vector<std::string> fontNames = {
