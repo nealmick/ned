@@ -48,6 +48,41 @@ Manager::Manager() {
     
     createFolderTool.parameters.push_back(createFolderPathParam);
     registerTool(createFolderTool);
+    
+    // Register readFile tool
+    ToolDefinition readFileTool;
+    readFileTool.name = "readFile";
+    readFileTool.description = "Read the contents of a file. Supports tilde (~) expansion for home directory paths. Returns first 50 lines with lines truncated to 500 characters maximum.";
+    
+    ToolParameter readFilePathParam;
+    readFilePathParam.name = "path";
+    readFilePathParam.type = "string";
+    readFilePathParam.description = "File path to read (supports ~ for home directory)";
+    readFilePathParam.required = true;
+    
+    readFileTool.parameters.push_back(readFilePathParam);
+    registerTool(readFileTool);
+    
+    // Register writeFile tool
+    ToolDefinition writeFileTool;
+    writeFileTool.name = "writeFile";
+    writeFileTool.description = "Write content to a file, overwriting existing content. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    
+    ToolParameter writeFilePathParam;
+    writeFilePathParam.name = "path";
+    writeFilePathParam.type = "string";
+    writeFilePathParam.description = "File path to write to (supports ~ for home directory). Parent directories will be created automatically.";
+    writeFilePathParam.required = true;
+    
+    ToolParameter writeFileContentParam;
+    writeFileContentParam.name = "content";
+    writeFileContentParam.type = "string";
+    writeFileContentParam.description = "Content to write to the file";
+    writeFileContentParam.required = true;
+    
+    writeFileTool.parameters.push_back(writeFilePathParam);
+    writeFileTool.parameters.push_back(writeFileContentParam);
+    registerTool(writeFileTool);
 }
 
 void Manager::registerTool(const ToolDefinition& toolDef) {
@@ -82,16 +117,18 @@ std::string Manager::getToolDescriptionsJSON() const {
 }
 
 bool Manager::hasToolCalls(const std::string& response) const {
-    // Look for tool calls with flexible format matching
-    // Accept both TOOL_CALL: and TOOL: formats
-    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*([^:\n]+(?:\s*=\s*[^:\n]+)?(?:\s*:\s*[^:\n]+(?:\s*=\s*[^:\n]+)?)*))");
-    bool found = std::regex_search(response, toolCallRegex);
+    // Look for tool calls with custom parsing to handle multiline content
+    bool found = (response.find("TOOL_CALL:") != std::string::npos) || 
+                 (response.find("TOOL:") != std::string::npos);
+    
     std::cout << "hasToolCalls: searching for tool calls in response" << std::endl;
+    std::cout << "hasToolCalls: response length: " << response.length() << std::endl;
     std::cout << "hasToolCalls: found = " << (found ? "true" : "false") << std::endl;
+    
     if (found) {
-        std::smatch match;
-        std::regex_search(response, match, toolCallRegex);
-        std::cout << "hasToolCalls: matched: " << match.str() << std::endl;
+        std::cout << "hasToolCalls: found TOOL_CALL or TOOL pattern in response" << std::endl;
+    } else {
+        std::cout << "hasToolCalls: no tool call found in response" << std::endl;
     }
     return found;
 }
@@ -99,17 +136,43 @@ bool Manager::hasToolCalls(const std::string& response) const {
 std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
     std::string result = llmResponse;
     
-    // Find all tool calls in the response with flexible format matching
-    // Accept both TOOL_CALL: and TOOL: formats
-    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*([^:\n]+(?:\s*=\s*[^:\n]+)?(?:\s*:\s*[^:\n]+(?:\s*=\s*[^:\n]+)?)*))");
-    std::smatch match;
-    std::string::const_iterator searchStart(result.cbegin());
+    std::cout << "DEBUG: Full response to parse: [" << llmResponse << "]" << std::endl;
     
+    // Custom parsing for tool calls to handle multiline content properly
+    std::string::size_type pos = 0;
     int toolCallCount = 0;
-    while (std::regex_search(searchStart, result.cend(), match, toolCallRegex)) {
+    
+    while (pos < result.length()) {
+        // Look for TOOL_CALL: or TOOL: patterns
+        std::string::size_type toolStart = result.find("TOOL_CALL:", pos);
+        if (toolStart == std::string::npos) {
+            toolStart = result.find("TOOL:", pos);
+        }
+        
+        if (toolStart == std::string::npos) {
+            break; // No more tool calls found
+        }
+        
         toolCallCount++;
         
-        std::string toolCallStr = match.str();
+        // Find the end of the tool call (next TOOL_CALL: or TOOL: or end of string)
+        std::string::size_type nextToolStart = result.find("TOOL_CALL:", toolStart + 1);
+        std::string::size_type nextToolAlt = result.find("TOOL:", toolStart + 1);
+        
+        std::string::size_type toolEnd;
+        if (nextToolStart != std::string::npos && nextToolAlt != std::string::npos) {
+            toolEnd = std::min(nextToolStart, nextToolAlt);
+        } else if (nextToolStart != std::string::npos) {
+            toolEnd = nextToolStart;
+        } else if (nextToolAlt != std::string::npos) {
+            toolEnd = nextToolAlt;
+        } else {
+            toolEnd = result.length();
+        }
+        
+        // Extract the complete tool call string
+        std::string toolCallStr = result.substr(toolStart, toolEnd - toolStart);
+        std::cout << "DEBUG: Found tool call: [" << toolCallStr << "]" << std::endl;
         
         // Parse the tool call
         ToolCall toolCall = parseToolCall(toolCallStr);
@@ -120,23 +183,17 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
             std::string toolResult = executeToolCall(toolCall);
             
             // Replace the tool call with the result
-            size_t pos = result.find(toolCallStr);
-            if (pos != std::string::npos) {
-                std::string replacement = "\n\n=== TOOL EXECUTION RESULT ===\n";
-                replacement += "Tool: " + toolCall.toolName + "\n";
-                replacement += "Result: " + toolResult + "\n";
-                replacement += "=== END TOOL RESULT ===\n\n";
-                result.replace(pos, toolCallStr.length(), replacement);
-                
-                // Update search start position to avoid infinite loops
-                searchStart = result.cbegin() + pos + replacement.length();
-            }
+            result.replace(toolStart, toolCallStr.length(), 
+                "\n\n=== TOOL EXECUTION RESULT ===\n"
+                "Tool: " + toolCall.toolName + "\n"
+                "Result: " + toolResult + "\n"
+                "=== END TOOL RESULT ===\n\n");
+            
+            // Update position to continue searching
+            pos = toolStart + 1;
         } else {
             // Skip invalid tool calls and move search position
-            size_t pos = result.find(toolCallStr);
-            if (pos != std::string::npos) {
-                searchStart = result.cbegin() + pos + toolCallStr.length();
-            }
+            pos = toolEnd;
         }
     }
     
@@ -146,37 +203,99 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
 ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     ToolCall toolCall;
     
-    // Parse format: (TOOL_CALL|TOOL):toolName:param1=value1:param2=value2
-    std::regex toolCallRegex(R"((?:TOOL_CALL|TOOL)\s*:\s*([a-zA-Z][a-zA-Z0-9]*)\s*:\s*(.+))");
-    std::smatch match;
+    std::cout << "DEBUG: Parsing tool call: " << toolCallStr << std::endl;
     
-    if (std::regex_match(toolCallStr, match, toolCallRegex)) {
-        toolCall.toolName = match[1].str();
-        // Trim whitespace from tool name
-        toolCall.toolName.erase(0, toolCall.toolName.find_first_not_of(" \t"));
-        toolCall.toolName.erase(toolCall.toolName.find_last_not_of(" \t") + 1);
+    // Find the first colon after TOOL_CALL: or TOOL:
+    std::string::size_type firstColon = toolCallStr.find(':');
+    if (firstColon == std::string::npos) {
+        return toolCall;
+    }
+    
+    // Find the second colon (after the tool name)
+    std::string::size_type secondColon = toolCallStr.find(':', firstColon + 1);
+    if (secondColon == std::string::npos) {
+        return toolCall;
+    }
+    
+    // Extract tool name
+    std::string toolName = toolCallStr.substr(firstColon + 1, secondColon - firstColon - 1);
+    // Trim whitespace from tool name
+    toolName.erase(0, toolName.find_first_not_of(" \t"));
+    toolName.erase(toolName.find_last_not_of(" \t") + 1);
+    toolCall.toolName = toolName;
+    
+    // Extract parameters string (everything after the second colon)
+    std::string paramsStr = toolCallStr.substr(secondColon + 1);
+    // Trim whitespace from params string
+    paramsStr.erase(0, paramsStr.find_first_not_of(" \t"));
+    paramsStr.erase(paramsStr.find_last_not_of(" \t") + 1);
+    
+    std::cout << "DEBUG: Tool name: " << toolCall.toolName << std::endl;
+    std::cout << "DEBUG: Params string length: " << paramsStr.length() << std::endl;
+    std::cout << "DEBUG: Params string: [" << paramsStr << "]" << std::endl;
+    
+    // Special handling for writeFile tool with content parameter
+    if (toolCall.toolName == "writeFile") {
+        // For writeFile, we expect: path=value:content=multiline_content
+        size_t pathStart = paramsStr.find("path=");
+        size_t contentStart = paramsStr.find(":content=");
         
-        std::string paramsStr = match[2].str();
-        // Trim whitespace from params string
-        paramsStr.erase(0, paramsStr.find_first_not_of(" \t"));
-        paramsStr.erase(paramsStr.find_last_not_of(" \t") + 1);
-        
-        // Parse parameters - split by : and then by = for each parameter
-        std::regex paramRegex(R"(([^=\s]+)\s*=\s*([^:\s]+))");
-        std::sregex_iterator paramIter(paramsStr.begin(), paramsStr.end(), paramRegex);
-        std::sregex_iterator paramEnd;
-        
-        for (; paramIter != paramEnd; ++paramIter) {
-            std::string paramName = (*paramIter)[1].str();
-            std::string paramValue = (*paramIter)[2].str();
+        if (pathStart != std::string::npos && contentStart != std::string::npos) {
+            // Extract path parameter
+            size_t pathValueStart = pathStart + 5; // "path=" is 5 characters
+            size_t pathValueEnd = contentStart;
+            std::string pathValue = paramsStr.substr(pathValueStart, pathValueEnd - pathValueStart);
+            // Trim whitespace
+            pathValue.erase(0, pathValue.find_first_not_of(" \t"));
+            pathValue.erase(pathValue.find_last_not_of(" \t") + 1);
+            toolCall.parameters["path"] = pathValue;
             
-            // Trim whitespace from parameter name and value
+            // Extract content parameter (everything after ":content=")
+            size_t contentValueStart = contentStart + 9; // ":content=" is 9 characters
+            std::string contentValue = paramsStr.substr(contentValueStart);
+            // Trim whitespace
+            contentValue.erase(0, contentValue.find_first_not_of(" \t"));
+            contentValue.erase(contentValue.find_last_not_of(" \t") + 1);
+            toolCall.parameters["content"] = contentValue;
+            
+            std::cout << "DEBUG: Parsed path = [" << pathValue << "]" << std::endl;
+            std::cout << "DEBUG: Parsed content length = " << contentValue.length() << std::endl;
+            std::cout << "DEBUG: Parsed content = [" << contentValue << "]" << std::endl;
+        } else {
+            std::cout << "DEBUG: Could not find path= or :content= in writeFile parameters" << std::endl;
+        }
+    } else {
+        // For other tools, use the original parsing logic
+        size_t pos = 0;
+        while (pos < paramsStr.length()) {
+            size_t equalPos = paramsStr.find('=', pos);
+            if (equalPos == std::string::npos) break;
+            
+            std::string paramName = paramsStr.substr(pos, equalPos - pos);
+            // Trim whitespace from parameter name
             paramName.erase(0, paramName.find_first_not_of(" \t"));
             paramName.erase(paramName.find_last_not_of(" \t") + 1);
+            
+            // Find the end of this parameter value
+            size_t valueStart = equalPos + 1;
+            size_t valueEnd = paramsStr.find(':', valueStart);
+            if (valueEnd == std::string::npos) {
+                valueEnd = paramsStr.length();
+            }
+            
+            std::string paramValue = paramsStr.substr(valueStart, valueEnd - valueStart);
+            // Trim whitespace from parameter value
             paramValue.erase(0, paramValue.find_first_not_of(" \t"));
             paramValue.erase(paramValue.find_last_not_of(" \t") + 1);
             
             toolCall.parameters[paramName] = paramValue;
+            
+            std::cout << "DEBUG: Parsed parameter: " << paramName << " = [" << paramValue << "]" << std::endl;
+            
+            pos = valueEnd;
+            if (pos < paramsStr.length() && paramsStr[pos] == ':') {
+                pos++; // Skip the colon
+            }
         }
     }
     
@@ -241,6 +360,45 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             }
         } else {
             return "Error: Missing 'path' parameter for createFolder tool";
+        }
+    } else if (toolCall.toolName == "readFile") {
+        auto it = toolCall.parameters.find("path");
+        if (it != toolCall.parameters.end()) {
+            FileSystemServer fsServer;
+            std::string content = fsServer.readFile(it->second);
+            
+            if (!content.empty()) {
+                return content;
+            } else {
+                return "Error: File '" + it->second + "' does not exist or is empty.";
+            }
+        } else {
+            return "Error: Missing 'path' parameter for readFile tool";
+        }
+    } else if (toolCall.toolName == "writeFile") {
+        std::cout << "DEBUG: Executing writeFile tool" << std::endl;
+        std::cout << "DEBUG: Number of parameters: " << toolCall.parameters.size() << std::endl;
+        for (const auto& param : toolCall.parameters) {
+            std::cout << "DEBUG: Parameter: " << param.first << " = " << param.second << std::endl;
+        }
+        
+        auto it = toolCall.parameters.find("path");
+        if (it != toolCall.parameters.end()) {
+            auto itContent = toolCall.parameters.find("content");
+            if (itContent != toolCall.parameters.end()) {
+                FileSystemServer fsServer;
+                bool success = fsServer.writeFile(it->second, itContent->second);
+                
+                if (success) {
+                    return "Success: File '" + it->second + "' written successfully.";
+                } else {
+                    return "Error: Failed to write to file '" + it->second + "'. The file may not exist or there may be permission issues.";
+                }
+            } else {
+                return "Error: Missing 'content' parameter for writeFile tool";
+            }
+        } else {
+            return "Error: Missing 'path' parameter for writeFile tool";
         }
     }
     
