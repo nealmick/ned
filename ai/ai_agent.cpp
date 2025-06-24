@@ -90,18 +90,23 @@ void AIAgent::render(float agentPaneWidth) {
     ImVec2 buttonSize = ImVec2(textSize.x + 16.0f, 0); // Add padding for comfortable button size
 
     if (ImGui::Button("Send", buttonSize)) {
-        const char* str = inputBuffer;
-        // Skip leading whitespace
-        while (*str && isspace((unsigned char)*str)) {
-            str++;
-        }
-
-        if (*str == '\0') {
-            // String is empty or contains only whitespace
-            gSettings.renderNotification("No prompt provided", 3.0f);
+        // Check if there's an ongoing conversation
+        if (agentRequest.isProcessing()) {
+            gSettings.renderNotification("Ongoing Conversation \nplease wait", 3.0f);
         } else {
-            sendMessage(inputBuffer, false);
-            inputBuffer[0] = '\0';
+            const char* str = inputBuffer;
+            // Skip leading whitespace
+            while (*str && isspace((unsigned char)*str)) {
+                str++;
+            }
+
+            if (*str == '\0') {
+                // String is empty or contains only whitespace
+                gSettings.renderNotification("No prompt provided", 3.0f);
+            } else {
+                sendMessage(inputBuffer, false);
+                inputBuffer[0] = '\0';
+            }
         }
     }
     ImGui::PopStyleColor(4);
@@ -450,22 +455,27 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
         enterPressed = true;
         ImGuiIO& io = ImGui::GetIO();
         if (!io.KeyShift) {
-            const char* str = inputBuffer;
-            // Skip leading whitespace
-            while (*str && isspace((unsigned char)*str)) {
-                str++;
-            }
-
-            if (*str == '\0') {
-                // String is empty or contains only whitespace
-                gSettings.renderNotification("No prompt provided", 3.0f);
+            // Check if there's an ongoing conversation
+            if (agentRequest.isProcessing()) {
+                gSettings.renderNotification("Ongoing Conversation\nplease wait", 3.0f);
             } else {
-                sendMessage(inputBuffer, false);
-                // Clear the input buffer and reset ImGui state
-                inputBuffer[0] = '\0';
-                ImGui::ClearActiveID();
-                // Set flag to restore focus on next frame
-                shouldRestoreFocus = true;
+                const char* str = inputBuffer;
+                // Skip leading whitespace
+                while (*str && isspace((unsigned char)*str)) {
+                    str++;
+                }
+
+                if (*str == '\0') {
+                    // String is empty or contains only whitespace
+                    gSettings.renderNotification("No prompt provided", 3.0f);
+                } else {
+                    sendMessage(inputBuffer, false);
+                    // Clear the input buffer and reset ImGui state
+                    inputBuffer[0] = '\0';
+                    ImGui::ClearActiveID();
+                    // Set flag to restore focus on next frame
+                    shouldRestoreFocus = true;
+                }
             }
         }
     } else if (!ImGui::IsKeyDown(ImGuiKey_Enter)) {
