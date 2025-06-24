@@ -17,6 +17,10 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <functional>
+#include <sstream>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 
@@ -123,6 +127,22 @@ class FileExplorer
 	std::string selectedFolder;
 	bool _showFileDialog = false;
 	bool _undoStateDirty = false;  // Track if undo state needs saving
+
+	// External file change detection
+	std::map<std::string, fs::file_time_type> _fileModificationTimes;
+	std::map<std::string, std::string> _fileContentHashes;
+	bool _externalFileChangeDetected = false;
+	std::string _lastChangedFile;
+	double _lastChangeCheckTime = 0.0;
+	const double FILE_CHANGE_CHECK_INTERVAL = 1.0; // Check every second
+
+	// External file change detection methods
+	void checkForExternalFileChanges();
+	void updateFileModificationTime(const std::string& filePath);
+	std::string calculateFileHash(const std::string& content);
+	void handleExternalFileChange(const std::string& filePath);
+	bool shouldReloadFile(const std::string& filePath);
+	void reloadCurrentFile();
 
   private:
 	std::map<std::string, ImTextureID> fileTypeIcons;

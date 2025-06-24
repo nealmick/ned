@@ -356,6 +356,12 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		setupUndoManager(path);
 		gEditorHighlight.highlightContent();
 
+		// Initialize file tracking for external change detection
+		updateFileModificationTime(path);
+		_fileContentHashes[path] = calculateFileHash(editor_state.fileContent);
+		_externalFileChangeDetected = false;
+		_lastChangedFile.clear();
+
 		// Initialize Git tracking for the new file
 		gEditorLineNumbers.setCurrentFilePath(path);
 
@@ -380,6 +386,11 @@ void FileExplorer::addUndoState() {
         // Mark that we have unsaved undo state
         _undoStateDirty = true;
         
+        // Update file content hash for external change detection
+        if (!currentFile.empty()) {
+            _fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
+        }
+        
         // Use a more efficient approach - let the existing debouncing in UndoRedoManager handle it
         // The save will happen periodically through the existing update() calls
     }
@@ -388,6 +399,9 @@ void FileExplorer::addUndoState() {
 void FileExplorer::renderFileContent()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
+	// Check for external file changes
+	checkForExternalFileChanges();
 
 	gFileContentSearch.handleFindBoxActivation();
 
@@ -602,6 +616,11 @@ void FileExplorer::saveCurrentFile()
 			int &version = _documentVersions[currentFile];
 			version = version == 0 ? 1 : version + 1;
 
+			// Update file tracking for external change detection
+			updateFileModificationTime(currentFile);
+			_fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
+			_externalFileChangeDetected = false;
+
 			// Notify LSP after successful save
 			gEditorLSP.didChange(currentFile, version);
 		} else
@@ -619,5 +638,178 @@ void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 void FileExplorer::forceSaveUndoState() {
     if (_undoStateDirty) {
         saveUndoRedoState();
+    }
+}
+
+// External file change detection implementation
+void FileExplorer::checkForExternalFileChanges() {
+    if (currentFile.empty()) {
+        return;
+    }
+
+    double currentTime = glfwGetTime();
+    if (currentTime - _lastChangeCheckTime < FILE_CHANGE_CHECK_INTERVAL) {
+        return;
+    }
+    _lastChangeCheckTime = currentTime;
+
+    try {
+        if (!fs::exists(currentFile)) {
+            // File was deleted externally
+            if (!_externalFileChangeDetected) {
+                _externalFileChangeDetected = true;
+                _lastChangedFile = currentFile;
+                gSettings.renderNotification("File was deleted externally: " + fs::path(currentFile).filename().string() + "\nFile content preserved in editor", 5.0f);
+            }
+            return;
+        }
+
+        // Check modification time
+        auto currentModTime = fs::last_write_time(currentFile);
+        auto it = _fileModificationTimes.find(currentFile);
+        
+        if (it != _fileModificationTimes.end() && currentModTime > it->second) {
+            // File modification time changed, check if content actually changed
+            if (shouldReloadFile(currentFile)) {
+                handleExternalFileChange(currentFile);
+            }
+        }
+        
+        // Update the modification time
+        updateFileModificationTime(currentFile);
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error checking for external file changes: " << e.what() << std::endl;
+    }
+}
+
+void FileExplorer::updateFileModificationTime(const std::string& filePath) {
+    try {
+        if (fs::exists(filePath)) {
+            _fileModificationTimes[filePath] = fs::last_write_time(filePath);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error updating file modification time: " << e.what() << std::endl;
+    }
+}
+
+std::string FileExplorer::calculateFileHash(const std::string& content) {
+    // Simple hash function - in a production environment, you might want to use a more robust hash
+    std::hash<std::string> hasher;
+    std::stringstream ss;
+    ss << std::hex << hasher(content);
+    return ss.str();
+}
+
+bool FileExplorer::shouldReloadFile(const std::string& filePath) {
+    try {
+        // Read the current file content
+        std::ifstream file(filePath, std::ios::binary);
+        if (!file) {
+            return false;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string currentContent = buffer.str();
+
+        // Calculate hash of current content
+        std::string currentHash = calculateFileHash(currentContent);
+        
+        // Compare with stored hash
+        auto it = _fileContentHashes.find(filePath);
+        if (it != _fileContentHashes.end() && it->second != currentHash) {
+            return true;
+        }
+        
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "Error checking if file should be reloaded: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void FileExplorer::handleExternalFileChange(const std::string& filePath) {
+    if (_externalFileChangeDetected) {
+        return; // Already handling a change
+    }
+
+    _externalFileChangeDetected = true;
+    _lastChangedFile = filePath;
+
+    // Check if we have unsaved changes
+    if (_unsavedChanges) {
+        // Show notification that we can't reload due to unsaved changes
+        std::string filename = fs::path(filePath).filename().string();
+        gSettings.renderNotification("File changed externally: " + filename + "\nCannot reload: You have unsaved changes", 5.0f);
+        return;
+    }
+
+    // Store current cursor position
+    int currentCursorPos = editor_state.cursor_index;
+    
+    // Automatically reload the file content
+    if (readFileContent(filePath)) {
+        updateFileColorBuffer();
+        gEditorHighlight.highlightContent();
+        
+        // Try to restore cursor position (clamp to new content size)
+        if (currentCursorPos < static_cast<int>(editor_state.fileContent.length())) {
+            editor_state.cursor_index = currentCursorPos;
+        } else {
+            editor_state.cursor_index = editor_state.fileContent.length();
+        }
+        
+        // Update tracking
+        updateFileModificationTime(filePath);
+        _fileContentHashes[filePath] = calculateFileHash(editor_state.fileContent);
+        _externalFileChangeDetected = false;
+        _lastChangedFile.clear();
+        
+        // Show success notification
+        std::string filename = fs::path(filePath).filename().string();
+        gSettings.renderNotification("File Updated ", 2.0f);
+    } else {
+        // Show error notification
+        std::string filename = fs::path(filePath).filename().string();
+        gSettings.renderNotification("File Update\nFailed" , 2.0f);
+    }
+}
+
+void FileExplorer::reloadCurrentFile() {
+    if (currentFile.empty() || !_externalFileChangeDetected) {
+        return;
+    }
+
+    // Check if we have unsaved changes
+    if (_unsavedChanges) {
+        gSettings.renderNotification("Cannot reload: You have unsaved changes", 3.0f);
+        return;
+    }
+
+    // Store current cursor position
+    int currentCursorPos = editor_state.cursor_index;
+    
+    // Reload the file content
+    if (readFileContent(currentFile)) {
+        updateFileColorBuffer();
+        gEditorHighlight.highlightContent();
+        
+        // Try to restore cursor position (clamp to new content size)
+        if (currentCursorPos < static_cast<int>(editor_state.fileContent.length())) {
+            editor_state.cursor_index = currentCursorPos;
+        } else {
+            editor_state.cursor_index = editor_state.fileContent.length();
+        }
+        
+        // Update tracking
+        updateFileModificationTime(currentFile);
+        _fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
+        _externalFileChangeDetected = false;
+        _lastChangedFile.clear();
+        
+        gSettings.renderNotification("File reloaded successfully", 2.0f);
+    } else {
+        gSettings.renderNotification("Failed to reload file", 3.0f);
     }
 }
