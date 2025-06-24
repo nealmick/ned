@@ -1,7 +1,7 @@
 {
     "agent_model": "deepseek/deepseek-chat-v3-0324",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.36530616879463196,
+    "agent_split_pos": 0.6418803334236145,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -17,7 +17,7 @@
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 22.0,
     "fps_target": 63.0,
-    "fps_toggle": true,
+    "fps_toggle": false,
     "git_changed_lines": true,
     "jitter_intensity": 2.509999990463257,
     "lsp_autocomplete": false,
@@ -30,7 +30,7 @@
     "settings_file": "ned.json",
     "shader_toggle": false,
     "sidebar_visible": true,
-    "splitPos": 0.16828255355358124,
+    "splitPos": 0.22879858314990997,
     "static_intensity": 0.3970000147819519,
     "theme": "default",
     "themes": {
