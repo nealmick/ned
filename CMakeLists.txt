@@ -197,11 +197,6 @@ add_executable(ned
   ${IMGUI_SOURCES}
 )
 
-# Set Objective-C++ compilation for AI sources
-if(APPLE)
-  set_source_files_properties(${AI_MM_SOURCES} PROPERTIES COMPILE_FLAGS "-x objective-c++")
-endif()
-
 # =====================
 # macOS Window Management
 # =====================
@@ -239,6 +234,8 @@ target_include_directories(ned PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   editor
   files
+  ai
+  ai/mcp
   ${CMAKE_BINARY_DIR}
   ${GLEW_INCLUDE_DIRS}
   lib/tree-sitter/lib/include

@@ -1,16 +1,19 @@
 {
-    "agent_split_pos": 0.17966514825820923,
-    "ai_autocomplete": false,
+    "agent_model": "deepseek/deepseek-chat-v3-0324",
+    "agent_pane_visible": true,
+    "agent_split_pos": 0.6072880625724792,
+    "ai_autocomplete": true,
     "backgroundColor": [
-        0.11182449012994766,
-        0.31506848335266113,
-        0.026975031942129135,
+        0.035076528787612915,
+        0.2142857313156128,
+        0.04147683084011078,
         0.0
     ],
-    "bloom_intensity": 0.4099999964237213,
-    "burnin_intensity": 0.984000027179718,
-    "colorshift_intensity": 3.359999895095825,
-    "curvature_intensity": 0.33000001311302185,
+    "bloom_intensity": 1.0,
+    "burnin_intensity": 0.9049999713897705,
+    "colorshift_intensity": 0.0,
+    "completion_model": "meta-llama/llama-4-scout",
+    "curvature_intensity": 0.0,
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 25.0,
     "fps_target": 60.0,
@@ -25,7 +28,8 @@
     "rainbow": true,
     "scanline_intensity": 0.3400000035762787,
     "shader_toggle": true,
-    "splitPos": 0.3077601492404938,
+    "sidebar_visible": true,
+    "splitPos": 0.1800553947687149,
     "static_intensity": 0.4129999876022339,
     "theme": "default",
     "themes": {
@@ -87,7 +91,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.1599999964237213,
-    "sidebar_visible": true,
-    "agent_pane_visible": true
+    "vignet_intensity": 0.1599999964237213
 }

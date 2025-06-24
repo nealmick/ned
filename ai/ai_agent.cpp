@@ -10,6 +10,11 @@
 #include <mutex>
 #include "textselect.hpp"
 #include <utf8.h>
+#include "agent_request.h"
+#include "mcp/mcp_manager.h"
+
+// External global MCP manager instance
+extern MCP::Manager gMCPManager;
 
 // ImGuiTextSelect integration for selectable/copyable message history
 // Requires textselect.cpp/textselect.hpp and utfcpp (utf8.h) in the include path
@@ -23,14 +28,8 @@ AIAgent::AIAgent() : frameCounter(0),
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
     
-    // Initialize thread object to ensure it's in a valid state
-    streamingThread = std::thread();
-    
     // Initialize focus restoration flag
     shouldRestoreFocus = false;
-
-    // Initialize utf8_buffer to empty
-    utf8_buffer.clear();
 }
 
 AIAgent::~AIAgent() {
@@ -38,100 +37,16 @@ AIAgent::~AIAgent() {
 }
 
 void AIAgent::stopStreaming() {
-    // If we are currently streaming, set the cancel flag
-    if (isStreaming.load()) {
-        shouldCancelStreaming.store(true);
-        isStreaming.store(false);
-    }
-
-    // Always handle thread cleanup if joinable, regardless of streaming state
-    if (streamingThread.joinable()) {
-        try {
-            streamingThread.join();
-        } catch (const std::exception& e) {
-            // Exception during join - silently handle
-        }
-    }
-    
-    shouldCancelStreaming.store(false);
-}
-
-void AIAgent::startStreamingRequest(const std::string& prompt, const std::string& api_key) {
-    // Safety check: ensure we're not already streaming
-    if (isStreaming.load()) {
-        return;
-    }
-    
-    // Build conversation history from existing messages
-    std::string fullPrompt;
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        for (const auto& msg : messages) {
-            fullPrompt += (msg.isAgent ? "Assistant: " : "User: ") + msg.text + "\n";
-        }
-    }
-    fullPrompt += "User: " + prompt;
-    
-    // Set streaming flag before creating thread
-    isStreaming.store(true);
-    
-    // Add a streaming message
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({"", true, true});
-        messageDisplayLinesDirty = true;
-    }
-    scrollToBottom = true;
-    
-    // Start streaming in a separate thread
-    try {
-        streamingThread = std::thread([this, fullPrompt, api_key]() {
-            try {
-                bool success = OpenRouter::promptRequestStream(fullPrompt, api_key, [this](const std::string& token) {
-                    try {
-                        // UTF-8 safe streaming: buffer incomplete bytes
-                        std::string combined = utf8_buffer + token;
-                        auto valid_end = combined.begin();
-                        try {
-                            valid_end = utf8::find_invalid(combined.begin(), combined.end());
-                        } catch (...) {
-                            valid_end = combined.begin();
-                        }
-                        {
-                            std::lock_guard<std::mutex> lock(messagesMutex);
-                            if (!messages.empty() && messages.back().isStreaming) {
-                                messages.back().text += std::string(combined.begin(), valid_end);
-                                messageDisplayLinesDirty = true;
-                            }
-                        }
-                        utf8_buffer = std::string(valid_end, combined.end());
-                        scrollToBottom = true;
-                    } catch (const std::exception& e) {
-                        // Exception in token callback - silently handle
-                    }
-                }, &shouldCancelStreaming);
-            } catch (const std::exception& e) {
-                // Exception in streaming thread - silently handle
-            }
-            
-            // Mark streaming as complete
-            try {
-                std::lock_guard<std::mutex> lock(messagesMutex);
-                if (!messages.empty() && messages.back().isStreaming) {
-                    messages.back().isStreaming = false;
-                    messageDisplayLinesDirty = true;
-                }
-                isStreaming.store(false);
-            } catch (const std::exception& e) {
-                // Exception in cleanup - silently handle
-            }
-        });
-    } catch (const std::exception& e) {
-        isStreaming.store(false);
-    }
+    agentRequest.stopRequest();
 }
 
 void AIAgent::render(float agentPaneWidth) {
+    // Check if we need to send a follow-up message from a tool call
+    if (needsFollowUpMessage) {
+        needsFollowUpMessage = false;
+        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###", true);
+    }
+    
     float inputWidth = ImGui::GetContentRegionAvail().x;
     float windowHeight = ImGui::GetWindowHeight();
     float horizontalPadding = 16.0f;
@@ -175,18 +90,23 @@ void AIAgent::render(float agentPaneWidth) {
     ImVec2 buttonSize = ImVec2(textSize.x + 16.0f, 0); // Add padding for comfortable button size
 
     if (ImGui::Button("Send", buttonSize)) {
-        const char* str = inputBuffer;
-        // Skip leading whitespace
-        while (*str && isspace((unsigned char)*str)) {
-            str++;
-        }
-
-        if (*str == '\0') {
-            // String is empty or contains only whitespace
-            gSettings.renderNotification("No prompt provided", 3.0f);
+        // Check if there's an ongoing conversation
+        if (agentRequest.isProcessing()) {
+            gSettings.renderNotification("Ongoing Conversation \nplease wait", 3.0f);
         } else {
-            sendMessage(inputBuffer);
-            inputBuffer[0] = '\0';
+            const char* str = inputBuffer;
+            // Skip leading whitespace
+            while (*str && isspace((unsigned char)*str)) {
+                str++;
+            }
+
+            if (*str == '\0') {
+                // String is empty or contains only whitespace
+                gSettings.renderNotification("No prompt provided", 3.0f);
+            } else {
+                sendMessage(inputBuffer, false);
+                inputBuffer[0] = '\0';
+            }
         }
     }
     ImGui::PopStyleColor(4);
@@ -225,8 +145,14 @@ void AIAgent::rebuildMessageDisplayLines() {
     
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
+        
+        // Skip hidden messages
+        if (msg.hide_message) {
+            continue;
+        }
+        
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "Agent: " : "User: ") + displayText;
+        displayText = (msg.isAgent ? "##### Agent: " : "##### User: ") + displayText;
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
@@ -247,7 +173,7 @@ void AIAgent::rebuildMessageDisplayLines() {
         }
         
         if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
-            messageDisplayLines.push_back("--- next message ---");
+            //messageDisplayLines.push_back("--- next message ---");
         }
     }
 }
@@ -529,22 +455,27 @@ void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float ho
         enterPressed = true;
         ImGuiIO& io = ImGui::GetIO();
         if (!io.KeyShift) {
-            const char* str = inputBuffer;
-            // Skip leading whitespace
-            while (*str && isspace((unsigned char)*str)) {
-                str++;
-            }
-
-            if (*str == '\0') {
-                // String is empty or contains only whitespace
-                gSettings.renderNotification("No prompt provided", 3.0f);
+            // Check if there's an ongoing conversation
+            if (agentRequest.isProcessing()) {
+                gSettings.renderNotification("Ongoing Conversation\nplease wait", 3.0f);
             } else {
-                sendMessage(inputBuffer);
-                // Clear the input buffer and reset ImGui state
-                inputBuffer[0] = '\0';
-                ImGui::ClearActiveID();
-                // Set flag to restore focus on next frame
-                shouldRestoreFocus = true;
+                const char* str = inputBuffer;
+                // Skip leading whitespace
+                while (*str && isspace((unsigned char)*str)) {
+                    str++;
+                }
+
+                if (*str == '\0') {
+                    // String is empty or contains only whitespace
+                    gSettings.renderNotification("No prompt provided", 3.0f);
+                } else {
+                    sendMessage(inputBuffer, false);
+                    // Clear the input buffer and reset ImGui state
+                    inputBuffer[0] = '\0';
+                    ImGui::ClearActiveID();
+                    // Set flag to restore focus on next frame
+                    shouldRestoreFocus = true;
+                }
             }
         }
     } else if (!ImGui::IsKeyDown(ImGuiKey_Enter)) {
@@ -623,12 +554,14 @@ void AIAgent::printAllMessages() {
     // Function kept for compatibility but no longer prints anything
 }
 
-void AIAgent::sendMessage(const char* msg) {
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({msg ? msg : "", false});
-        messageDisplayLinesDirty = true;
+void AIAgent::sendMessage(const char* msg, bool hide_message) {
+    // Check if we need to send a follow-up message from a tool call
+    if (needsFollowUpMessage) {
+        needsFollowUpMessage = false;
+        sendMessage("Complete the message with the tool call results", false);
+        return;
     }
+    
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
@@ -639,20 +572,97 @@ void AIAgent::sendMessage(const char* msg) {
         // Add error message if no API key is configured
         {
             std::lock_guard<std::mutex> lock(messagesMutex);
-            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false});
+            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false, false});
         }
         scrollToBottom = true;
         return;
     }
     
+    // Get tool definitions from MCP manager and create instructions string
+    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
+    
+    std::string mcpInstructions = "SYSTEM: You are an AI assistant with access to file system tools. Follow these system rules:\n\n";
+    mcpInstructions += "1. To use a tool, respond with EXACTLY this format: TOOL_CALL:toolName:param1=value1:param2=value2\n";
+    mcpInstructions += "   - Use TOOL_CALL (not TOOL) followed by a colon\n";
+    mcpInstructions += "   - No spaces around the colons\n";
+    mcpInstructions += "   - Example: TOOL_CALL:listFiles:path=~/test/\n";
+    mcpInstructions += "   - Example: TOOL_CALL:createFile:path=~/test/readme.txt\n";
+    mcpInstructions += "2. ONLY use tools when necessary to answer the user's request\n";
+    mcpInstructions += "3. NEVER include tool calls in your response unless you actually need to use a tool\n";
+    mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
+    mcpInstructions += "5. Tool results will be clearly marked with '=== TOOL EXECUTION RESULT ===' and '=== END TOOL RESULT ===' markers. Always wait for and analyze these results before proceeding.\n";
+    mcpInstructions += "6. IMPORTANT: Do NOT say things like 'Waiting for tool execution result' or 'Let me check' - just make the tool call directly.\n";
+    mcpInstructions += "7. Available tools:\n";
+    for (const auto& tool : tools) {
+        mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
+        for (const auto& param : tool.parameters) {
+            mcpInstructions += "     - " + param.name + " (" + param.type + "): " + param.description + "\n";
+        }
+        mcpInstructions += "\n";
+    }
+    
+    
     // Stop any existing streaming and wait for it to finish
     stopStreaming();
     
     // Ensure we're not streaming before starting a new request
-    if (isStreaming.load()) {
+    if (agentRequest.isProcessing()) {
         return;
     }
     
-    // Start streaming request (this will set isStreaming to true internally)
-    startStreamingRequest(msg, api_key);
+    // Build conversation history from existing messages (before adding the new message)
+    std::string fullPrompt;
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& m : messages) {
+            fullPrompt += (m.isAgent ? "#Assistant: " : "#User: ") + m.text + "\n";
+        }
+    }
+    fullPrompt += "User: " + std::string(msg ? msg : "") + "\n";
+    
+    // Add MCP instructions to the beginning of the prompt
+    fullPrompt = mcpInstructions + "\n" + fullPrompt;
+    
+    std::cout << "sending prompt here ya go boss:"  << fullPrompt << std::endl;
+    
+    // Now add the user message to the conversation history
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({msg ? msg : "", false, false, hide_message});
+        messageDisplayLinesDirty = true;
+    }
+    
+    // Add a streaming message
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages.push_back({"", true, true, false});
+        messageDisplayLinesDirty = true;
+    }
+    scrollToBottom = true;
+    
+    agentRequest.sendMessage(
+        fullPrompt, api_key,
+        [this](const std::string& token) {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().text += token; // Add tokens as they arrive during streaming
+                messageDisplayLinesDirty = true;
+            }
+            scrollToBottom = true;
+        },
+        [this](const std::string& finalResult, bool hadToolCall) {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().text = finalResult; // Replace with final result (including tool call results)
+                messages.back().isStreaming = false;
+                messageDisplayLinesDirty = true;
+            }
+            scrollToBottom = true;
+            if (hadToolCall) {
+                std::cout << "Had tool call: true" << std::endl;
+                std::cout << "sending message to complete the message with the tool call results" << std::endl;
+                needsFollowUpMessage = true; // Set flag to send follow-up message on next frame
+            }
+        }
+    );
 }
