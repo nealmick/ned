@@ -87,15 +87,7 @@ class Settings
 
 	bool showSettingsWindow = false;
 	void renderSettingsWindow();
-	void toggleSettingsWindow()
-	{
-		showSettingsWindow = !showSettingsWindow;
-		if (showSettingsWindow)
-		{
-			ClosePopper::closeAllExcept(ClosePopper::Type::Settings);
-		}
-		blockInput = showSettingsWindow;
-	}
+	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }
 
 	bool getRainbowMode() const

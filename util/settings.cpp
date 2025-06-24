@@ -224,6 +224,9 @@ void Settings::renderWindowHeader()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when window loses focus
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	wasFocused = isFocused;
 
@@ -240,6 +243,9 @@ void Settings::renderWindowHeader()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when close button is clicked
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
@@ -294,9 +300,10 @@ void Settings::renderOpenRouterKeyInput()
 	
 	// Set a consistent width for all inputs
 	const float inputWidth = 400.0f;
+	const float openRouterInputWidth = 340.0f; // Smaller width to account for extra Show/Hide button
 	
 	// OpenRouter Key Input
-	ImGui::SetNextItemWidth(inputWidth);
+	ImGui::SetNextItemWidth(openRouterInputWidth);
 	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
 	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
 	bool isInputActive = ImGui::IsItemActive();
@@ -850,6 +857,9 @@ void Settings::handleWindowInput()
 		showSettingsWindow = false;
 		if (settingsChanged)
 			saveSettings();
+		// Set editor_state.block_input to false when window is closed via Escape
+		extern struct EditorState editor_state;
+		editor_state.block_input = false;
 	}
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered() &&
 		!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow |
@@ -866,6 +876,9 @@ void Settings::handleWindowInput()
 				showSettingsWindow = false;
 				if (settingsChanged)
 					saveSettings();
+				// Set editor_state.block_input to false when window is closed via clicking outside
+				extern struct EditorState editor_state;
+				editor_state.block_input = false;
 			}
 		}
 	}
@@ -1002,4 +1015,18 @@ void Settings::toggleAgentPane()
 	saveSettings();
 	
 	std::cout << "Toggled agent pane visibility from settings" << std::endl;
+}
+
+void Settings::toggleSettingsWindow()
+{
+	showSettingsWindow = !showSettingsWindow;
+	if (showSettingsWindow)
+	{
+		ClosePopper::closeAllExcept(ClosePopper::Type::Settings);
+	}
+	blockInput = showSettingsWindow;
+	
+	// Set editor_state.block_input to match the settings window state
+	extern struct EditorState editor_state;
+	editor_state.block_input = showSettingsWindow;
 }
