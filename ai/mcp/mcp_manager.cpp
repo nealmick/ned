@@ -1,5 +1,6 @@
 #include "mcp_manager.h"
 #include "mcp_file_system.h"
+#include "mcp_terminal.h"
 #include <sstream>
 #include <regex>
 #include <iostream>
@@ -83,6 +84,76 @@ Manager::Manager() {
     writeFileTool.parameters.push_back(writeFilePathParam);
     writeFileTool.parameters.push_back(writeFileContentParam);
     registerTool(writeFileTool);
+    
+    // Register terminal tools
+    ToolDefinition executeCommandTool;
+    executeCommandTool.name = "executeCommand";
+    executeCommandTool.description = "Execute a terminal command and return its output. Captures stdout and shows exit status.";
+    
+    ToolParameter commandParam;
+    commandParam.name = "command";
+    commandParam.type = "string";
+    commandParam.description = "The terminal command to execute";
+    commandParam.required = true;
+    
+    executeCommandTool.parameters.push_back(commandParam);
+    registerTool(executeCommandTool);
+    
+    // Register executeCommandWithErrorCapture tool
+    ToolDefinition executeCommandWithErrorTool;
+    executeCommandWithErrorTool.name = "executeCommandWithErrorCapture";
+    executeCommandWithErrorTool.description = "Execute a terminal command and return both stdout and stderr output. Captures all output and shows exit status.";
+    
+    ToolParameter commandWithErrorParam;
+    commandWithErrorParam.name = "command";
+    commandWithErrorParam.type = "string";
+    commandWithErrorParam.description = "The terminal command to execute";
+    commandWithErrorParam.required = true;
+    
+    executeCommandWithErrorTool.parameters.push_back(commandWithErrorParam);
+    registerTool(executeCommandWithErrorTool);
+    
+    // Register executeCommandInDirectory tool
+    ToolDefinition executeCommandInDirTool;
+    executeCommandInDirTool.name = "executeCommandInDirectory";
+    executeCommandInDirTool.description = "Execute a terminal command in a specific working directory and return its output.";
+    
+    ToolParameter commandInDirParam;
+    commandInDirParam.name = "command";
+    commandInDirParam.type = "string";
+    commandInDirParam.description = "The terminal command to execute";
+    commandInDirParam.required = true;
+    
+    ToolParameter workingDirParam;
+    workingDirParam.name = "workingDirectory";
+    workingDirParam.type = "string";
+    workingDirParam.description = "The working directory to execute the command in";
+    workingDirParam.required = true;
+    
+    executeCommandInDirTool.parameters.push_back(commandInDirParam);
+    executeCommandInDirTool.parameters.push_back(workingDirParam);
+    registerTool(executeCommandInDirTool);
+    
+    // Register commandExists tool
+    ToolDefinition commandExistsTool;
+    commandExistsTool.name = "commandExists";
+    commandExistsTool.description = "Check if a command exists in the system PATH.";
+    
+    ToolParameter commandExistsParam;
+    commandExistsParam.name = "command";
+    commandExistsParam.type = "string";
+    commandExistsParam.description = "The command name to check";
+    commandExistsParam.required = true;
+    
+    commandExistsTool.parameters.push_back(commandExistsParam);
+    registerTool(commandExistsTool);
+    
+    // Register getCurrentWorkingDirectory tool
+    ToolDefinition getCwdTool;
+    getCwdTool.name = "getCurrentWorkingDirectory";
+    getCwdTool.description = "Get the current working directory path.";
+    
+    registerTool(getCwdTool);
 }
 
 void Manager::registerTool(const ToolDefinition& toolDef) {
@@ -400,6 +471,47 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
         } else {
             return "Error: Missing 'path' parameter for writeFile tool";
         }
+    } else if (toolCall.toolName == "executeCommand") {
+        auto it = toolCall.parameters.find("command");
+        if (it != toolCall.parameters.end()) {
+            TerminalServer terminalServer;
+            std::string result = terminalServer.executeCommand(it->second);
+            return result;
+        } else {
+            return "Error: Missing 'command' parameter for executeCommand tool";
+        }
+    } else if (toolCall.toolName == "executeCommandWithErrorCapture") {
+        auto it = toolCall.parameters.find("command");
+        if (it != toolCall.parameters.end()) {
+            TerminalServer terminalServer;
+            std::string result = terminalServer.executeCommandWithErrorCapture(it->second);
+            return result;
+        } else {
+            return "Error: Missing 'command' parameter for executeCommandWithErrorCapture tool";
+        }
+    } else if (toolCall.toolName == "executeCommandInDirectory") {
+        auto itCommand = toolCall.parameters.find("command");
+        auto itDir = toolCall.parameters.find("workingDirectory");
+        if (itCommand != toolCall.parameters.end() && itDir != toolCall.parameters.end()) {
+            TerminalServer terminalServer;
+            std::string result = terminalServer.executeCommandInDirectory(itCommand->second, itDir->second);
+            return result;
+        } else {
+            return "Error: Missing 'command' or 'workingDirectory' parameter for executeCommandInDirectory tool";
+        }
+    } else if (toolCall.toolName == "commandExists") {
+        auto it = toolCall.parameters.find("command");
+        if (it != toolCall.parameters.end()) {
+            TerminalServer terminalServer;
+            bool exists = terminalServer.commandExists(it->second);
+            return exists ? "Command '" + it->second + "' exists in PATH." : "Command '" + it->second + "' does not exist in PATH.";
+        } else {
+            return "Error: Missing 'command' parameter for commandExists tool";
+        }
+    } else if (toolCall.toolName == "getCurrentWorkingDirectory") {
+        TerminalServer terminalServer;
+        std::string cwd = terminalServer.getCurrentWorkingDirectory();
+        return cwd;
     }
     
     return "Error: Unknown tool '" + toolCall.toolName + "'";
