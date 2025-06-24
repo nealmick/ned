@@ -18,6 +18,12 @@ public:
     
     // Method to create a new folder
     bool createFolder(const std::string& path);
+    
+    // Method to read file contents with sensible truncation
+    std::string readFile(const std::string& path);
+    
+    // Method to write content to a file (overwrites existing content)
+    bool writeFile(const std::string& path, const std::string& content);
 };
 
 } // namespace MCP 

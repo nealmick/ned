@@ -587,6 +587,7 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     mcpInstructions += "   - No spaces around the colons\n";
     mcpInstructions += "   - Example: TOOL_CALL:listFiles:path=~/test/\n";
     mcpInstructions += "   - Example: TOOL_CALL:createFile:path=~/test/readme.txt\n";
+    mcpInstructions += "   - Example: TOOL_CALL:writeFile:path=~/test/file.txt:content=Hello World\n";
     mcpInstructions += "2. ONLY use tools when necessary to answer the user's request\n";
     mcpInstructions += "3. NEVER include tool calls in your response unless you actually need to use a tool\n";
     mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
