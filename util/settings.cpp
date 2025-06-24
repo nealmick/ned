@@ -115,12 +115,25 @@ void Settings::renderSettingsWindow()
 							ImVec2(0.5f, 0.5f));
 	ImGuiWindowFlags windowFlags =
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_Modal;
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
 
 	applyImGuiStyles();
 	ImGui::Begin("Settings", nullptr, windowFlags);
 
+	// Fixed header section with padding
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 	renderWindowHeader();
+	ImGui::PopStyleVar();
+	
+	// Calculate remaining space for scrollable content
+	ImVec2 contentSize = ImGui::GetContentRegionAvail();
+	float contentHeight = contentSize.y; // Use full available height instead of subtracting header height
+	
+	// Create a child window for scrollable content with padding
+	ImGuiWindowFlags childFlags = ImGuiWindowFlags_AlwaysVerticalScrollbar;
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 5.0f)); // Reduced bottom padding from 15.0f to 5.0f
+	ImGui::BeginChild("SettingsContent", ImVec2(0, contentHeight), false, childFlags);
+	
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
@@ -130,11 +143,15 @@ void Settings::renderSettingsWindow()
 	renderToggleSettings();
 	renderShaderSettings();
 	renderKeybindsSettings();
+	
+	ImGui::EndChild();
+	ImGui::PopStyleVar();
+	
 	handleWindowInput();
 
 	ImGui::End();
 	ImGui::PopStyleColor(8);
-	ImGui::PopStyleVar(5);
+	ImGui::PopStyleVar(6);
 
 	if (profileJustSwitched)
 	{
@@ -161,6 +178,7 @@ void Settings::applyImGuiStyles()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 15.0f)); // Left/top/bottom padding, no right padding
 
 	// Apply colors
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(
@@ -181,7 +199,7 @@ void Settings::applyImGuiStyles()
 		bgR * FRAME_BG_MULTIPLIER,
 		bgG * FRAME_BG_MULTIPLIER,
 		bgB * FRAME_BG_MULTIPLIER,
-		1.0f
+		0.0f  // Make scrollbar track transparent
 	));
 
 	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(
@@ -232,8 +250,9 @@ void Settings::renderWindowHeader()
 				 ImVec2(1, 1),
 				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 	ImGui::EndGroup();
+	
+	// Add horizontal line to separate header from content
 	ImGui::Separator();
-	ImGui::Spacing();
 }
 
 void Settings::renderOpenRouterKeyInput()
@@ -349,6 +368,8 @@ void Settings::renderOpenRouterKeyInput()
 
 void Settings::renderProfileSelector()
 {
+	ImGui::Spacing();
+	
 	std::vector<std::string> availableProfileFiles = settingsFileManager.getAvailableProfileFiles();
 	std::string currentActiveFilename = "ned.json";
 

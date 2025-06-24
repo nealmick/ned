@@ -1,7 +1,7 @@
 {
     "agent_model": "deepseek/deepseek-chat-v3-0324",
-    "agent_pane_visible": true,
-    "agent_split_pos": 0.6418803334236145,
+    "agent_pane_visible": false,
+    "agent_split_pos": 0.30957046151161194,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -15,7 +15,7 @@
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.05000000074505806,
     "font": "JetBrainsMonoNL-Regular",
-    "fontSize": 22.0,
+    "fontSize": 23.0,
     "fps_target": 63.0,
     "fps_toggle": false,
     "git_changed_lines": true,
