@@ -350,6 +350,7 @@ void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
         static int selectedItem = 0;
         static std::string currentAgentModel = "";
         static std::vector<std::string> dropdownItems;
+        static std::vector<std::string> displayItems; // For display purposes
         static bool dropdownInitialized = false;
         
         // Check if profile changed or first time initializing
@@ -357,14 +358,42 @@ void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
         if (!dropdownInitialized || gSettings.profileJustSwitched || currentAgentModel != newAgentModel) {
             currentAgentModel = newAgentModel;
             dropdownItems.clear();
+            displayItems.clear();
             
             // Add current agent model as first option
             dropdownItems.push_back(currentAgentModel);
             
+            // Create display version for current model (show left part before slash)
+            std::string displayModel = currentAgentModel;
+            size_t slashPos = currentAgentModel.find('/');
+            if (slashPos != std::string::npos) {
+                displayModel = currentAgentModel.substr(slashPos + 1, currentAgentModel.length() - slashPos - 1); // Show part after slash
+            }else{
+                displayModel = currentAgentModel;
+            }
+            displayItems.push_back(displayModel);
+            
             // Add placeholder test values
-            dropdownItems.push_back("test");
-            dropdownItems.push_back("asdf");
-            dropdownItems.push_back("derp");
+            dropdownItems.push_back("anthropic/claude-sonnet-4");
+            dropdownItems.push_back("google/gemini-2.0-flash-001");
+            dropdownItems.push_back("google/gemini-2.5-flash-preview-05-20");
+            dropdownItems.push_back("deepseek/deepseek-chat-v3-0324");
+            dropdownItems.push_back("anthropic/claude-3.7-sonnet");
+            dropdownItems.push_back("openai/gpt-4.1");
+            dropdownItems.push_back("x-ai/grok-3-beta");
+            dropdownItems.push_back("meta-llama/llama-3.3-70b-instruct");
+            
+            // Create display versions for placeholders (show right part after slash)
+            displayItems.push_back("claude-sonnet-4");
+            displayItems.push_back("gemini-2.0-flash-001");
+            displayItems.push_back("gemini-2.5-flash-preview-05-20");
+            displayItems.push_back("deepseek-chat-v3-0324");
+            displayItems.push_back("claude-3.7-sonnet");
+            displayItems.push_back("gpt-4.1");
+            displayItems.push_back("grok-3-beta");
+            displayItems.push_back("llama-3.3-70b-instruct");
+            
+            
             
             // Reset selection to first item (current model)
             selectedItem = 0;
@@ -382,19 +411,35 @@ void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
             ImGui::SetCursorPos(centerPos);
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
             if (largeFont) ImGui::PopFont();
-            ImVec2 dropdownSize(180.0f, 0.0f);
+            
+            // Calculate the maximum width needed for all dropdown items
+            float maxItemWidth = 0.0f;
+            for (const auto& item : displayItems) {
+                ImVec2 itemSize = largeFont->CalcTextSizeA(largeFont->FontSize, FLT_MAX, 0.0f, item.c_str());
+                maxItemWidth = std::max(maxItemWidth, itemSize.x);
+            }
+            
+            // Add padding for the dropdown button (arrow + some spacing)
+            float dropdownPadding = 40.0f; // Space for dropdown arrow and padding
+            float dropdownWidth = maxItemWidth + dropdownPadding;
+            
+            // Ensure minimum width and maximum width constraints
+            dropdownWidth = std::max(dropdownWidth, 180.0f); // Minimum width
+            dropdownWidth = std::min(dropdownWidth, windowSize.x * 0.8f); // Maximum 80% of window width
+            
+            ImVec2 dropdownSize(dropdownWidth, 0.0f);
             ImVec2 dropdownPos = ImVec2(
                 (windowSize.x - dropdownSize.x) * 0.5f,
                 centerPos.y + textSize.y + 20.0f
             );
             ImGui::SetCursorPos(dropdownPos);
             std::vector<const char*> items;
-            for (const auto& item : dropdownItems) items.push_back(item.c_str());
+            for (const auto& item : displayItems) items.push_back(item.c_str());
             ImGui::SetNextItemWidth(dropdownSize.x);
             int previousSelectedItem = selectedItem;
             if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
                 if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
-                    std::string newModel = dropdownItems[selectedItem];
+                    std::string newModel = dropdownItems[selectedItem]; // Use full path from dropdownItems
                     gSettings.getSettings()["agent_model"] = newModel;
                     gSettings.saveSettings();
                     std::cout << "Agent model changed to: " << newModel << std::endl;
@@ -411,19 +456,35 @@ void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
             );
             ImGui::SetCursorPos(centerPos);
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
-            ImVec2 dropdownSize(120.0f, 0.0f);
+            
+            // Calculate the maximum width needed for all dropdown items
+            float maxItemWidth = 0.0f;
+            for (const auto& item : displayItems) {
+                ImVec2 itemSize = ImGui::CalcTextSize(item.c_str());
+                maxItemWidth = std::max(maxItemWidth, itemSize.x);
+            }
+            
+            // Add padding for the dropdown button (arrow + some spacing)
+            float dropdownPadding = 40.0f; // Space for dropdown arrow and padding
+            float dropdownWidth = maxItemWidth + dropdownPadding;
+            
+            // Ensure minimum width and maximum width constraints
+            dropdownWidth = std::max(dropdownWidth, 120.0f); // Minimum width
+            dropdownWidth = std::min(dropdownWidth, windowSize.x * 0.8f); // Maximum 80% of window width
+            
+            ImVec2 dropdownSize(dropdownWidth, 0.0f);
             ImVec2 dropdownPos = ImVec2(
                 (windowSize.x - dropdownSize.x) * 0.5f,
                 centerPos.y + textSize.y + 20.0f
             );
             ImGui::SetCursorPos(dropdownPos);
             std::vector<const char*> items;
-            for (const auto& item : dropdownItems) items.push_back(item.c_str());
+            for (const auto& item : displayItems) items.push_back(item.c_str());
             ImGui::SetNextItemWidth(dropdownSize.x);
             int previousSelectedItem = selectedItem;
             if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
                 if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
-                    std::string newModel = dropdownItems[selectedItem];
+                    std::string newModel = dropdownItems[selectedItem]; // Use full path from dropdownItems
                     gSettings.getSettings()["agent_model"] = newModel;
                     gSettings.saveSettings();
                     std::cout << "Agent model changed to: " << newModel << std::endl;
