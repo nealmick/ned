@@ -829,7 +829,7 @@ void Ned::renderFileExplorer(float explorerWidth)
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.5f, 0.5f, 0.5f, 0.0f));
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
 	ImGui::BeginChild("File Explorer",
 					  ImVec2(explorerWidth, -1),
 					  true,
@@ -1271,7 +1271,7 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 
 void Ned::renderAgentPane(float agentPaneWidth)
 {
-    gAIAgent.render(agentPaneWidth);
+    gAIAgent.render(agentPaneWidth, largeFont);
 }
 
 void Ned::renderMainWindow()
@@ -1704,6 +1704,9 @@ void Ned::cleanup()
 
 	gSettings.saveSettings();
 	gFileExplorer.saveCurrentFile();
+
+	// Save AI agent conversation history
+	gAIAgent.saveConversationHistory();
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();

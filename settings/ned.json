@@ -1,7 +1,7 @@
 {
     "agent_model": "deepseek/deepseek-chat-v3-0324",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.699999988079071,
+    "agent_split_pos": 0.3378886878490448,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
@@ -14,7 +14,7 @@
     "colorshift_intensity": 2.2100000381469727,
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.05000000074505806,
-    "font": "JetBrainsMonoNL-Regular",
+    "font": "VT100",
     "fontSize": 23.0,
     "fps_target": 63.0,
     "fps_toggle": false,
@@ -29,8 +29,8 @@
     "scanline_intensity": 0.2199999988079071,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": false,
-    "splitPos": 0.22879858314990997,
+    "sidebar_visible": true,
+    "splitPos": 0.21655172109603882,
     "static_intensity": 0.3970000147819519,
     "theme": "default",
     "themes": {

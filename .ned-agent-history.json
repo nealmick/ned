@@ -1,0 +1,283 @@
+{
+    "conversations": [
+        {
+            "messages": [
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "   testing 123123\n",
+                    "timestamp": "2025-06-25 13:21:38"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "   I don't see a specific request in your message. How can I assist you? Would you like help with file operations, executing commands, or something else?",
+                    "timestamp": "2025-06-25 13:21:38"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "  lets test again\n",
+                    "timestamp": "2025-06-25 13:21:38"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "  Understood! If you'd like to test the system, could you please specify what kind of test you'd like to perform? For example:\n\n- Should I list files in a directory?\n- Create a test file/folder?\n- Execute a simple command?\n- Or something else?\n\nLet me know what you'd like to try!",
+                    "timestamp": "2025-06-25 13:21:38"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " testin 3rd time the charge\n",
+                    "timestamp": "2025-06-25 13:21:38"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "test 4th time maybe now?? let \nme know can we test 4th time \nnow??\n",
+                    "timestamp": "2025-06-25 13:21:49"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "It seems you're testing the system repeatedly. To actually test functionality, could you please specify what specific operation you'd like me to perform? For example:\n\n1. Create a test file (`createFile`)\n2. List files in a directory (`listFiles`)\n3. Execute a command (`executeCommand`)\n4. Check if a command exists (`commandExists`)\n5. Or another tool operation from the available list\n\nLet me know which specific test operation you'd like me to perform, and I'll execute it for you.",
+                    "timestamp": "2025-06-25 13:21:49"
+                }
+            ],
+            "timestamp": "2025-06-25 13:21:58"
+        },
+        {
+            "messages": [
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "    now derp 123123\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "    \n\n=== TOOL EXECUTION RESULT ===\nTool: commandExists\nResult: Command 'derp' does not exist in PATH.\n=== END TOOL RESULT ===\n\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "    ### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "    It seems the command \"derp is not available on this system. Could you clarify what you're trying to do or provide more details about your request?",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "   can we do derp again\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "   === TOOL EXECUTION RESULT ===\nTool: commandExists\nResult: Command 'derp' does not exist in PATH.\n=== END TOOL RESULT ===",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "  derp but just say derp back\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "  derp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " derp\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " derp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " big dirp\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " dirp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " bigger..\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " bigger dirp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " smaller..\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " smaller dirp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " yassss lots of derps now\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp derp",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " that was a good amount of derp\ns! how many uou yhink that was??\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " derp derp derp... that was approximately 300 derps! A truly derptastic amount of derpiness. Would you like me to derp some more?",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " w0w thats alot of derps! no mo\nre for now\n",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " Understood! That was indeed a derp-load of derps. Let me know if you need anything else or if you'd like to derp again in the future!",
+                    "timestamp": "2025-06-25 13:30:51"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "im just still impressed by the \nnumber there\n",
+                    "timestamp": "2025-06-25 13:31:03"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "derp derp... yes, 300 derps is quite the derp-ressive number! A truly majestic derp-losion. The derp-ocalypse, if you will. But I'll keep my derp reserves on standby for now. Let me know when you're ready to derplore new derp-dimensions!",
+                    "timestamp": "2025-06-25 13:31:03"
+                }
+            ],
+            "timestamp": "2025-06-25 13:31:07"
+        },
+        {
+            "messages": [
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "  hello world\n",
+                    "timestamp": "2025-06-25 13:21:20"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "  Hello world! How can I assist you today?",
+                    "timestamp": "2025-06-25 13:21:20"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "testing hello world\n",
+                    "timestamp": "2025-06-25 13:21:25"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "Hello! If you'd like me to help test something (like creating/reading a file with \"hello world\" or running a command), please let me know what specific test you'd like to perform. Otherwise, just letting you know I'm working properly!",
+                    "timestamp": "2025-06-25 13:21:25"
+                }
+            ],
+            "timestamp": "2025-06-25 13:21:29"
+        },
+        {
+            "messages": [
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "testing 123123\n",
+                    "timestamp": "2025-06-25 13:34:13"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "Hello! How can I assist you today?",
+                    "timestamp": "2025-06-25 13:34:13"
+                }
+            ],
+            "timestamp": "2025-06-25 13:34:16"
+        }
+    ]
+}

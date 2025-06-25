@@ -28,6 +28,8 @@ using json = nlohmann::json;
 #include "lib/nanosvgrast.h"
 
 #include "../editor/editor_git.h"
+#include "../ai/ai_agent.h"
+extern AIAgent gAIAgent;
 
 const std::string UNDO_FILE = ".undo-redo-ned.json";
 
@@ -189,6 +191,9 @@ void FileExplorer::openFolderDialog()
 		_showFileDialog = false;
 		showWelcomeScreen = false;
 		loadUndoRedoState();
+		
+		// Load AI agent conversation history
+		gAIAgent.loadConversationHistory();
 		
 		// Initialize git tracking for the project
 		gEditorGit.init();
