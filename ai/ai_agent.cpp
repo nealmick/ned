@@ -346,71 +346,91 @@ void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
         // Calculate center position
         ImVec2 windowSize = ImGui::GetWindowSize();
         
+        // Static variables for dropdown (shared between both font sections)
+        static int selectedItem = 0;
+        static std::string currentAgentModel = "";
+        static std::vector<std::string> dropdownItems;
+        static bool dropdownInitialized = false;
+        
+        // Check if profile changed or first time initializing
+        std::string newAgentModel = gSettings.getAgentModel();
+        if (!dropdownInitialized || gSettings.profileJustSwitched || currentAgentModel != newAgentModel) {
+            currentAgentModel = newAgentModel;
+            dropdownItems.clear();
+            
+            // Add current agent model as first option
+            dropdownItems.push_back(currentAgentModel);
+            
+            // Add placeholder test values
+            dropdownItems.push_back("test");
+            dropdownItems.push_back("asdf");
+            dropdownItems.push_back("derp");
+            
+            // Reset selection to first item (current model)
+            selectedItem = 0;
+            dropdownInitialized = true;
+        }
+        
         // Use the large font for the title
         if (largeFont) {
-            ImGui::PushFont(largeFont);
-            
+            if (largeFont) ImGui::PushFont(largeFont);
             ImVec2 textSize = largeFont->CalcTextSizeA(largeFont->FontSize, FLT_MAX, 0.0f, "Agent");
-            
-            // Calculate center position
             ImVec2 centerPos = ImVec2(
                 (windowSize.x - textSize.x) * 0.5f,
-                (windowSize.y - textSize.y) * 0.5f - 30.0f // Move up a bit to make room for dropdown
+                (windowSize.y - textSize.y) * 0.5f - 30.0f
             );
-            
-            // Draw the centered "Agent" text
             ImGui::SetCursorPos(centerPos);
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
-            
-            ImGui::PopFont();
-            
-            // Add dropdown below the title
-            ImVec2 dropdownSize(180.0f, 0.0f); // Fixed width of 180px
+            if (largeFont) ImGui::PopFont();
+            ImVec2 dropdownSize(180.0f, 0.0f);
             ImVec2 dropdownPos = ImVec2(
-                (windowSize.x - dropdownSize.x) * 0.5f, // Perfectly center the dropdown
-                centerPos.y + textSize.y + 20.0f // Position below the title
+                (windowSize.x - dropdownSize.x) * 0.5f,
+                centerPos.y + textSize.y + 20.0f
             );
             ImGui::SetCursorPos(dropdownPos);
-            
-            static int selectedItem = 0;
-            const char* items[] = { "test", "asdf", "derp" };
-            ImGui::SetNextItemWidth(dropdownSize.x); // Set fixed width
-            ImGui::Combo("##AgentDropdown", &selectedItem, items, IM_ARRAYSIZE(items));
-            
+            std::vector<const char*> items;
+            for (const auto& item : dropdownItems) items.push_back(item.c_str());
+            ImGui::SetNextItemWidth(dropdownSize.x);
+            int previousSelectedItem = selectedItem;
+            if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
+                if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
+                    std::string newModel = dropdownItems[selectedItem];
+                    gSettings.getSettings()["agent_model"] = newModel;
+                    gSettings.saveSettings();
+                    std::cout << "Agent model changed to: " << newModel << std::endl;
+                }
+            }
         } else {
-            // Fallback to scaled font if largeFont is not available
             ImFont* currentFont = ImGui::GetFont();
-            ImGui::PushFont(currentFont);
-            ImGui::SetWindowFontScale(2.0f); // Scale up to approximately 32px
-            
+            if (currentFont) ImGui::PushFont(currentFont);
+            ImGui::SetWindowFontScale(2.0f);
             ImVec2 textSize = ImGui::CalcTextSize("Agent");
-            
-            // Calculate center position
             ImVec2 centerPos = ImVec2(
                 (windowSize.x - textSize.x) * 0.5f,
-                (windowSize.y - textSize.y) * 0.5f - 30.0f // Move up a bit to make room for dropdown
+                (windowSize.y - textSize.y) * 0.5f - 30.0f
             );
-            
-            // Draw the centered "Agent" text
             ImGui::SetCursorPos(centerPos);
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
-            
-            // Add dropdown below the title
-            ImVec2 dropdownSize(120.0f, 0.0f); // Fixed width of 120px
+            ImVec2 dropdownSize(120.0f, 0.0f);
             ImVec2 dropdownPos = ImVec2(
-                (windowSize.x - dropdownSize.x) * 0.5f, // Perfectly center the dropdown
-                centerPos.y + textSize.y + 20.0f // Position below the title
+                (windowSize.x - dropdownSize.x) * 0.5f,
+                centerPos.y + textSize.y + 20.0f
             );
             ImGui::SetCursorPos(dropdownPos);
-            
-            static int selectedItem = 0;
-            const char* items[] = { "test", "asdf", "derp" };
-            ImGui::SetNextItemWidth(dropdownSize.x); // Set fixed width
-            ImGui::Combo("##AgentDropdown", &selectedItem, items, IM_ARRAYSIZE(items));
-            
-            // Restore original font scale
+            std::vector<const char*> items;
+            for (const auto& item : dropdownItems) items.push_back(item.c_str());
+            ImGui::SetNextItemWidth(dropdownSize.x);
+            int previousSelectedItem = selectedItem;
+            if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
+                if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
+                    std::string newModel = dropdownItems[selectedItem];
+                    gSettings.getSettings()["agent_model"] = newModel;
+                    gSettings.saveSettings();
+                    std::cout << "Agent model changed to: " << newModel << std::endl;
+                }
+            }
             ImGui::SetWindowFontScale(1.0f);
-            ImGui::PopFont();
+            if (currentFont) ImGui::PopFont();
         }
     } else {
         // Render messages as usual
