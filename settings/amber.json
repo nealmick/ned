@@ -1,7 +1,7 @@
 {
     "agent_model": "deepseek/deepseek-chat-v3-0324",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.6452991366386414,
+    "agent_split_pos": 0.3196581304073334,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.25846153497695923,
@@ -28,7 +28,7 @@
     "rainbow": true,
     "scanline_intensity": 0.20000000298023224,
     "shader_toggle": true,
-    "sidebar_visible": false,
+    "sidebar_visible": true,
     "splitPos": 0.24250440299510956,
     "static_intensity": 0.06499999761581421,
     "theme": "default",
