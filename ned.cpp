@@ -38,14 +38,6 @@ static double fps_lastTime = 0.0;
 static int fps_frames = 0;
 static double fps_currentFPS = 0.0;
 
-static double lastMouseX = 0.0;
-static double lastMouseY = 0.0;
-static double dragStartMouseX = 0.0;
-static double dragStartMouseY = 0.0;
-static int dragStartWindowX = 0;
-static int dragStartWindowY = 0;
-static int dragStartWindowWidth = 0;
-static int dragStartWindowHeight = 0;
 
 float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
 
@@ -508,50 +500,6 @@ ImFont *Ned::loadLargeFont(const std::string &fontName, float fontSize)
 	return font;
 }
 
-void Ned::handleWindowDragging()
-{
-	if (isDraggingWindow)
-	{
-		if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
-		{
-			// Get current mouse position in screen coordinates
-			double currentMouseX, currentMouseY;
-			glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
-			
-			// Get current window position and size
-			int windowX, windowY, windowWidth, windowHeight;
-			glfwGetWindowPos(window, &windowX, &windowY);
-			glfwGetWindowSize(window, &windowWidth, &windowHeight);
-			
-			// Calculate delta from initial position
-			double deltaX = currentMouseX - dragStartMouseX;
-			double deltaY = currentMouseY - dragStartMouseY;
-			
-			// Calculate new window position
-			int newX = dragStartWindowX + static_cast<int>(deltaX);
-			int newY = dragStartWindowY + static_cast<int>(deltaY);
-			
-			// Update window position
-			glfwSetWindowPos(window, newX, newY);
-			
-			// If window size changed during drag (e.g., from snapping), update our reference points
-			if (windowWidth != dragStartWindowWidth || windowHeight != dragStartWindowHeight)
-			{
-				// Update drag start position to current position
-				dragStartWindowX = newX;
-				dragStartWindowY = newY;
-				dragStartMouseX = currentMouseX;
-				dragStartMouseY = currentMouseY;
-				dragStartWindowWidth = windowWidth;
-				dragStartWindowHeight = windowHeight;
-			}
-		}
-		else
-		{
-			isDraggingWindow = false;
-		}
-	}
-}
 
 void Ned::run()
 {
@@ -567,7 +515,6 @@ void Ned::run()
 
 		// Handle events and updates
 		handleEvents();
-		handleWindowDragging();
 		double currentTime = glfwGetTime();
 		handleBackgroundUpdates(currentTime);
 

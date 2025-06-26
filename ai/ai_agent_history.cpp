@@ -180,7 +180,7 @@ void AIAgentHistory::refreshConversationList() {
                 if (conversation.contains("messages") && conversation["messages"].is_array() && 
                     !conversation["messages"].empty()) {
                     const auto& firstMsg = conversation["messages"][0];
-                    entry.firstMessage = firstMsg.value("text", "");
+                    entry.firstMessage = "";
                     entry.messageCount = conversation["messages"].size();
                 } else {
                     entry.firstMessage = "Empty conversation";

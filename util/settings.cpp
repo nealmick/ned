@@ -919,9 +919,9 @@ void Settings::renderNotification(const std::string& message, float duration)
         float width = ImClamp(contentWidth, minWidth, maxWidth);
         float height = ImClamp(contentHeight, minHeight, maxHeight);
 
-        // Calculate notification position (bottom right)
+        // Calculate notification position (bottom left)
         ImVec2 notificationPos = ImVec2(
-            screenPos.x + screenSize.x - width - padding,
+            screenPos.x + padding,
             screenPos.y + screenSize.y - height - padding
         );
 
