@@ -1,4 +1,4 @@
-#Ned 
+# Ned 
 A retro-style text editor with GL shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
 
 https://github.com/user-attachments/assets/d4358284-0fd3-41de-8f78-74172c7f3349
