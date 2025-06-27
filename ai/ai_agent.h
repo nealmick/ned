@@ -12,6 +12,7 @@
 #include "textselect.hpp"
 #include "agent_request.h"
 #include "ai_agent_history.h"
+#include "ai_agent_text_input.h"
 
 class AIAgent {
 public:
@@ -27,7 +28,6 @@ public:
     ~AIAgent();
     void render(float agentPaneWidth, ImFont* largeFont = nullptr);
     void sendMessage(const char* msg, bool hide_message = false);
-    void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
     void printAllMessages();
 
     // Conversation history management
@@ -46,7 +46,6 @@ private:
     unsigned int frameCounter;
     void renderMessageHistory(const ImVec2& size, ImFont* largeFont = nullptr);
     bool scrollToBottom = false;
-    bool shouldRestoreFocus = false;
     
     // Agent request handler
     AgentRequest agentRequest;
@@ -70,4 +69,7 @@ private:
     
     // Track currently loaded conversation for proper updates
     std::string currentConversationTimestamp;
+    
+    // Text input component
+    AIAgentTextInput textInput;
 };
