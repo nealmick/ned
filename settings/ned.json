@@ -1,7 +1,7 @@
 {
-    "agent_model": "google/gemini-2.5-flash-preview-05-20",
+    "agent_model": "deepseek/deepseek-chat-v3-0324",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.35328444838523865,
+    "agent_split_pos": 0.3113359808921814,
     "ai_autocomplete": true,
     "backgroundColor": [
         0.0923076868057251,
