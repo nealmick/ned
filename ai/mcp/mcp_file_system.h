@@ -24,6 +24,9 @@ public:
     
     // Method to write content to a file (overwrites existing content)
     bool writeFile(const std::string& path, const std::string& content);
+    
+    // Edit file using Morph's fast apply API
+    std::string editFile(const std::string& target_file, const std::string& instructions, const std::string& code_edit);
 };
 
 } // namespace MCP 
