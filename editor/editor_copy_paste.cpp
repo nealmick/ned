@@ -9,6 +9,12 @@ EditorCopyPaste gEditorCopyPaste;
 
 void EditorCopyPaste::processClipboardShortcuts()
 {
+	// If input is blocked (e.g., by agent history text selection), don't process editor shortcuts
+	if (editor_state.block_input)
+	{
+		return;
+	}
+
 	if (ImGui::IsKeyPressed(ImGuiKey_C, false))
 	{
 		gEditorCopyPaste.copySelectedText(editor_state.fileContent);
