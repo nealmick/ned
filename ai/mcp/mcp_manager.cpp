@@ -1,9 +1,12 @@
 #include "mcp_manager.h"
 #include "mcp_file_system.h"
 #include "mcp_terminal.h"
+#include "../lib/json.hpp"
 #include <sstream>
 #include <regex>
 #include <iostream>
+
+using json = nlohmann::json;
 
 namespace MCP {
 
@@ -232,39 +235,41 @@ bool Manager::hasToolCalls(const std::string& response) const {
     return found;
 }
 
-std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
+std::string Manager::processToolCalls(const std::string& llmResponse) const {
     std::string result = llmResponse;
     
-    std::cout << "DEBUG: Full response to parse: [" << llmResponse << "]" << std::endl;
+    // Check if response contains tool calls
+    bool found = (llmResponse.find("TOOL_CALL:") != std::string::npos) ||
+                 (llmResponse.find("TOOL:") != std::string::npos) ||
+                 (llmResponse.find("[TOOL_CALLS_DETECTED]") != std::string::npos);
     
-    // Custom parsing for tool calls to handle multiline content properly
+    if (!found) {
+        return result;
+    }
+    
+    std::cout << "DEBUG: Tool call markers found in response" << std::endl;
+    
+    // Extract and process complete tool calls from the full response
     std::string::size_type pos = 0;
-    int toolCallCount = 0;
     
     while (pos < result.length()) {
-        // Look for TOOL_CALL: or TOOL: patterns
+        // Look for TOOL_CALL: patterns
         std::string::size_type toolStart = result.find("TOOL_CALL:", pos);
-        if (toolStart == std::string::npos) {
-            toolStart = result.find("TOOL:", pos);
-        }
-        
         if (toolStart == std::string::npos) {
             break; // No more tool calls found
         }
         
-        toolCallCount++;
-        
-        // Find the end of the tool call (next TOOL_CALL: or TOOL: or end of string)
+        // Find the end of this tool call (next TOOL_CALL: or [TOOL_CALLS_DETECTED] or end of string)
         std::string::size_type nextToolStart = result.find("TOOL_CALL:", toolStart + 1);
-        std::string::size_type nextToolAlt = result.find("TOOL:", toolStart + 1);
+        std::string::size_type toolCallsDetected = result.find("[TOOL_CALLS_DETECTED]", toolStart + 1);
         
         std::string::size_type toolEnd;
-        if (nextToolStart != std::string::npos && nextToolAlt != std::string::npos) {
-            toolEnd = std::min(nextToolStart, nextToolAlt);
+        if (nextToolStart != std::string::npos && toolCallsDetected != std::string::npos) {
+            toolEnd = std::min(nextToolStart, toolCallsDetected);
         } else if (nextToolStart != std::string::npos) {
             toolEnd = nextToolStart;
-        } else if (nextToolAlt != std::string::npos) {
-            toolEnd = nextToolAlt;
+        } else if (toolCallsDetected != std::string::npos) {
+            toolEnd = toolCallsDetected;
         } else {
             toolEnd = result.length();
         }
@@ -278,6 +283,11 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
         
         // Only execute if we have a valid tool name
         if (!toolCall.toolName.empty()) {
+            std::cout << "DEBUG: Executing tool: " << toolCall.toolName << std::endl;
+            for (const auto& [key, value] : toolCall.parameters) {
+                std::cout << "DEBUG: Parameter: " << key << " = " << value << std::endl;
+            }
+            
             // Execute the tool call
             std::string toolResult = executeToolCall(toolCall);
             
@@ -296,6 +306,12 @@ std::string Manager::parseAndExecuteToolCalls(const std::string& llmResponse) {
         }
     }
     
+    // Remove the [TOOL_CALLS_DETECTED] marker
+    std::string::size_type detectedPos = result.find("[TOOL_CALLS_DETECTED]");
+    if (detectedPos != std::string::npos) {
+        result.erase(detectedPos, 20); // Remove "[TOOL_CALLS_DETECTED]"
+    }
+    
     return result;
 }
 
@@ -304,6 +320,49 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     
     std::cout << "DEBUG: Parsing tool call: " << toolCallStr << std::endl;
     
+    // Check if this is a JSON format tool call (new format)
+    if (toolCallStr.find("TOOL_CALL:") == 0) {
+        std::string jsonPart = toolCallStr.substr(10); // Remove "TOOL_CALL:" prefix
+        
+        try {
+            json toolCallJson = json::parse(jsonPart);
+            
+            // Extract function name and arguments
+            if (toolCallJson.contains("function")) {
+                const auto& func = toolCallJson["function"];
+                if (func.contains("name")) {
+                    toolCall.toolName = func["name"].get<std::string>();
+                }
+                
+                if (func.contains("arguments")) {
+                    std::string argumentsStr = func["arguments"].get<std::string>();
+                    
+                    // Parse the arguments JSON string
+                    try {
+                        json argumentsJson = json::parse(argumentsStr);
+                        for (const auto& [key, value] : argumentsJson.items()) {
+                            toolCall.parameters[key] = value.get<std::string>();
+                        }
+                    } catch (const json::exception& e) {
+                        std::cout << "DEBUG: Failed to parse arguments JSON: " << e.what() << std::endl;
+                    }
+                }
+            }
+            
+            std::cout << "DEBUG: Parsed JSON tool call - name: " << toolCall.toolName << std::endl;
+            for (const auto& [key, value] : toolCall.parameters) {
+                std::cout << "DEBUG: Parameter: " << key << " = " << value << std::endl;
+            }
+            
+            return toolCall;
+            
+        } catch (const json::exception& e) {
+            std::cout << "DEBUG: Failed to parse tool call JSON: " << e.what() << std::endl;
+            // Fall through to legacy parsing
+        }
+    }
+    
+    // Legacy parsing for old format (TOOL_CALL:toolName:param=value)
     // Find the first colon after TOOL_CALL: or TOOL:
     std::string::size_type firstColon = toolCallStr.find(':');
     if (firstColon == std::string::npos) {
