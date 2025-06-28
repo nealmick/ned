@@ -10,16 +10,41 @@ using json = nlohmann::json;
 
 namespace MCP {
 
+// SYSTEM PROMPT FOR AGENT TOOL USE:
+//
+// You are an AI agent that can ONLY interact with the world using the tools listed below.
+//
+// RULES:
+// 1. Only use the tools listed. Do not invent or mimic tool calls or results.
+// 2. NEVER output anything that looks like a tool call result unless it is the actual result from the tool.
+// 3. Every tool call MUST include all required parameters. If you do not have all required parameters, do not call the tool.
+// 4. Tool call formats:
+//    - Legacy: TOOL_CALL:toolName:param1=value:param2=value
+//    - JSON:   TOOL_CALL:{"function":{"name":"toolName","arguments":"{\"param1\":\"value\",\"param2\":\"value\"}"}}
+// 5. Do NOT output plans, explanations, or step-by-step reasoning. Only output the tool call needed to accomplish the user's request.
+// 6. Be concise. Do not add extra text, apologies, or commentary.
+// 7. If you need to perform multiple steps, do them one at a time, each as a separate tool call.
+// 8. If you do not know what to do, ask for clarification.
+//
+// EXAMPLES:
+// To read a file: TOOL_CALL:readFile:path=main.cpp
+// To edit a file: TOOL_CALL:editFile:target_file=main.cpp:instructions=Add a comment:code_edit=// ... existing code ...\n// great success
+// To run a command: TOOL_CALL:executeCommand:command=ls -la
+//
+// NEVER output anything that looks like a tool result unless it is the real result from the tool.
+//
+// END SYSTEM PROMPT
+
 Manager::Manager() {
     // Register default tools
     ToolDefinition listFilesTool;
     listFilesTool.name = "listFiles";
-    listFilesTool.description = "List files in a directory. Use this when the user asks about what files exist, wants to explore a directory, or needs to see the project structure. Supports tilde (~) expansion for home directory paths (e.g., ~/Documents, ~/ned/)";
+    listFilesTool.description = "List files in a directory. Parameter: path (required) - the directory path to list.";
     
     ToolParameter pathParam;
     pathParam.name = "path";
     pathParam.type = "string";
-    pathParam.description = "Directory path to list files from (supports ~ for home directory)";
+    pathParam.description = "Directory path to list files from";
     pathParam.required = true;
     
     listFilesTool.parameters.push_back(pathParam);
@@ -28,12 +53,12 @@ Manager::Manager() {
     // Register createFile tool
     ToolDefinition createFileTool;
     createFileTool.name = "createFile";
-    createFileTool.description = "Create a new empty file at the specified path. Use this when the user wants to create a new file, set up a new project file, or create placeholder files. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    createFileTool.description = "Create a new empty file. Parameter: path (required) - the file path to create.";
     
     ToolParameter createFilePathParam;
     createFilePathParam.name = "path";
     createFilePathParam.type = "string";
-    createFilePathParam.description = "File path to create (supports ~ for home directory). Parent directories will be created automatically.";
+    createFilePathParam.description = "File path to create";
     createFilePathParam.required = true;
     
     createFileTool.parameters.push_back(createFilePathParam);
@@ -42,12 +67,12 @@ Manager::Manager() {
     // Register createFolder tool
     ToolDefinition createFolderTool;
     createFolderTool.name = "createFolder";
-    createFolderTool.description = "Create a new folder at the specified path. Use this when the user wants to create a new directory, set up project folders, or organize files. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    createFolderTool.description = "Create a new folder. Parameter: path (required) - the folder path to create.";
     
     ToolParameter createFolderPathParam;
     createFolderPathParam.name = "path";
     createFolderPathParam.type = "string";
-    createFolderPathParam.description = "Folder path to create (supports ~ for home directory). Parent directories will be created automatically.";
+    createFolderPathParam.description = "Folder path to create";
     createFolderPathParam.required = true;
     
     createFolderTool.parameters.push_back(createFolderPathParam);
@@ -56,12 +81,12 @@ Manager::Manager() {
     // Register readFile tool
     ToolDefinition readFileTool;
     readFileTool.name = "readFile";
-    readFileTool.description = "Read the contents of a file. Use this when the user asks to see file contents, wants to examine code, or needs to understand what's in a file before making changes. Supports tilde (~) expansion for home directory paths. Returns first 50 lines with lines truncated to 500 characters maximum.";
+    readFileTool.description = "Read the contents of a file. Parameter: path (required) - the file path to read.";
     
     ToolParameter readFilePathParam;
     readFilePathParam.name = "path";
     readFilePathParam.type = "string";
-    readFilePathParam.description = "File path to read (supports ~ for home directory)";
+    readFilePathParam.description = "File path to read";
     readFilePathParam.required = true;
     
     readFileTool.parameters.push_back(readFilePathParam);
@@ -70,12 +95,12 @@ Manager::Manager() {
     // Register writeFile tool
     ToolDefinition writeFileTool;
     writeFileTool.name = "writeFile";
-    writeFileTool.description = "Write content to a file, overwriting existing content. Use this when the user wants to create a new file with specific content or completely replace the contents of an existing file. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    writeFileTool.description = "Write content to a file. Parameters: path (required) - file path, content (required) - text to write.";
     
     ToolParameter writeFilePathParam;
     writeFilePathParam.name = "path";
     writeFilePathParam.type = "string";
-    writeFilePathParam.description = "File path to write to (supports ~ for home directory). Parent directories will be created automatically.";
+    writeFilePathParam.description = "File path to write to";
     writeFilePathParam.required = true;
     
     ToolParameter writeFileContentParam;
@@ -91,24 +116,24 @@ Manager::Manager() {
     // Register editFile tool
     ToolDefinition editFileTool;
     editFileTool.name = "editFile";
-    editFileTool.description = "Use this tool to propose an edit to an existing file using Morph's fast apply API. This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write. When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines. You should bias towards repeating as few lines of the original file as possible to convey the change. NEVER show unmodified code in the edit, unless sufficient context of unchanged lines around the code you're editing is needed to resolve ambiguity. If you plan on deleting a section, you must provide surrounding context to indicate the deletion. DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.";
+    editFileTool.description = "Edit an existing file. Parameters: target_file (required) - file path, instructions (required) - what to do, code_edit (required) - the code changes.";
     
     ToolParameter editFilePathParam;
     editFilePathParam.name = "target_file";
     editFilePathParam.type = "string";
-    editFilePathParam.description = "The target file to modify. Always specify the target file as the first argument and use the relative path in the workspace of the file to edit";
+    editFilePathParam.description = "The file to edit";
     editFilePathParam.required = true;
     
     ToolParameter editFileInstructionsParam;
     editFileInstructionsParam.name = "instructions";
     editFileInstructionsParam.type = "string";
-    editFileInstructionsParam.description = "A single sentence instruction describing the edit in first person";
+    editFileInstructionsParam.description = "What you are doing to the file";
     editFileInstructionsParam.required = true;
     
     ToolParameter editFileCodeEditParam;
     editFileCodeEditParam.name = "code_edit";
     editFileCodeEditParam.type = "string";
-    editFileCodeEditParam.description = "Specify ONLY the precise lines of code that you wish to edit. NEVER specify or write out unchanged code. Instead, represent all unchanged code using the comment of the language you're editing in - example: // ... existing code ...";
+    editFileCodeEditParam.description = "The code changes to make";
     editFileCodeEditParam.required = true;
     
     editFileTool.parameters.push_back(editFilePathParam);
@@ -119,12 +144,12 @@ Manager::Manager() {
     // Register terminal tools
     ToolDefinition executeCommandTool;
     executeCommandTool.name = "executeCommand";
-    executeCommandTool.description = "Execute a terminal command and return its output. Use this for most command execution needs like running build commands, checking system status, or running scripts. Captures stdout and shows exit status.";
+    executeCommandTool.description = "Run a terminal command. Parameter: command (required) - the command to run.";
     
     ToolParameter commandParam;
     commandParam.name = "command";
     commandParam.type = "string";
-    commandParam.description = "The terminal command to execute";
+    commandParam.description = "The command to run";
     commandParam.required = true;
     
     executeCommandTool.parameters.push_back(commandParam);
@@ -133,12 +158,12 @@ Manager::Manager() {
     // Register executeCommandWithErrorCapture tool
     ToolDefinition executeCommandWithErrorTool;
     executeCommandWithErrorTool.name = "executeCommandWithErrorCapture";
-    executeCommandWithErrorTool.description = "Execute a terminal command and return both stdout and stderr output. Use this when you need to see error messages, debug command failures, or when the command might produce important output on stderr. Captures all output and shows exit status.";
+    executeCommandWithErrorTool.description = "Run a terminal command and capture errors. Parameter: command (required) - the command to run.";
     
     ToolParameter commandWithErrorParam;
     commandWithErrorParam.name = "command";
     commandWithErrorParam.type = "string";
-    commandWithErrorParam.description = "The terminal command to execute";
+    commandWithErrorParam.description = "The command to run";
     commandWithErrorParam.required = true;
     
     executeCommandWithErrorTool.parameters.push_back(commandWithErrorParam);
@@ -147,18 +172,18 @@ Manager::Manager() {
     // Register executeCommandInDirectory tool
     ToolDefinition executeCommandInDirTool;
     executeCommandInDirTool.name = "executeCommandInDirectory";
-    executeCommandInDirTool.description = "Execute a terminal command in a specific working directory and return its output. Use this when you need to run commands in a particular directory context, like building a project in its directory or running tests from a specific folder.";
+    executeCommandInDirTool.description = "Run a command in a specific directory. Parameters: command (required) - the command, workingDirectory (required) - the directory.";
     
     ToolParameter commandInDirParam;
     commandInDirParam.name = "command";
     commandInDirParam.type = "string";
-    commandInDirParam.description = "The terminal command to execute";
+    commandInDirParam.description = "The command to run";
     commandInDirParam.required = true;
     
     ToolParameter workingDirParam;
     workingDirParam.name = "workingDirectory";
     workingDirParam.type = "string";
-    workingDirParam.description = "The working directory to execute the command in";
+    workingDirParam.description = "The directory to run the command in";
     workingDirParam.required = true;
     
     executeCommandInDirTool.parameters.push_back(commandInDirParam);
@@ -168,7 +193,7 @@ Manager::Manager() {
     // Register commandExists tool
     ToolDefinition commandExistsTool;
     commandExistsTool.name = "commandExists";
-    commandExistsTool.description = "Check if a command exists in the system PATH. Use this when you need to verify if a tool or command is available before trying to use it, or when the user asks about system capabilities.";
+    commandExistsTool.description = "Check if a command exists. Parameter: command (required) - the command name to check.";
     
     ToolParameter commandExistsParam;
     commandExistsParam.name = "command";
@@ -182,7 +207,7 @@ Manager::Manager() {
     // Register getCurrentWorkingDirectory tool
     ToolDefinition getCwdTool;
     getCwdTool.name = "getCurrentWorkingDirectory";
-    getCwdTool.description = "Get the current working directory path. Use this when the user asks about their current location, needs to understand the context of relative paths, or when you need to know where commands will be executed.";
+    getCwdTool.description = "Get the current working directory. No parameters needed.";
     
     registerTool(getCwdTool);
 }
@@ -220,17 +245,62 @@ std::string Manager::getToolDescriptionsJSON() const {
 
 bool Manager::hasToolCalls(const std::string& response) const {
     // Look for tool calls with custom parsing to handle multiline content
-    bool found = (response.find("TOOL_CALL:") != std::string::npos) || 
-                 (response.find("TOOL:") != std::string::npos);
+    // Be more selective to avoid false positives from tool descriptions
     
     std::cout << "hasToolCalls: searching for tool calls in response" << std::endl;
     std::cout << "hasToolCalls: response length: " << response.length() << std::endl;
+    
+    // Look for actual tool call patterns, not descriptions
+    bool found = false;
+    
+    // Check for JSON format tool calls
+    if (response.find("TOOL_CALL:{\"function\":") != std::string::npos) {
+        found = true;
+        std::cout << "hasToolCalls: found JSON format tool call" << std::endl;
+    }
+    
+    // Check for legacy format tool calls (but be more selective)
+    if (response.find("TOOL_CALL:") != std::string::npos) {
+        // Make sure it's not just a description by checking for actual tool names
+        std::vector<std::string> validTools = {
+            "listFiles", "createFile", "createFolder", "readFile", "writeFile", 
+            "editFile", "executeCommand", "executeCommandWithErrorCapture", 
+            "executeCommandInDirectory", "commandExists", "getCurrentWorkingDirectory"
+        };
+        
+        for (const auto& tool : validTools) {
+            if (response.find("TOOL_CALL:" + tool + ":") != std::string::npos) {
+                found = true;
+                std::cout << "hasToolCalls: found legacy format tool call for " << tool << std::endl;
+                break;
+            }
+        }
+        
+        // Also check for tool calls with no parameters
+        if (response.find("TOOL_CALL:getCurrentWorkingDirectory") != std::string::npos) {
+            found = true;
+            std::cout << "hasToolCalls: found getCurrentWorkingDirectory tool call" << std::endl;
+        }
+    }
+    
+    // Check for the old TOOL: format
+    if (response.find("TOOL:") != std::string::npos) {
+        found = true;
+        std::cout << "hasToolCalls: found old TOOL: format" << std::endl;
+    }
+    
+    // Check for the marker
+    if (response.find("[TOOL_CALLS_DETECTED]") != std::string::npos) {
+        found = true;
+        std::cout << "hasToolCalls: found TOOL_CALLS_DETECTED marker" << std::endl;
+    }
+    
     std::cout << "hasToolCalls: found = " << (found ? "true" : "false") << std::endl;
     
     if (found) {
-        std::cout << "hasToolCalls: found TOOL_CALL or TOOL pattern in response" << std::endl;
+        std::cout << "hasToolCalls: found valid tool call pattern in response" << std::endl;
     } else {
-        std::cout << "hasToolCalls: no tool call found in response" << std::endl;
+        std::cout << "hasToolCalls: no valid tool call found in response" << std::endl;
     }
     return found;
 }
@@ -251,8 +321,10 @@ std::string Manager::processToolCalls(const std::string& llmResponse) const {
     
     // Extract and process complete tool calls from the full response
     std::string::size_type pos = 0;
+    int processedCalls = 0;
+    const int MAX_TOOL_CALLS = 10; // Prevent infinite loops
     
-    while (pos < result.length()) {
+    while (pos < result.length() && processedCalls < MAX_TOOL_CALLS) {
         // Look for TOOL_CALL: patterns
         std::string::size_type toolStart = result.find("TOOL_CALL:", pos);
         if (toolStart == std::string::npos) {
@@ -278,6 +350,16 @@ std::string Manager::processToolCalls(const std::string& llmResponse) const {
         std::string toolCallStr = result.substr(toolStart, toolEnd - toolStart);
         std::cout << "DEBUG: Found tool call: [" << toolCallStr << "]" << std::endl;
         
+        // Skip if this looks like a description rather than an actual tool call
+        if (toolCallStr.find("Format:") != std::string::npos || 
+            toolCallStr.find("Example") != std::string::npos ||
+            toolCallStr.find("Required parameters:") != std::string::npos) {
+            std::cout << "DEBUG: Skipping tool call that appears to be a description" << std::endl;
+            pos = toolEnd;
+            processedCalls++;
+            continue;
+        }
+        
         // Parse the tool call
         ToolCall toolCall = parseToolCall(toolCallStr);
         
@@ -298,11 +380,14 @@ std::string Manager::processToolCalls(const std::string& llmResponse) const {
                 "Result: " + toolResult + "\n"
                 "=== END TOOL RESULT ===\n\n");
             
+            processedCalls++;
             // Update position to continue searching
             pos = toolStart + 1;
         } else {
             // Skip invalid tool calls and move search position
+            std::cout << "DEBUG: Invalid tool call detected, skipping" << std::endl;
             pos = toolEnd;
+            processedCalls++; // Count invalid calls too to prevent infinite loops
         }
     }
     
@@ -323,6 +408,12 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     // Check if this is a JSON format tool call (new format)
     if (toolCallStr.find("TOOL_CALL:") == 0) {
         std::string jsonPart = toolCallStr.substr(10); // Remove "TOOL_CALL:" prefix
+        
+        // Clean up the JSON string - remove any trailing characters that might break parsing
+        size_t jsonEnd = jsonPart.find_last_of('}');
+        if (jsonEnd != std::string::npos) {
+            jsonPart = jsonPart.substr(0, jsonEnd + 1);
+        }
         
         try {
             json toolCallJson = json::parse(jsonPart);
@@ -345,6 +436,91 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
                         }
                     } catch (const json::exception& e) {
                         std::cout << "DEBUG: Failed to parse arguments JSON: " << e.what() << std::endl;
+                        std::cout << "DEBUG: Arguments string was: [" << argumentsStr << "]" << std::endl;
+                        
+                        // Try to extract parameters manually if JSON parsing fails
+                        if (argumentsStr.find("path") != std::string::npos) {
+                            size_t pathStart = argumentsStr.find("\"path\":\"");
+                            if (pathStart != std::string::npos) {
+                                pathStart += 8; // Skip "\"path\":\""
+                                size_t pathEnd = argumentsStr.find("\"", pathStart);
+                                if (pathEnd != std::string::npos) {
+                                    std::string path = argumentsStr.substr(pathStart, pathEnd - pathStart);
+                                    toolCall.parameters["path"] = path;
+                                    std::cout << "DEBUG: Manually extracted path: " << path << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Try to extract target_file parameter
+                        if (argumentsStr.find("target_file") != std::string::npos) {
+                            size_t targetFileStart = argumentsStr.find("\"target_file\":\"");
+                            if (targetFileStart != std::string::npos) {
+                                targetFileStart += 15; // Skip "\"target_file\":\""
+                                size_t targetFileEnd = argumentsStr.find("\"", targetFileStart);
+                                if (targetFileEnd != std::string::npos) {
+                                    std::string targetFile = argumentsStr.substr(targetFileStart, targetFileEnd - targetFileStart);
+                                    toolCall.parameters["target_file"] = targetFile;
+                                    std::cout << "DEBUG: Manually extracted target_file: " << targetFile << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Try to extract command parameter
+                        if (argumentsStr.find("command") != std::string::npos) {
+                            size_t commandStart = argumentsStr.find("\"command\":\"");
+                            if (commandStart != std::string::npos) {
+                                commandStart += 11; // Skip "\"command\":\""
+                                size_t commandEnd = argumentsStr.find("\"", commandStart);
+                                if (commandEnd != std::string::npos) {
+                                    std::string command = argumentsStr.substr(commandStart, commandEnd - commandStart);
+                                    toolCall.parameters["command"] = command;
+                                    std::cout << "DEBUG: Manually extracted command: " << command << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Try to extract instructions parameter
+                        if (argumentsStr.find("instructions") != std::string::npos) {
+                            size_t instructionsStart = argumentsStr.find("\"instructions\":\"");
+                            if (instructionsStart != std::string::npos) {
+                                instructionsStart += 16; // Skip "\"instructions\":\""
+                                size_t instructionsEnd = argumentsStr.find("\"", instructionsStart);
+                                if (instructionsEnd != std::string::npos) {
+                                    std::string instructions = argumentsStr.substr(instructionsStart, instructionsEnd - instructionsStart);
+                                    toolCall.parameters["instructions"] = instructions;
+                                    std::cout << "DEBUG: Manually extracted instructions: " << instructions << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Try to extract code_edit parameter
+                        if (argumentsStr.find("code_edit") != std::string::npos) {
+                            size_t codeEditStart = argumentsStr.find("\"code_edit\":\"");
+                            if (codeEditStart != std::string::npos) {
+                                codeEditStart += 13; // Skip "\"code_edit\":\""
+                                size_t codeEditEnd = argumentsStr.find("\"", codeEditStart);
+                                if (codeEditEnd != std::string::npos) {
+                                    std::string codeEdit = argumentsStr.substr(codeEditStart, codeEditEnd - codeEditStart);
+                                    toolCall.parameters["code_edit"] = codeEdit;
+                                    std::cout << "DEBUG: Manually extracted code_edit: " << codeEdit << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Try to extract content parameter
+                        if (argumentsStr.find("content") != std::string::npos) {
+                            size_t contentStart = argumentsStr.find("\"content\":\"");
+                            if (contentStart != std::string::npos) {
+                                contentStart += 12; // Skip "\"content\":\""
+                                size_t contentEnd = argumentsStr.find("\"", contentStart);
+                                if (contentEnd != std::string::npos) {
+                                    std::string content = argumentsStr.substr(contentStart, contentEnd - contentStart);
+                                    toolCall.parameters["content"] = content;
+                                    std::cout << "DEBUG: Manually extracted content: " << content << std::endl;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -358,6 +534,21 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
             
         } catch (const json::exception& e) {
             std::cout << "DEBUG: Failed to parse tool call JSON: " << e.what() << std::endl;
+            std::cout << "DEBUG: JSON string was: [" << jsonPart << "]" << std::endl;
+            
+            // Try to extract basic information even from malformed JSON
+            if (jsonPart.find("\"name\":") != std::string::npos) {
+                size_t nameStart = jsonPart.find("\"name\":\"");
+                if (nameStart != std::string::npos) {
+                    nameStart += 8; // Skip "\"name\":\""
+                    size_t nameEnd = jsonPart.find("\"", nameStart);
+                    if (nameEnd != std::string::npos) {
+                        toolCall.toolName = jsonPart.substr(nameStart, nameEnd - nameStart);
+                        std::cout << "DEBUG: Extracted tool name from malformed JSON: " << toolCall.toolName << std::endl;
+                    }
+                }
+            }
+            
             // Fall through to legacy parsing
         }
     }
@@ -366,12 +557,20 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
     // Find the first colon after TOOL_CALL: or TOOL:
     std::string::size_type firstColon = toolCallStr.find(':');
     if (firstColon == std::string::npos) {
+        std::cout << "DEBUG: No first colon found in tool call string" << std::endl;
         return toolCall;
     }
     
     // Find the second colon (after the tool name)
     std::string::size_type secondColon = toolCallStr.find(':', firstColon + 1);
     if (secondColon == std::string::npos) {
+        // This might be a tool call with no parameters (like getCurrentWorkingDirectory)
+        std::string toolName = toolCallStr.substr(firstColon + 1);
+        // Trim whitespace from tool name
+        toolName.erase(0, toolName.find_first_not_of(" \t"));
+        toolName.erase(toolName.find_last_not_of(" \t") + 1);
+        toolCall.toolName = toolName;
+        std::cout << "DEBUG: Tool call with no parameters - name: " << toolCall.toolName << std::endl;
         return toolCall;
     }
     
@@ -458,8 +657,13 @@ ToolCall Manager::parseToolCall(const std::string& toolCallStr) const {
             std::cout << "DEBUG: Parsed target_file = [" << targetFileValue << "]" << std::endl;
             std::cout << "DEBUG: Parsed instructions = [" << instructionsValue << "]" << std::endl;
             std::cout << "DEBUG: Parsed code_edit length = " << codeEditValue.length() << std::endl;
+            std::cout << "DEBUG: Parsed code_edit = [" << codeEditValue << "]" << std::endl;
         } else {
             std::cout << "DEBUG: Could not find target_file=, :instructions=, or :code_edit= in editFile parameters" << std::endl;
+            std::cout << "DEBUG: paramsStr = [" << paramsStr << "]" << std::endl;
+            std::cout << "DEBUG: target_file found at: " << (targetFileStart != std::string::npos ? std::to_string(targetFileStart) : "NOT_FOUND") << std::endl;
+            std::cout << "DEBUG: instructions found at: " << (instructionsStart != std::string::npos ? std::to_string(instructionsStart) : "NOT_FOUND") << std::endl;
+            std::cout << "DEBUG: code_edit found at: " << (codeEditStart != std::string::npos ? std::to_string(codeEditStart) : "NOT_FOUND") << std::endl;
         }
     } else {
         // For other tools, use the original parsing logic
@@ -539,7 +743,7 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             if (success) {
                 return "Success: File '" + it->second + "' created successfully.";
             } else {
-                return "Error: Failed to create file '" + it->second + "'. The file may already exist or there may be permission issues.";
+                return "Error: Failed to create file '" + it->second + "'.";
             }
         } else {
             return "Error: Missing 'path' parameter for createFile tool";
@@ -553,7 +757,7 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             if (success) {
                 return "Success: Folder '" + it->second + "' created successfully.";
             } else {
-                return "Error: Failed to create folder '" + it->second + "'. The folder may already exist or there may be permission issues.";
+                return "Error: Failed to create folder '" + it->second + "'.";
             }
         } else {
             return "Error: Missing 'path' parameter for createFolder tool";
@@ -573,12 +777,6 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             return "Error: Missing 'path' parameter for readFile tool";
         }
     } else if (toolCall.toolName == "writeFile") {
-        std::cout << "DEBUG: Executing writeFile tool" << std::endl;
-        std::cout << "DEBUG: Number of parameters: " << toolCall.parameters.size() << std::endl;
-        for (const auto& param : toolCall.parameters) {
-            std::cout << "DEBUG: Parameter: " << param.first << " = " << param.second << std::endl;
-        }
-        
         auto it = toolCall.parameters.find("path");
         if (it != toolCall.parameters.end()) {
             auto itContent = toolCall.parameters.find("content");
@@ -589,7 +787,7 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
                 if (success) {
                     return "Success: File '" + it->second + "' written successfully.";
                 } else {
-                    return "Error: Failed to write to file '" + it->second + "'. The file may not exist or there may be permission issues.";
+                    return "Error: Failed to write to file '" + it->second + "'.";
                 }
             } else {
                 return "Error: Missing 'content' parameter for writeFile tool";
@@ -606,7 +804,7 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             std::string result = fsServer.editFile(it->second, itInstructions->second, itCodeEdit->second);
             return result;
         } else {
-            return "Error: Missing 'target_file', 'instructions', or 'code_edit' parameter for editFile tool";
+            return "Error: Missing required parameters for editFile tool (need target_file, instructions, and code_edit)";
         }
     } else if (toolCall.toolName == "executeCommand") {
         auto it = toolCall.parameters.find("command");
@@ -634,7 +832,7 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
             std::string result = terminalServer.executeCommandInDirectory(itCommand->second, itDir->second);
             return result;
         } else {
-            return "Error: Missing 'command' or 'workingDirectory' parameter for executeCommandInDirectory tool";
+            return "Error: Missing required parameters for executeCommandInDirectory tool (need command and workingDirectory)";
         }
     } else if (toolCall.toolName == "commandExists") {
         auto it = toolCall.parameters.find("command");

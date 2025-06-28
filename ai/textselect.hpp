@@ -46,13 +46,7 @@ public:
 
     // Checks if there is an active selection in the text.
     bool hasSelection() const {
-        bool hasSel = !selectStart.isInvalid() && !selectEnd.isInvalid();
-        if (hasSel) {
-            std::cout << "DEBUG: Selection active: (" << selectStart.x << "," << selectStart.y << ") to (" << selectEnd.x << "," << selectEnd.y << ")" << std::endl;
-        } else {
-            std::cout << "DEBUG: No selection active" << std::endl;
-        }
-        return hasSel;
+        return !selectStart.isInvalid() && !selectEnd.isInvalid();
     }
 
     // Copies the selected text to the clipboard.
