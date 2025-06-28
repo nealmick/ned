@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <functional>
 #include <string_view>
+#include <iostream>
 
 #include <imgui.h>
 
@@ -45,7 +46,13 @@ public:
 
     // Checks if there is an active selection in the text.
     bool hasSelection() const {
-        return !selectStart.isInvalid() && !selectEnd.isInvalid();
+        bool hasSel = !selectStart.isInvalid() && !selectEnd.isInvalid();
+        if (hasSel) {
+            std::cout << "DEBUG: Selection active: (" << selectStart.x << "," << selectStart.y << ") to (" << selectEnd.x << "," << selectEnd.y << ")" << std::endl;
+        } else {
+            std::cout << "DEBUG: No selection active" << std::endl;
+        }
+        return hasSel;
     }
 
     // Copies the selected text to the clipboard.

@@ -14,7 +14,7 @@ Manager::Manager() {
     // Register default tools
     ToolDefinition listFilesTool;
     listFilesTool.name = "listFiles";
-    listFilesTool.description = "List files in a directory. Supports tilde (~) expansion for home directory paths (e.g., ~/Documents, ~/ned/)";
+    listFilesTool.description = "List files in a directory. Use this when the user asks about what files exist, wants to explore a directory, or needs to see the project structure. Supports tilde (~) expansion for home directory paths (e.g., ~/Documents, ~/ned/)";
     
     ToolParameter pathParam;
     pathParam.name = "path";
@@ -28,7 +28,7 @@ Manager::Manager() {
     // Register createFile tool
     ToolDefinition createFileTool;
     createFileTool.name = "createFile";
-    createFileTool.description = "Create a new empty file at the specified path. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    createFileTool.description = "Create a new empty file at the specified path. Use this when the user wants to create a new file, set up a new project file, or create placeholder files. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
     
     ToolParameter createFilePathParam;
     createFilePathParam.name = "path";
@@ -42,7 +42,7 @@ Manager::Manager() {
     // Register createFolder tool
     ToolDefinition createFolderTool;
     createFolderTool.name = "createFolder";
-    createFolderTool.description = "Create a new folder at the specified path. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    createFolderTool.description = "Create a new folder at the specified path. Use this when the user wants to create a new directory, set up project folders, or organize files. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
     
     ToolParameter createFolderPathParam;
     createFolderPathParam.name = "path";
@@ -56,7 +56,7 @@ Manager::Manager() {
     // Register readFile tool
     ToolDefinition readFileTool;
     readFileTool.name = "readFile";
-    readFileTool.description = "Read the contents of a file. Supports tilde (~) expansion for home directory paths. Returns first 50 lines with lines truncated to 500 characters maximum.";
+    readFileTool.description = "Read the contents of a file. Use this when the user asks to see file contents, wants to examine code, or needs to understand what's in a file before making changes. Supports tilde (~) expansion for home directory paths. Returns first 50 lines with lines truncated to 500 characters maximum.";
     
     ToolParameter readFilePathParam;
     readFilePathParam.name = "path";
@@ -70,7 +70,7 @@ Manager::Manager() {
     // Register writeFile tool
     ToolDefinition writeFileTool;
     writeFileTool.name = "writeFile";
-    writeFileTool.description = "Write content to a file, overwriting existing content. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
+    writeFileTool.description = "Write content to a file, overwriting existing content. Use this when the user wants to create a new file with specific content or completely replace the contents of an existing file. Supports tilde (~) expansion for home directory paths. Will create parent directories if they don't exist.";
     
     ToolParameter writeFilePathParam;
     writeFilePathParam.name = "path";
@@ -119,7 +119,7 @@ Manager::Manager() {
     // Register terminal tools
     ToolDefinition executeCommandTool;
     executeCommandTool.name = "executeCommand";
-    executeCommandTool.description = "Execute a terminal command and return its output. Captures stdout and shows exit status.";
+    executeCommandTool.description = "Execute a terminal command and return its output. Use this for most command execution needs like running build commands, checking system status, or running scripts. Captures stdout and shows exit status.";
     
     ToolParameter commandParam;
     commandParam.name = "command";
@@ -133,7 +133,7 @@ Manager::Manager() {
     // Register executeCommandWithErrorCapture tool
     ToolDefinition executeCommandWithErrorTool;
     executeCommandWithErrorTool.name = "executeCommandWithErrorCapture";
-    executeCommandWithErrorTool.description = "Execute a terminal command and return both stdout and stderr output. Captures all output and shows exit status.";
+    executeCommandWithErrorTool.description = "Execute a terminal command and return both stdout and stderr output. Use this when you need to see error messages, debug command failures, or when the command might produce important output on stderr. Captures all output and shows exit status.";
     
     ToolParameter commandWithErrorParam;
     commandWithErrorParam.name = "command";
@@ -147,7 +147,7 @@ Manager::Manager() {
     // Register executeCommandInDirectory tool
     ToolDefinition executeCommandInDirTool;
     executeCommandInDirTool.name = "executeCommandInDirectory";
-    executeCommandInDirTool.description = "Execute a terminal command in a specific working directory and return its output.";
+    executeCommandInDirTool.description = "Execute a terminal command in a specific working directory and return its output. Use this when you need to run commands in a particular directory context, like building a project in its directory or running tests from a specific folder.";
     
     ToolParameter commandInDirParam;
     commandInDirParam.name = "command";
@@ -168,7 +168,7 @@ Manager::Manager() {
     // Register commandExists tool
     ToolDefinition commandExistsTool;
     commandExistsTool.name = "commandExists";
-    commandExistsTool.description = "Check if a command exists in the system PATH.";
+    commandExistsTool.description = "Check if a command exists in the system PATH. Use this when you need to verify if a tool or command is available before trying to use it, or when the user asks about system capabilities.";
     
     ToolParameter commandExistsParam;
     commandExistsParam.name = "command";
@@ -182,7 +182,7 @@ Manager::Manager() {
     // Register getCurrentWorkingDirectory tool
     ToolDefinition getCwdTool;
     getCwdTool.name = "getCurrentWorkingDirectory";
-    getCwdTool.description = "Get the current working directory path.";
+    getCwdTool.description = "Get the current working directory path. Use this when the user asks about their current location, needs to understand the context of relative paths, or when you need to know where commands will be executed.";
     
     registerTool(getCwdTool);
 }
