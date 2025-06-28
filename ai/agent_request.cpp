@@ -25,19 +25,24 @@ void AgentRequest::stopRequest() {
         // std::cout << "DEBUG: Setting shouldCancelStreaming to true" << std::endl;
         shouldCancelStreaming.store(true);
         isStreaming.store(false);
+        
+        // Also set the global cancel flag for immediate CURL cancellation
+        extern std::atomic<bool> g_should_cancel;
+        g_should_cancel = true;
     }
     
     if (streamingThread.joinable()) {
-        // std::cout << "DEBUG: Waiting for streaming thread to join" << std::endl;
+        // std::cout << "DEBUG: Detaching streaming thread to avoid blocking" << std::endl;
         try { 
-            streamingThread.join(); 
-            // std::cout << "DEBUG: Streaming thread joined successfully" << std::endl;
+            streamingThread.detach(); // Use detach instead of join to avoid blocking
+            // std::cout << "DEBUG: Streaming thread detached successfully" << std::endl;
         } catch (...) {
-            // std::cout << "DEBUG: Exception during thread join" << std::endl;
+            // std::cout << "DEBUG: Exception during thread detach" << std::endl;
         }
     }
     
-    shouldCancelStreaming.store(false);
+    // Don't reset the cancellation flags immediately - let the detached thread handle them
+    // The flags will be reset when a new request starts
     // std::cout << "DEBUG: stopRequest completed" << std::endl;
 }
 
@@ -48,6 +53,10 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
     if (isStreaming.load()) return;
     isStreaming.store(true);
     shouldCancelStreaming.store(false);
+    
+    // Reset global cancel flag for new request
+    extern std::atomic<bool> g_should_cancel;
+    g_should_cancel = false;
 
     // Track the full response using shared pointer
     auto fullResponse = std::make_shared<std::string>();

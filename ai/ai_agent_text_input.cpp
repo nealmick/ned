@@ -7,6 +7,7 @@
 #include "util/settings.h"
 #include <imgui_internal.h>
 #include "../lib/json.hpp"
+#include "../files/files.h" // for gFileExplorer
 
 using json = nlohmann::json;
 
@@ -44,6 +45,10 @@ void AIAgentTextInput::setToggleHistoryCallback(std::function<void()> callback) 
 
 void AIAgentTextInput::setBlockInputCallback(std::function<void(bool)> callback) {
     blockInputCallback = callback;
+}
+
+void AIAgentTextInput::setStopRequestCallback(std::function<void()> callback) {
+    stopRequestCallback = callback;
 }
 
 void AIAgentTextInput::render(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding) {
@@ -199,6 +204,60 @@ void AIAgentTextInput::renderButtons(float textBoxWidth) {
         // Toggle history window
         if (toggleHistoryCallback) {
             toggleHistoryCallback();
+        }
+    }
+    
+    // Add spinner next to History button if there's an active message
+    if (isProcessingCallback && isProcessingCallback()) {
+        ImGui::SameLine();
+        
+        // Get the position after the History button
+        ImVec2 spinnerPos = ImGui::GetCursorScreenPos();
+        spinnerPos.x += 16.0f; // More padding to the right of the button
+        
+        // Get the actual button height to center the spinner properly
+        ImVec2 buttonMin = ImGui::GetItemRectMin();
+        ImVec2 buttonMax = ImGui::GetItemRectMax();
+        float buttonHeight = buttonMax.y - buttonMin.y;
+        spinnerPos.y = buttonMin.y + buttonHeight * 0.5f; // Center vertically with the button
+        
+        // Get current time for animation
+        float time = (float)ImGui::GetTime();
+        
+        // Check if mouse is hovering over the spinner area
+        ImVec2 mousePos = ImGui::GetMousePos();
+        float fontSize = ImGui::GetFontSize();
+        float spinnerSize = fontSize * 0.8f; // Make spinner slightly smaller than font size
+        ImRect spinnerRect(
+            spinnerPos.x - spinnerSize * 0.5f,
+            spinnerPos.y - spinnerSize * 0.5f,
+            spinnerPos.x + spinnerSize * 0.5f,
+            spinnerPos.y + spinnerSize * 0.5f
+        );
+        
+        bool isHovered = spinnerRect.Contains(mousePos);
+        
+        if (isHovered) {
+            // Show close icon when hovering
+            ImTextureID closeIcon = gFileExplorer.getIcon("close-mac-hover");
+            ImVec2 iconSize = ImVec2(fontSize * 0.8f, fontSize * 0.8f); // Make close button slightly smaller than font size
+            ImVec2 iconPos = ImVec2(
+                spinnerPos.x - iconSize.x * 0.5f,
+                spinnerPos.y - iconSize.y * 0.5f
+            );
+            
+            // Draw the close icon
+            ImGui::GetWindowDrawList()->AddImage(closeIcon, iconPos, ImVec2(iconPos.x + iconSize.x, iconPos.y + iconSize.y));
+            
+            // Handle click to stop the request
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                if (stopRequestCallback) {
+                    stopRequestCallback();
+                }
+            }
+        } else {
+            // Render the spinner
+            renderSpinner(spinnerPos, spinnerSize, time);
         }
     }
     
@@ -362,4 +421,32 @@ bool AIAgentTextInput::HandleWordBreakAndWrap(char* inputBuffer, size_t bufferSi
         return true;
     }
     return false;
+}
+
+void AIAgentTextInput::renderSpinner(const ImVec2& position, float size, float time) {
+    // Draw a simple rotating spinner using ImGui primitives
+    const int numSegments = 8;
+    const float angleStep = 2.0f * 3.14159f / numSegments;
+    const float rotationSpeed = 2.0f; // rotations per second
+    const float currentAngle = time * rotationSpeed * 2.0f * 3.14159f;
+    
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImVec2 center = position;
+    
+    for (int i = 0; i < numSegments; ++i) {
+        float angle = currentAngle + i * angleStep;
+        float alpha = 1.0f - (float)i / numSegments;
+        
+        ImVec2 start = ImVec2(
+            center.x + cos(angle) * size * 0.3f,
+            center.y + sin(angle) * size * 0.3f
+        );
+        ImVec2 end = ImVec2(
+            center.x + cos(angle) * size * 0.6f,
+            center.y + sin(angle) * size * 0.6f
+        );
+        
+        ImU32 color = ImGui::GetColorU32(ImVec4(0.7f, 0.7f, 0.7f, alpha));
+        drawList->AddLine(start, end, color, 2.0f);
+    }
 } 

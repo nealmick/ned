@@ -472,9 +472,18 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr); // Not used in our implementation
-		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout for streaming
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connect timeout
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals
+		
+		// Add progress callback to check cancellation more frequently
+		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, [](void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) -> int {
+			if (g_should_cancel) {
+				return 1; // Return non-zero to abort the transfer
+			}
+			return 0; // Continue the transfer
+		});
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
@@ -571,10 +580,19 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr); // Not used in our implementation
-		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout for streaming
-		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connect timeout
-		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+		
+		// Add progress callback to check cancellation more frequently
+		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, [](void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) -> int {
+			if (g_should_cancel) {
+				return 1; // Return non-zero to abort the transfer
+			}
+			return 0; // Continue the transfer
+		});
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {

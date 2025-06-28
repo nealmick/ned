@@ -35,6 +35,9 @@ public:
     
     // Set callback for blocking editor input
     void setBlockInputCallback(std::function<void(bool)> callback);
+    
+    // Set callback for stopping the current request
+    void setStopRequestCallback(std::function<void()> callback);
 
 private:
     char* inputBuffer;
@@ -47,6 +50,7 @@ private:
     std::function<void()> clearConversationCallback;
     std::function<void()> toggleHistoryCallback;
     std::function<void(bool)> blockInputCallback;
+    std::function<void()> stopRequestCallback;
     
     // Internal state
     bool shouldRestoreFocus;
@@ -57,4 +61,5 @@ private:
     void renderButtons(float textBoxWidth);
     void handleInputLogic();
     void renderHintText(float textBoxWidth);
+    void renderSpinner(const ImVec2& position, float size, float time);
 }; 
