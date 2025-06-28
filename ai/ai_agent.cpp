@@ -32,7 +32,9 @@ extern MCP::Manager gMCPManager;
 AIAgent::AIAgent() : frameCounter(0),
     textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
     forceScrollToBottomNextFrame(false),
-    lastKnownWidth(0.0f)
+    lastKnownWidth(0.0f),
+    lastToolCallTime(std::chrono::system_clock::now()),
+    toolCallsProcessed(false)
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
@@ -85,6 +87,32 @@ AIAgent::~AIAgent() {
 
 void AIAgent::stopStreaming() {
     agentRequest.stopRequest();
+}
+
+// Helper method to check if a tool call should be allowed (prevents loops)
+bool AIAgent::shouldAllowToolCall(const std::string& toolName) {
+    auto now = std::chrono::system_clock::now();
+    auto timeSinceLastCall = std::chrono::duration_cast<std::chrono::seconds>(now - lastToolCallTime).count();
+    
+    // Reset failure counts if more than 30 seconds have passed
+    if (timeSinceLastCall > 30) {
+        failedToolCalls.clear();
+    }
+    
+    // Check if this tool has failed too many times
+    auto it = failedToolCalls.find(toolName);
+    if (it != failedToolCalls.end() && it->second >= MAX_FAILED_CALLS) {
+        return false;
+    }
+    
+    lastToolCallTime = now;
+    return true;
+}
+
+// Helper method to record a failed tool call
+void AIAgent::recordFailedToolCall(const std::string& toolName) {
+    failedToolCalls[toolName]++;
+    std::cout << "DEBUG: Recorded failed tool call for " << toolName << " (count: " << failedToolCalls[toolName] << ")" << std::endl;
 }
 
 void AIAgent::render(float agentPaneWidth, ImFont* largeFont) {
@@ -551,7 +579,7 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     json messagesJson = json::array();
     json systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = "You are a helpful AI assistant with access to powerful file system and terminal tools. You should use these tools proactively when they would help accomplish the user's request. Available tools include:\n\n- File operations: listFiles, readFile, writeFile, createFile, createFolder, editFile\n- Terminal commands: executeCommand, executeCommandWithErrorCapture, executeCommandInDirectory, commandExists, getCurrentWorkingDirectory\n\nWhen a user asks you to do something that requires file access, terminal commands, or system operations, you should use the appropriate tools rather than just responding with text. For example:\n- If asked to check what files exist, use listFiles\n- If asked to read a file, use readFile\n- If asked to run a command, use executeCommand\n- If asked to create or modify files, use the appropriate file tools\n\nAlways use tools when they would be helpful, and provide the results to the user.\n\nHere are some specific examples of when to use tools:\n\n1. User asks: \"What files are in my project?\" → Use listFiles with the project path\n2. User asks: \"Show me the contents of main.cpp\" → Use readFile with the file path\n3. User asks: \"Run ls -la\" → Use executeCommand with \"ls -la\"\n4. User asks: \"Create a new file called test.txt\" → Use createFile with the path\n5. User asks: \"Edit the main function\" → Use readFile first to see the current content, then use editFile to make changes\n6. User asks: \"What's my current directory?\" → Use getCurrentWorkingDirectory\n7. User asks: \"Does git exist on my system?\" → Use commandExists with \"git\"\n\nTool Usage Guidelines:\n- For complex tasks, use multiple tools in sequence (e.g., readFile to understand current state, then editFile to make changes)\n- Always check if files exist before trying to read or edit them\n- Use executeCommandWithErrorCapture when you need to see error messages\n- Use getCurrentWorkingDirectory to understand the context for relative paths\n- When editing files, first read the file to understand its current structure\n- For build or test commands, use executeCommandInDirectory to run them in the correct project folder\n\nRemember: Always use tools when they would provide useful information or accomplish the user's request. Don't just describe what you would do - actually do it using the available tools.";
+    systemMessage["content"] = "You are a helpful AI assistant with access to powerful file system and terminal tools. You should use these tools proactively when they would help accomplish the user's request. Available tools include:\n\n- File operations: listFiles, readFile, writeFile, createFile, createFolder, editFile\n- Terminal commands: executeCommand, executeCommandWithErrorCapture, executeCommandInDirectory, commandExists, getCurrentWorkingDirectory\n\nWhen a user asks you to do something that requires file access, terminal commands, or system operations, you should use the appropriate tools rather than just responding with text. For example:\n- If asked to check what files exist, use listFiles\n- If asked to read a file, use readFile\n- If asked to run a command, use executeCommand\n- If asked to create or modify files, use the appropriate file tools\n\nAlways use tools when they would be helpful, and provide the results to the user.\n\nHere are some specific examples of when to use tools:\n\n1. User asks: \"What files are in my project?\" → Use listFiles with the project path\n2. User asks: \"Show me the contents of main.cpp\" → Use readFile with the file path\n3. User asks: \"Run ls -la\" → Use executeCommand with \"ls -la\"\n4. User asks: \"Create a new file called test.txt\" → Use createFile with the path\n5. User asks: \"Edit the main function\" → Use readFile first to see the current content, then use editFile to make changes\n6. User asks: \"What's my current directory?\" → Use getCurrentWorkingDirectory\n7. User asks: \"Does git exist on my system?\" → Use commandExists with \"git\"\n\nTool Usage Guidelines:\n- For complex tasks, use multiple tools in sequence (e.g., readFile to understand current state, then editFile to make changes)\n- Always check if files exist before trying to read or edit them\n- Use executeCommandWithErrorCapture when you need to see error messages\n- Use getCurrentWorkingDirectory to understand the context for relative paths\n- When editing files, first read the file to understand its current structure\n- For build or test commands, use executeCommandInDirectory to run them in the correct project folder\n- Always provide the complete file path including extensions (e.g., use '~/ned/main.cpp' not '~/ned/main')\n- If a tool call fails, explain the issue clearly and try a different approach\n- Do not repeat failed tool calls with the same parameters\n\nRemember: Always use tools when they would provide useful information or accomplish the user's request. Don't just describe what you would do - actually do it using the available tools. If a tool call fails, provide a clear explanation and suggest an alternative approach.";
     messagesJson.push_back(systemMessage);
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
@@ -606,8 +634,8 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     }
     payload["tools"] = toolsJson;
     payload["tool_choice"] = "auto";
-    std::cout << "DEBUG: Sending modern API payload:" << std::endl;
-    std::cout << payload.dump(2) << std::endl;
+    // std::cout << "DEBUG: Sending modern API payload:" << std::endl;
+    // std::cout << payload.dump(2) << std::endl;
     std::string payloadStr = payload.dump();
     agentRequest.sendMessage(
         payloadStr, api_key,
@@ -623,14 +651,58 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
             {
                 std::lock_guard<std::mutex> lock(messagesMutex);
                 if (!messages.empty() && messages.back().isStreaming) {
-                    messages.back().text = finalResult;
+                    // Clean up the final result to remove any malformed tool call remnants
+                    std::string cleanedResult = finalResult;
+                    
+                    // Remove any incomplete or malformed tool call markers
+                    size_t malformedPos = cleanedResult.find("TOOL_CALL:{");
+                    if (malformedPos != std::string::npos) {
+                        size_t endPos = cleanedResult.find("]", malformedPos);
+                        if (endPos != std::string::npos) {
+                            cleanedResult.erase(malformedPos, endPos - malformedPos + 1);
+                        } else {
+                            // If no closing bracket, remove everything from malformed position
+                            cleanedResult.erase(malformedPos);
+                        }
+                    }
+                    
+                    // Remove any trailing incomplete JSON
+                    size_t lastBrace = cleanedResult.find_last_of('}');
+                    if (lastBrace != std::string::npos) {
+                        size_t afterBrace = cleanedResult.find_first_not_of(" \t\n\r", lastBrace + 1);
+                        if (afterBrace != std::string::npos && cleanedResult[afterBrace] == ']') {
+                            cleanedResult.erase(afterBrace);
+                        }
+                    }
+                    
+                    // Remove any standalone closing brackets that shouldn't be there
+                    while (cleanedResult.find("\n]") != std::string::npos) {
+                        size_t bracketPos = cleanedResult.find("\n]");
+                        cleanedResult.erase(bracketPos, 2);
+                    }
+                    
+                    // Remove any trailing closing brackets
+                    while (!cleanedResult.empty() && cleanedResult.back() == ']') {
+                        cleanedResult.pop_back();
+                    }
+                    
+                    // Trim any trailing whitespace or newlines
+                    while (!cleanedResult.empty() && (cleanedResult.back() == '\n' || cleanedResult.back() == '\r' || cleanedResult.back() == ' ' || cleanedResult.back() == '\t')) {
+                        cleanedResult.pop_back();
+                    }
+                    
+                    messages.back().text = cleanedResult;
                     messages.back().isStreaming = false;
                     messageDisplayLinesDirty = true;
+                    
+                    // Reset tool calls processed flag
+                    toolCallsProcessed = false;
                 }
                 scrollToBottom = true;
             }
             historyManager.saveConversationHistory();
-            if (hadToolCall) {
+            if (hadToolCall && !toolCallsProcessed) {
+                toolCallsProcessed = true;
                 needsFollowUpMessage = true;
             }
         }
@@ -646,18 +718,27 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     // Clear current messages
     messages.clear();
     
+    // Reset conversation state variables to prevent issues when switching conversations
+    needsFollowUpMessage = false;
+    toolCallsProcessed = false;
+    failedToolCalls.clear();
+    lastToolCallTime = std::chrono::system_clock::now();
+    
     // Parse formatted messages and add them to the current conversation
     for (const auto& formattedMsg : formattedMessages) {
         Message msg;
         
-        // Check if it's an agent or user message
+        // Check if it's an agent or user message and set the role correctly
         if (formattedMsg.find("##### Agent: ") == 0) {
             msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
+            msg.role = "assistant";
         } else if (formattedMsg.find("##### User: ") == 0) {
             msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
+            msg.role = "user";
         } else {
             // Fallback: treat as user message
             msg.text = formattedMsg;
+            msg.role = "user";
         }
         
         msg.isStreaming = false;

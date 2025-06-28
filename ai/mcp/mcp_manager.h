@@ -47,15 +47,15 @@ public:
     // Make executeToolCall public for modern tool calling
     std::string executeToolCall(const ToolCall& toolCall) const;
 
+    // Parse a single tool call from string (public for debugging)
+    ToolCall parseToolCall(const std::string& toolCallStr) const;
+
+    // Get tool definition by name
+    const ToolDefinition* getToolDefinition(const std::string& name) const;
+
 private:
     std::vector<ToolDefinition> toolDefinitions;
     // Optionally, a map from tool name to function pointer for routing
-    
-    // Parse a single tool call from string
-    ToolCall parseToolCall(const std::string& toolCallStr) const;
-    
-    // Get tool definition by name
-    const ToolDefinition* getToolDefinition(const std::string& name) const;
 };
 
 } // namespace MCP 

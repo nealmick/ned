@@ -19,26 +19,26 @@ AgentRequest::AgentRequest() {}
 AgentRequest::~AgentRequest() { stopRequest(); }
 
 void AgentRequest::stopRequest() {
-    std::cout << "DEBUG: stopRequest called" << std::endl;
+    // std::cout << "DEBUG: stopRequest called" << std::endl;
     
     if (isStreaming.load()) {
-        std::cout << "DEBUG: Setting shouldCancelStreaming to true" << std::endl;
+        // std::cout << "DEBUG: Setting shouldCancelStreaming to true" << std::endl;
         shouldCancelStreaming.store(true);
         isStreaming.store(false);
     }
     
     if (streamingThread.joinable()) {
-        std::cout << "DEBUG: Waiting for streaming thread to join" << std::endl;
+        // std::cout << "DEBUG: Waiting for streaming thread to join" << std::endl;
         try { 
             streamingThread.join(); 
-            std::cout << "DEBUG: Streaming thread joined successfully" << std::endl;
+            // std::cout << "DEBUG: Streaming thread joined successfully" << std::endl;
         } catch (...) {
-            std::cout << "DEBUG: Exception during thread join" << std::endl;
+            // std::cout << "DEBUG: Exception during thread join" << std::endl;
         }
     }
     
     shouldCancelStreaming.store(false);
-    std::cout << "DEBUG: stopRequest completed" << std::endl;
+    // std::cout << "DEBUG: stopRequest completed" << std::endl;
 }
 
 void AgentRequest::sendMessage(const std::string& payload, const std::string& api_key,
@@ -71,7 +71,7 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
             
             if (hasTools) {
                 // Modern tool calling approach
-                std::cout << "DEBUG: Using modern tool calling API" << std::endl;
+                // std::cout << "DEBUG: Using modern tool calling API" << std::endl;
                 
                 // Use the new JSON payload streaming function
                 bool streamSuccess = OpenRouter::jsonPayloadStream(payloadJson.dump(), api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
@@ -80,21 +80,21 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 }, &shouldCancelStreaming);
                 
                 if (!streamSuccess) {
-                    std::cerr << "DEBUG: Streaming failed" << std::endl;
+                    // std::cerr << "DEBUG: Streaming failed" << std::endl;
                     isStreaming.store(false);
                     if (onComplete) onComplete("Error: Streaming failed", false);
                     return;
                 }
                 
                 isStreaming.store(false);
-                std::cout << "DEBUG: Modern API streaming completed" << std::endl;
-                std::cout << "DEBUG: Full response: " << *fullResponse << std::endl;
+                // std::cout << "DEBUG: Modern API streaming completed" << std::endl;
+                // std::cout << "DEBUG: Full response: " << *fullResponse << std::endl;
                 
                 // After streaming is done, ensure all tool call markers are in fullResponse
                 for (const auto& marker : *toolCallMarkers) {
                     if (fullResponse->find(marker) == std::string::npos) {
                         *fullResponse += marker;
-                        std::cout << "DEBUG: Appended missing TOOL_CALL marker after streaming: " << marker << std::endl;
+                        // std::cout << "DEBUG: Appended missing TOOL_CALL marker after streaming: " << marker << std::endl;
                     }
                 }
                 
@@ -102,21 +102,21 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 std::string finalResult = *fullResponse;
                 bool hadToolCall = false;
                 
-                std::cout << "DEBUG: About to parse tool calls in fullResponse: [" << *fullResponse << "]" << std::endl;
+                // std::cout << "DEBUG: About to parse tool calls in fullResponse: [" << *fullResponse << "]" << std::endl;
                 
                 // Check if we have tool call markers in the response
                 if (fullResponse->find("TOOL_CALL:") != std::string::npos) {
-                    std::cout << "DEBUG: Tool call markers found in response" << std::endl;
+                    // std::cout << "DEBUG: Tool call markers found in response" << std::endl;
                     hadToolCall = true;
                     finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
+                    // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
                 } else {
                     // Fallback to legacy tool call detection
                     hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
                     if (hadToolCall) {
-                        std::cout << "DEBUG: Tool call detected in streamed response" << std::endl;
+                        // std::cout << "DEBUG: Tool call detected in streamed response" << std::endl;
                         finalResult = gMCPManager.processToolCalls(*fullResponse);
-                        std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
+                        // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
                     }
                 }
                 
@@ -125,7 +125,7 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 
             } else {
                 // Fallback to legacy format for backward compatibility
-                std::cout << "DEBUG: Using legacy prompt format" << std::endl;
+                // std::cout << "DEBUG: Using legacy prompt format" << std::endl;
                 
                 // Convert the modern format back to the old format for compatibility
                 std::string legacyPrompt = "";
@@ -147,8 +147,8 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                     }
                 }
                 
-                std::cout << "DEBUG: Converted to legacy prompt format:" << std::endl;
-                std::cout << legacyPrompt << std::endl;
+                // std::cout << "DEBUG: Converted to legacy prompt format:" << std::endl;
+                // std::cout << legacyPrompt << std::endl;
                 
                 OpenRouter::promptRequestStream(legacyPrompt, api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
                     std::string combined = utf8_buffer + token;
@@ -162,19 +162,19 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 }, &shouldCancelStreaming);
                 
                 isStreaming.store(false);
-                std::cout << "fgot final repsoine here for ya boss:" << std::endl;
-                std::cout << *fullResponse << std::endl;
+                // std::cout << "fgot final repsoine here for ya boss:" << std::endl;
+                // std::cout << *fullResponse << std::endl;
                 
                 // Parse for tool calls (legacy method)
                 std::string finalResult = *fullResponse;
-                std::cout << "checking for tool calls" << std::endl;
-                std::cout << "Response content: " << *fullResponse << std::endl;
+                // std::cout << "checking for tool calls" << std::endl;
+                // std::cout << "Response content: " << *fullResponse << std::endl;
                 bool hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
-                std::cout << "hasToolCalls returned: " << (hadToolCall ? "true" : "false") << std::endl;
+                // std::cout << "hasToolCalls returned: " << (hadToolCall ? "true" : "false") << std::endl;
                 if (hadToolCall) {
-                    std::cout << "Tool call detected in response!" << std::endl;
+                    // std::cout << "Tool call detected in response!" << std::endl;
                     finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    std::cout << "Tool call result: " << finalResult << std::endl;
+                    // std::cout << "Tool call result: " << finalResult << std::endl;
                 }
                 
                 if (onComplete) onComplete(finalResult, hadToolCall);

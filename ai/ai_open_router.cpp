@@ -296,7 +296,7 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 		}
 		
 		std::string chunk(charPtr, size * nmemb);
-		std::cout << "DEBUG: WriteDataStream received chunk: [" << chunk << "]" << std::endl;
+		// std::cout << "DEBUG: WriteDataStream received chunk: [" << chunk << "]" << std::endl;
 		
 		// Process Server-Sent Events (SSE) format
 		std::string buffer = chunk;
@@ -307,23 +307,23 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 			pos = 0;
 			
 			if (line.empty()) continue;
-			std::cout << "DEBUG: Processing line: [" << line << "]" << std::endl;
+			// std::cout << "DEBUG: Processing line: [" << line << "]" << std::endl;
 			if (line.substr(0, 5) == "data:") {
 				std::string jsonData = line.substr(5);
-				std::cout << "DEBUG: JSON data: [" << jsonData << "]" << std::endl;
+				// std::cout << "DEBUG: JSON data: [" << jsonData << "]" << std::endl;
 				if (jsonData == "[DONE]") {
-					std::cout << "DEBUG: Stream done" << std::endl;
+					// std::cout << "DEBUG: Stream done" << std::endl;
 					return size * nmemb; // End of stream
 				}
 				try {
 					json result = json::parse(jsonData);
-					std::cout << "DEBUG: Parsed JSON: " << result.dump() << std::endl;
+					// std::cout << "DEBUG: Parsed JSON: " << result.dump() << std::endl;
 					if (result.contains("choices") && result["choices"].is_array() && !result["choices"].empty()) {
 						const auto& choice = result["choices"][0];
 						if (choice.contains("delta") && choice["delta"].contains("content") && !choice["delta"]["content"].is_null()) {
 							std::string content = choice["delta"]["content"].get<std::string>();
 							if (!content.empty()) {
-								std::cout << "DEBUG: Sending content: [" << content << "]" << std::endl;
+								// std::cout << "DEBUG: Sending content: [" << content << "]" << std::endl;
 								std::lock_guard<std::mutex> lock(g_callbackMutex);
 								if (g_currentTokenCallback) {
 									g_currentTokenCallback(content);
@@ -331,7 +331,7 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 							}
 						}
 						if (choice.contains("delta") && choice["delta"].contains("tool_calls")) {
-							// Accumulate tool call fragments instead of sending them immediately
+							// Accumulate tool call fragments
 							std::lock_guard<std::mutex> lock(g_toolCallMutex);
 							
 							const auto& toolCalls = choice["delta"]["tool_calls"];
@@ -366,7 +366,7 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 										std::string currentArgs = g_accumulatedToolCalls[toolCallId]["function"]["arguments"].get<std::string>();
 										std::string newArgs = func["arguments"].get<std::string>();
 										
-										// Simply concatenate the fragments - they are JSON fragments that need to be assembled
+										// Simply concatenate the fragments
 										g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
 									}
 								}
@@ -383,14 +383,14 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 						if (choice.contains("finish_reason")) {
 							std::string finishReason = choice["finish_reason"].get<std::string>();
 							if (finishReason == "tool_calls") {
-								std::cout << "DEBUG: Tool calls finished, sending complete tool calls" << std::endl;
+								// std::cout << "DEBUG: Tool calls finished, sending complete tool calls" << std::endl;
 								std::lock_guard<std::mutex> lock(g_callbackMutex);
 								if (g_currentTokenCallback) {
 									// Send all accumulated tool calls
 									std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
 									for (const auto& [id, toolCall] : g_accumulatedToolCalls) {
 										std::string toolCallJson = toolCall.dump();
-										std::cout << "DEBUG: Sending complete tool call: [" << toolCallJson << "]" << std::endl;
+										// std::cout << "DEBUG: Sending complete tool call: [" << toolCallJson << "]" << std::endl;
 										g_currentTokenCallback("TOOL_CALL:" + toolCallJson);
 									}
 									g_currentTokenCallback("\n[TOOL_CALLS_DETECTED]\n");
@@ -401,17 +401,17 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 						}
 					}
 				} catch (const json::exception &e) {
-					std::cout << "DEBUG: JSON parse error: " << e.what() << std::endl;
+					// std::cout << "DEBUG: JSON parse error: " << e.what() << std::endl;
 					// Ignore JSON parsing errors for individual chunks
 				}
 			}
 		}
 		return size * nmemb;
 	} catch (const std::exception& e) {
-		std::cout << "DEBUG: WriteDataStream exception: " << e.what() << std::endl;
+		// std::cout << "DEBUG: WriteDataStream exception: " << e.what() << std::endl;
 		return 0;
 	} catch (...) {
-		std::cout << "DEBUG: WriteDataStream unknown exception" << std::endl;
+		// std::cout << "DEBUG: WriteDataStream unknown exception" << std::endl;
 		return 0;
 	}
 }
@@ -431,7 +431,6 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 			std::lock_guard<std::mutex> indexLock(g_indexMappingMutex);
 			g_accumulatedToolCalls.clear();
 			g_indexToIdMapping.clear();
-			std::cout << "DEBUG: Cleared tool call state for new request" << std::endl;
 		}
 
 		// Ensure CURL is initialized
@@ -524,7 +523,6 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 			std::lock_guard<std::mutex> indexLock(g_indexMappingMutex);
 			g_accumulatedToolCalls.clear();
 			g_indexToIdMapping.clear();
-			std::cout << "DEBUG: Cleared tool call state for new request" << std::endl;
 		}
 
 		// Ensure CURL is initialized
@@ -543,7 +541,6 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		{
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = tokenCallback;
-			std::cout << "DEBUG: Set g_currentTokenCallback for jsonPayloadStream" << std::endl;
 		}
 		
 		// Parse the JSON payload and add streaming
@@ -581,20 +578,17 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			std::cerr << "DEBUG: CURL error: " << curl_easy_strerror(res) << std::endl;
 			curl_easy_cleanup(curl);
 			curl_slist_free_all(headers);
 			// Clear the global callback with mutex protection
 			{
 				std::lock_guard<std::mutex> lock(g_callbackMutex);
 				g_currentTokenCallback = nullptr;
-				std::cout << "DEBUG: Cleared g_currentTokenCallback at end of jsonPayloadStream (error)" << std::endl;
 			}
 			return false;
 		}
 		
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-		std::cout << "DEBUG: HTTP response code: " << http_code << std::endl;
 
 		// Cleanup
 		curl_easy_cleanup(curl);
@@ -604,15 +598,12 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		{
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = nullptr;
-			std::cout << "DEBUG: Cleared g_currentTokenCallback at end of jsonPayloadStream (success)" << std::endl;
 		}
 
 		return http_code == 200;
 	} catch (const std::exception& e) {
-		std::cerr << "DEBUG: Exception in jsonPayloadStream: " << e.what() << std::endl;
 		return false;
 	} catch (...) {
-		std::cerr << "DEBUG: Unknown exception in jsonPayloadStream" << std::endl;
 		return false;
 	}
 }

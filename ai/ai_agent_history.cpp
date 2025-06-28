@@ -376,10 +376,10 @@ void AIAgentHistory::loadConversationFromHistory(const std::string& timestamp) {
                     if (conversation.contains("messages") && conversation["messages"].is_array()) {
                         for (const auto& msg : conversation["messages"]) {
                             std::string messageText = msg.value("text", "");
-                            bool isAgent = msg.value("isAgent", false);
+                            std::string role = msg.value("role", "user");
                             
-                            // Format message for display
-                            std::string formattedMessage = (isAgent ? "##### Agent: " : "##### User: ") + messageText;
+                            // Format message for display based on actual role
+                            std::string formattedMessage = (role == "assistant" ? "##### Agent: " : "##### User: ") + messageText;
                             messages.push_back(formattedMessage);
                         }
                     }

@@ -420,12 +420,10 @@ void TextSelect::drawSelection(const ImVector<TextSelect::SubLine>& subLines, co
 
 void TextSelect::copy() const {
     if (!hasSelection()) {
-        std::cout << "DEBUG: No selection active, cannot copy" << std::endl;
         return;
     }
 
     auto [startX, startY, endX, endY] = getSelection();
-    std::cout << "DEBUG: Copying selection from (" << startX << "," << startY << ") to (" << endX << "," << endY << ")" << std::endl;
 
     // Collect selected text in a single string
     std::string selectedText;
@@ -454,9 +452,7 @@ void TextSelect::copy() const {
         }
     }
 
-    std::cout << "DEBUG: Selected text length: " << selectedText.length() << " characters" << std::endl;
     ImGui::SetClipboardText(selectedText.c_str());
-    std::cout << "DEBUG: Text copied to clipboard" << std::endl;
 }
 
 void TextSelect::selectAll() {
