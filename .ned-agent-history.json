@@ -238,6 +238,67 @@
                 }
             ],
             "timestamp": "2025-06-27 19:09:06"
+        },
+        {
+            "messages": [
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "  hey derrererer\n",
+                    "timestamp": "2025-06-27 20:46:05"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "  Hello! How can I assist you today?",
+                    "timestamp": "2025-06-27 20:46:05"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": " bob lob blah\n",
+                    "timestamp": "2025-06-27 20:46:05"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": " Hello! I'm here to help. Could you clarify what you need assistance with?",
+                    "timestamp": "2025-06-27 20:46:05"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "law blog\n",
+                    "timestamp": "2025-06-27 20:46:12"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "I'd be happy to help with law blog-related topics! Could you please specify what you need regarding a law blog? For example, are you looking for:\n\n1. Help creating or structuring a law blog?\n2. Research on legal topics to write about?\n3. Assistance with writing legal content?\n4. Technical help setting up a blog platform?\n5. Something else related to law blogging?\n\nLet me know how I can assist!",
+                    "timestamp": "2025-06-27 20:46:12"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": false,
+                    "isStreaming": false,
+                    "text": "bob blah blah law blo\n",
+                    "timestamp": "2025-06-27 20:46:22"
+                },
+                {
+                    "hide_message": false,
+                    "isAgent": true,
+                    "isStreaming": false,
+                    "text": "I'd be happy to help with your law blog! To better assist you, could you please clarify what specific aspect of a law blog you need help with? Here are some possible areas I can help with:\n\n1. Content creation (legal articles, case analyses, etc.)\n2. Blog setup and configuration\n3. Legal research for blog topics\n4. Structure and organization of blog content\n5. SEO optimization for legal content\n6. Technical aspects (hosting, domain setup, etc.)\n\nLet me know which of these (or something else) you'd like help with, and I'll do my best to assist!",
+                    "timestamp": "2025-06-27 20:46:22"
+                }
+            ],
+            "timestamp": "2025-06-27 20:46:29"
         }
     ]
 }

@@ -1653,7 +1653,7 @@ void Ned::cleanup()
 	gFileExplorer.saveCurrentFile();
 
 	// Save AI agent conversation history
-	gAIAgent.saveConversationHistory();
+	gAIAgent.getHistoryManager().saveConversationHistory();
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();

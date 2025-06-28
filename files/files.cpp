@@ -193,7 +193,7 @@ void FileExplorer::openFolderDialog()
 		loadUndoRedoState();
 		
 		// Load AI agent conversation history
-		gAIAgent.loadConversationHistory();
+		gAIAgent.getHistoryManager().loadConversationHistory();
 		
 		// Initialize git tracking for the project
 		gEditorGit.init();

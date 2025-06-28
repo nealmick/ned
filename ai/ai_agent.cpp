@@ -54,7 +54,7 @@ AIAgent::AIAgent() : frameCounter(0),
         gSettings.renderNotification(msg, duration);
     });
     textInput.setClearConversationCallback([this]() {
-        clearConversationHistory();
+        historyManager.clearConversationHistory();
     });
     textInput.setToggleHistoryCallback([this]() {
         historyManager.toggleWindow();
@@ -62,6 +62,21 @@ AIAgent::AIAgent() : frameCounter(0),
     textInput.setBlockInputCallback([](bool block) {
         editor_state.block_input = block;
     });
+
+    // Set up history manager callbacks for accessing messages and updating display
+    historyManager.setMessagesCallback([this]() -> std::vector<Message> {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        return messages;
+    });
+    historyManager.setSetMessagesCallback([this](const std::vector<Message>& newMessages) {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages = newMessages;
+    });
+    historyManager.setUpdateDisplayCallback([this]() {
+        messageDisplayLinesDirty = true;
+        scrollToBottom = true;
+    });
+    historyManager.setCurrentConversationTimestamp(currentConversationTimestamp);
 }
 
 AIAgent::~AIAgent() {
@@ -558,8 +573,8 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
         messageDisplayLinesDirty = true;
     }
     // Save after user message
-    saveConversationHistory();
-    
+    historyManager.saveConversationHistory();
+
     // Add a streaming message
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
@@ -595,7 +610,7 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 scrollToBottom = true;
             }
             // Save after agent completes response (outside the mutex lock)
-            saveConversationHistory();
+            historyManager.saveConversationHistory();
             if (hadToolCall) {
                 std::cout << "Had tool call: true" << std::endl;
                 std::cout << "sending message to complete the message with the tool call results" << std::endl;
@@ -603,236 +618,6 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
             }
         }
     );
-}
-
-// Conversation history management methods
-void AIAgent::saveConversationHistory() {
-    if (gFileExplorer.selectedFolder.empty()) {
-        return; // No project folder selected
-    }
-
-    fs::path historyPath = fs::path(gFileExplorer.selectedFolder) / ".ned-agent-history.json";
-    
-    try {
-        json root;
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        
-        // Only save if there are messages
-        if (!messages.empty()) {
-            // Load existing history if it exists
-            json existingHistory;
-            std::ifstream existingFile(historyPath);
-            if (existingFile.is_open()) {
-                try {
-                    existingFile >> existingHistory;
-                } catch (const json::parse_error& e) {
-                    std::cerr << "Error parsing existing agent history: " << e.what() << std::endl;
-                    existingHistory = json::object();
-                }
-            }
-            
-            // Initialize conversations array if it doesn't exist
-            if (!existingHistory.contains("conversations")) {
-                existingHistory["conversations"] = json::array();
-            }
-            
-            // Check if we should update the existing conversation or create a new one
-            bool shouldCreateNewConversation = true;
-            int conversationIndexToUpdate = -1;
-            
-            // If we have a current conversation timestamp, try to find and update that conversation
-            if (!currentConversationTimestamp.empty()) {
-                std::cout << "Looking for conversation with timestamp: " << currentConversationTimestamp << std::endl;
-                for (int i = 0; i < static_cast<int>(existingHistory["conversations"].size()); ++i) {
-                    const auto& conversation = existingHistory["conversations"][i];
-                    std::string convTimestamp = conversation.value("timestamp", "");
-                    std::cout << "Checking conversation " << i << " with timestamp: " << convTimestamp << std::endl;
-                    if (convTimestamp == currentConversationTimestamp) {
-                        conversationIndexToUpdate = i;
-                        shouldCreateNewConversation = false;
-                        std::cout << "Found existing conversation at index " << i << ", will update it" << std::endl;
-                        break;
-                    }
-                }
-            }
-            
-            // If we didn't find the conversation by timestamp, fall back to the old logic
-            if (shouldCreateNewConversation && !existingHistory["conversations"].empty()) {
-                // If the last conversation has the same first message as our current first message,
-                // we're continuing the same conversation
-                const auto& lastConversation = existingHistory["conversations"].back();
-                if (lastConversation.contains("messages") && !lastConversation["messages"].empty() && 
-                    !messages.empty() && lastConversation["messages"][0]["text"] == messages[0].text) {
-                    shouldCreateNewConversation = false;
-                    conversationIndexToUpdate = existingHistory["conversations"].size() - 1;
-                    std::cout << "Found conversation with matching first message, will update it" << std::endl;
-                }
-            }
-            
-            if (shouldCreateNewConversation) {
-                std::cout << "Creating new conversation" << std::endl;
-                // Create a new conversation entry with timestamp
-                auto now = std::chrono::system_clock::now();
-                auto time_t = std::chrono::system_clock::to_time_t(now);
-                std::stringstream ss;
-                ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
-                std::string timestamp = ss.str();
-                
-                // Store the new timestamp
-                currentConversationTimestamp = timestamp;
-                
-                json conversation;
-                conversation["timestamp"] = timestamp;
-                conversation["messages"] = json::array();
-                
-                for (const auto& msg : messages) {
-                    json messageJson;
-                    messageJson["text"] = msg.text;
-                    messageJson["isAgent"] = msg.isAgent;
-                    messageJson["isStreaming"] = msg.isStreaming;
-                    messageJson["hide_message"] = msg.hide_message;
-                    
-                    // Convert timestamp to string for JSON serialization
-                    auto msg_time_t = std::chrono::system_clock::to_time_t(msg.timestamp);
-                    std::stringstream msg_ss;
-                    msg_ss << std::put_time(std::localtime(&msg_time_t), "%Y-%m-%d %H:%M:%S");
-                    messageJson["timestamp"] = msg_ss.str();
-                    
-                    conversation["messages"].push_back(messageJson);
-                }
-                
-                existingHistory["conversations"].push_back(conversation);
-            } else {
-                std::cout << "Updating existing conversation at index " << conversationIndexToUpdate << std::endl;
-                // Update the existing conversation with current messages
-                auto& conversationToUpdate = existingHistory["conversations"][conversationIndexToUpdate];
-                conversationToUpdate["messages"] = json::array();
-                
-                for (const auto& msg : messages) {
-                    json messageJson;
-                    messageJson["text"] = msg.text;
-                    messageJson["isAgent"] = msg.isAgent;
-                    messageJson["isStreaming"] = msg.isStreaming;
-                    messageJson["hide_message"] = msg.hide_message;
-                    
-                    // Convert timestamp to string for JSON serialization
-                    auto msg_time_t = std::chrono::system_clock::to_time_t(msg.timestamp);
-                    std::stringstream msg_ss;
-                    msg_ss << std::put_time(std::localtime(&msg_time_t), "%Y-%m-%d %H:%M:%S");
-                    messageJson["timestamp"] = msg_ss.str();
-                    
-                    conversationToUpdate["messages"].push_back(messageJson);
-                }
-                
-                // Update the conversation timestamp to current time
-                auto now = std::chrono::system_clock::now();
-                auto time_t = std::chrono::system_clock::to_time_t(now);
-                std::stringstream ss;
-                ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
-                std::string newTimestamp = ss.str();
-                conversationToUpdate["timestamp"] = newTimestamp;
-                
-                // Update our stored timestamp to the new one
-                currentConversationTimestamp = newTimestamp;
-                
-                std::cout << "Updated conversation timestamp from " << currentConversationTimestamp << " to " << newTimestamp << std::endl;
-            }
-            
-            // Keep only the last 100 conversations to prevent file from growing too large
-            if (existingHistory["conversations"].size() > 100) {
-                auto& convs = existingHistory["conversations"];
-                convs.erase(convs.begin(), convs.begin() + (convs.size() - 100));
-            }
-            
-            // Save to file
-            std::ofstream file(historyPath);
-            if (file.is_open()) {
-                file << existingHistory.dump(4);
-                std::cout << "Agent conversation history saved to " << historyPath << std::endl;
-            } else {
-                std::cerr << "Failed to save agent conversation history to " << historyPath << std::endl;
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error saving agent conversation history: " << e.what() << std::endl;
-    }
-}
-
-void AIAgent::loadConversationHistory() {
-    if (gFileExplorer.selectedFolder.empty()) {
-        return; // No project folder selected
-    }
-
-    fs::path historyPath = fs::path(gFileExplorer.selectedFolder) / ".ned-agent-history.json";
-    std::ifstream file(historyPath);
-    
-    if (!file.is_open()) {
-        return; // No history file exists
-    }
-
-    try {
-        json root;
-        file >> root;
-        
-        if (root.contains("conversations") && root["conversations"].is_array() && !root["conversations"].empty()) {
-            // Load the most recent conversation
-            const auto& conversations = root["conversations"];
-            const auto& latestConversation = conversations.back();
-            
-            if (latestConversation.contains("messages") && latestConversation["messages"].is_array()) {
-                std::lock_guard<std::mutex> lock(messagesMutex);
-                messages.clear();
-                
-                for (const auto& msgJson : latestConversation["messages"]) {
-                    Message msg;
-                    msg.text = msgJson.value("text", "");
-                    msg.isAgent = msgJson.value("isAgent", false);
-                    msg.isStreaming = msgJson.value("isStreaming", false);
-                    msg.hide_message = msgJson.value("hide_message", false);
-                    
-                    // Parse timestamp string back to time_point
-                    std::string timestampStr = msgJson.value("timestamp", "");
-                    if (!timestampStr.empty()) {
-                        std::tm tm = {};
-                        std::istringstream ss(timestampStr);
-                        ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-                        if (!ss.fail()) {
-                            msg.timestamp = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                        } else {
-                            msg.timestamp = std::chrono::system_clock::now();
-                        }
-                    } else {
-                        msg.timestamp = std::chrono::system_clock::now();
-                    }
-                    
-                    messages.push_back(msg);
-                }
-                
-                messageDisplayLinesDirty = true;
-                scrollToBottom = true;
-                std::cout << "Loaded " << messages.size() << " messages from agent conversation history" << std::endl;
-            }
-        }
-    } catch (const json::parse_error& e) {
-        std::cerr << "Error parsing agent conversation history: " << e.what() << std::endl;
-        // If the file is corrupted, delete it to prevent future crashes
-        try {
-            fs::remove(historyPath);
-            std::cerr << "Removed corrupted agent conversation history file" << std::endl;
-        } catch (...) {
-            // Ignore errors when trying to delete the file
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error loading agent conversation history: " << e.what() << std::endl;
-    }
-}
-
-void AIAgent::clearConversationHistory() {
-    std::lock_guard<std::mutex> lock(messagesMutex);
-    messages.clear();
-    currentConversationTimestamp.clear(); // Clear the timestamp to indicate this is a new conversation
-    messageDisplayLinesDirty = true;
-    scrollToBottom = true;
 }
 
 void AIAgent::loadConversationFromHistory(const std::vector<std::string>& formattedMessages, const std::string& timestamp) {

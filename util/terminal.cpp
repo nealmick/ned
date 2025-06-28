@@ -78,8 +78,6 @@ Terminal::Terminal()
 		state.tabs[i] = true;
 	}
 }
-
-
 void Terminal::UpdateTerminalColors() {
     // Get the current theme from settings.
     const auto& themeJson = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]; // Renamed to avoid conflict
