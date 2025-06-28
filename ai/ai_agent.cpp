@@ -64,6 +64,9 @@ AIAgent::AIAgent() : frameCounter(0),
     textInput.setBlockInputCallback([](bool block) {
         editor_state.block_input = block;
     });
+    textInput.setStopRequestCallback([this]() {
+        stopStreaming();
+    });
 
     // Set up history manager callbacks for accessing messages and updating display
     historyManager.setMessagesCallback([this]() -> std::vector<Message> {
