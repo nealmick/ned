@@ -815,39 +815,8 @@ std::string Manager::executeToolCall(const ToolCall& toolCall) const {
         } else {
             return "Error: Missing 'command' parameter for executeCommand tool";
         }
-    } else if (toolCall.toolName == "executeCommandWithErrorCapture") {
-        auto it = toolCall.parameters.find("command");
-        if (it != toolCall.parameters.end()) {
-            TerminalServer terminalServer;
-            std::string result = terminalServer.executeCommandWithErrorCapture(it->second);
-            return result;
-        } else {
-            return "Error: Missing 'command' parameter for executeCommandWithErrorCapture tool";
-        }
-    } else if (toolCall.toolName == "executeCommandInDirectory") {
-        auto itCommand = toolCall.parameters.find("command");
-        auto itDir = toolCall.parameters.find("workingDirectory");
-        if (itCommand != toolCall.parameters.end() && itDir != toolCall.parameters.end()) {
-            TerminalServer terminalServer;
-            std::string result = terminalServer.executeCommandInDirectory(itCommand->second, itDir->second);
-            return result;
-        } else {
-            return "Error: Missing required parameters for executeCommandInDirectory tool (need command and workingDirectory)";
-        }
-    } else if (toolCall.toolName == "commandExists") {
-        auto it = toolCall.parameters.find("command");
-        if (it != toolCall.parameters.end()) {
-            TerminalServer terminalServer;
-            bool exists = terminalServer.commandExists(it->second);
-            return exists ? "Command '" + it->second + "' exists in PATH." : "Command '" + it->second + "' does not exist in PATH.";
-        } else {
-            return "Error: Missing 'command' parameter for commandExists tool";
-        }
-    } else if (toolCall.toolName == "getCurrentWorkingDirectory") {
-        TerminalServer terminalServer;
-        std::string cwd = terminalServer.getCurrentWorkingDirectory();
-        return cwd;
-    }
+
+    } 
     
     return "Error: Unknown tool '" + toolCall.toolName + "'";
 }
