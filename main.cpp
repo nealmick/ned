@@ -13,6 +13,8 @@ int main()
 	}
 	std::cout << "Starting NED..." << '\n';
 	ned.run();
-	return 0; // great success
+	return 0;
 }
+
+// great success
 

@@ -6,6 +6,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <map>
 
 using json = nlohmann::json;
 
@@ -20,6 +21,15 @@ static std::mutex g_curlInitMutex;
 
 // Initialize the CURL initialization state
 std::atomic<bool> OpenRouter::curl_initialized(false);
+std::mutex OpenRouter::g_curlInitMutex;
+
+// Global variables for tool call accumulation
+static std::map<std::string, json> g_accumulatedToolCalls;
+static std::mutex g_toolCallMutex;
+
+// Global mapping from index to id for tool call accumulation
+static std::map<int, std::string> g_indexToIdMapping;
+static std::mutex g_indexMappingMutex;
 
 bool OpenRouter::initializeCURL() {
 	std::lock_guard<std::mutex> lock(g_curlInitMutex);
@@ -280,13 +290,13 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 			return 0; // Stop receiving data if cancelled
 		}
 		
-		// Read the data properly
 		const char* charPtr = static_cast<const char*>(ptr);
 		if (!charPtr) {
 			return 0;
 		}
 		
 		std::string chunk(charPtr, size * nmemb);
+		std::cout << "DEBUG: WriteDataStream received chunk: [" << chunk << "]" << std::endl;
 		
 		// Process Server-Sent Events (SSE) format
 		std::string buffer = chunk;
@@ -296,42 +306,112 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 			buffer.erase(0, pos + 1);
 			pos = 0;
 			
-			// Skip empty lines
 			if (line.empty()) continue;
-			
-			// Check for data line
+			std::cout << "DEBUG: Processing line: [" << line << "]" << std::endl;
 			if (line.substr(0, 5) == "data:") {
 				std::string jsonData = line.substr(5);
-				
-				// Check for [DONE] message
+				std::cout << "DEBUG: JSON data: [" << jsonData << "]" << std::endl;
 				if (jsonData == "[DONE]") {
+					std::cout << "DEBUG: Stream done" << std::endl;
 					return size * nmemb; // End of stream
 				}
-				
 				try {
 					json result = json::parse(jsonData);
+					std::cout << "DEBUG: Parsed JSON: " << result.dump() << std::endl;
 					if (result.contains("choices") && result["choices"].is_array() && !result["choices"].empty()) {
-						if (result["choices"][0].contains("delta") && 
-							result["choices"][0]["delta"].contains("content")) {
-							std::string content = result["choices"][0]["delta"]["content"].get<std::string>();
+						const auto& choice = result["choices"][0];
+						if (choice.contains("delta") && choice["delta"].contains("content") && !choice["delta"]["content"].is_null()) {
+							std::string content = choice["delta"]["content"].get<std::string>();
 							if (!content.empty()) {
-								// Thread-safe callback access
+								std::cout << "DEBUG: Sending content: [" << content << "]" << std::endl;
 								std::lock_guard<std::mutex> lock(g_callbackMutex);
 								if (g_currentTokenCallback) {
 									g_currentTokenCallback(content);
 								}
 							}
 						}
+						if (choice.contains("delta") && choice["delta"].contains("tool_calls")) {
+							// Accumulate tool call fragments instead of sending them immediately
+							std::lock_guard<std::mutex> lock(g_toolCallMutex);
+							
+							const auto& toolCalls = choice["delta"]["tool_calls"];
+							for (const auto& toolCall : toolCalls) {
+								// Get the tool call ID
+								std::string toolCallId;
+								if (toolCall.contains("id")) {
+									toolCallId = toolCall["id"].get<std::string>();
+								} else if (toolCall.contains("index")) {
+									toolCallId = "index_" + std::to_string(toolCall["index"].get<int>());
+								} else {
+									continue; // Skip fragments without ID or index
+								}
+								
+								// Initialize or update the accumulated tool call
+								if (g_accumulatedToolCalls.find(toolCallId) == g_accumulatedToolCalls.end()) {
+									g_accumulatedToolCalls[toolCallId] = json::object();
+									g_accumulatedToolCalls[toolCallId]["id"] = toolCallId;
+									g_accumulatedToolCalls[toolCallId]["type"] = "function";
+									g_accumulatedToolCalls[toolCallId]["function"] = json::object();
+									g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = "";
+								}
+								
+								// Merge the fragment into the accumulated tool call
+								if (toolCall.contains("function")) {
+									const auto& func = toolCall["function"];
+									if (func.contains("name")) {
+										g_accumulatedToolCalls[toolCallId]["function"]["name"] = func["name"];
+									}
+									if (func.contains("arguments")) {
+										// Append arguments (they come in fragments)
+										std::string currentArgs = g_accumulatedToolCalls[toolCallId]["function"]["arguments"].get<std::string>();
+										std::string newArgs = func["arguments"].get<std::string>();
+										
+										// Simply concatenate the fragments - they are JSON fragments that need to be assembled
+										g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
+									}
+								}
+								
+								// Copy other fields
+								if (toolCall.contains("index")) {
+									g_accumulatedToolCalls[toolCallId]["index"] = toolCall["index"];
+								}
+								if (toolCall.contains("type")) {
+									g_accumulatedToolCalls[toolCallId]["type"] = toolCall["type"];
+								}
+							}
+						}
+						if (choice.contains("finish_reason")) {
+							std::string finishReason = choice["finish_reason"].get<std::string>();
+							if (finishReason == "tool_calls") {
+								std::cout << "DEBUG: Tool calls finished, sending complete tool calls" << std::endl;
+								std::lock_guard<std::mutex> lock(g_callbackMutex);
+								if (g_currentTokenCallback) {
+									// Send all accumulated tool calls
+									std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
+									for (const auto& [id, toolCall] : g_accumulatedToolCalls) {
+										std::string toolCallJson = toolCall.dump();
+										std::cout << "DEBUG: Sending complete tool call: [" << toolCallJson << "]" << std::endl;
+										g_currentTokenCallback("TOOL_CALL:" + toolCallJson);
+									}
+									g_currentTokenCallback("\n[TOOL_CALLS_DETECTED]\n");
+									// Clear accumulated tool calls
+									g_accumulatedToolCalls.clear();
+								}
+							}
+						}
 					}
 				} catch (const json::exception &e) {
+					std::cout << "DEBUG: JSON parse error: " << e.what() << std::endl;
+					// Ignore JSON parsing errors for individual chunks
 				}
 			}
 		}
-		
 		return size * nmemb;
 	} catch (const std::exception& e) {
+		std::cout << "DEBUG: WriteDataStream exception: " << e.what() << std::endl;
 		return 0;
 	} catch (...) {
+		std::cout << "DEBUG: WriteDataStream unknown exception" << std::endl;
 		return 0;
 	}
 }
@@ -343,6 +423,15 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 	try {
 		if (cancelFlag && cancelFlag->load()) {
 			return false; // Return immediately if cancelled
+		}
+
+		// Clear any previous tool call state
+		{
+			std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
+			std::lock_guard<std::mutex> indexLock(g_indexMappingMutex);
+			g_accumulatedToolCalls.clear();
+			g_indexToIdMapping.clear();
+			std::cout << "DEBUG: Cleared tool call state for new request" << std::endl;
 		}
 
 		// Ensure CURL is initialized
@@ -416,6 +505,114 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 	} catch (const std::exception& e) {
 		return false;
 	} catch (...) {
+		return false;
+	}
+}
+
+bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::string &api_key, 
+								   std::function<void(const std::string&)> tokenCallback,
+								   std::atomic<bool>* cancelFlag)
+{
+	try {
+		if (cancelFlag && cancelFlag->load()) {
+			return false; // Return immediately if cancelled
+		}
+
+		// Clear any previous tool call state
+		{
+			std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
+			std::lock_guard<std::mutex> indexLock(g_indexMappingMutex);
+			g_accumulatedToolCalls.clear();
+			g_indexToIdMapping.clear();
+			std::cout << "DEBUG: Cleared tool call state for new request" << std::endl;
+		}
+
+		// Ensure CURL is initialized
+		if (!initializeCURL()) {
+			return false;
+		}
+
+		CURL *curl = curl_easy_init();
+		if (!curl) {
+			return false;
+		}
+		
+		long http_code = 0;
+		
+		// Set the global callback with mutex protection
+		{
+			std::lock_guard<std::mutex> lock(g_callbackMutex);
+			g_currentTokenCallback = tokenCallback;
+			std::cout << "DEBUG: Set g_currentTokenCallback for jsonPayloadStream" << std::endl;
+		}
+		
+		// Parse the JSON payload and add streaming
+		json payload;
+		try {
+			payload = json::parse(jsonPayload);
+		} catch (const json::parse_error& e) {
+			curl_easy_cleanup(curl);
+			{
+				std::lock_guard<std::mutex> lock(g_callbackMutex);
+				g_currentTokenCallback = nullptr;
+			}
+			return false;
+		}
+		
+		// Add streaming to the payload
+		payload["stream"] = true;
+
+		struct curl_slist *headers = nullptr;
+		headers = curl_slist_append(headers, "Content-Type: application/json");
+		headers = curl_slist_append(headers, ("Authorization: Bearer " + api_key).c_str());
+		headers = curl_slist_append(headers, "HTTP-Referer: my-text-editor");
+		headers = curl_slist_append(headers, "Accept: text/event-stream");
+
+		std::string json_str = payload.dump();
+		
+		curl_easy_setopt(curl, CURLOPT_URL, "https://openrouter.ai/api/v1/chat/completions");
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr); // Not used in our implementation
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout for streaming
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connect timeout
+		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals
+		
+		CURLcode res = curl_easy_perform(curl);
+		if (res != CURLE_OK) {
+			std::cerr << "DEBUG: CURL error: " << curl_easy_strerror(res) << std::endl;
+			curl_easy_cleanup(curl);
+			curl_slist_free_all(headers);
+			// Clear the global callback with mutex protection
+			{
+				std::lock_guard<std::mutex> lock(g_callbackMutex);
+				g_currentTokenCallback = nullptr;
+				std::cout << "DEBUG: Cleared g_currentTokenCallback at end of jsonPayloadStream (error)" << std::endl;
+			}
+			return false;
+		}
+		
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		std::cout << "DEBUG: HTTP response code: " << http_code << std::endl;
+
+		// Cleanup
+		curl_easy_cleanup(curl);
+		curl_slist_free_all(headers);
+		
+		// Clear the global callback with mutex protection
+		{
+			std::lock_guard<std::mutex> lock(g_callbackMutex);
+			g_currentTokenCallback = nullptr;
+			std::cout << "DEBUG: Cleared g_currentTokenCallback at end of jsonPayloadStream (success)" << std::endl;
+		}
+
+		return http_code == 200;
+	} catch (const std::exception& e) {
+		std::cerr << "DEBUG: Exception in jsonPayloadStream: " << e.what() << std::endl;
+		return false;
+	} catch (...) {
+		std::cerr << "DEBUG: Unknown exception in jsonPayloadStream" << std::endl;
 		return false;
 	}
 }

@@ -154,7 +154,17 @@ void AIAgent::rebuildMessageDisplayLines() {
         }
         
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "##### Agent: " : "##### User: ") + displayText;
+        
+        // Use role-based display only
+        if (msg.role == "assistant") {
+            displayText = "##### Agent: " + displayText;
+        } else if (msg.role == "user") {
+            displayText = "##### User: " + displayText;
+        } else if (msg.role == "tool") {
+            displayText = "##### Tool Result: " + displayText;
+        } else if (msg.role == "system") {
+            displayText = "##### System: " + displayText;
+        }
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
@@ -172,10 +182,6 @@ void AIAgent::rebuildMessageDisplayLines() {
                 wrapTextToWidth(lineText, availableWidth);
                 start = nextNewline + 1;
             }
-        }
-        
-        if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
-            //messageDisplayLines.push_back("--- next message ---");
         }
     }
 }
@@ -489,98 +495,48 @@ void AIAgent::printAllMessages() {
 }
 
 void AIAgent::sendMessage(const char* msg, bool hide_message) {
-    // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
         sendMessage("Complete the message with the tool call results", false);
         return;
     }
-    
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
-    
-    // Get API key from settings
     std::string api_key = gSettingsFileManager.getOpenRouterKey();
     if (api_key.empty()) {
-        // Add error message if no API key is configured
-        {
-            std::lock_guard<std::mutex> lock(messagesMutex);
-            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false, false});
-        }
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        Message errorMsg;
+        errorMsg.text = "Error: No OpenRouter API key configured. Please set your API key in Settings.";
+        errorMsg.role = "assistant";
+        errorMsg.isStreaming = false;
+        errorMsg.hide_message = false;
+        errorMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(errorMsg);
         scrollToBottom = true;
         return;
     }
-    
-    // Get tool definitions from MCP manager and create instructions string
-    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
-    
-    std::string mcpInstructions = "SYSTEM: You are an AI assistant with access to file system tools. Follow these system rules:\n\n";
-    mcpInstructions += "1. To use a tool, respond with EXACTLY this format: TOOL_CALL:toolName:param1=value1:param2=value2\n";
-    mcpInstructions += "   - Use TOOL_CALL (not TOOL) followed by a colon\n";
-    mcpInstructions += "   - No spaces around the colons\n";
-    mcpInstructions += "   - Example: TOOL_CALL:listFiles:path=~/test/\n";
-    mcpInstructions += "   - Example: TOOL_CALL:createFile:path=~/test/readme.txt\n";
-    mcpInstructions += "   - Example: TOOL_CALL:writeFile:path=~/test/file.txt:content=Hello World\n";
-    mcpInstructions += "2. ONLY use tools when necessary to answer the user's request\n";
-    mcpInstructions += "3. NEVER include tool calls in your response unless you actually need to use a tool\n";
-    mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
-    mcpInstructions += "5. Tool results will be clearly marked with '=== TOOL EXECUTION RESULT ===' and '=== END TOOL RESULT ===' markers. Always wait for and analyze these results before proceeding.\n";
-    mcpInstructions += "6. IMPORTANT: Do NOT say things like 'Waiting for tool execution result' or 'Let me check' - just make the tool call directly.\n";
-    mcpInstructions += "7. Available tools:\n";
-    for (const auto& tool : tools) {
-        mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
-        for (const auto& param : tool.parameters) {
-            mcpInstructions += "     - " + param.name + " (" + param.type + "): " + param.description + "\n";
-        }
-        mcpInstructions += "\n";
-    }
-    
-    
-    // Stop any existing streaming and wait for it to finish
     stopStreaming();
-    
-    // Ensure we're not streaming before starting a new request
     if (agentRequest.isProcessing()) {
         return;
     }
-    
-    // Build conversation history from existing messages (before adding the new message)
-    std::string fullPrompt;
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        for (const auto& m : messages) {
-            fullPrompt += (m.isAgent ? "#Assistant: " : "#User: ") + m.text + "\n";
-        }
-    }
-    fullPrompt += "User: " + std::string(msg ? msg : "") + "\n";
-    
-    // Add MCP instructions to the beginning of the prompt
-    fullPrompt = mcpInstructions + "\n" + fullPrompt;
-    
-    std::cout << "sending prompt here ya go boss:"  << fullPrompt << std::endl;
-    
-    // Now add the user message to the conversation history
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         Message userMsg;
         userMsg.text = msg ? msg : "";
-        userMsg.isAgent = false;
+        userMsg.role = "user";
         userMsg.isStreaming = false;
         userMsg.hide_message = hide_message;
         userMsg.timestamp = std::chrono::system_clock::now();
         messages.push_back(userMsg);
         messageDisplayLinesDirty = true;
     }
-    // Save after user message
     historyManager.saveConversationHistory();
-
-    // Add a streaming message
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
         Message agentMsg;
         agentMsg.text = "";
-        agentMsg.isAgent = true;
+        agentMsg.role = "assistant";
         agentMsg.isStreaming = true;
         agentMsg.hide_message = false;
         agentMsg.timestamp = std::chrono::system_clock::now();
@@ -588,13 +544,77 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
         messageDisplayLinesDirty = true;
     }
     scrollToBottom = true;
-    
+    json payload;
+    payload["model"] = gSettings.getAgentModel();
+    payload["temperature"] = 0.7;
+    payload["max_tokens"] = 2000;
+    json messagesJson = json::array();
+    json systemMessage;
+    systemMessage["role"] = "system";
+    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use tools when necessary to help users with their requests.";
+    messagesJson.push_back(systemMessage);
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& msg : messages) {
+            if (!msg.hide_message) {
+                json messageObj;
+                messageObj["role"] = msg.role;
+                if (msg.role == "tool") {
+                    messageObj["tool_call_id"] = msg.tool_call_id;
+                    messageObj["content"] = msg.text;
+                } else if (!msg.tool_calls.is_null()) {
+                    if (msg.text.empty()) {
+                        messageObj["content"] = nullptr;
+                    } else {
+                        messageObj["content"] = msg.text;
+                    }
+                    messageObj["tool_calls"] = msg.tool_calls;
+                } else {
+                    messageObj["content"] = msg.text;
+                }
+                messagesJson.push_back(messageObj);
+            }
+        }
+    }
+    payload["messages"] = messagesJson;
+    json toolsJson = json::array();
+    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
+    for (const auto& tool : tools) {
+        json toolObj;
+        toolObj["type"] = "function";
+        json functionObj;
+        functionObj["name"] = tool.name;
+        functionObj["description"] = tool.description;
+        json properties = json::object();
+        json required = json::array();
+        for (const auto& param : tool.parameters) {
+            json paramObj;
+            paramObj["type"] = param.type;
+            paramObj["description"] = param.description;
+            properties[param.name] = paramObj;
+            if (param.required) {
+                required.push_back(param.name);
+            }
+        }
+        json parametersObj;
+        parametersObj["type"] = "object";
+        parametersObj["properties"] = properties;
+        parametersObj["required"] = required;
+        functionObj["parameters"] = parametersObj;
+        toolObj["function"] = functionObj;
+        toolsJson.push_back(toolObj);
+    }
+    payload["tools"] = toolsJson;
+    payload["tool_choice"] = "auto";
+    std::cout << "DEBUG: Sending modern API payload:" << std::endl;
+    std::cout << payload.dump(2) << std::endl;
+    std::string payloadStr = payload.dump();
     agentRequest.sendMessage(
-        fullPrompt, api_key,
+        payloadStr, api_key,
         [this](const std::string& token) {
             std::lock_guard<std::mutex> lock(messagesMutex);
             if (!messages.empty() && messages.back().isStreaming) {
-                messages.back().text += token; // Add tokens as they arrive during streaming
+                messages.back().text += token;
                 messageDisplayLinesDirty = true;
             }
             scrollToBottom = true;
@@ -603,18 +623,15 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
             {
                 std::lock_guard<std::mutex> lock(messagesMutex);
                 if (!messages.empty() && messages.back().isStreaming) {
-                    messages.back().text = finalResult; // Replace with final result (including tool call results)
+                    messages.back().text = finalResult;
                     messages.back().isStreaming = false;
                     messageDisplayLinesDirty = true;
                 }
                 scrollToBottom = true;
             }
-            // Save after agent completes response (outside the mutex lock)
             historyManager.saveConversationHistory();
             if (hadToolCall) {
-                std::cout << "Had tool call: true" << std::endl;
-                std::cout << "sending message to complete the message with the tool call results" << std::endl;
-                needsFollowUpMessage = true; // Set flag to send follow-up message on next frame
+                needsFollowUpMessage = true;
             }
         }
     );
@@ -635,14 +652,11 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
         
         // Check if it's an agent or user message
         if (formattedMsg.find("##### Agent: ") == 0) {
-            msg.isAgent = true;
             msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
         } else if (formattedMsg.find("##### User: ") == 0) {
-            msg.isAgent = false;
             msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
         } else {
             // Fallback: treat as user message
-            msg.isAgent = false;
             msg.text = formattedMsg;
         }
         
