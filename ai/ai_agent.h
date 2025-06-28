@@ -13,27 +13,20 @@
 #include "agent_request.h"
 #include "ai_agent_history.h"
 #include "ai_agent_text_input.h"
+#include "ai_message.h"
 
 class AIAgent {
 public:
-    struct Message {
-        std::string text;
-        bool isAgent;
-        bool isStreaming = false;
-        bool hide_message = false;
-        std::chrono::system_clock::time_point timestamp; // Add timestamp for conversation history
-    };
-
     AIAgent();
     ~AIAgent();
     void render(float agentPaneWidth, ImFont* largeFont = nullptr);
     void sendMessage(const char* msg, bool hide_message = false);
     void printAllMessages();
 
-    // Conversation history management
-    void saveConversationHistory();
-    void loadConversationHistory();
-    void clearConversationHistory();
+    // Access to history manager
+    AIAgentHistory& getHistoryManager() { return historyManager; }
+
+    // Conversation history management (for internal use)
     void loadConversationFromHistory(const std::vector<std::string>& formattedMessages, const std::string& timestamp);
 
     // Make messages public so it can be accessed from agent_request.cpp
