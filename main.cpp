@@ -16,5 +16,4 @@ int main()
 	return 0;
 }
 
-// great success
 

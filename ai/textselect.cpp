@@ -470,8 +470,22 @@ void TextSelect::update() {
 
     // Switch cursors if the window is hovered
     bool hovered = ImGui::IsWindowHovered();
+    bool focused = ImGui::IsWindowFocused();
+    
     if (hovered) {
         ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput);
+    }
+
+    // Clear selection if window loses focus or user clicks outside
+    if (!hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        selectStart = { std::string_view::npos, std::string_view::npos };
+        selectEnd = { std::string_view::npos, std::string_view::npos };
+    }
+
+    // Clear selection if window loses focus
+    if (!focused && hasSelection()) {
+        selectStart = { std::string_view::npos, std::string_view::npos };
+        selectEnd = { std::string_view::npos, std::string_view::npos };
     }
 
     // Split whole lines by wrap width (if enabled).
@@ -498,6 +512,14 @@ void TextSelect::update() {
     }
 
     drawSelection(subLines, cursorPosStart);
+
+    // Set block_input when there's an active selection to prevent editor shortcuts from interfering
+    // Clear block_input when there's no selection
+    if (hasSelection()) {
+        editor_state.block_input = true;
+    } else {
+        editor_state.block_input = false;
+    }
 
     // Keyboard shortcuts
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) {
