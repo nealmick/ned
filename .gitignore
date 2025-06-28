@@ -14,6 +14,7 @@ settings/open_router_key.json
 compile_commands.json
 .cache/
 .undo-redo-ned.json
+.ned-agent-history.json
 # macOS system files
 .DS_Store
 .AppleDouble

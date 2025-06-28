@@ -905,23 +905,37 @@ void Settings::renderNotification(const std::string& message, float duration)
 
         // Calculate base dimensions
         const float padding = 20.0f;
-        const float minWidth = 300.0f;
-        const float maxWidth = 400.0f;
-        const float minHeight = 60.0f;
-        const float maxHeight = 200.0f; // Maximum height before scrolling
+        const float minWidth = 200.0f;
+        const float maxWidth = screenSize.x * 0.8f; // Allow up to 80% of screen width
+        const float minHeight = 50.0f;
+        const float maxHeight = screenSize.y * 0.4f; // Allow up to 40% of screen height
+        const float textPadding = 15.0f; // Padding inside the notification box
 
-        // Calculate text size
-        ImVec2 textSize = ImGui::CalcTextSize(currentMessage.c_str(), nullptr, false, minWidth - 30.0f); // 30 = left + right padding
-        float contentWidth = textSize.x + 30.0f;
-        float contentHeight = textSize.y + 20.0f; // 20 = top + bottom padding
+        // Calculate available width for text (accounting for padding)
+        float availableTextWidth = maxWidth - (textPadding * 2);
+        
+        // Calculate text size with proper wrapping
+        ImVec2 textSize = ImGui::CalcTextSize(currentMessage.c_str(), nullptr, false, availableTextWidth);
+        
+        // Calculate content dimensions
+        float contentWidth = textSize.x + (textPadding * 2);
+        float contentHeight = textSize.y + (textPadding * 2);
 
-        // Clamp dimensions
+        // Clamp dimensions to reasonable bounds
         float width = ImClamp(contentWidth, minWidth, maxWidth);
         float height = ImClamp(contentHeight, minHeight, maxHeight);
 
-        // Calculate notification position (bottom right)
+        // Ensure the notification doesn't go off-screen
+        if (width > screenSize.x - (padding * 2)) {
+            width = screenSize.x - (padding * 2);
+        }
+        if (height > screenSize.y - (padding * 2)) {
+            height = screenSize.y - (padding * 2);
+        }
+
+        // Calculate notification position (bottom left)
         ImVec2 notificationPos = ImVec2(
-            screenPos.x + screenSize.x - width - padding,
+            screenPos.x + padding,
             screenPos.y + screenSize.y - height - padding
         );
 
@@ -948,8 +962,8 @@ void Settings::renderNotification(const std::string& message, float duration)
         ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
         draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
 
-        // Draw text with improved contrast
-        ImVec2 textPos = ImVec2(notificationPos.x + 15, notificationPos.y + 10);
+        // Draw text with proper wrapping and positioning
+        ImVec2 textPos = ImVec2(notificationPos.x + textPadding, notificationPos.y + textPadding);
         draw_list->AddText(textPos, IM_COL32(255, 255, 255, 255), currentMessage.c_str());
 
         // Update timer

@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <cstdio>
 #include <memory>
 #include <array>
 #include "../files/files.h"
