@@ -12,6 +12,15 @@
 #include <utf8.h>
 #include "agent_request.h"
 #include "mcp/mcp_manager.h"
+#include "../lib/json.hpp"
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include "../files/files.h" // for gFileExplorer
+
+using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 // External global MCP manager instance
 extern MCP::Manager gMCPManager;
@@ -23,13 +32,56 @@ extern MCP::Manager gMCPManager;
 AIAgent::AIAgent() : frameCounter(0),
     textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
     forceScrollToBottomNextFrame(false),
-    lastKnownWidth(0.0f)
+    lastKnownWidth(0.0f),
+    lastToolCallTime(std::chrono::system_clock::now()),
+    toolCallsProcessed(false)
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
     
-    // Initialize focus restoration flag
-    shouldRestoreFocus = false;
+    // Set up history manager callback
+    historyManager.setLoadConversationCallback([this](const std::vector<std::string>& messages, const std::string& timestamp) {
+        loadConversationFromHistory(messages, timestamp);
+    });
+
+    // Set up text input component
+    textInput.setInputBuffer(inputBuffer, sizeof(inputBuffer));
+    textInput.setSendMessageCallback([this](const char* msg, bool hide_message) {
+        sendMessage(msg, hide_message);
+    });
+    textInput.setIsProcessingCallback([this]() {
+        return agentRequest.isProcessing();
+    });
+    textInput.setNotificationCallback([](const char* msg, float duration) {
+        gSettings.renderNotification(msg, duration);
+    });
+    textInput.setClearConversationCallback([this]() {
+        historyManager.clearConversationHistory();
+    });
+    textInput.setToggleHistoryCallback([this]() {
+        historyManager.toggleWindow();
+    });
+    textInput.setBlockInputCallback([](bool block) {
+        editor_state.block_input = block;
+    });
+    textInput.setStopRequestCallback([this]() {
+        stopStreaming();
+    });
+
+    // Set up history manager callbacks for accessing messages and updating display
+    historyManager.setMessagesCallback([this]() -> std::vector<Message> {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        return messages;
+    });
+    historyManager.setSetMessagesCallback([this](const std::vector<Message>& newMessages) {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        messages = newMessages;
+    });
+    historyManager.setUpdateDisplayCallback([this]() {
+        messageDisplayLinesDirty = true;
+        scrollToBottom = true;
+    });
+    historyManager.setCurrentConversationTimestamp(currentConversationTimestamp);
 }
 
 AIAgent::~AIAgent() {
@@ -40,7 +92,33 @@ void AIAgent::stopStreaming() {
     agentRequest.stopRequest();
 }
 
-void AIAgent::render(float agentPaneWidth) {
+// Helper method to check if a tool call should be allowed (prevents loops)
+bool AIAgent::shouldAllowToolCall(const std::string& toolName) {
+    auto now = std::chrono::system_clock::now();
+    auto timeSinceLastCall = std::chrono::duration_cast<std::chrono::seconds>(now - lastToolCallTime).count();
+    
+    // Reset failure counts if more than 30 seconds have passed
+    if (timeSinceLastCall > 30) {
+        failedToolCalls.clear();
+    }
+    
+    // Check if this tool has failed too many times
+    auto it = failedToolCalls.find(toolName);
+    if (it != failedToolCalls.end() && it->second >= MAX_FAILED_CALLS) {
+        return false;
+    }
+    
+    lastToolCallTime = now;
+    return true;
+}
+
+// Helper method to record a failed tool call
+void AIAgent::recordFailedToolCall(const std::string& toolName) {
+    failedToolCalls[toolName]++;
+    std::cout << "DEBUG: Recorded failed tool call for " << toolName << " (count: " << failedToolCalls[toolName] << ")" << std::endl;
+}
+
+void AIAgent::render(float agentPaneWidth, ImFont* largeFont) {
     // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
@@ -66,67 +144,22 @@ void AIAgent::render(float agentPaneWidth) {
     float historyWidth = textBoxWidth - 2 * horizontalPadding - scrollbarWidth + 45.0f; // Subtract scrollbar width and extra padding
     if (historyWidth < 50.0f) historyWidth = 50.0f; // Minimum width
     ImVec2 historySize = ImVec2(historyWidth, historyHeight);
-    renderMessageHistory(historySize);
-    ImGui::Spacing();
-
-    // Style the Send button to match the input box
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    
-    // Safe access to backgroundColor with null checks
-    auto& bgColor = gSettings.getSettings()["backgroundColor"];
-    float bgR = (bgColor.is_array() && bgColor.size() > 0 && !bgColor[0].is_null()) ? bgColor[0].get<float>() : 0.1f;
-    float bgG = (bgColor.is_array() && bgColor.size() > 1 && !bgColor[1].is_null()) ? bgColor[1].get<float>() : 0.1f;
-    float bgB = (bgColor.is_array() && bgColor.size() > 2 && !bgColor[2].is_null()) ? bgColor[2].get<float>() : 0.1f;
-    
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(bgR * 0.8f, bgG * 0.8f, bgB * 0.8f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(bgR * 0.95f, bgG * 0.95f, bgB * 0.95f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(bgR * 0.7f, bgG * 0.7f, bgB * 0.7f, 1.0f));
-
-    // Calculate button size based on font size
-    ImVec2 textSize = ImGui::CalcTextSize("Send");
-    ImVec2 buttonSize = ImVec2(textSize.x + 16.0f, 0); // Add padding for comfortable button size
-
-    if (ImGui::Button("Send", buttonSize)) {
-        // Check if there's an ongoing conversation
-        if (agentRequest.isProcessing()) {
-            gSettings.renderNotification("Ongoing Conversation \nplease wait", 3.0f);
-        } else {
-            const char* str = inputBuffer;
-            // Skip leading whitespace
-            while (*str && isspace((unsigned char)*str)) {
-                str++;
-            }
-
-            if (*str == '\0') {
-                // String is empty or contains only whitespace
-                gSettings.renderNotification("No prompt provided", 3.0f);
-            } else {
-                sendMessage(inputBuffer, false);
-                inputBuffer[0] = '\0';
-            }
-        }
-    }
-    ImGui::PopStyleColor(4);
-    ImGui::PopStyleVar(3);
-
+    renderMessageHistory(historySize, largeFont);
     ImGui::Spacing();
 
     float lineHeight = ImGui::GetTextLineHeightWithSpacing();
-    
-    // Calculate text box height based on font size
     float fontSize = ImGui::GetFontSize();
     int numLines = (fontSize > 30.0f) ? 2 : 3; // 2 lines for large fonts, 3 for normal fonts
     ImVec2 textBoxSize = ImVec2(textBoxWidth - 2 * horizontalPadding, lineHeight * numLines + 16.0f);
-    
-    AgentInput(textBoxSize, textBoxWidth - 2 * horizontalPadding, horizontalPadding);
+    textInput.render(textBoxSize, textBoxWidth - 2 * horizontalPadding, horizontalPadding);
     ImGui::EndGroup(); // End vertical group
 
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(horizontalPadding, 0)); // Right padding
     ImGui::EndGroup();
+    
+    // Render history if enabled
+    historyManager.renderHistory();
 }
 
 void AIAgent::rebuildMessageDisplayLines() {
@@ -152,7 +185,17 @@ void AIAgent::rebuildMessageDisplayLines() {
         }
         
         std::string displayText = msg.text;
-        displayText = (msg.isAgent ? "##### Agent: " : "##### User: ") + displayText;
+        
+        // Use role-based display only
+        if (msg.role == "assistant") {
+            displayText = "##### Agent: " + displayText;
+        } else if (msg.role == "user") {
+            displayText = "##### User: " + displayText;
+        } else if (msg.role == "tool") {
+            displayText = "##### Tool Result: " + displayText;
+        } else if (msg.role == "system") {
+            displayText = "##### System: " + displayText;
+        }
         
         // Handle both existing newlines and word wrapping
         size_t start = 0;
@@ -170,10 +213,6 @@ void AIAgent::rebuildMessageDisplayLines() {
                 wrapTextToWidth(lineText, availableWidth);
                 start = nextNewline + 1;
             }
-        }
-        
-        if (i > 0 && i % 2 == 1 && i < messagesCopy.size() - 1) {
-            //messageDisplayLines.push_back("--- next message ---");
         }
     }
 }
@@ -240,7 +279,7 @@ void AIAgent::wrapTextToWidth(const std::string& text, float maxWidth) {
     }
 }
 
-void AIAgent::renderMessageHistory(const ImVec2& size) {
+void AIAgent::renderMessageHistory(const ImVec2& size, ImFont* largeFont) {
     // Check if width has changed and trigger rebuild if needed
     float currentWidth = size.x;
     if (std::abs(currentWidth - lastKnownWidth) > 1.0f) { // Small threshold to avoid unnecessary rebuilds
@@ -295,8 +334,163 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     
     ImGui::BeginChild("text", size, false, flags);
 
-    for (size_t i = 0; i < messageDisplayLines.size(); ++i) {
-        ImGui::TextWrapped("%s", messageDisplayLines[i].c_str());
+    // Check if chat is empty and show centered "Agent" title
+    if (messageDisplayLines.empty()) {
+        // Calculate center position
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        
+        // Static variables for dropdown (shared between both font sections)
+        static int selectedItem = 0;
+        static std::string currentAgentModel = "";
+        static std::vector<std::string> dropdownItems;
+        static std::vector<std::string> displayItems; // For display purposes
+        static bool dropdownInitialized = false;
+        
+        // Check if profile changed or first time initializing
+        std::string newAgentModel = gSettings.getAgentModel();
+        if (!dropdownInitialized || gSettings.profileJustSwitched || currentAgentModel != newAgentModel) {
+            currentAgentModel = newAgentModel;
+            dropdownItems.clear();
+            displayItems.clear();
+            
+            // Add current agent model as first option
+            dropdownItems.push_back(currentAgentModel);
+            
+            // Create display version for current model (show left part before slash)
+            std::string displayModel = currentAgentModel;
+            size_t slashPos = currentAgentModel.find('/');
+            if (slashPos != std::string::npos) {
+                displayModel = currentAgentModel.substr(slashPos + 1, currentAgentModel.length() - slashPos - 1); // Show part after slash
+            }else{
+                displayModel = currentAgentModel;
+            }
+            displayItems.push_back(displayModel);
+            
+            // Add placeholder test values
+            dropdownItems.push_back("anthropic/claude-sonnet-4");
+            dropdownItems.push_back("google/gemini-2.0-flash-001");
+            dropdownItems.push_back("google/gemini-2.5-flash-preview-05-20");
+            dropdownItems.push_back("deepseek/deepseek-chat-v3-0324");
+            dropdownItems.push_back("anthropic/claude-3.7-sonnet");
+            dropdownItems.push_back("openai/gpt-4.1");
+            dropdownItems.push_back("x-ai/grok-3-beta");
+            dropdownItems.push_back("meta-llama/llama-3.3-70b-instruct");
+            
+            // Create display versions for placeholders (show right part after slash)
+            displayItems.push_back("claude-sonnet-4");
+            displayItems.push_back("gemini-2.0-flash-001");
+            displayItems.push_back("gemini-2.5-flash-preview-05-20");
+            displayItems.push_back("deepseek-chat-v3-0324");
+            displayItems.push_back("claude-3.7-sonnet");
+            displayItems.push_back("gpt-4.1");
+            displayItems.push_back("grok-3-beta");
+            displayItems.push_back("llama-3.3-70b-instruct");
+            
+            
+            
+            // Reset selection to first item (current model)
+            selectedItem = 0;
+            dropdownInitialized = true;
+        }
+        
+        // Use the large font for the title
+        if (largeFont) {
+            if (largeFont) ImGui::PushFont(largeFont);
+            ImVec2 textSize = largeFont->CalcTextSizeA(largeFont->FontSize, FLT_MAX, 0.0f, "Agent");
+            ImVec2 centerPos = ImVec2(
+                (windowSize.x - textSize.x) * 0.5f,
+                (windowSize.y - textSize.y) * 0.5f - 30.0f
+            );
+            ImGui::SetCursorPos(centerPos);
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
+            if (largeFont) ImGui::PopFont();
+            
+            // Calculate the maximum width needed for all dropdown items
+            float maxItemWidth = 0.0f;
+            for (const auto& item : displayItems) {
+                ImVec2 itemSize = largeFont->CalcTextSizeA(largeFont->FontSize, FLT_MAX, 0.0f, item.c_str());
+                maxItemWidth = std::max(maxItemWidth, itemSize.x);
+            }
+            
+            // Add padding for the dropdown button (arrow + some spacing)
+            float dropdownPadding = 40.0f; // Space for dropdown arrow and padding
+            float dropdownWidth = maxItemWidth + dropdownPadding;
+            
+            // Ensure minimum width and maximum width constraints
+            dropdownWidth = std::max(dropdownWidth, 180.0f); // Minimum width
+            dropdownWidth = std::min(dropdownWidth, windowSize.x * 0.8f); // Maximum 80% of window width
+            
+            ImVec2 dropdownSize(dropdownWidth, 0.0f);
+            ImVec2 dropdownPos = ImVec2(
+                (windowSize.x - dropdownSize.x) * 0.5f,
+                centerPos.y + textSize.y + 20.0f
+            );
+            ImGui::SetCursorPos(dropdownPos);
+            std::vector<const char*> items;
+            for (const auto& item : displayItems) items.push_back(item.c_str());
+            ImGui::SetNextItemWidth(dropdownSize.x);
+            int previousSelectedItem = selectedItem;
+            if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
+                if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
+                    std::string newModel = dropdownItems[selectedItem]; // Use full path from dropdownItems
+                    gSettings.getSettings()["agent_model"] = newModel;
+                    gSettings.saveSettings();
+                    std::cout << "Agent model changed to: " << newModel << std::endl;
+                }
+            }
+        } else {
+            ImFont* currentFont = ImGui::GetFont();
+            if (currentFont) ImGui::PushFont(currentFont);
+            ImGui::SetWindowFontScale(2.0f);
+            ImVec2 textSize = ImGui::CalcTextSize("Agent");
+            ImVec2 centerPos = ImVec2(
+                (windowSize.x - textSize.x) * 0.5f,
+                (windowSize.y - textSize.y) * 0.5f - 30.0f
+            );
+            ImGui::SetCursorPos(centerPos);
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.8f), "Agent");
+            
+            // Calculate the maximum width needed for all dropdown items
+            float maxItemWidth = 0.0f;
+            for (const auto& item : displayItems) {
+                ImVec2 itemSize = ImGui::CalcTextSize(item.c_str());
+                maxItemWidth = std::max(maxItemWidth, itemSize.x);
+            }
+            
+            // Add padding for the dropdown button (arrow + some spacing)
+            float dropdownPadding = 40.0f; // Space for dropdown arrow and padding
+            float dropdownWidth = maxItemWidth + dropdownPadding;
+            
+            // Ensure minimum width and maximum width constraints
+            dropdownWidth = std::max(dropdownWidth, 120.0f); // Minimum width
+            dropdownWidth = std::min(dropdownWidth, windowSize.x * 0.8f); // Maximum 80% of window width
+            
+            ImVec2 dropdownSize(dropdownWidth, 0.0f);
+            ImVec2 dropdownPos = ImVec2(
+                (windowSize.x - dropdownSize.x) * 0.5f,
+                centerPos.y + textSize.y + 20.0f
+            );
+            ImGui::SetCursorPos(dropdownPos);
+            std::vector<const char*> items;
+            for (const auto& item : displayItems) items.push_back(item.c_str());
+            ImGui::SetNextItemWidth(dropdownSize.x);
+            int previousSelectedItem = selectedItem;
+            if (ImGui::Combo("##AgentDropdown", &selectedItem, items.data(), items.size())) {
+                if (selectedItem >= 0 && selectedItem < (int)dropdownItems.size()) {
+                    std::string newModel = dropdownItems[selectedItem]; // Use full path from dropdownItems
+                    gSettings.getSettings()["agent_model"] = newModel;
+                    gSettings.saveSettings();
+                    std::cout << "Agent model changed to: " << newModel << std::endl;
+                }
+            }
+            ImGui::SetWindowFontScale(1.0f);
+            if (currentFont) ImGui::PopFont();
+        }
+    } else {
+        // Render messages as usual
+        for (size_t i = 0; i < messageDisplayLines.size(); ++i) {
+            ImGui::TextWrapped("%s", messageDisplayLines[i].c_str());
+        }
     }
 
     // Let TextSelect handle selection and copy
@@ -327,342 +521,239 @@ void AIAgent::renderMessageHistory(const ImVec2& size) {
     ImGui::PopStyleVar(3);
 }
 
-// Helper function to handle word breaking and line wrapping
-static bool HandleWordBreakAndWrap(char* inputBuffer, size_t bufferSize, ImGuiInputTextState* state, float max_width, float text_box_x) {
-    int cursor = state->Stb.cursor;
-    // Find start of current line
-    int line_start = cursor;
-    while (line_start > 0 && inputBuffer[line_start - 1] != '\n') {
-        line_start--;
-    }
-    // Find end of current line
-    int line_end = cursor;
-    while (inputBuffer[line_end] != '\0' && inputBuffer[line_end] != '\n') {
-        line_end++;
-    }
-    // Extract current line
-    std::string current_line(inputBuffer + line_start, line_end - line_start);
-    // Measure width
-    float line_width = ImGui::CalcTextSize(current_line.c_str()).x;
-    // Calculate width of 3 average characters (use 'a' as a rough estimate)
-    float char_width = ImGui::CalcTextSize("aaa").x / 3.0f;
-    float wrap_trigger_width = max_width - char_width * 3.0f;
-    if (line_width <= wrap_trigger_width) return false;
-    // Find start of current word
-    int word_start = cursor;
-    while (word_start > line_start && !isspace(inputBuffer[word_start - 1])) {
-        word_start--;
-    }
-    // Check if there are any spaces before the start of the line
-    bool has_space = false;
-    for (int i = word_start - 1; i >= line_start; --i) {
-        if (isspace(inputBuffer[i])) {
-            has_space = true;
-            break;
-        }
-    }
-    bool all_spaces = true;
-    for (char c : current_line) {
-        if (!isspace(c)) {
-            all_spaces = false;
-            break;
-        }
-    }
-    // Check if the last character before the cursor is a space
-    bool last_char_is_space = (cursor > line_start && isspace(inputBuffer[cursor - 1]));
-    int insert_pos = word_start;
-    int move_cursor_to = cursor + 1; // default: after the cursor
-    if ((!has_space && word_start == line_start) || all_spaces || last_char_is_space) {
-        // No spaces before the start of the line, or line is all spaces, or last char is space: split three chars before the cursor (if possible)
-        insert_pos = (cursor - 3 > line_start) ? cursor - 3 : line_start;
-        move_cursor_to = insert_pos + 4; // after the split char and newline
-    } else {
-        // Normal word wrap
-        // Find end of current word
-        int word_end = cursor;
-        while (inputBuffer[word_end] != '\0' && !isspace(inputBuffer[word_end]) && inputBuffer[word_end] != '\n') {
-            word_end++;
-        }
-        move_cursor_to = word_end + 1; // after the word
-    }
-    // Insert newline
-    if (insert_pos >= line_start && insert_pos < (int)strlen(inputBuffer)) {
-        std::string before(inputBuffer, insert_pos);
-        std::string after(inputBuffer + insert_pos);
-        std::string new_text = before + "\n" + after;
-        strncpy(inputBuffer, new_text.c_str(), bufferSize);
-        // Update ImGui internal state
-        state->CurLenW = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, inputBuffer, nullptr);
-        state->CurLenA = (int)strlen(inputBuffer);
-        state->TextAIsValid = true;
-        // Move cursor after the split
-        state->Stb.cursor = move_cursor_to;
-        state->Stb.select_start = move_cursor_to;
-        state->Stb.select_end = move_cursor_to;
-        state->CursorAnimReset();
-        return true;
-    }
-    return false;
-}
-
-// Returns a substring of s from character index start to end (exclusive)
-static std::string_view utf8_substr(std::string_view s, std::size_t start, std::size_t end) {
-    auto it_start = s.begin();
-    utf8::unchecked::advance(it_start, start);
-    auto it_end = it_start;
-    utf8::unchecked::advance(it_end, end - start);
-    return std::string_view(&*it_start, it_end - it_start);
-}
-
-void AIAgent::AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding) {
-    // NOTE: Temporarily removed BeginChild/EndChild for diagnostics
-    // ImGui::BeginChild("InputScrollRegion", textBoxSize, false, ImGuiWindowFlags_HorizontalScrollbar);
-
-    // Apply custom styles
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    
-    // Safe access to backgroundColor with null checks
-    auto& bgColor = gSettings.getSettings()["backgroundColor"];
-    float bgR = (bgColor.is_array() && bgColor.size() > 0 && !bgColor[0].is_null()) ? bgColor[0].get<float>() : 0.1f;
-    float bgG = (bgColor.is_array() && bgColor.size() > 1 && !bgColor[1].is_null()) ? bgColor[1].get<float>() : 0.1f;
-    float bgB = (bgColor.is_array() && bgColor.size() > 2 && !bgColor[2].is_null()) ? bgColor[2].get<float>() : 0.1f;
-    
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(bgR * 0.8f, bgG * 0.8f, bgB * 0.8f, 1.0f));
-
-    bool inputActive = ImGui::InputTextMultiline(
-        "##AIAgentInput",
-        inputBuffer,
-        sizeof(inputBuffer),
-        textBoxSize, // Use original textBoxSize
-        ImGuiInputTextFlags_NoHorizontalScroll
-    );
-
-    // Restore focus if needed
-    if (shouldRestoreFocus) {
-        ImGui::SetKeyboardFocusHere(-1);
-        shouldRestoreFocus = false;
-    }
-
-    // Check focus state immediately after the input widget
-    bool isFocused = ImGui::IsItemActive();
-
-    // Simple Enter key detection
-    static bool enterPressed = false;
-    if (isFocused && ImGui::IsKeyDown(ImGuiKey_Enter) && !enterPressed) {
-        enterPressed = true;
-        ImGuiIO& io = ImGui::GetIO();
-        if (!io.KeyShift) {
-            // Check if there's an ongoing conversation
-            if (agentRequest.isProcessing()) {
-                gSettings.renderNotification("Ongoing Conversation\nplease wait", 3.0f);
-            } else {
-                const char* str = inputBuffer;
-                // Skip leading whitespace
-                while (*str && isspace((unsigned char)*str)) {
-                    str++;
-                }
-
-                if (*str == '\0') {
-                    // String is empty or contains only whitespace
-                    gSettings.renderNotification("No prompt provided", 3.0f);
-                } else {
-                    sendMessage(inputBuffer, false);
-                    // Clear the input buffer and reset ImGui state
-                    inputBuffer[0] = '\0';
-                    ImGui::ClearActiveID();
-                    // Set flag to restore focus on next frame
-                    shouldRestoreFocus = true;
-                }
-            }
-        }
-    } else if (!ImGui::IsKeyDown(ImGuiKey_Enter)) {
-        enterPressed = false;
-    }
-
-    // Draw hint if empty and not focused
-    if (inputBuffer[0] == '\0' && !isFocused) {
-        ImVec2 pos = ImGui::GetItemRectMin();
-        ImVec2 padding = ImGui::GetStyle().FramePadding;
-        pos.x += padding.x + 2.0f;
-        pos.y += padding.y;
-        
-        // Calculate available width for hint text
-        float availableWidth = textBoxWidth - padding.x * 2.0f - 4.0f; // Account for padding and small buffer
-        
-        // Choose appropriate hint text based on font size and available width
-        const char* hintText = "prompt here";
-        float fontSize = ImGui::GetFontSize();
-        ImVec2 textSize = ImGui::CalcTextSize(hintText);
-        
-        // If the text is too wide for the container, use a shorter version
-        if (textSize.x > availableWidth) {
-            if (fontSize > 20.0f) {
-                hintText = "prompt..."; // Very short for large fonts
-            } else if (textSize.x > availableWidth * 0.8f) {
-                hintText = "prompt"; // Shorter version for medium fonts
-            }
-        }
-        
-        // Recalculate text size with the potentially shorter text
-        textSize = ImGui::CalcTextSize(hintText);
-        
-        // Only draw if the text actually fits
-        if (textSize.x <= availableWidth) {
-            ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_TextDisabled), hintText);
-        }
-    }
-
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
-
-    ImGuiContext& g = *ImGui::GetCurrentContext();
-    ImGuiWindow* window = g.CurrentWindow;
-    ImGuiID id = window->GetID("##AIAgentInput");
-    ImGuiInputTextState* state = ImGui::GetInputTextState(id);
-
-    bool did_wrap = false;
-    if (isFocused && state) {
-        // Check if we need to wrap the text
-        did_wrap = HandleWordBreakAndWrap(inputBuffer, sizeof(inputBuffer), state, textBoxWidth - 10.0f, textBoxWidth);
-    }
-
-    if (isFocused && (ImGui::IsItemEdited() || did_wrap)) {
-        // Auto-scroll to bottom when text is edited or wrapped
-        ImGui::SetScrollHereY(1.0f);
-    }
-
-    static bool wasFocused = false;
-    if (isFocused != wasFocused) {
-        if (isFocused) {
-            editor_state.block_input = true;
-        } else {
-            editor_state.block_input = false;
-        }
-        wasFocused = isFocused;
-    }
-    if (isFocused) {
-        editor_state.block_input = true;
-    }
-
-    // ImGui::EndChild();
-}
-
 void AIAgent::printAllMessages() {
     // Function kept for compatibility but no longer prints anything
 }
 
 void AIAgent::sendMessage(const char* msg, bool hide_message) {
-    // Check if we need to send a follow-up message from a tool call
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
         sendMessage("Complete the message with the tool call results", false);
         return;
     }
-    
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
-    
-    // Get API key from settings
     std::string api_key = gSettingsFileManager.getOpenRouterKey();
     if (api_key.empty()) {
-        // Add error message if no API key is configured
-        {
-            std::lock_guard<std::mutex> lock(messagesMutex);
-            messages.push_back({"Error: No OpenRouter API key configured. Please set your API key in Settings.", true, false, false});
-        }
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        Message errorMsg;
+        errorMsg.text = "Error: No OpenRouter API key configured. Please set your API key in Settings.";
+        errorMsg.role = "assistant";
+        errorMsg.isStreaming = false;
+        errorMsg.hide_message = false;
+        errorMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(errorMsg);
         scrollToBottom = true;
         return;
     }
-    
-    // Get tool definitions from MCP manager and create instructions string
-    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
-    
-    std::string mcpInstructions = "SYSTEM: You are an AI assistant with access to file system tools. Follow these system rules:\n\n";
-    mcpInstructions += "1. To use a tool, respond with EXACTLY this format: TOOL_CALL:toolName:param1=value1:param2=value2\n";
-    mcpInstructions += "   - Use TOOL_CALL (not TOOL) followed by a colon\n";
-    mcpInstructions += "   - No spaces around the colons\n";
-    mcpInstructions += "   - Example: TOOL_CALL:listFiles:path=~/test/\n";
-    mcpInstructions += "   - Example: TOOL_CALL:createFile:path=~/test/readme.txt\n";
-    mcpInstructions += "2. ONLY use tools when necessary to answer the user's request\n";
-    mcpInstructions += "3. NEVER include tool calls in your response unless you actually need to use a tool\n";
-    mcpInstructions += "4. Use only ONE tool call per message. If you need multiple tool calls to complete a task, perform the first tool call and wait for the results before making the second request. Do not use multiple tool calls in a single response.\n";
-    mcpInstructions += "5. Tool results will be clearly marked with '=== TOOL EXECUTION RESULT ===' and '=== END TOOL RESULT ===' markers. Always wait for and analyze these results before proceeding.\n";
-    mcpInstructions += "6. IMPORTANT: Do NOT say things like 'Waiting for tool execution result' or 'Let me check' - just make the tool call directly.\n";
-    mcpInstructions += "7. Available tools:\n";
-    for (const auto& tool : tools) {
-        mcpInstructions += "   - " + tool.name + ": " + tool.description + " (use exact name: " + tool.name + ")\n";
-        for (const auto& param : tool.parameters) {
-            mcpInstructions += "     - " + param.name + " (" + param.type + "): " + param.description + "\n";
-        }
-        mcpInstructions += "\n";
-    }
-    
-    
-    // Stop any existing streaming and wait for it to finish
     stopStreaming();
-    
-    // Ensure we're not streaming before starting a new request
     if (agentRequest.isProcessing()) {
         return;
     }
-    
-    // Build conversation history from existing messages (before adding the new message)
-    std::string fullPrompt;
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        for (const auto& m : messages) {
-            fullPrompt += (m.isAgent ? "#Assistant: " : "#User: ") + m.text + "\n";
-        }
-    }
-    fullPrompt += "User: " + std::string(msg ? msg : "") + "\n";
-    
-    // Add MCP instructions to the beginning of the prompt
-    fullPrompt = mcpInstructions + "\n" + fullPrompt;
-    
-    std::cout << "sending prompt here ya go boss:"  << fullPrompt << std::endl;
-    
-    // Now add the user message to the conversation history
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({msg ? msg : "", false, false, hide_message});
+        Message userMsg;
+        userMsg.text = msg ? msg : "";
+        userMsg.role = "user";
+        userMsg.isStreaming = false;
+        userMsg.hide_message = hide_message;
+        userMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(userMsg);
         messageDisplayLinesDirty = true;
     }
-    
-    // Add a streaming message
+    historyManager.saveConversationHistory();
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push_back({"", true, true, false});
+        Message agentMsg;
+        agentMsg.text = "";
+        agentMsg.role = "assistant";
+        agentMsg.isStreaming = true;
+        agentMsg.hide_message = false;
+        agentMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(agentMsg);
         messageDisplayLinesDirty = true;
     }
     scrollToBottom = true;
-    
+    json payload;
+    payload["model"] = gSettings.getAgentModel();
+    payload["temperature"] = 0.7;
+    payload["max_tokens"] = 2000;
+    json messagesJson = json::array();
+    json systemMessage;
+    systemMessage["role"] = "system";
+    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n Available tools: listFiles, readFile, writeFile, createFile, createFolder, editFile, executeCommand \n\n CRITICAL: You must use the actual tool calling mechanism. NEVER output fake tool results or what the tool results would be, always run the tools if needed to get updated correct results.";
+    messagesJson.push_back(systemMessage);
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        for (const auto& msg : messages) {
+            if (!msg.hide_message) {
+                json messageObj;
+                messageObj["role"] = msg.role;
+                if (msg.role == "tool") {
+                    messageObj["tool_call_id"] = msg.tool_call_id;
+                    messageObj["content"] = msg.text;
+                } else if (!msg.tool_calls.is_null()) {
+                    if (msg.text.empty()) {
+                        messageObj["content"] = nullptr;
+                    } else {
+                        messageObj["content"] = msg.text;
+                    }
+                    messageObj["tool_calls"] = msg.tool_calls;
+                } else {
+                    messageObj["content"] = msg.text;
+                }
+                messagesJson.push_back(messageObj);
+            }
+        }
+    }
+    payload["messages"] = messagesJson;
+    json toolsJson = json::array();
+    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
+    for (const auto& tool : tools) {
+        json toolObj;
+        toolObj["type"] = "function";
+        json functionObj;
+        functionObj["name"] = tool.name;
+        functionObj["description"] = tool.description;
+        json properties = json::object();
+        json required = json::array();
+        for (const auto& param : tool.parameters) {
+            json paramObj;
+            paramObj["type"] = param.type;
+            paramObj["description"] = param.description;
+            properties[param.name] = paramObj;
+            if (param.required) {
+                required.push_back(param.name);
+            }
+        }
+        json parametersObj;
+        parametersObj["type"] = "object";
+        parametersObj["properties"] = properties;
+        parametersObj["required"] = required;
+        functionObj["parameters"] = parametersObj;
+        toolObj["function"] = functionObj;
+        toolsJson.push_back(toolObj);
+    }
+    payload["tools"] = toolsJson;
+    payload["tool_choice"] = "auto";
+    // std::cout << "DEBUG: Sending modern API payload:" << std::endl;
+    // std::cout << payload.dump(2) << std::endl;
+    std::string payloadStr = payload.dump();
     agentRequest.sendMessage(
-        fullPrompt, api_key,
+        payloadStr, api_key,
         [this](const std::string& token) {
             std::lock_guard<std::mutex> lock(messagesMutex);
             if (!messages.empty() && messages.back().isStreaming) {
-                messages.back().text += token; // Add tokens as they arrive during streaming
+                messages.back().text += token;
                 messageDisplayLinesDirty = true;
             }
             scrollToBottom = true;
         },
         [this](const std::string& finalResult, bool hadToolCall) {
-            std::lock_guard<std::mutex> lock(messagesMutex);
-            if (!messages.empty() && messages.back().isStreaming) {
-                messages.back().text = finalResult; // Replace with final result (including tool call results)
-                messages.back().isStreaming = false;
-                messageDisplayLinesDirty = true;
+            {
+                std::lock_guard<std::mutex> lock(messagesMutex);
+                if (!messages.empty() && messages.back().isStreaming) {
+                    // Clean up the final result to remove any malformed tool call remnants
+                    std::string cleanedResult = finalResult;
+                    
+                    // Remove any incomplete or malformed tool call markers
+                    size_t malformedPos = cleanedResult.find("TOOL_CALL:{");
+                    if (malformedPos != std::string::npos) {
+                        size_t endPos = cleanedResult.find("]", malformedPos);
+                        if (endPos != std::string::npos) {
+                            cleanedResult.erase(malformedPos, endPos - malformedPos + 1);
+                        } else {
+                            // If no closing bracket, remove everything from malformed position
+                            cleanedResult.erase(malformedPos);
+                        }
+                    }
+                    
+                    // Remove any trailing incomplete JSON
+                    size_t lastBrace = cleanedResult.find_last_of('}');
+                    if (lastBrace != std::string::npos) {
+                        size_t afterBrace = cleanedResult.find_first_not_of(" \t\n\r", lastBrace + 1);
+                        if (afterBrace != std::string::npos && cleanedResult[afterBrace] == ']') {
+                            cleanedResult.erase(afterBrace);
+                        }
+                    }
+                    
+                    // Remove any standalone closing brackets that shouldn't be there
+                    while (cleanedResult.find("\n]") != std::string::npos) {
+                        size_t bracketPos = cleanedResult.find("\n]");
+                        cleanedResult.erase(bracketPos, 2);
+                    }
+                    
+                    // Remove any trailing closing brackets
+                    while (!cleanedResult.empty() && cleanedResult.back() == ']') {
+                        cleanedResult.pop_back();
+                    }
+                    
+                    // Trim any trailing whitespace or newlines
+                    while (!cleanedResult.empty() && (cleanedResult.back() == '\n' || cleanedResult.back() == '\r' || cleanedResult.back() == ' ' || cleanedResult.back() == '\t')) {
+                        cleanedResult.pop_back();
+                    }
+                    
+                    messages.back().text = cleanedResult;
+                    messages.back().isStreaming = false;
+                    messageDisplayLinesDirty = true;
+                    
+                    // Reset tool calls processed flag
+                    toolCallsProcessed = false;
+                }
+                scrollToBottom = true;
             }
-            scrollToBottom = true;
-            if (hadToolCall) {
-                std::cout << "Had tool call: true" << std::endl;
-                std::cout << "sending message to complete the message with the tool call results" << std::endl;
-                needsFollowUpMessage = true; // Set flag to send follow-up message on next frame
+            historyManager.saveConversationHistory();
+            if (hadToolCall && !toolCallsProcessed) {
+                toolCallsProcessed = true;
+                needsFollowUpMessage = true;
             }
         }
     );
+}
+
+void AIAgent::loadConversationFromHistory(const std::vector<std::string>& formattedMessages, const std::string& timestamp) {
+    std::lock_guard<std::mutex> lock(messagesMutex);
+    
+    // Store the timestamp of the loaded conversation
+    currentConversationTimestamp = timestamp;
+    
+    // Clear current messages
+    messages.clear();
+    
+    // Reset conversation state variables to prevent issues when switching conversations
+    needsFollowUpMessage = false;
+    toolCallsProcessed = false;
+    failedToolCalls.clear();
+    lastToolCallTime = std::chrono::system_clock::now();
+    
+    // Parse formatted messages and add them to the current conversation
+    for (const auto& formattedMsg : formattedMessages) {
+        Message msg;
+        
+        // Check if it's an agent or user message and set the role correctly
+        if (formattedMsg.find("##### Agent: ") == 0) {
+            msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
+            msg.role = "assistant";
+        } else if (formattedMsg.find("##### User: ") == 0) {
+            msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
+            msg.role = "user";
+        } else {
+            // Fallback: treat as user message
+            msg.text = formattedMsg;
+            msg.role = "user";
+        }
+        
+        msg.isStreaming = false;
+        msg.hide_message = false;
+        msg.timestamp = std::chrono::system_clock::now();
+        
+        messages.push_back(msg);
+    }
+    
+    // Update display
+    messageDisplayLinesDirty = true;
+    scrollToBottom = true;
+    
+    std::cout << "Loaded " << messages.size() << " messages from conversation history" << std::endl;
 }

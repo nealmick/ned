@@ -6,26 +6,29 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <chrono>
+#include <map>
 #include "ai_open_router.h"
 #include "../util/settings_file_manager.h"
 #include "textselect.hpp"
 #include "agent_request.h"
+#include "ai_agent_history.h"
+#include "ai_agent_text_input.h"
+#include "ai_message.h"
 
 class AIAgent {
 public:
-    struct Message {
-        std::string text;
-        bool isAgent;
-        bool isStreaming = false;
-        bool hide_message = false;
-    };
-
     AIAgent();
     ~AIAgent();
-    void render(float agentPaneWidth);
+    void render(float agentPaneWidth, ImFont* largeFont = nullptr);
     void sendMessage(const char* msg, bool hide_message = false);
-    void AgentInput(const ImVec2& textBoxSize, float textBoxWidth, float horizontalPadding);
     void printAllMessages();
+
+    // Access to history manager
+    AIAgentHistory& getHistoryManager() { return historyManager; }
+
+    // Conversation history management (for internal use)
+    void loadConversationFromHistory(const std::vector<std::string>& formattedMessages, const std::string& timestamp);
 
     // Make messages public so it can be accessed from agent_request.cpp
     std::vector<Message> messages;
@@ -35,9 +38,8 @@ public:
 private:
     char inputBuffer[256] = {0};
     unsigned int frameCounter;
-    void renderMessageHistory(const ImVec2& size);
+    void renderMessageHistory(const ImVec2& size, ImFont* largeFont = nullptr);
     bool scrollToBottom = false;
-    bool shouldRestoreFocus = false;
     
     // Agent request handler
     AgentRequest agentRequest;
@@ -55,4 +57,23 @@ private:
     
     // Helper method for stopping streaming
     void stopStreaming();
+    
+    // Helper methods for tool call tracking
+    bool shouldAllowToolCall(const std::string& toolName);
+    void recordFailedToolCall(const std::string& toolName);
+    
+    // History management
+    AIAgentHistory historyManager;
+    
+    // Track currently loaded conversation for proper updates
+    std::string currentConversationTimestamp;
+    
+    // Text input component
+    AIAgentTextInput textInput;
+    
+    // Track failed tool calls to prevent loops
+    std::map<std::string, int> failedToolCalls; // tool_name -> failure_count
+    std::chrono::system_clock::time_point lastToolCallTime;
+    static const int MAX_FAILED_CALLS = 3; // Maximum consecutive failures for same tool
+    bool toolCallsProcessed = false; // Flag to prevent duplicate tool call processing
 };

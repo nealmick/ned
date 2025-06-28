@@ -6,7 +6,7 @@
 #include "ned.h"
 int main()
 {
-	Ned ned;
+    Ned ned;
 	if(!ned.initialize())
 	{
 		return -1;
@@ -15,3 +15,4 @@ int main()
 	ned.run();
 	return 0;
 }
+// great success
