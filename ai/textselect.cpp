@@ -420,10 +420,12 @@ void TextSelect::drawSelection(const ImVector<TextSelect::SubLine>& subLines, co
 
 void TextSelect::copy() const {
     if (!hasSelection()) {
+        std::cout << "DEBUG: No selection active, cannot copy" << std::endl;
         return;
     }
 
     auto [startX, startY, endX, endY] = getSelection();
+    std::cout << "DEBUG: Copying selection from (" << startX << "," << startY << ") to (" << endX << "," << endY << ")" << std::endl;
 
     // Collect selected text in a single string
     std::string selectedText;
@@ -452,7 +454,9 @@ void TextSelect::copy() const {
         }
     }
 
+    std::cout << "DEBUG: Selected text length: " << selectedText.length() << " characters" << std::endl;
     ImGui::SetClipboardText(selectedText.c_str());
+    std::cout << "DEBUG: Text copied to clipboard" << std::endl;
 }
 
 void TextSelect::selectAll() {
@@ -523,11 +527,12 @@ void TextSelect::update() {
 
     // Keyboard shortcuts
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_A)) {
-        //selectAll();
-        //interfered with the text selection on the main window
-        //need to fix and make copy work when selection is active
-    } else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C) && !editor_state.selection_active) {
+        std::cout << "DEBUG: Ctrl+A detected, selecting all" << std::endl;
+        selectAll();
+    } else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C) && hasSelection()) {
+        std::cout << "DEBUG: Ctrl+C detected with selection, copying" << std::endl;
         copy();
-        //interfered with the text selection on the main window
+    } else if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C)) {
+        std::cout << "DEBUG: Ctrl+C detected but no selection active" << std::endl;
     }
 }
