@@ -137,6 +137,7 @@ class Ned
 	ImVec2 initialWindowSize;
 
 
+
 	int m_sroLastWidth;
 	int m_sroLastHeight;
 	double m_sroStartTime;

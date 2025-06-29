@@ -108,39 +108,23 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 
                 isStreaming.store(false);
                 // std::cout << "DEBUG: Modern API streaming completed" << std::endl;
-                // std::cout << "DEBUG: Full response: " << *fullResponse << std::endl;
-                
-                // After streaming is done, ensure all tool call markers are in fullResponse
-                for (const auto& marker : *toolCallMarkers) {
-                    if (fullResponse->find(marker) == std::string::npos) {
-                        *fullResponse += marker;
-                        // std::cout << "DEBUG: Appended missing TOOL_CALL marker after streaming: " << marker << std::endl;
-                    }
-                }
-                
-                // Parse for tool calls in the streamed response
-                std::string finalResult = *fullResponse;
-                bool hadToolCall = false;
-                
-                // std::cout << "DEBUG: About to parse tool calls in fullResponse: [" << *fullResponse << "]" << std::endl;
+                // std::cout << "DEBUG: Full response: " << *fullResponse << "]" << std::endl;
                 
                 // Check if we have tool call markers in the response
                 if (fullResponse->find("TOOL_CALL:") != std::string::npos) {
                     // std::cout << "DEBUG: Tool call markers found in response" << std::endl;
-                    hadToolCall = true;
-                    finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
+                    
+                    // Parse and execute the tool calls
+                    std::string toolCallResult = gMCPManager.processToolCalls(*fullResponse);
+                    
+                    // Return the tool call result directly
+                    if (onComplete) onComplete(toolCallResult, true);
                 } else {
-                    // Fallback to legacy tool call detection
-                    hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
-                    if (hadToolCall) {
-                        // std::cout << "DEBUG: Tool call detected in streamed response" << std::endl;
-                        finalResult = gMCPManager.processToolCalls(*fullResponse);
-                        // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
-                    }
+                    // No tool calls, just return the final result
+                    std::string finalResult = *fullResponse;
+                    if (onComplete) onComplete(finalResult, false);
                 }
                 
-                if (onComplete) onComplete(finalResult, hadToolCall);
                 return;
                 
             } else {

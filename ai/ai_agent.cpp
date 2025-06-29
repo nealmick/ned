@@ -528,7 +528,7 @@ void AIAgent::printAllMessages() {
 void AIAgent::sendMessage(const char* msg, bool hide_message) {
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
-        sendMessage("Complete the message with the tool call results", false);
+        sendMessage("Please continue with the user's request based on the tool call results.", false);
         return;
     }
     userScrolledUp = false;
@@ -669,89 +669,31 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
             {
                 std::lock_guard<std::mutex> lock(messagesMutex);
                 if (!messages.empty() && messages.back().isStreaming) {
-                    // Clean up the final result to remove any malformed tool call remnants
-                    std::string cleanedResult = finalResult;
-                    
-                    // Remove any incomplete or malformed tool call markers
-                    size_t malformedPos = cleanedResult.find("TOOL_CALL:{");
-                    if (malformedPos != std::string::npos) {
-                        size_t endPos = cleanedResult.find("]", malformedPos);
-                        if (endPos != std::string::npos) {
-                            cleanedResult.erase(malformedPos, endPos - malformedPos + 1);
-                        } else {
-                            // If no closing bracket, remove everything from malformed position
-                            cleanedResult.erase(malformedPos);
-                        }
-                    }
-                    
-                    // Remove any trailing incomplete JSON
-                    size_t lastBrace = cleanedResult.find_last_of('}');
-                    if (lastBrace != std::string::npos) {
-                        size_t afterBrace = cleanedResult.find_first_not_of(" \t\n\r", lastBrace + 1);
-                        if (afterBrace != std::string::npos && cleanedResult[afterBrace] == ']') {
-                            cleanedResult.erase(afterBrace);
-                        }
-                    }
-                    
-                    // Remove any standalone closing brackets that shouldn't be there
-                    while (cleanedResult.find("\n]") != std::string::npos) {
-                        size_t bracketPos = cleanedResult.find("\n]");
-                        cleanedResult.erase(bracketPos, 2);
-                    }
-                    
-                    // Remove any trailing closing brackets
-                    while (!cleanedResult.empty() && cleanedResult.back() == ']') {
-                        cleanedResult.pop_back();
-                    }
-                    
-                    // Trim any trailing whitespace or newlines
-                    while (!cleanedResult.empty() && (cleanedResult.back() == '\n' || cleanedResult.back() == '\r' || cleanedResult.back() == ' ' || cleanedResult.back() == '\t')) {
-                        cleanedResult.pop_back();
-                    }
-                    
-                    // Check if this result contains both assistant text and tool call results
-                    size_t toolStart = cleanedResult.find("\n\ntool: ");
-                    if (toolStart != std::string::npos) {
-                        // Split the message into assistant text and tool result
-                        std::string assistantText = cleanedResult.substr(0, toolStart);
-                        std::string toolResult = cleanedResult.substr(toolStart + 2); // Skip "\n\n"
+                    if (hadToolCall) {
+                        // This is a tool call result - create a tool message
+                        messages.back().text = finalResult;
+                        messages.back().isStreaming = false;
+                        messages.back().role = "tool";
+                        messageDisplayLinesDirty = true;
                         
-                        // Trim whitespace from assistant text
-                        while (!assistantText.empty() && (assistantText.back() == '\n' || assistantText.back() == '\r' || assistantText.back() == ' ' || assistantText.back() == '\t')) {
-                            assistantText.pop_back();
-                        }
+                        // Create a new assistant message for the AI's response
+                        Message assistantMsg;
+                        assistantMsg.text = "";
+                        assistantMsg.role = "assistant";
+                        assistantMsg.isStreaming = true;
+                        assistantMsg.hide_message = false;
+                        assistantMsg.timestamp = std::chrono::system_clock::now();
+                        messages.push_back(assistantMsg);
                         
-                        // Set the assistant message content
-                        messages.back().text = assistantText;
+                        // Send a follow-up message to get the AI's response
+                        needsFollowUpMessage = true;
+                    } else {
+                        // Regular assistant message
+                        messages.back().text = finalResult;
                         messages.back().isStreaming = false;
                         messages.back().role = "assistant";
-                        
-                        // Create a separate tool message
-                        Message toolMsg;
-                        toolMsg.text = toolResult;
-                        toolMsg.role = "tool";
-                        toolMsg.isStreaming = false;
-                        toolMsg.hide_message = false;
-                        toolMsg.timestamp = std::chrono::system_clock::now();
-                        messages.push_back(toolMsg);
-                    } else {
-                        // Check if this is just a tool result (starts with "tool: ")
-                        if (cleanedResult.find("tool: ") == 0 && cleanedResult.find("\nResult: ") != std::string::npos) {
-                            messages.back().text = cleanedResult;
-                            messages.back().isStreaming = false;
-                            messages.back().role = "tool";
-                        } else {
-                            // Regular assistant message
-                            messages.back().text = cleanedResult;
-                            messages.back().isStreaming = false;
-                            messages.back().role = "assistant";
-                        }
+                        messageDisplayLinesDirty = true;
                     }
-                    
-                    messageDisplayLinesDirty = true;
-                    
-                    // Reset tool calls processed flag
-                    toolCallsProcessed = false;
                 }
                 scrollToBottom = true;
             }

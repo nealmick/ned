@@ -136,7 +136,8 @@ bool Ned::initialize()
 	return true;
 }
 
-void Ned::renderResizeHandles()
+void Ned::renderResiz
+eHandles()
 {
 	const float resizeBorder = 10.0f;   // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
@@ -229,7 +230,8 @@ void Ned::handleManualResizing()
 
 		{
 
-		    if (resizingRight || resizingBottom) 
+		    if (
+		    resizingRight || resizingBottom) 
 		    {
 		        int newWidth = static_cast<int>(initialWindowSize.x);
 		        int newHeight = static_cast<int>(initialWindowSize.y);
