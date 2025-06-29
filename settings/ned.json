@@ -1,7 +1,7 @@
 {
     "agent_model": "x-ai/grok-3-beta",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.7445343732833862,
+    "agent_split_pos": 0.699999988079071,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -15,7 +15,7 @@
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.07000000029802322,
     "font": "JetBrainsMonoNL-Regular",
-    "fontSize": 23.0,
+    "fontSize": 21.0,
     "fps_target": 66.0,
     "fps_toggle": true,
     "git_changed_lines": true,

@@ -514,11 +514,9 @@ void TextSelect::update() {
     drawSelection(subLines, cursorPosStart);
 
     // Set block_input when there's an active selection to prevent editor shortcuts from interfering
-    // Clear block_input when there's no selection
+    // Only set to true when there's a selection, don't set to false to avoid overriding other systems
     if (hasSelection()) {
         editor_state.block_input = true;
-    } else {
-        editor_state.block_input = false;
     }
 
     // Keyboard shortcuts

@@ -7,8 +7,7 @@
 int main()
 {
     Ned ned;
-    if(!ned.initial
-    ize())
+    if(!ned.initialize())
     {
         return -1;
     }
@@ -16,4 +15,5 @@ int main()
     ned.run();
     return 0;
 }
+
 
