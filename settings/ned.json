@@ -1,7 +1,7 @@
 {
     "agent_model": "x-ai/grok-3-beta",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.28430134057998657,
+    "agent_split_pos": 0.699999988079071,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -29,7 +29,7 @@
     "scanline_intensity": 0.03999999910593033,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": true,
+    "sidebar_visible": false,
     "splitPos": 0.21655172109603882,
     "static_intensity": 0.29100000858306885,
     "theme": "default",

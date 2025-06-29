@@ -582,7 +582,7 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     json messagesJson = json::array();
     json systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n Available tools: listFiles, readFile, writeFile, createFile, createFolder, editFile, executeCommand \n\n CRITICAL: You must use the actual tool calling mechanism. NEVER output fake tool results or what the tool results would be, always run the tools if needed to get updated correct results.";
+    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n ";
     messagesJson.push_back(systemMessage);
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
@@ -591,7 +591,6 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 json messageObj;
                 messageObj["role"] = msg.role;
                 if (msg.role == "tool") {
-                    messageObj["tool_call_id"] = msg.tool_call_id;
                     messageObj["content"] = msg.text;
                 } else if (!msg.tool_calls.is_null()) {
                     if (msg.text.empty()) {
@@ -694,8 +693,45 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                         cleanedResult.pop_back();
                     }
                     
-                    messages.back().text = cleanedResult;
-                    messages.back().isStreaming = false;
+                    // Check if this result contains both assistant text and tool call results
+                    size_t toolStart = cleanedResult.find("\n\ntool: ");
+                    if (toolStart != std::string::npos) {
+                        // Split the message into assistant text and tool result
+                        std::string assistantText = cleanedResult.substr(0, toolStart);
+                        std::string toolResult = cleanedResult.substr(toolStart + 2); // Skip "\n\n"
+                        
+                        // Trim whitespace from assistant text
+                        while (!assistantText.empty() && (assistantText.back() == '\n' || assistantText.back() == '\r' || assistantText.back() == ' ' || assistantText.back() == '\t')) {
+                            assistantText.pop_back();
+                        }
+                        
+                        // Set the assistant message content
+                        messages.back().text = assistantText;
+                        messages.back().isStreaming = false;
+                        messages.back().role = "assistant";
+                        
+                        // Create a separate tool message
+                        Message toolMsg;
+                        toolMsg.text = toolResult;
+                        toolMsg.role = "tool";
+                        toolMsg.isStreaming = false;
+                        toolMsg.hide_message = false;
+                        toolMsg.timestamp = std::chrono::system_clock::now();
+                        messages.push_back(toolMsg);
+                    } else {
+                        // Check if this is just a tool result (starts with "tool: ")
+                        if (cleanedResult.find("tool: ") == 0 && cleanedResult.find("\nResult: ") != std::string::npos) {
+                            messages.back().text = cleanedResult;
+                            messages.back().isStreaming = false;
+                            messages.back().role = "tool";
+                        } else {
+                            // Regular assistant message
+                            messages.back().text = cleanedResult;
+                            messages.back().isStreaming = false;
+                            messages.back().role = "assistant";
+                        }
+                    }
+                    
                     messageDisplayLinesDirty = true;
                     
                     // Reset tool calls processed flag
@@ -731,13 +767,16 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     for (const auto& formattedMsg : formattedMessages) {
         Message msg;
         
-        // Check if it's an agent or user message and set the role correctly
+        // Check if it's an agent, user, or tool message and set the role correctly
         if (formattedMsg.find("##### Agent: ") == 0) {
             msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
             msg.role = "assistant";
         } else if (formattedMsg.find("##### User: ") == 0) {
             msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
             msg.role = "user";
+        } else if (formattedMsg.find("##### Tool Result: ") == 0) {
+            msg.text = formattedMsg.substr(18); // Remove "##### Tool Result: " prefix
+            msg.role = "tool";
         } else {
             // Fallback: treat as user message
             msg.text = formattedMsg;

@@ -49,6 +49,17 @@ void AgentRequest::stopRequest() {
 void AgentRequest::sendMessage(const std::string& payload, const std::string& api_key,
                                StreamingCallback onStreamingToken,
                                CompleteCallback onComplete) {
+    
+    std::cout << "-----------------------------------" << std::endl;
+    try {
+        json payloadJson = json::parse(payload);
+        std::cout << payloadJson.dump(4) << std::endl;
+    } catch (const json::parse_error& e) {
+        std::cout << "Error parsing JSON: " << e.what() << std::endl;
+        std::cout << "Raw payload: " << payload << std::endl;
+    }
+    std::cout << "-----------------------------------" << std::endl;
+    
     stopRequest();
     if (isStreaming.load()) return;
     isStreaming.store(true);
