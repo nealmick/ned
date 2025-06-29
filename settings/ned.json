@@ -1,22 +1,22 @@
 {
     "agent_model": "x-ai/grok-3-beta",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.699999988079071,
-    "ai_autocomplete": true,
+    "agent_split_pos": 0.28430134057998657,
+    "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
         0.0923076868057251,
         0.0923076868057251,
         0.0
     ],
-    "bloom_intensity": 0.6299999952316284,
-    "burnin_intensity": 0.9340000152587891,
+    "bloom_intensity": 0.699999988079071,
+    "burnin_intensity": 0.8999999761581421,
     "colorshift_intensity": 2.2100000381469727,
     "completion_model": "meta-llama/llama-4-scout",
-    "curvature_intensity": 0.05000000074505806,
-    "font": "VT100",
+    "curvature_intensity": 0.07000000029802322,
+    "font": "JetBrainsMonoNL-Regular",
     "fontSize": 23.0,
-    "fps_target": 62.0,
+    "fps_target": 66.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 2.509999990463257,
@@ -24,12 +24,12 @@
     "mac_background_opacity": 0.7099999785423279,
     "mac_blur_enabled": true,
     "pixel_width": 5000.0,
-    "pixelation_intensity": -0.01600000075995922,
+    "pixelation_intensity": -0.31200000643730164,
     "rainbow": true,
-    "scanline_intensity": 0.2199999988079071,
+    "scanline_intensity": 0.03999999910593033,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": false,
+    "sidebar_visible": true,
     "splitPos": 0.21655172109603882,
     "static_intensity": 0.29100000858306885,
     "theme": "default",
@@ -92,5 +92,5 @@
         }
     },
     "treesitter": true,
-    "vignet_intensity": 0.17000000178813934
+    "vignet_intensity": 0.20999999344348907
 }

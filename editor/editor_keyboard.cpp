@@ -840,7 +840,6 @@ void EditorKeyboard::handleTextInput()
 	handleEnterKey();
 	handleBackspaceKey();
 	handleDeleteKey();
-	gLineJump.handleLineJumpInput();
 
 	if (editor_state.text_changed)
 	{
@@ -920,7 +919,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	bool shift_pressed = ImGui::GetIO().KeyShift;
 
 	// block input if searching for file...
-	if (gFileFinder.showFFWindow || gLSPAutocomplete.blockTab)
+	if (gFileFinder.showFFWindow || gLineJump.showLineJumpWindow || gLSPAutocomplete.blockTab)
 	{
 		gLSPAutocomplete.blockTab = false;
 		return;

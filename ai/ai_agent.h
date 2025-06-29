@@ -36,7 +36,7 @@ public:
     bool needsFollowUpMessage = false; // Flag to trigger follow-up message
 
 private:
-    char inputBuffer[256] = {0};
+    char inputBuffer[10000] = {0};
     unsigned int frameCounter;
     void renderMessageHistory(const ImVec2& size, ImFont* largeFont = nullptr);
     bool scrollToBottom = false;
