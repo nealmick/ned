@@ -582,7 +582,23 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     json messagesJson = json::array();
     json systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n ";
+    
+    // Build system prompt with current context
+    std::string systemPrompt = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n";
+    
+    // Add current project directory if available
+    if (!gFileExplorer.selectedFolder.empty()) {
+        systemPrompt += "Current project directory: " + gFileExplorer.selectedFolder + "\n";
+    }
+    
+    // Add current open file if available
+    if (!gFileExplorer.currentOpenFile.empty()) {
+        systemPrompt += "Current open file: " + gFileExplorer.currentOpenFile + "\n";
+    }
+    
+    systemPrompt += "\n";
+    
+    systemMessage["content"] = systemPrompt;
     messagesJson.push_back(systemMessage);
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
