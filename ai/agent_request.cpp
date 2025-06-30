@@ -88,125 +88,98 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 return;
             }
             
-            // Check if this is a modern API call with tools
-            bool hasTools = payloadJson.contains("tools") && !payloadJson["tools"].empty();
+
+            // Track the full JSON response
+            auto fullJsonResponse = std::make_shared<json>();
             
-            if (hasTools) {
-                // Modern tool calling approach
-                // std::cout << "DEBUG: Using modern tool calling API" << std::endl;
-                
-                // Track the full JSON response
-                auto fullJsonResponse = std::make_shared<json>();
-                
-                // Use the new JSON payload streaming function with response callback
-                bool streamSuccess = OpenRouter::jsonPayloadStreamWithResponse(payloadJson.dump(), api_key, 
-                    [this, onStreamingToken, fullResponse](const std::string& token) {
-                        *fullResponse += token;
-                        if (onStreamingToken) onStreamingToken(token);
-                    },
-                    [fullJsonResponse](const json& response) {
-                        *fullJsonResponse = response;
-                    },
-                    &shouldCancelStreaming);
-                
-                if (!streamSuccess) {
-                    // std::cerr << "DEBUG: Streaming failed" << std::endl;
-                    isStreaming.store(false);
-                    if (onComplete) onComplete("Error: Streaming failed", false);
-                    return;
-                }
-                
+            // Use the new JSON payload streaming function with response callback
+            bool streamSuccess = OpenRouter::jsonPayloadStreamWithResponse(payloadJson.dump(), api_key, 
+                [this, onStreamingToken, fullResponse](const std::string& token) {
+                    *fullResponse += token;
+                    
+                    // Filter out tool call JSON tokens to prevent them from appearing in the agent's text
+                    // Tool call JSON tokens typically start with "{" and contain "function" or "tool_calls"
+                    if (token.find("{") == 0 && (token.find("function") != std::string::npos || token.find("tool_calls") != std::string::npos)) {
+                        // This is likely a tool call JSON token, skip it
+                        return;
+                    }
+                    
+                    if (onStreamingToken) onStreamingToken(token);
+                },
+                [fullJsonResponse](const json& response) {
+                    *fullJsonResponse = response;
+                },
+                &shouldCancelStreaming);
+            
+            if (!streamSuccess) {
+                // std::cerr << "DEBUG: Streaming failed" << std::endl;
                 isStreaming.store(false);
-                // std::cout << "DEBUG: Modern API streaming completed" << std::endl;
-                // std::cout << "DEBUG: Full response: " << *fullResponse << "]" << std::endl;
-                
-                // Print the full JSON response object
-                std::cout << "=== FULL JSON RESPONSE OBJECT ===" << std::endl;
-                if (!fullJsonResponse->is_null()) {
-                    std::cout << fullJsonResponse->dump(4) << std::endl;
-                } else {
-                    std::cout << "No JSON response object captured" << std::endl;
-                }
-                std::cout << "=== END JSON RESPONSE ===" << std::endl;
-                
-                // Check if we have tool call markers in the response
-                if (fullResponse->find("TOOL_CALL:") != std::string::npos) {
-                    // std::cout << "DEBUG: Tool call markers found in response" << std::endl;
-                    
-                    // Parse and execute the tool calls
-                    std::string toolCallResult = gMCPManager.processToolCalls(*fullResponse);
-                    
-                    // Return the tool call result directly
-                    if (onComplete) onComplete(toolCallResult, true);
-                } else {
-                    // No tool calls, just return the final result
-                    std::string finalResult = *fullResponse;
-                    if (onComplete) onComplete(finalResult, false);
-                }
-                
+                if (onComplete) onComplete("Error: Streaming failed", false);
                 return;
+            }
+            
+            isStreaming.store(false);
+            
+            // Print the full JSON response object
+            std::cout << "=== FULL JSON RESPONSE OBJECT ===" << std::endl;
+            if (!fullJsonResponse->is_null()) {
+                std::cout << fullJsonResponse->dump(4) << std::endl;
                 
-            } else {
-                // Fallback to legacy format for backward compatibility
-                // std::cout << "DEBUG: Using legacy prompt format" << std::endl;
-                
-                // Convert the modern format back to the old format for compatibility
-                std::string legacyPrompt = "";
-                
-                if (payloadJson.contains("messages") && payloadJson["messages"].is_array()) {
-                    for (const auto& msg : payloadJson["messages"]) {
-                        std::string role = msg.value("role", "user");
-                        std::string content = msg.value("content", "");
+                // Check if there are tool calls in the response
+                if (fullJsonResponse->contains("choices") && 
+                    (*fullJsonResponse)["choices"].is_array() && 
+                    !(*fullJsonResponse)["choices"].empty()) {
+                    
+                    const auto& choice = (*fullJsonResponse)["choices"][0];
+                    if (choice.contains("message") && 
+                        choice["message"].contains("tool_calls") && 
+                        choice["message"]["tool_calls"].is_array()) {
                         
-                        if (role == "system") {
-                            legacyPrompt += "SYSTEM: " + content + "\n\n";
-                        } else if (role == "user") {
-                            legacyPrompt += "#User: " + content + "\n";
-                        } else if (role == "assistant") {
-                            legacyPrompt += "#Assistant: " + content + "\n";
-                        } else if (role == "tool") {
-                            legacyPrompt += "TOOL_RESULT: " + content + "\n";
+                        const auto& toolCalls = choice["message"]["tool_calls"];
+                        std::cout << "=== PROCESSING TOOL CALLS ===" << std::endl;
+                        
+                        for (const auto& toolCall : toolCalls) {
+                            if (toolCall.contains("function") && 
+                                toolCall["function"].contains("name") && 
+                                toolCall["function"].contains("arguments")) {
+                                
+                                std::string toolName = toolCall["function"]["name"];
+                                std::string argumentsStr = toolCall["function"]["arguments"];
+                                
+                                std::cout << "Tool call: " << toolName << std::endl;
+                                std::cout << "Arguments: " << argumentsStr << std::endl;
+                                
+                                // Parse the arguments JSON
+                                try {
+                                    json argumentsJson = json::parse(argumentsStr);
+                                    std::unordered_map<std::string, std::string> parameters;
+                                    
+                                    for (auto it = argumentsJson.begin(); it != argumentsJson.end(); ++it) {
+                                        parameters[it.key()] = it.value().get<std::string>();
+                                    }
+                                    
+                                    // Execute the tool call
+                                    std::string result = gMCPManager.executeToolCall(toolName, parameters);
+                                    
+                                    std::cout << "=== TOOL CALL RESULT ===" << std::endl;
+                                    std::cout << result << std::endl;
+                                    std::cout << "=== END TOOL CALL RESULT ===" << std::endl;
+                                    
+                                } catch (const json::parse_error& e) {
+                                    std::cerr << "Error parsing tool call arguments: " << e.what() << std::endl;
+                                }
+                            }
                         }
+                        std::cout << "=== END PROCESSING TOOL CALLS ===" << std::endl;
                     }
                 }
-                
-                // std::cout << "DEBUG: Converted to legacy prompt format:" << std::endl;
-                // std::cout << legacyPrompt << std::endl;
-                
-                OpenRouter::promptRequestStream(legacyPrompt, api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
-                    std::string combined = utf8_buffer + token;
-                    auto valid_end = combined.begin();
-                    try { valid_end = utf8::find_invalid(combined.begin(), combined.end()); }
-                    catch (...) { valid_end = combined.begin(); }
-                    std::string validToken = std::string(combined.begin(), valid_end);
-                    *fullResponse += validToken;
-                    if (onStreamingToken) onStreamingToken(validToken);
-                    utf8_buffer = std::string(valid_end, combined.end());
-                }, &shouldCancelStreaming);
-                
-                isStreaming.store(false);
-                // std::cout << "fgot final repsoine here for ya boss:" << std::endl;
-                // std::cout << *fullResponse << std::endl;
-                
-                // Print the full response object
-                std::cout << "=== FULL RESPONSE OBJECT (LEGACY) ===" << std::endl;
-                std::cout << "Raw response content: " << *fullResponse << std::endl;
-                std::cout << "=== END RESPONSE ===" << std::endl;
-                
-                // Parse for tool calls (legacy method)
-                std::string finalResult = *fullResponse;
-                // std::cout << "checking for tool calls" << std::endl;
-                // std::cout << "Response content: " << *fullResponse << std::endl;
-                bool hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
-                // std::cout << "hasToolCalls returned: " << (hadToolCall ? "true" : "false") << std::endl;
-                if (hadToolCall) {
-                    // std::cout << "Tool call detected in response!" << std::endl;
-                    finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    // std::cout << "Tool call result: " << finalResult << std::endl;
-                }
-                
-                if (onComplete) onComplete(finalResult, hadToolCall);
+            } else {
+                std::cout << "No JSON response object captured" << std::endl;
             }
+            std::cout << "=== END JSON RESPONSE ===" << std::endl;
+            
+            return;
+            
             
         } catch (const std::exception& e) {
             std::cerr << "Exception in streaming thread: " << e.what() << std::endl;

@@ -390,7 +390,6 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 										std::string toolCallJson = toolCall.dump();
 										g_currentTokenCallback("TOOL_CALL:" + toolCallJson);
 									}
-									g_currentTokenCallback("\n[TOOL_CALLS_DETECTED]\n");
 									g_accumulatedToolCalls.clear();
 								}
 							}
@@ -447,11 +446,8 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 			if (line.substr(0, 5) == "data:") {
 				std::string jsonData = line.substr(5);
 				if (jsonData == "[DONE]") {
-					// Stream done, send the accumulated full response
-					std::cout << "DEBUG: Stream done, calling response callback" << std::endl;
 					std::lock_guard<std::mutex> responseLock(g_responseMutex);
 					if (g_responseCallback && !g_fullResponse.is_null()) {
-						std::cout << "DEBUG: Full response accumulated: " << g_fullResponse.dump(2) << std::endl;
 						g_responseCallback(g_fullResponse);
 					} else {
 						std::cout << "DEBUG: No response callback or null response" << std::endl;
@@ -460,15 +456,12 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 				}
 				try {
 					json result = json::parse(jsonData);
-					std::cout << "DEBUG: Processing JSON chunk: " << result.dump(2) << std::endl;
 					
 					// Accumulate the full response
 					{
 						std::lock_guard<std::mutex> responseLock(g_responseMutex);
-						std::cout << "DEBUG: About to check response null state: " << (g_fullResponse.is_null() ? "null" : "not null") << std::endl;
 						if (g_fullResponse.is_null()) {
 							// Initialize the full response structure
-							std::cout << "DEBUG: Initializing full response structure" << std::endl;
 							g_fullResponse = json::object();
 							g_fullResponse["id"] = result.value("id", "");
 							g_fullResponse["object"] = result.value("object", "");
@@ -476,9 +469,7 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 							g_fullResponse["model"] = result.value("model", "");
 							g_fullResponse["choices"] = json::array();
 							g_fullResponse["usage"] = result.value("usage", json::object());
-							std::cout << "DEBUG: Response structure initialized: " << g_fullResponse.dump(2) << std::endl;
 						} else {
-							std::cout << "DEBUG: Response already initialized, merging new data" << std::endl;
 						}
 						
 						// Merge choices
@@ -567,7 +558,6 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 					
 					// Process content tokens and tool calls for streaming (same as original function)
 					if (result.contains("choices") && result["choices"].is_array() && !result["choices"].empty()) {
-						std::cout << "DEBUG: Processing choices for streaming" << std::endl;
 						const auto& choice = result["choices"][0];
 						if (choice.contains("delta") && choice["delta"].contains("content") && !choice["delta"]["content"].is_null()) {
 							std::string content = choice["delta"]["content"].get<std::string>();
@@ -632,22 +622,18 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 									std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
 									for (const auto& [id, toolCall] : g_accumulatedToolCalls) {
 										std::string toolCallJson = toolCall.dump();
-										g_currentTokenCallback("TOOL_CALL:" + toolCallJson);
+										g_currentTokenCallback(toolCallJson);
 									}
-									g_currentTokenCallback("\n[TOOL_CALLS_DETECTED]\n");
 									g_accumulatedToolCalls.clear();
 								}
 							}
 							
 							// Call the response callback when we have a finish_reason
 							if (!finishReason.empty() && finishReason != "null") {
-								std::cout << "DEBUG: Finish reason detected: " << finishReason << ", calling response callback" << std::endl;
 								std::lock_guard<std::mutex> responseLock(g_responseMutex);
 								if (g_responseCallback && !g_fullResponse.is_null()) {
-									std::cout << "DEBUG: Full response accumulated: " << g_fullResponse.dump(2) << std::endl;
 									g_responseCallback(g_fullResponse);
 								} else {
-									std::cout << "DEBUG: No response callback or null response" << std::endl;
 								}
 							}
 						} else {
@@ -657,7 +643,6 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 						std::cout << "DEBUG: No choices found or choices array is empty" << std::endl;
 					}
 				} catch (const json::exception &e) {
-					// Ignore JSON parsing errors for individual chunks
 				}
 			}
 		}
@@ -675,10 +660,9 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 {
 	try {
 		if (cancelFlag && cancelFlag->load()) {
-			return false; // Return immediately if cancelled
+			return false; 
 		}
 
-		// Clear any previous tool call state
 		{
 			std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
 			std::lock_guard<std::mutex> indexLock(g_indexMappingMutex);
