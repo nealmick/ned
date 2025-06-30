@@ -170,6 +170,9 @@ void AIAgent::rebuildMessageDisplayLines() {
     }
     messageDisplayLines.clear();
     
+    std::cout << "=== DEBUG: rebuildMessageDisplayLines called ===" << std::endl;
+    std::cout << "Message count: " << messagesCopy.size() << std::endl;
+    
     // Calculate available width for text (accounting for padding, scrollbar, and some buffer)
     float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
     float childPadding = ImGui::GetStyle().ChildRounding * 2.0f; // Account for child window padding
@@ -179,8 +182,11 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         
+        std::cout << "Processing message " << i << ": role=" << msg.role << ", text length=" << msg.text.length() << std::endl;
+        
         // Skip hidden messages
         if (msg.hide_message) {
+            std::cout << "Skipping hidden message" << std::endl;
             continue;
         }
         
@@ -193,6 +199,7 @@ void AIAgent::rebuildMessageDisplayLines() {
             displayText = "##### User: " + displayText;
         } else if (msg.role == "tool") {
             displayText = "##### Tool Result: " + displayText;
+            std::cout << "Processing tool message: " << displayText.substr(0, 100) << "..." << std::endl;
         } else if (msg.role == "system") {
             displayText = "##### System: " + displayText;
         }
@@ -215,6 +222,9 @@ void AIAgent::rebuildMessageDisplayLines() {
             }
         }
     }
+    
+    std::cout << "Final display lines count: " << messageDisplayLines.size() << std::endl;
+    std::cout << "=== END DEBUG ===" << std::endl;
 }
 
 // Helper function to wrap text to a specific width

@@ -147,7 +147,7 @@ class Ned
 	float lastOpacity = 0.5f;
     bool lastBlurEnabled = false;
 	        
-	AIAgent gAIAgent;
+	// Removed gAIAgent member variable - using global instance instead
 };
 
 // Global scope

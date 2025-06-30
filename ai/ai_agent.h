@@ -34,6 +34,7 @@ public:
     std::vector<Message> messages;
     std::mutex messagesMutex;
     bool needsFollowUpMessage = false; // Flag to trigger follow-up message
+    std::atomic<bool> messageDisplayLinesDirty{true};
 
 private:
     char inputBuffer[10000] = {0};
@@ -46,7 +47,6 @@ private:
     
     // Message display and UI
     std::vector<std::string> messageDisplayLines;
-    std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;
     void rebuildMessageDisplayLines();
     void wrapTextToWidth(const std::string& text, float maxWidth);

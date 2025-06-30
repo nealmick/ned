@@ -8,6 +8,7 @@
 #include <curl/curl.h>
 #include <thread>
 #include <chrono>
+#include <mutex>
 
 using json = nlohmann::json;
 
@@ -164,6 +165,25 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                                     std::cout << "=== TOOL CALL RESULT ===" << std::endl;
                                     std::cout << result << std::endl;
                                     std::cout << "=== END TOOL CALL RESULT ===" << std::endl;
+                                    
+                                    // Add tool result message to the agent's message history
+                                    {
+                                        std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                                        Message toolMsg;
+                                        toolMsg.text = result;
+                                        toolMsg.role = "tool";
+                                        toolMsg.isStreaming = false;
+                                        toolMsg.hide_message = false;
+                                        toolMsg.timestamp = std::chrono::system_clock::now();
+                                        gAIAgent.messages.push_back(toolMsg);
+                                        gAIAgent.messageDisplayLinesDirty = true;
+                                        
+                                        std::cout << "=== DEBUG: Added tool message to agent ===" << std::endl;
+                                        std::cout << "Message count: " << gAIAgent.messages.size() << std::endl;
+                                        std::cout << "Display dirty flag: " << gAIAgent.messageDisplayLinesDirty.load() << std::endl;
+                                        std::cout << "Tool message text: " << toolMsg.text.substr(0, 100) << "..." << std::endl;
+                                        std::cout << "=== END DEBUG ===" << std::endl;
+                                    }
                                     
                                 } catch (const json::parse_error& e) {
                                     std::cerr << "Error parsing tool call arguments: " << e.what() << std::endl;
