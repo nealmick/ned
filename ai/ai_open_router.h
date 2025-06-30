@@ -24,6 +24,12 @@ class OpenRouter
 								  std::function<void(const std::string&)> tokenCallback,
 								  std::atomic<bool>* cancelFlag = nullptr);
 	
+	// New function for modern JSON payload streaming with full response callback
+	static bool jsonPayloadStreamWithResponse(const std::string &jsonPayload, const std::string &api_key,
+											  std::function<void(const std::string&)> tokenCallback,
+											  std::function<void(const json&)> responseCallback,
+											  std::atomic<bool>* cancelFlag = nullptr);
+	
 	// CURL global initialization and cleanup
 	static bool initializeCURL();
 	static void cleanupCURL();
@@ -31,6 +37,7 @@ class OpenRouter
 	// Write data function for CURL callbacks
 	static size_t WriteData(void *ptr, size_t size, size_t nmemb, std::string *data);
 	static size_t WriteDataStream(void *ptr, size_t size, size_t nmemb, std::string *data);
+	static size_t WriteDataStreamWithResponse(void *ptr, size_t size, size_t nmemb, std::string *data);
 
   private:
 	static std::string sanitize_completion(const std::string &completion);

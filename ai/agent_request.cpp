@@ -6,6 +6,8 @@
 #include "ai_agent.h"
 #include "../lib/json.hpp"
 #include <curl/curl.h>
+#include <thread>
+#include <chrono>
 
 using json = nlohmann::json;
 
@@ -93,11 +95,19 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 // Modern tool calling approach
                 // std::cout << "DEBUG: Using modern tool calling API" << std::endl;
                 
-                // Use the new JSON payload streaming function
-                bool streamSuccess = OpenRouter::jsonPayloadStream(payloadJson.dump(), api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
-                    *fullResponse += token;
-                    if (onStreamingToken) onStreamingToken(token);
-                }, &shouldCancelStreaming);
+                // Track the full JSON response
+                auto fullJsonResponse = std::make_shared<json>();
+                
+                // Use the new JSON payload streaming function with response callback
+                bool streamSuccess = OpenRouter::jsonPayloadStreamWithResponse(payloadJson.dump(), api_key, 
+                    [this, onStreamingToken, fullResponse](const std::string& token) {
+                        *fullResponse += token;
+                        if (onStreamingToken) onStreamingToken(token);
+                    },
+                    [fullJsonResponse](const json& response) {
+                        *fullJsonResponse = response;
+                    },
+                    &shouldCancelStreaming);
                 
                 if (!streamSuccess) {
                     // std::cerr << "DEBUG: Streaming failed" << std::endl;
@@ -109,6 +119,15 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 isStreaming.store(false);
                 // std::cout << "DEBUG: Modern API streaming completed" << std::endl;
                 // std::cout << "DEBUG: Full response: " << *fullResponse << "]" << std::endl;
+                
+                // Print the full JSON response object
+                std::cout << "=== FULL JSON RESPONSE OBJECT ===" << std::endl;
+                if (!fullJsonResponse->is_null()) {
+                    std::cout << fullJsonResponse->dump(4) << std::endl;
+                } else {
+                    std::cout << "No JSON response object captured" << std::endl;
+                }
+                std::cout << "=== END JSON RESPONSE ===" << std::endl;
                 
                 // Check if we have tool call markers in the response
                 if (fullResponse->find("TOOL_CALL:") != std::string::npos) {
@@ -168,6 +187,11 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 isStreaming.store(false);
                 // std::cout << "fgot final repsoine here for ya boss:" << std::endl;
                 // std::cout << *fullResponse << std::endl;
+                
+                // Print the full response object
+                std::cout << "=== FULL RESPONSE OBJECT (LEGACY) ===" << std::endl;
+                std::cout << "Raw response content: " << *fullResponse << std::endl;
+                std::cout << "=== END RESPONSE ===" << std::endl;
                 
                 // Parse for tool calls (legacy method)
                 std::string finalResult = *fullResponse;
