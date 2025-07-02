@@ -618,6 +618,9 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 messageObj["role"] = msg.role;
                 if (msg.role == "tool") {
                     messageObj["content"] = msg.text;
+                    if (!msg.tool_call_id.empty()) {
+                        messageObj["tool_call_id"] = msg.tool_call_id;
+                    }
                 } else if (!msg.tool_calls.is_null()) {
                     if (msg.text.empty()) {
                         messageObj["content"] = nullptr;

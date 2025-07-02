@@ -175,6 +175,12 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                                         toolMsg.isStreaming = false;
                                         toolMsg.hide_message = false;
                                         toolMsg.timestamp = std::chrono::system_clock::now();
+                                        
+                                        // Set the tool_call_id to match the tool call ID
+                                        if (toolCall.contains("id")) {
+                                            toolMsg.tool_call_id = toolCall["id"].get<std::string>();
+                                        }
+                                        
                                         gAIAgent.messages.push_back(toolMsg);
                                         gAIAgent.messageDisplayLinesDirty = true;
                                         
@@ -182,6 +188,7 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                                         std::cout << "Message count: " << gAIAgent.messages.size() << std::endl;
                                         std::cout << "Display dirty flag: " << gAIAgent.messageDisplayLinesDirty.load() << std::endl;
                                         std::cout << "Tool message text: " << toolMsg.text.substr(0, 100) << "..." << std::endl;
+                                        std::cout << "Tool call ID: " << toolMsg.tool_call_id << std::endl;
                                         std::cout << "=== END DEBUG ===" << std::endl;
                                     }
                                     

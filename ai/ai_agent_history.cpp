@@ -379,7 +379,14 @@ void AIAgentHistory::loadConversationFromHistory(const std::string& timestamp) {
                             std::string role = msg.value("role", "user");
                             
                             // Format message for display based on actual role
-                            std::string formattedMessage = (role == "assistant" ? "##### Agent: " : "##### User: ") + messageText;
+                            std::string formattedMessage;
+                            if (role == "assistant") {
+                                formattedMessage = "##### Agent: " + messageText;
+                            } else if (role == "tool") {
+                                formattedMessage = "##### Tool Result: " + messageText;
+                            } else {
+                                formattedMessage = "##### User: " + messageText;
+                            }
                             messages.push_back(formattedMessage);
                         }
                     }
@@ -593,8 +600,23 @@ void AIAgentHistory::loadConversationFromHistory(const std::vector<std::string>&
     std::vector<Message> messages;
     for (const auto& formattedMsg : formattedMessages) {
         Message msg;
-        msg.role = "user";
-        msg.text = formattedMsg;
+        
+        // Parse the formatted message to determine role and extract text
+        if (formattedMsg.find("##### Agent: ") == 0) {
+            msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
+            msg.role = "assistant";
+        } else if (formattedMsg.find("##### User: ") == 0) {
+            msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
+            msg.role = "user";
+        } else if (formattedMsg.find("##### Tool Result: ") == 0) {
+            msg.text = formattedMsg.substr(18); // Remove "##### Tool Result: " prefix
+            msg.role = "tool";
+        } else {
+            // Fallback: treat as user message
+            msg.text = formattedMsg;
+            msg.role = "user";
+        }
+        
         msg.isStreaming = false;
         msg.hide_message = false;
         msg.timestamp = std::chrono::system_clock::now();
