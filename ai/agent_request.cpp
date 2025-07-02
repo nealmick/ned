@@ -222,6 +222,9 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                         }
                         std::cout << "=== END PROCESSING TOOL CALLS ===" << std::endl;
                         
+                        // Set flag to trigger follow-up message after tool calls
+                        gAIAgent.needsFollowUpMessage = true;
+                        
                         // Call the completion callback to indicate tool calls were processed
                         if (onComplete) {
                             onComplete("", true); // Empty result, but had tool call

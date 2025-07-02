@@ -62,6 +62,9 @@ private:
     bool shouldAllowToolCall(const std::string& toolName);
     void recordFailedToolCall(const std::string& toolName);
     
+    // Helper method to trigger AI response after tool calls
+    void triggerAIResponse();
+    
     // History management
     AIAgentHistory historyManager;
     

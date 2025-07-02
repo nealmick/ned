@@ -1,7 +1,7 @@
 {
-    "agent_model": "google/gemini-2.0-flash-001",
+    "agent_model": "anthropic/claude-3.7-sonnet",
     "agent_pane_visible": true,
-    "agent_split_pos": 0.6316239237785339,
+    "agent_split_pos": 0.699999988079071,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
