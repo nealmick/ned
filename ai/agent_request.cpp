@@ -139,6 +139,29 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                         const auto& toolCalls = choice["message"]["tool_calls"];
                         std::cout << "=== PROCESSING TOOL CALLS ===" << std::endl;
                         
+                        // First, update the current assistant message to include the tool calls
+                        {
+                            std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                            if (!gAIAgent.messages.empty()) {
+                                // Update the last assistant message to include the tool calls
+                                Message& lastMsg = gAIAgent.messages.back();
+                                if (lastMsg.role == "assistant" && lastMsg.isStreaming) {
+                                    lastMsg.tool_calls = choice["message"]["tool_calls"];
+                                    lastMsg.isStreaming = false;
+                                    // Handle null content properly
+                                    if (choice["message"].contains("content") && !choice["message"]["content"].is_null()) {
+                                        lastMsg.text = choice["message"]["content"].get<std::string>();
+                                    } else {
+                                        lastMsg.text = "";
+                                    }
+                                    gAIAgent.messageDisplayLinesDirty = true;
+                                    std::cout << "=== DEBUG: Updated assistant message with tool calls ===" << std::endl;
+                                    std::cout << "Tool calls count: " << lastMsg.tool_calls.size() << std::endl;
+                                    std::cout << "=== END DEBUG ===" << std::endl;
+                                }
+                            }
+                        }
+                        
                         for (const auto& toolCall : toolCalls) {
                             if (toolCall.contains("function") && 
                                 toolCall["function"].contains("name") && 
@@ -199,8 +222,10 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                         }
                         std::cout << "=== END PROCESSING TOOL CALLS ===" << std::endl;
                         
-                        // Set the needsFollowUpMessage flag to trigger a follow-up request
-                        gAIAgent.needsFollowUpMessage = true;
+                        // Call the completion callback to indicate tool calls were processed
+                        if (onComplete) {
+                            onComplete("", true); // Empty result, but had tool call
+                        }
                         
                         return;
                     }
@@ -209,6 +234,11 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                 std::cout << "No JSON response object captured" << std::endl;
             }
             std::cout << "=== END JSON RESPONSE ===" << std::endl;
+            
+            // If we get here, there were no tool calls, so call the completion callback
+            if (onComplete) {
+                onComplete(*fullResponse, false); // Full response, no tool call
+            }
             
             return;
             

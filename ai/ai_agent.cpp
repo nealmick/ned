@@ -33,8 +33,7 @@ AIAgent::AIAgent() : frameCounter(0),
     textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
     forceScrollToBottomNextFrame(false),
     lastKnownWidth(0.0f),
-    lastToolCallTime(std::chrono::system_clock::now()),
-    toolCallsProcessed(false)
+    lastToolCallTime(std::chrono::system_clock::now())
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
@@ -119,11 +118,6 @@ void AIAgent::recordFailedToolCall(const std::string& toolName) {
 }
 
 void AIAgent::render(float agentPaneWidth, ImFont* largeFont) {
-    // Check if we need to send a follow-up message from a tool call
-    if (needsFollowUpMessage) {
-        needsFollowUpMessage = false;
-        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###", true);
-    }
     
     float inputWidth = ImGui::GetContentRegionAvail().x;
     float windowHeight = ImGui::GetWindowHeight();
@@ -193,6 +187,20 @@ void AIAgent::rebuildMessageDisplayLines() {
         // Use role-based display only
         if (msg.role == "assistant") {
             displayText = "##### Agent: " + displayText;
+            
+            // If this assistant message contains tool calls, add details about them
+            if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() && !msg.tool_calls.empty()) {
+                displayText += "\n[Tool calls made:";
+                for (size_t i = 0; i < msg.tool_calls.size(); ++i) {
+                    const auto& toolCall = msg.tool_calls[i];
+                    if (toolCall.contains("function") && toolCall["function"].contains("name")) {
+                        std::string toolName = toolCall["function"]["name"];
+                        displayText += " " + toolName;
+                        if (i < msg.tool_calls.size() - 1) displayText += ",";
+                    }
+                }
+                displayText += "]";
+            }
         } else if (msg.role == "user") {
             displayText = "##### User: " + displayText;
         } else if (msg.role == "tool") {
@@ -536,7 +544,7 @@ void AIAgent::printAllMessages() {
 void AIAgent::sendMessage(const char* msg, bool hide_message) {
     if (needsFollowUpMessage) {
         needsFollowUpMessage = false;
-        sendMessage("Please continue with the user's request based on the tool call results.", false);
+        // Don't send a follow-up message automatically - let the user continue the conversation
         return;
     }
     userScrolledUp = false;
@@ -681,23 +689,17 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 std::lock_guard<std::mutex> lock(messagesMutex);
                 if (!messages.empty() && messages.back().isStreaming) {
                     if (hadToolCall) {
-                        // This is a tool call result - create a tool message
-                        messages.back().text = finalResult;
-                        messages.back().isStreaming = false;
-                        messages.back().role = "tool";
+                        // For tool calls, the assistant message should already be updated with tool_calls
+                        // and the tool results should be added as separate tool messages
+                        // The assistant message should remain as "assistant" role
+                        if (messages.back().role == "assistant") {
+                            messages.back().isStreaming = false;
+                            // The tool_calls should already be set by agent_request.cpp
+                        }
                         messageDisplayLinesDirty = true;
                         
-                        // Create a new assistant message for the AI's response
-                        Message assistantMsg;
-                        assistantMsg.text = "";
-                        assistantMsg.role = "assistant";
-                        assistantMsg.isStreaming = true;
-                        assistantMsg.hide_message = false;
-                        assistantMsg.timestamp = std::chrono::system_clock::now();
-                        messages.push_back(assistantMsg);
-                        
-                        // Send a follow-up message to get the AI's response
-                        needsFollowUpMessage = true;
+                        // Don't create a new assistant message automatically
+                        // Let the user continue the conversation naturally
                     } else {
                         // Regular assistant message
                         messages.back().text = finalResult;
@@ -709,10 +711,6 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 scrollToBottom = true;
             }
             historyManager.saveConversationHistory();
-            if (hadToolCall && !toolCallsProcessed) {
-                toolCallsProcessed = true;
-                needsFollowUpMessage = true;
-            }
         }
     );
 }
@@ -728,7 +726,6 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     
     // Reset conversation state variables to prevent issues when switching conversations
     needsFollowUpMessage = false;
-    toolCallsProcessed = false;
     failedToolCalls.clear();
     lastToolCallTime = std::chrono::system_clock::now();
     

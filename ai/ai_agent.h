@@ -75,5 +75,4 @@ private:
     std::map<std::string, int> failedToolCalls; // tool_name -> failure_count
     std::chrono::system_clock::time_point lastToolCallTime;
     static const int MAX_FAILED_CALLS = 3; // Maximum consecutive failures for same tool
-    bool toolCallsProcessed = false; // Flag to prevent duplicate tool call processing
 };
