@@ -170,8 +170,6 @@ void AIAgent::rebuildMessageDisplayLines() {
     }
     messageDisplayLines.clear();
     
-    std::cout << "=== DEBUG: rebuildMessageDisplayLines called ===" << std::endl;
-    std::cout << "Message count: " << messagesCopy.size() << std::endl;
     
     // Calculate available width for text (accounting for padding, scrollbar, and some buffer)
     float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
@@ -182,11 +180,11 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         
-        std::cout << "Processing message " << i << ": role=" << msg.role << ", text length=" << msg.text.length() << std::endl;
+        //std::cout << "Processing message " << i << ": role=" << msg.role << ", text length=" << msg.text.length() << std::endl;
         
         // Skip hidden messages
         if (msg.hide_message) {
-            std::cout << "Skipping hidden message" << std::endl;
+            //std::cout << "Skipping hidden message" << std::endl;
             continue;
         }
         

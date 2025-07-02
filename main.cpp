@@ -15,5 +15,4 @@ int main()
     ned.run();
     return 0;
 }
-// Great success!
 

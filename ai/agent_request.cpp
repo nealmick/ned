@@ -199,10 +199,9 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                         }
                         std::cout << "=== END PROCESSING TOOL CALLS ===" << std::endl;
                         
-                        // If we processed tool calls, we need to trigger a follow-up message
-                        if (onComplete) {
-                            onComplete("", true); // hadToolCall = true
-                        }
+                        // Set the needsFollowUpMessage flag to trigger a follow-up request
+                        gAIAgent.needsFollowUpMessage = true;
+                        
                         return;
                     }
                 }
@@ -211,10 +210,7 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
             }
             std::cout << "=== END JSON RESPONSE ===" << std::endl;
             
-            // If we get here, there were no tool calls, so complete normally
-            if (onComplete) {
-                onComplete(*fullResponse, false); // hadToolCall = false
-            }
+            return;
             
             
         } catch (const std::exception& e) {

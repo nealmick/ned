@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <map>
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -35,6 +36,32 @@ static std::mutex g_indexMappingMutex;
 static json g_fullResponse;
 static std::mutex g_responseMutex;
 static std::function<void(const json&)> g_responseCallback = nullptr;
+
+// Helper function to get CURL error string
+std::string getCurlErrorString(CURLcode code) {
+	return curl_easy_strerror(code);
+}
+
+// Helper function to get HTTP status description
+std::string getHttpStatusDescription(long http_code) {
+	switch (http_code) {
+		case 200: return "OK";
+		case 201: return "Created";
+		case 400: return "Bad Request";
+		case 401: return "Unauthorized";
+		case 403: return "Forbidden";
+		case 404: return "Not Found";
+		case 429: return "Too Many Requests";
+		case 500: return "Internal Server Error";
+		case 502: return "Bad Gateway";
+		case 503: return "Service Unavailable";
+		case 504: return "Gateway Timeout";
+		default: return "Unknown";
+	}
+}
+
+// Forward declaration for detailed error response function
+std::string getDetailedErrorResponse(const std::string& payload, const std::string& api_key);
 
 bool OpenRouter::initializeCURL() {
 	std::lock_guard<std::mutex> lock(g_curlInitMutex);
@@ -67,6 +94,15 @@ size_t OpenRouter::WriteData(void *ptr, size_t size, size_t nmemb, std::string *
 		return 0; // Stop receiving data if cancelled
 	}
 	data->append((char *)ptr, size * nmemb);
+	return size * nmemb;
+}
+
+// Simple write function to capture raw response body
+size_t WriteDataRaw(void *ptr, size_t size, size_t nmemb, std::string *data)
+{
+	if (data) {
+		data->append((char *)ptr, size * nmemb);
+	}
 	return size * nmemb;
 }
 
@@ -681,6 +717,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		}
 		
 		long http_code = 0;
+		std::string response_body; // Capture response body
 		
 		// Set the global callback with mutex protection
 		{
@@ -708,7 +745,7 @@ bool OpenRouter::promptRequestStream(const std::string &prompt, const std::strin
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr); // Not used in our implementation
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body); // Capture response
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connect timeout
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals
@@ -782,6 +819,7 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		}
 		
 		long http_code = 0;
+		std::string response_body; // Capture response body
 		
 		// Set the global callback with mutex protection
 		{
@@ -817,7 +855,7 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body); // Capture response
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -833,6 +871,12 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
+			std::cerr << "=== CURL ERROR ===" << std::endl;
+			std::cerr << "CURL Error Code: " << res << std::endl;
+			std::cerr << "CURL Error Message: " << getCurlErrorString(res) << std::endl;
+			std::cerr << "Function: jsonPayloadStream" << std::endl;
+			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
+			std::cerr << "=== END CURL ERROR ===" << std::endl;
 			curl_easy_cleanup(curl);
 			curl_slist_free_all(headers);
 			// Clear the global callback with mutex protection
@@ -853,6 +897,18 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		{
 			std::lock_guard<std::mutex> lock(g_callbackMutex);
 			g_currentTokenCallback = nullptr;
+		}
+
+		if (http_code != 200) {
+			std::cerr << "=== HTTP ERROR ===" << std::endl;
+			std::cerr << "HTTP Status Code: " << http_code << " (" << getHttpStatusDescription(http_code) << ")" << std::endl;
+			std::cerr << "Function: jsonPayloadStream" << std::endl;
+			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
+			
+			// Get detailed error response
+			std::string detailedError = getDetailedErrorResponse(json_str, api_key);
+			std::cerr << "Detailed Error Response: " << detailedError << std::endl;
+			std::cerr << "=== END HTTP ERROR ===" << std::endl;
 		}
 
 		return http_code == 200;
@@ -899,6 +955,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 		}
 		
 		long http_code = 0;
+		std::string response_body; // Capture response body
 		
 		// Set the global callback with mutex protection
 		{
@@ -938,7 +995,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStreamWithResponse);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body); // Capture response
 		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -984,6 +1041,18 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 			g_responseCallback = nullptr;
 		}
 
+		if (http_code != 200) {
+			std::cerr << "=== HTTP ERROR ===" << std::endl;
+			std::cerr << "HTTP Status Code: " << http_code << " (" << getHttpStatusDescription(http_code) << ")" << std::endl;
+			std::cerr << "Function: jsonPayloadStreamWithResponse" << std::endl;
+			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
+			
+			// Get detailed error response
+			std::string detailedError = getDetailedErrorResponse(json_str, api_key);
+			std::cerr << "Detailed Error Response: " << detailedError << std::endl;
+			std::cerr << "=== END HTTP ERROR ===" << std::endl;
+		}
+
 		return http_code == 200;
 	} catch (const std::exception& e) {
 		return false;
@@ -1021,4 +1090,37 @@ std::string OpenRouter::sanitize_completion(const std::string &completion)
 	}
 	auto back = completion.find_last_not_of(" \t\n\r");
 	return completion.substr(front, back - front + 1);
+}
+
+// Helper function to get detailed error response
+std::string getDetailedErrorResponse(const std::string& payload, const std::string& api_key) {
+	CURL *curl = curl_easy_init();
+	if (!curl) {
+		return "Failed to initialize CURL";
+	}
+	
+	std::string response_body;
+	long http_code = 0;
+	
+	struct curl_slist *headers = nullptr;
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, ("Authorization: Bearer " + api_key).c_str());
+	headers = curl_slist_append(headers, "HTTP-Referer: my-text-editor");
+	
+	curl_easy_setopt(curl, CURLOPT_URL, "https://openrouter.ai/api/v1/chat/completions");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataRaw);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+	
+	CURLcode res = curl_easy_perform(curl);
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	
+	curl_easy_cleanup(curl);
+	curl_slist_free_all(headers);
+	
+	return response_body;
 }
