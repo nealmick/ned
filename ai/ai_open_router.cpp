@@ -458,32 +458,45 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 
 size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nmemb, std::string *data)
 {
+	static int chunkCount = 0;
+	chunkCount++;
+	
 	try {
 		if (g_should_cancel) {
+			std::cout << "Stream cancelled in chunk " << chunkCount << std::endl;
 			return 0; // Stop receiving data if cancelled
 		}
 		
 		const char* charPtr = static_cast<const char*>(ptr);
 		if (!charPtr) {
+			std::cout << "ERROR: Null pointer in chunk " << chunkCount << std::endl;
 			return 0;
 		}
 		
 		std::string chunk(charPtr, size * nmemb);
+		// Only log every 10th chunk to reduce noise
+		if (chunkCount % 10 == 0) {
+			std::cout << "Received chunk " << chunkCount << " (" << chunk.length() << " bytes)" << std::endl;
+		}
 		
 		// Process Server-Sent Events (SSE) format
 		std::string buffer = chunk;
 		size_t pos = 0;
+		int lineCount = 0;
 		while ((pos = buffer.find('\n', pos)) != std::string::npos) {
 			std::string line = buffer.substr(0, pos);
 			buffer.erase(0, pos + 1);
 			pos = 0;
+			lineCount++;
 			
 			if (line.empty()) continue;
 			if (line.substr(0, 5) == "data:") {
 				std::string jsonData = line.substr(5);
 				if (jsonData == "[DONE]") {
+					std::cout << "Received [DONE] signal, ending stream" << std::endl;
 					std::lock_guard<std::mutex> responseLock(g_responseMutex);
 					if (g_responseCallback && !g_fullResponse.is_null()) {
+						std::cout << "Calling response callback with full response" << std::endl;
 						g_responseCallback(g_fullResponse);
 					} else {
 						std::cout << "DEBUG: No response callback or null response" << std::endl;
@@ -658,7 +671,7 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 									std::lock_guard<std::mutex> toolLock(g_toolCallMutex);
 									for (const auto& [id, toolCall] : g_accumulatedToolCalls) {
 										std::string toolCallJson = toolCall.dump();
-										g_currentTokenCallback(toolCallJson);
+										g_currentTokenCallback("TOOL_CALL:" + toolCallJson);
 									}
 									g_accumulatedToolCalls.clear();
 								}
@@ -666,26 +679,31 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 							
 							// Call the response callback when we have a finish_reason
 							if (!finishReason.empty() && finishReason != "null") {
+								std::cout << "DEBUG: Finish reason detected: " << finishReason << ", calling response callback" << std::endl;
 								std::lock_guard<std::mutex> responseLock(g_responseMutex);
 								if (g_responseCallback && !g_fullResponse.is_null()) {
+									std::cout << "DEBUG: Full response accumulated: " << g_fullResponse.dump(2) << std::endl;
 									g_responseCallback(g_fullResponse);
 								} else {
+									std::cout << "DEBUG: No response callback or null response" << std::endl;
 								}
 							}
-						} else {
-							std::cout << "DEBUG: No finish_reason found in choice" << std::endl;
 						}
-					} else {
-						std::cout << "DEBUG: No choices found or choices array is empty" << std::endl;
 					}
 				} catch (const json::exception &e) {
+					// Only log JSON parsing errors occasionally to reduce noise
+					if (chunkCount % 20 == 0) {
+						std::cout << "JSON parsing error in chunk " << chunkCount << ": " << e.what() << std::endl;
+					}
 				}
 			}
 		}
 		return size * nmemb;
 	} catch (const std::exception& e) {
+		std::cout << "EXCEPTION in WriteDataStreamWithResponse chunk " << chunkCount << ": " << e.what() << std::endl;
 		return 0;
 	} catch (...) {
+		std::cout << "UNKNOWN EXCEPTION in WriteDataStreamWithResponse chunk " << chunkCount << std::endl;
 		return 0;
 	}
 }
@@ -856,9 +874,11 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStream);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body); // Capture response
-		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
-		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L); // Increased timeout to 60 seconds
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // Increased connect timeout
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1000L); // 1KB/s minimum speed
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L); // 30 seconds at low speed before timeout
 		
 		// Add progress callback to check cancellation more frequently
 		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
@@ -877,12 +897,24 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 			std::cerr << "Function: jsonPayloadStream" << std::endl;
 			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
 			std::cerr << "=== END CURL ERROR ===" << std::endl;
+			
+			// Get the response body even if CURL failed
+			if (!response_body.empty()) {
+				std::cerr << "=== API ERROR RESPONSE ===" << std::endl;
+				std::cerr << "Response body: " << response_body << std::endl;
+				std::cerr << "=== END API ERROR RESPONSE ===" << std::endl;
+			}
+			
 			curl_easy_cleanup(curl);
 			curl_slist_free_all(headers);
 			// Clear the global callback with mutex protection
 			{
 				std::lock_guard<std::mutex> lock(g_callbackMutex);
 				g_currentTokenCallback = nullptr;
+			}
+			{
+				std::lock_guard<std::mutex> responseLock(g_responseMutex);
+				g_responseCallback = nullptr;
 			}
 			return false;
 		}
@@ -904,11 +936,19 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload, const std::st
 			std::cerr << "HTTP Status Code: " << http_code << " (" << getHttpStatusDescription(http_code) << ")" << std::endl;
 			std::cerr << "Function: jsonPayloadStream" << std::endl;
 			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
+			std::cerr << "Response body length: " << response_body.length() << " bytes" << std::endl;
+			if (!response_body.empty()) {
+				std::cerr << "=== ACTUAL API ERROR RESPONSE ===" << std::endl;
+				std::cerr << response_body << std::endl;
+				std::cerr << "=== END ACTUAL API ERROR RESPONSE ===" << std::endl;
+			}
 			
 			// Get detailed error response
 			std::string detailedError = getDetailedErrorResponse(json_str, api_key);
 			std::cerr << "Detailed Error Response: " << detailedError << std::endl;
 			std::cerr << "=== END HTTP ERROR ===" << std::endl;
+		} else {
+			std::cout << "HTTP request successful (200 OK)" << std::endl;
 		}
 
 		return http_code == 200;
@@ -924,8 +964,13 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 											   std::function<void(const json&)> responseCallback,
 											   std::atomic<bool>* cancelFlag)
 {
+	std::cout << "=== OPENROUTER: STARTING STREAMING REQUEST ===" << std::endl;
+	std::cout << "API Key length: " << api_key.length() << " (first 10 chars: " << api_key.substr(0, 10) << "...)" << std::endl;
+	std::cout << "JSON Payload length: " << jsonPayload.length() << " bytes" << std::endl;
+	
 	try {
 		if (cancelFlag && cancelFlag->load()) {
+			std::cout << "Request cancelled before starting" << std::endl;
 			return false; // Return immediately if cancelled
 		}
 
@@ -945,14 +990,19 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 		}
 
 		// Ensure CURL is initialized
+		std::cout << "Initializing CURL..." << std::endl;
 		if (!initializeCURL()) {
+			std::cerr << "ERROR: Failed to initialize CURL" << std::endl;
 			return false;
 		}
+		std::cout << "CURL initialized successfully" << std::endl;
 
 		CURL *curl = curl_easy_init();
 		if (!curl) {
+			std::cerr << "ERROR: Failed to create CURL handle" << std::endl;
 			return false;
 		}
+		std::cout << "CURL handle created successfully" << std::endl;
 		
 		long http_code = 0;
 		std::string response_body; // Capture response body
@@ -967,7 +1017,10 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 		json payload;
 		try {
 			payload = json::parse(jsonPayload);
+			std::cout << "JSON payload parsed successfully" << std::endl;
 		} catch (const json::parse_error& e) {
+			std::cerr << "ERROR: Failed to parse JSON payload: " << e.what() << std::endl;
+			std::cerr << "Raw payload: " << jsonPayload << std::endl;
 			curl_easy_cleanup(curl);
 			{
 				std::lock_guard<std::mutex> lock(g_callbackMutex);
@@ -990,15 +1043,18 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 		headers = curl_slist_append(headers, "Accept: text/event-stream");
 
 		std::string json_str = payload.dump();
+		std::cout << "Request payload prepared, length: " << json_str.length() << " bytes" << std::endl;
 		
 		curl_easy_setopt(curl, CURLOPT_URL, "https://openrouter.ai/api/v1/chat/completions");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str.c_str());
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteDataStreamWithResponse);
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body); // Capture response
-		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Reduced timeout for faster cancellation
-		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L); // Increased timeout to 60 seconds
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // Increased connect timeout
 		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1000L); // 1KB/s minimum speed
+		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L); // 30 seconds at low speed before timeout
 		
 		// Add progress callback to check cancellation more frequently
 		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
@@ -1009,8 +1065,19 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 			return 0; // Continue the transfer
 		});
 		
+		std::cout << "Executing CURL request..." << std::endl;
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
+			std::cerr << "ERROR: CURL request failed with code: " << res << std::endl;
+			std::cerr << "CURL error description: " << curl_easy_strerror(res) << std::endl;
+			
+			// Get the response body even if CURL failed
+			if (!response_body.empty()) {
+				std::cerr << "=== API ERROR RESPONSE ===" << std::endl;
+				std::cerr << "Response body: " << response_body << std::endl;
+				std::cerr << "=== END API ERROR RESPONSE ===" << std::endl;
+			}
+			
 			curl_easy_cleanup(curl);
 			curl_slist_free_all(headers);
 			// Clear the global callbacks with mutex protection
@@ -1024,8 +1091,10 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 			}
 			return false;
 		}
+		std::cout << "CURL request completed successfully" << std::endl;
 		
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		std::cout << "HTTP response code: " << http_code << std::endl;
 
 		// Cleanup
 		curl_easy_cleanup(curl);
@@ -1046,17 +1115,30 @@ bool OpenRouter::jsonPayloadStreamWithResponse(const std::string &jsonPayload, c
 			std::cerr << "HTTP Status Code: " << http_code << " (" << getHttpStatusDescription(http_code) << ")" << std::endl;
 			std::cerr << "Function: jsonPayloadStreamWithResponse" << std::endl;
 			std::cerr << "URL: https://openrouter.ai/api/v1/chat/completions" << std::endl;
+			std::cerr << "Response body length: " << response_body.length() << " bytes" << std::endl;
+			if (!response_body.empty()) {
+				std::cerr << "=== ACTUAL API ERROR RESPONSE ===" << std::endl;
+				std::cerr << response_body << std::endl;
+				std::cerr << "=== END ACTUAL API ERROR RESPONSE ===" << std::endl;
+			}
 			
 			// Get detailed error response
 			std::string detailedError = getDetailedErrorResponse(json_str, api_key);
 			std::cerr << "Detailed Error Response: " << detailedError << std::endl;
 			std::cerr << "=== END HTTP ERROR ===" << std::endl;
+		} else {
+			std::cout << "HTTP request successful (200 OK)" << std::endl;
 		}
 
-		return http_code == 200;
+		bool success = http_code == 200;
+		std::cout << "=== OPENROUTER: STREAMING REQUEST " << (success ? "SUCCEEDED" : "FAILED") << " ===" << std::endl;
+		return success;
 	} catch (const std::exception& e) {
+		std::cerr << "EXCEPTION in jsonPayloadStreamWithResponse: " << e.what() << std::endl;
+		std::cerr << "Exception type: " << typeid(e).name() << std::endl;
 		return false;
 	} catch (...) {
+		std::cerr << "UNKNOWN EXCEPTION in jsonPayloadStreamWithResponse" << std::endl;
 		return false;
 	}
 }
