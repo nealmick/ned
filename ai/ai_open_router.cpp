@@ -37,6 +37,10 @@ static json g_fullResponse;
 static std::mutex g_responseMutex;
 static std::function<void(const json&)> g_responseCallback = nullptr;
 
+// Global variable to track malformed fragment counts for tool calls
+static std::map<std::string, int> g_malformedFragmentCounts;
+static std::mutex g_malformedFragmentMutex;
+
 // Helper function to get CURL error string
 std::string getCurlErrorString(CURLcode code) {
 	return curl_easy_strerror(code);
@@ -401,17 +405,77 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 										std::string currentArgs = g_accumulatedToolCalls[toolCallId]["function"]["arguments"].get<std::string>();
 										std::string newArgs = func["arguments"].get<std::string>();
 										
-										// Simply concatenate the fragments
-										g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
+										// Validate that the new arguments fragment is not malformed
+										if (!newArgs.empty()) {
+											// Check for common malformed patterns that indicate streaming issues
+											bool isMalformed = false;
+											
+											// Check for truncated strings (missing closing quotes)
+											if (newArgs.find('"') != std::string::npos) {
+												int quoteCount = 0;
+												for (char c : newArgs) {
+													if (c == '"') quoteCount++;
+												}
+												if (quoteCount % 2 != 0) {
+													isMalformed = true;
+													std::cout << "WARNING: Detected malformed JSON fragment with unmatched quotes: " << newArgs << std::endl;
+												}
+											}
+											
+											// Check for incomplete object (missing closing brace)
+											if (newArgs.find('{') != std::string::npos && newArgs.find('}') == std::string::npos) {
+												isMalformed = true;
+												std::cout << "WARNING: Detected malformed JSON fragment with missing closing brace: " << newArgs << std::endl;
+											}
+											
+											// Check for invalid escape sequences
+											if (newArgs.find("\\") != std::string::npos) {
+												size_t pos = 0;
+												while ((pos = newArgs.find("\\", pos)) != std::string::npos) {
+													if (pos + 1 < newArgs.length()) {
+														char nextChar = newArgs[pos + 1];
+														if (nextChar != '"' && nextChar != '\\' && nextChar != '/' && 
+															nextChar != 'b' && nextChar != 'f' && nextChar != 'n' && 
+															nextChar != 'r' && nextChar != 't' && nextChar != 'u') {
+															isMalformed = true;
+															std::cout << "WARNING: Detected invalid escape sequence \\" << nextChar << " in: " << newArgs << std::endl;
+															break;
+														}
+													}
+													pos += 2;
+												}
+											}
+											
+											if (!isMalformed) {
+												// Simply concatenate the fragments
+												g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
+											} else {
+												// For malformed fragments, try to recover by waiting for more data
+												// Don't append the malformed fragment, but log it
+												std::cout << "Skipping malformed JSON fragment, waiting for more data" << std::endl;
+												
+												// If we've accumulated too many malformed fragments, clear the tool call
+												// to prevent infinite accumulation of bad data
+												{
+													std::lock_guard<std::mutex> lock(g_malformedFragmentMutex);
+													g_malformedFragmentCounts[toolCallId]++;
+													if (g_malformedFragmentCounts[toolCallId] > 5) {
+														std::cout << "WARNING: Too many malformed fragments for tool call " << toolCallId << ", clearing accumulated data" << std::endl;
+														g_accumulatedToolCalls.erase(toolCallId);
+														g_malformedFragmentCounts.erase(toolCallId);
+													}
+												}
+											}
+										}
 									}
-								}
-								
-								// Copy other fields
-								if (toolCall.contains("index")) {
-									g_accumulatedToolCalls[toolCallId]["index"] = toolCall["index"];
-								}
-								if (toolCall.contains("type")) {
-									g_accumulatedToolCalls[toolCallId]["type"] = toolCall["type"];
+									
+									// Copy other fields
+									if (toolCall.contains("index")) {
+										g_accumulatedToolCalls[toolCallId]["index"] = toolCall["index"];
+									}
+									if (toolCall.contains("type")) {
+										g_accumulatedToolCalls[toolCallId]["type"] = toolCall["type"];
+									}
 								}
 							}
 						}
@@ -584,7 +648,62 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 														fullToolCall["function"]["name"] = func["name"];
 													}
 													if (func.contains("arguments")) {
-														fullToolCall["function"]["arguments"] = fullToolCall["function"]["arguments"].get<std::string>() + func["arguments"].get<std::string>();
+														std::string currentArgs = fullToolCall["function"]["arguments"].get<std::string>();
+														std::string newArgs = func["arguments"].get<std::string>();
+														
+														// Validate that the new arguments fragment is not malformed
+														if (!newArgs.empty()) {
+															// Check for common malformed patterns that indicate streaming issues
+															bool isMalformed = false;
+															
+															// Check for truncated strings (missing closing quotes)
+															if (newArgs.find('"') != std::string::npos) {
+																int quoteCount = 0;
+																for (char c : newArgs) {
+																	if (c == '"') quoteCount++;
+																}
+																if (quoteCount % 2 != 0) {
+																	isMalformed = true;
+																	std::cout << "WARNING: Detected malformed JSON fragment with unmatched quotes: " << newArgs << std::endl;
+																}
+															}
+															
+															// Check for incomplete object (missing closing brace)
+															if (newArgs.find('{') != std::string::npos && newArgs.find('}') == std::string::npos) {
+																isMalformed = true;
+																std::cout << "WARNING: Detected malformed JSON fragment with missing closing brace: " << newArgs << std::endl;
+															}
+															
+															// Check for invalid escape sequences
+															if (newArgs.find("\\") != std::string::npos) {
+																size_t pos = 0;
+																while ((pos = newArgs.find("\\", pos)) != std::string::npos) {
+																	if (pos + 1 < newArgs.length()) {
+																		char nextChar = newArgs[pos + 1];
+																		if (nextChar != '"' && nextChar != '\\' && nextChar != '/' && 
+																			nextChar != 'b' && nextChar != 'f' && nextChar != 'n' && 
+																			nextChar != 'r' && nextChar != 't' && nextChar != 'u') {
+																			isMalformed = true;
+																			std::cout << "WARNING: Detected invalid escape sequence \\" << nextChar << " in: " << newArgs << std::endl;
+																			break;
+																		}
+																	}
+																	pos += 2;
+																}
+															}
+															
+															if (!isMalformed) {
+																// Simply concatenate the fragments
+																fullToolCall["function"]["arguments"] = currentArgs + newArgs;
+															} else {
+																// For malformed fragments, try to recover by waiting for more data
+																// Don't append the malformed fragment, but log it
+																std::cout << "Skipping malformed JSON fragment, waiting for more data" << std::endl;
+																
+																// Skip malformed fragment
+																std::cout << "Skipping malformed JSON fragment" << std::endl;
+															}
+														}
 													}
 												}
 											}
@@ -649,7 +768,69 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr, size_t size, size_t nm
 									if (func.contains("arguments")) {
 										std::string currentArgs = g_accumulatedToolCalls[toolCallId]["function"]["arguments"].get<std::string>();
 										std::string newArgs = func["arguments"].get<std::string>();
-										g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
+										
+										// Validate that the new arguments fragment is not malformed
+										if (!newArgs.empty()) {
+											// Check for common malformed patterns that indicate streaming issues
+											bool isMalformed = false;
+											
+											// Check for truncated strings (missing closing quotes)
+											if (newArgs.find('"') != std::string::npos) {
+												int quoteCount = 0;
+												for (char c : newArgs) {
+													if (c == '"') quoteCount++;
+												}
+												if (quoteCount % 2 != 0) {
+													isMalformed = true;
+													std::cout << "WARNING: Detected malformed JSON fragment with unmatched quotes: " << newArgs << std::endl;
+												}
+											}
+											
+											// Check for incomplete object (missing closing brace)
+											if (newArgs.find('{') != std::string::npos && newArgs.find('}') == std::string::npos) {
+												isMalformed = true;
+												std::cout << "WARNING: Detected malformed JSON fragment with missing closing brace: " << newArgs << std::endl;
+											}
+											
+											// Check for invalid escape sequences
+											if (newArgs.find("\\") != std::string::npos) {
+												size_t pos = 0;
+												while ((pos = newArgs.find("\\", pos)) != std::string::npos) {
+													if (pos + 1 < newArgs.length()) {
+														char nextChar = newArgs[pos + 1];
+														if (nextChar != '"' && nextChar != '\\' && nextChar != '/' && 
+															nextChar != 'b' && nextChar != 'f' && nextChar != 'n' && 
+															nextChar != 'r' && nextChar != 't' && nextChar != 'u') {
+															isMalformed = true;
+															std::cout << "WARNING: Detected invalid escape sequence \\" << nextChar << " in: " << newArgs << std::endl;
+															break;
+														}
+													}
+													pos += 2;
+												}
+											}
+											
+											if (!isMalformed) {
+												// Simply concatenate the fragments
+												g_accumulatedToolCalls[toolCallId]["function"]["arguments"] = currentArgs + newArgs;
+											} else {
+												// For malformed fragments, try to recover by waiting for more data
+												// Don't append the malformed fragment, but log it
+												std::cout << "Skipping malformed JSON fragment, waiting for more data" << std::endl;
+												
+												// If we've accumulated too many malformed fragments, clear the tool call
+												// to prevent infinite accumulation of bad data
+												{
+													std::lock_guard<std::mutex> lock(g_malformedFragmentMutex);
+													g_malformedFragmentCounts[toolCallId]++;
+													if (g_malformedFragmentCounts[toolCallId] > 5) {
+														std::cout << "WARNING: Too many malformed fragments for tool call " << toolCallId << ", clearing accumulated data" << std::endl;
+														g_accumulatedToolCalls.erase(toolCallId);
+														g_malformedFragmentCounts.erase(toolCallId);
+													}
+												}
+											}
+										}
 									}
 								}
 								

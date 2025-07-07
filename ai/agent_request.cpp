@@ -208,20 +208,58 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                                         result = "ERROR: Incomplete tool call arguments: " + argumentsStr;
                                         toolCallSucceeded = false;
                                     } else {
-                                        json argumentsJson = json::parse(argumentsStr);
-                                        std::unordered_map<std::string, std::string> parameters;
+                                        // Additional validation for common malformed patterns
+                                        bool isMalformed = false;
                                         
-                                        for (auto it = argumentsJson.begin(); it != argumentsJson.end(); ++it) {
-                                            parameters[it.key()] = it.value().get<std::string>();
+                                        // Check for unmatched quotes
+                                        if (argumentsStr.find('"') != std::string::npos) {
+                                            int quoteCount = 0;
+                                            for (char c : argumentsStr) {
+                                                if (c == '"') quoteCount++;
+                                            }
+                                            if (quoteCount % 2 != 0) {
+                                                isMalformed = true;
+                                                std::cerr << "Error: Tool call arguments have unmatched quotes: " << argumentsStr << std::endl;
+                                            }
                                         }
                                         
-                                        // Execute the tool call
-                                        result = gMCPManager.executeToolCall(toolName, parameters);
-                                        toolCallSucceeded = true;
+                                        // Check for invalid escape sequences
+                                        if (argumentsStr.find("\\") != std::string::npos) {
+                                            size_t pos = 0;
+                                            while ((pos = argumentsStr.find("\\", pos)) != std::string::npos) {
+                                                if (pos + 1 < argumentsStr.length()) {
+                                                    char nextChar = argumentsStr[pos + 1];
+                                                    if (nextChar != '"' && nextChar != '\\' && nextChar != '/' && 
+                                                        nextChar != 'b' && nextChar != 'f' && nextChar != 'n' && 
+                                                        nextChar != 'r' && nextChar != 't' && nextChar != 'u') {
+                                                        isMalformed = true;
+                                                        std::cerr << "Error: Tool call arguments contain invalid escape sequence \\" << nextChar << ": " << argumentsStr << std::endl;
+                                                        break;
+                                                    }
+                                                }
+                                                pos += 2;
+                                            }
+                                        }
                                         
-                                        std::cout << "=== TOOL CALL RESULT ===" << std::endl;
-                                        std::cout << result << std::endl;
-                                        std::cout << "=== END TOOL CALL RESULT ===" << std::endl;
+                                        if (isMalformed) {
+                                            result = "ERROR: Malformed tool call arguments: " + argumentsStr;
+                                            toolCallSucceeded = false;
+                                        } else {
+                                            json argumentsJson = json::parse(argumentsStr);
+                                            std::unordered_map<std::string, std::string> parameters;
+                                            
+                                            for (auto it = argumentsJson.begin(); it != argumentsJson.end(); ++it) {
+                                                parameters[it.key()] = it.value().get<std::string>();
+                                            }
+                                            
+                                            // Execute the tool call
+                                            result = gMCPManager.executeToolCall(toolName, parameters);
+                                            toolCallSucceeded = true;
+                                            
+                                            std::cout << "=== TOOL CALL RESULT ===" << std::endl;
+                                            std::cout << result << std::endl;
+                                            std::cout << "=== END TOOL CALL RESULT ===" << std::endl;
+                                        }
                                     }
                                     
                                 } catch (const json::parse_error& e) {
@@ -259,6 +297,13 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
                                     std::cout << "Tool call ID: " << toolMsg.tool_call_id << std::endl;
                                     std::cout << "Tool call succeeded: " << (toolCallSucceeded ? "YES" : "NO") << std::endl;
                                     std::cout << "=== END DEBUG ===" << std::endl;
+                                    
+                                    // If the tool call failed due to malformed JSON, log it
+                                    if (!toolCallSucceeded && (result.find("ERROR: Incomplete tool call arguments") != std::string::npos || 
+                                                              result.find("ERROR: Failed to parse tool call arguments") != std::string::npos ||
+                                                              result.find("ERROR: Malformed tool call arguments") != std::string::npos)) {
+                                        std::cout << "Tool call failed for " << toolName << " due to malformed JSON" << std::endl;
+                                    }
                                 }
                             }
                         }

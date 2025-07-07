@@ -1,7 +1,7 @@
 {
     "agent_model": "anthropic/claude-3.7-sonnet",
-    "agent_pane_visible": true,
-    "agent_split_pos": 0.699999988079071,
+    "agent_pane_visible": false,
+    "agent_split_pos": 0.2840425968170166,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -29,7 +29,7 @@
     "scanline_intensity": 0.03999999910593033,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": false,
+    "sidebar_visible": true,
     "splitPos": 0.21655172109603882,
     "static_intensity": 0.29100000858306885,
     "theme": "default",
