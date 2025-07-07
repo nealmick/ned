@@ -1556,9 +1556,11 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 	auto frame_end = std::chrono::high_resolution_clock::now();
 	auto frame_duration = frame_end - frame_start;
 	
-	// Get FPS target from settings directly
-	float fpsTarget = 120.0f;
-	if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+	// Use 15 FPS when not focused, otherwise use settings value
+	float fpsTarget = 60.0f;
+	if (!windowFocused) {
+		fpsTarget = 15.0f;
+	} else if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
 		fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
 	}
 	// Only apply frame timing if FPS target is reasonable (not unlimited)
