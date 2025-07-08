@@ -80,7 +80,6 @@ class Ned
 	bool initializeGraphics();
 	void initializeImGui();
 	void initializeResources();
-	void handleEvents();
 	void handleBackgroundUpdates(double currentTime);
 	void handleFramebuffer(int width, int height);
 	void handleWindowFocus();
@@ -90,6 +89,7 @@ class Ned
 	void handleKeyboardShortcuts();
 	void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
 	void setupImGuiFrame();
+	void checkForActivity(); // Check for immediate user input
 
 	// Render functions
 	void renderFrame();
@@ -148,6 +148,11 @@ class Ned
     bool lastBlurEnabled = false;
 	        
 	// Removed gAIAgent member variable - using global instance instead
+	
+	// On-demand rendering flags
+	bool m_needsRedraw = true; // Start true to draw the first frame
+	int m_framesToRender = 0; // Number of frames to render for smooth interactions
+	double m_lastActivityTime = 0.0; // Track when we last had activity
 };
 
 // Global scope
