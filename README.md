@@ -17,7 +17,6 @@ https://github.com/user-attachments/assets/d4358284-0fd3-41de-8f78-74172c7f3349
 - Multi cursor support, easily find and replace strings with multi selection
 
 
-
 ## Build from source
 #### Prerequisites
 CMake (version 3.10 or higher)
