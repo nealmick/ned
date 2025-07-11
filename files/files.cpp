@@ -401,6 +401,20 @@ void FileExplorer::addUndoState() {
     }
 }
 
+void FileExplorer::forceCommitUndoState() {
+    if (currentUndoManager) {
+        currentUndoManager->forceCommitPending();
+    }
+}
+
+void FileExplorer::createPasteUndoOperation(const std::string& beforeContent, int beforeCursor, 
+										   const std::string& afterContent, int afterCursor, int pastePosition) {
+    if (currentUndoManager) {
+        currentUndoManager->createPasteOperation(beforeContent, beforeCursor, afterContent, afterCursor, pastePosition);
+        _undoStateDirty = true;
+    }
+}
+
 void FileExplorer::renderFileContent()
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));

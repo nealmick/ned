@@ -48,6 +48,9 @@ class FileExplorer
 	void handleUndo();
 	void handleRedo();
 	void addUndoState();
+	void forceCommitUndoState();  // Force commit pending undo state immediately
+	void createPasteUndoOperation(const std::string& beforeContent, int beforeCursor, 
+								 const std::string& afterContent, int afterCursor, int pastePosition);
 	void saveUndoRedoState();
 	void loadUndoRedoState();
 	void forceSaveUndoState();  // Force save when needed (e.g., on app close)

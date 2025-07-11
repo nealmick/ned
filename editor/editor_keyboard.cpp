@@ -854,12 +854,15 @@ void EditorKeyboard::handleTextInput()
 		// Update line starts
 		gEditor.updateLineStarts();
 
-		// Add undo state with change range
-		gFileExplorer.addUndoState();
-		gFileExplorer._unsavedChanges = true;
-		gFileExplorer.saveCurrentFile();
-
+		// Add undo state with change range (only if not already handled manually)
+		if (!editor_state.manual_undo_handled) {
+			gFileExplorer.addUndoState();
+			gFileExplorer._unsavedChanges = true;
+			gFileExplorer.saveCurrentFile();
+		}
 		
+		// Reset the manual undo handled flag
+		editor_state.manual_undo_handled = false;
 
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;

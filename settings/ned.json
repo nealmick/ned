@@ -1,7 +1,7 @@
 {
     "agent_model": "google/gemini-2.5-flash-preview-05-20",
     "agent_pane_visible": false,
-    "agent_split_pos": 0.699999988079071,
+    "agent_split_pos": 0.2840425968170166,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -30,7 +30,7 @@
     "scanline_intensity": 1.0,
     "settings_file": "ned.json",
     "shader_toggle": false,
-    "sidebar_visible": false,
+    "sidebar_visible": true,
     "splitPos": 0.19081272184848785,
     "static_intensity": 0.1469999998807907,
     "theme": "default",

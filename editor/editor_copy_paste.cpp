@@ -2,6 +2,7 @@
 #include "editor.h"
 #include "../ai/ai_tab.h"
 #include "editor_highlight.h"
+#include "../files/files.h"
 #include <algorithm>
 
 // Global instance
@@ -64,6 +65,12 @@ void EditorCopyPaste::cutSelectedText()
 {
 	if (editor_state.selection_start != editor_state.selection_end)
 	{
+		// Save the state before making any changes
+		std::string beforeContent = editor_state.fileContent;
+		int beforeCursor = editor_state.cursor_index;
+		int cutStart = getSelectionStart();
+		int cutEnd = getSelectionEnd();
+		
 		int start = getSelectionStart();
 		int end = getSelectionEnd();
 		std::string selected_text = editor_state.fileContent.substr(start, end - start);
@@ -74,6 +81,12 @@ void EditorCopyPaste::cutSelectedText()
 		editor_state.cursor_index = start;
 		editor_state.selection_start = editor_state.selection_end = start;
 		editor_state.text_changed = true;
+		editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
+		
+		// Create manual undo operation for cut
+		gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
+											  editor_state.fileContent, editor_state.cursor_index, 
+											  cutStart);
 	}
 }
 
@@ -81,6 +94,10 @@ void EditorCopyPaste::cutWholeLine()
 {
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
+
+	// Save the state before making any changes
+	std::string beforeContent = editor_state.fileContent;
+	int beforeCursor = editor_state.cursor_index;
 
 	int line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												editor_state.cursor_index);
@@ -98,6 +115,13 @@ void EditorCopyPaste::cutWholeLine()
 
 	editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
 	editor_state.text_changed = true;
+	editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
+	
+	// Create manual undo operation for cut whole line
+	gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
+										  editor_state.fileContent, editor_state.cursor_index, 
+										  line_start);
+	
 	gEditor.updateLineStarts();
 }
 
@@ -105,6 +129,11 @@ void EditorCopyPaste::pasteText()
 {
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
+	
+	// Save the state before making any changes
+	std::string beforeContent = editor_state.fileContent;
+	int beforeCursor = editor_state.cursor_index;
+	
 	const char *clipboard_text = ImGui::GetClipboardText();
 	if (clipboard_text != nullptr)
 	{
@@ -136,6 +165,12 @@ void EditorCopyPaste::pasteText()
 			editor_state.cursor_index = paste_end;
 			editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 			editor_state.text_changed = true;
+			editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
+
+			// Create manual undo operation with the correct before/after states
+			gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
+												  editor_state.fileContent, editor_state.cursor_index, 
+												  paste_start);
 
 			// Trigger syntax highlighting for the pasted content
 			gEditorHighlight.highlightContent();

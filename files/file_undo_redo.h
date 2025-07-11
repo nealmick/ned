@@ -126,6 +126,7 @@ public:
 
     // Simplified API: Only current content and cursor index
     void addState(const std::string& currentContent, int cursor_after) {
+        std::cout << "Adding state: " << cursor_after << std::endl;
         if (!hasPending) {
             // First change in a series
             pendingInitialContent = lastCommittedState;
@@ -196,6 +197,39 @@ public:
     // Check if there are any operations to save
     bool hasOperations() const {
         return !undoStack.empty() || !redoStack.empty();
+    }
+
+    // Force commit pending state immediately (useful for paste operations)
+    void forceCommitPending() {
+        commitPending();
+    }
+
+    // Manually create an undo operation for paste operations
+    void createPasteOperation(const std::string& beforeContent, int beforeCursor, 
+                             const std::string& afterContent, int afterCursor, int pastePosition) {
+        // Force commit any pending operations first
+        commitPending();
+        
+        // Clear redo stack on new changes
+        redoStack.clear();
+        
+        // Create the operation manually
+        Operation op{
+            pastePosition,
+            "",  // No text was removed
+            afterContent.substr(pastePosition, afterContent.length() - beforeContent.length()),
+            beforeCursor,
+            afterCursor
+        };
+        
+        // Add to undo stack
+        undoStack.push_back(op);
+        if (undoStack.size() > maxStackSize) {
+            undoStack.erase(undoStack.begin());
+        }
+        
+        // Update last committed state
+        lastCommittedState = afterContent;
     }
 
 private:
