@@ -359,6 +359,7 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		updateFilePathStates(path);
 		updateFileColorBuffer();
 		setupUndoManager(path);
+		_firstEditPending = true;  // Reset first edit flag for new file
 		gEditorHighlight.highlightContent();
 
 		// Initialize file tracking for external change detection
@@ -386,6 +387,14 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 
 void FileExplorer::addUndoState() {
     if (currentUndoManager) {
+        // If this is the first edit, save the current state as the "before" state
+        if (_firstEditPending) {
+            currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
+            currentUndoManager->forceCommitPending();
+            _firstEditPending = false;
+            return; // Don't add another state for the first edit
+        }
+        
         currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
         
         // Mark that we have unsaved undo state

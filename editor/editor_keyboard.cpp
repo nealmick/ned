@@ -206,6 +206,12 @@ void EditorKeyboard::handleCharacterInput()
 		return;
 	}
 
+	// Save initial state before first edit if needed
+	if (gFileExplorer._firstEditPending) {
+		gFileExplorer.addUndoState();
+		gFileExplorer._firstEditPending = false;
+	}
+
 	// Only close LSP completion menu for specific characters
 	bool shouldCloseCompletion = false;
 	for (char c : inputText) {

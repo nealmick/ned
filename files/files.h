@@ -130,6 +130,7 @@ class FileExplorer
 	std::string selectedFolder;
 	bool _showFileDialog = false;
 	bool _undoStateDirty = false;  // Track if undo state needs saving
+	bool _firstEditPending = true;  // Track if we need to save initial state before first edit
 
 	// External file change detection
 	std::map<std::string, fs::file_time_type> _fileModificationTimes;
