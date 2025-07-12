@@ -117,7 +117,7 @@ struct EditorState
 	// did text change or was edit made...
 	bool text_changed = false;
 	bool ghost_text_changed = false;  // New flag for ghost text changes
-	bool manual_undo_handled = false;  // Flag to prevent duplicate undo states
+
 
 	bool get_autocomplete = false;
 	EditorState()

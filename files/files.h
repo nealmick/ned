@@ -49,8 +49,7 @@ class FileExplorer
 	void handleRedo();
 	void addUndoState();
 	void forceCommitUndoState();  // Force commit pending undo state immediately
-	void createPasteUndoOperation(const std::string& beforeContent, int beforeCursor, 
-								 const std::string& afterContent, int afterCursor, int pastePosition);
+
 	void saveUndoRedoState();
 	void loadUndoRedoState();
 	void forceSaveUndoState();  // Force save when needed (e.g., on app close)
@@ -130,7 +129,7 @@ class FileExplorer
 	std::string selectedFolder;
 	bool _showFileDialog = false;
 	bool _undoStateDirty = false;  // Track if undo state needs saving
-	bool _firstEditPending = true;  // Track if we need to save initial state before first edit
+
 
 	// External file change detection
 	std::map<std::string, fs::file_time_type> _fileModificationTimes;

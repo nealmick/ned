@@ -81,12 +81,6 @@ void EditorCopyPaste::cutSelectedText()
 		editor_state.cursor_index = start;
 		editor_state.selection_start = editor_state.selection_end = start;
 		editor_state.text_changed = true;
-		editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
-		
-		// Create manual undo operation for cut
-		gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
-											  editor_state.fileContent, editor_state.cursor_index, 
-											  cutStart);
 	}
 }
 
@@ -115,12 +109,6 @@ void EditorCopyPaste::cutWholeLine()
 
 	editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
 	editor_state.text_changed = true;
-	editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
-	
-	// Create manual undo operation for cut whole line
-	gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
-										  editor_state.fileContent, editor_state.cursor_index, 
-										  line_start);
 	
 	gEditor.updateLineStarts();
 }
@@ -165,12 +153,6 @@ void EditorCopyPaste::pasteText()
 			editor_state.cursor_index = paste_end;
 			editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 			editor_state.text_changed = true;
-			editor_state.manual_undo_handled = true;  // Mark that we handled undo manually
-
-			// Create manual undo operation with the correct before/after states
-			gFileExplorer.createPasteUndoOperation(beforeContent, beforeCursor, 
-												  editor_state.fileContent, editor_state.cursor_index, 
-												  paste_start);
 
 			// Trigger syntax highlighting for the pasted content
 			gEditorHighlight.highlightContent();

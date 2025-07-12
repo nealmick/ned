@@ -206,11 +206,7 @@ void EditorKeyboard::handleCharacterInput()
 		return;
 	}
 
-	// Save initial state before first edit if needed
-	if (gFileExplorer._firstEditPending) {
-		gFileExplorer.addUndoState();
-		gFileExplorer._firstEditPending = false;
-	}
+
 
 	// Only close LSP completion menu for specific characters
 	bool shouldCloseCompletion = false;
@@ -860,15 +856,10 @@ void EditorKeyboard::handleTextInput()
 		// Update line starts
 		gEditor.updateLineStarts();
 
-		// Add undo state with change range (only if not already handled manually)
-		if (!editor_state.manual_undo_handled) {
-			gFileExplorer.addUndoState();
-			gFileExplorer._unsavedChanges = true;
-			gFileExplorer.saveCurrentFile();
-		}
-		
-		// Reset the manual undo handled flag
-		editor_state.manual_undo_handled = false;
+		// Add undo state with change range
+		gFileExplorer.addUndoState();
+		gFileExplorer._unsavedChanges = true;
+		gFileExplorer.saveCurrentFile();
 
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;

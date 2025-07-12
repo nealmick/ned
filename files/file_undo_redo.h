@@ -204,33 +204,7 @@ public:
         commitPending();
     }
 
-    // Manually create an undo operation for paste operations
-    void createPasteOperation(const std::string& beforeContent, int beforeCursor, 
-                             const std::string& afterContent, int afterCursor, int pastePosition) {
-        // Force commit any pending operations first
-        commitPending();
-        
-        // Clear redo stack on new changes
-        redoStack.clear();
-        
-        // Create the operation manually
-        Operation op{
-            pastePosition,
-            "",  // No text was removed
-            afterContent.substr(pastePosition, afterContent.length() - beforeContent.length()),
-            beforeCursor,
-            afterCursor
-        };
-        
-        // Add to undo stack
-        undoStack.push_back(op);
-        if (undoStack.size() > maxStackSize) {
-            undoStack.erase(undoStack.begin());
-        }
-        
-        // Update last committed state
-        lastCommittedState = afterContent;
-    }
+
 
 private:
     std::vector<Operation> undoStack;

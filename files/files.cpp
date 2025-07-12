@@ -359,7 +359,7 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		updateFilePathStates(path);
 		updateFileColorBuffer();
 		setupUndoManager(path);
-		_firstEditPending = true;  // Reset first edit flag for new file
+
 		gEditorHighlight.highlightContent();
 
 		// Initialize file tracking for external change detection
@@ -387,14 +387,6 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 
 void FileExplorer::addUndoState() {
     if (currentUndoManager) {
-        // If this is the first edit, save the current state as the "before" state
-        if (_firstEditPending) {
-            currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
-            currentUndoManager->forceCommitPending();
-            _firstEditPending = false;
-            return; // Don't add another state for the first edit
-        }
-        
         currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
         
         // Mark that we have unsaved undo state
@@ -416,13 +408,7 @@ void FileExplorer::forceCommitUndoState() {
     }
 }
 
-void FileExplorer::createPasteUndoOperation(const std::string& beforeContent, int beforeCursor, 
-										   const std::string& afterContent, int afterCursor, int pastePosition) {
-    if (currentUndoManager) {
-        currentUndoManager->createPasteOperation(beforeContent, beforeCursor, afterContent, afterCursor, pastePosition);
-        _undoStateDirty = true;
-    }
-}
+
 
 void FileExplorer::renderFileContent()
 {
@@ -482,6 +468,7 @@ void FileExplorer::resetColorBuffer()
 
 	std::cout << "Reset " << new_size << " colors to white\n";
 }
+
 // Updated Undo/Redo helpers
 void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isUndo) {
     gEditorHighlight.cancelHighlighting();
@@ -493,8 +480,34 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isU
     // Update editor state
     editor_state.fileContent = newContent;
     
-    // Set appropriate cursor position
-    int cursor_pos = isUndo ? op.cursor_before : op.cursor_after;
+    // Set appropriate cursor position based on the operation
+    int cursor_pos;
+    if (isUndo) {
+        // For undo: calculate where cursor should be after removing inserted text
+        if (op.inserted.length() > op.removed.length()) {
+            // We inserted more text than we removed, so when undoing we need to move cursor back
+            cursor_pos = op.cursor_after - (op.inserted.length() - op.removed.length());
+        } else if (op.removed.length() > op.inserted.length()) {
+            // We removed more text than we inserted, so when undoing we need to move cursor forward
+            cursor_pos = op.cursor_after + (op.removed.length() - op.inserted.length());
+        } else {
+            // Equal lengths, cursor stays the same
+            cursor_pos = op.cursor_after;
+        }
+    } else {
+        // For redo: calculate where cursor should be after adding inserted text
+        if (op.inserted.length() > op.removed.length()) {
+            // We inserted more text than we removed, so when redoing we need to move cursor forward
+            cursor_pos = op.cursor_before + (op.inserted.length() - op.removed.length());
+        } else if (op.removed.length() > op.inserted.length()) {
+            // We removed more text than we inserted, so when redoing we need to move cursor back
+            cursor_pos = op.cursor_before - (op.removed.length() - op.inserted.length());
+        } else {
+            // Equal lengths, cursor stays the same
+            cursor_pos = op.cursor_before;
+        }
+    }
+    
     if (cursor_pos < 0) cursor_pos = 0;
     if (cursor_pos > static_cast<int>(newContent.length())) {
         cursor_pos = newContent.length();
