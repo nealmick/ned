@@ -164,6 +164,7 @@ class Bookmarks
 		{
 			showBookmarksWindow = false;
 			editor_state.block_input = false;
+
 		}
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 		
@@ -171,6 +172,9 @@ class Bookmarks
 		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false) && !gTerminal.isTerminalVisible())
 		{
 			showBookmarksWindow = !showBookmarksWindow;
+			if(!showBookmarksWindow){
+				editor_state.block_input = false;
+			}
 		}
 
 		if (showBookmarksWindow)
