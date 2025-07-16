@@ -523,6 +523,7 @@ void FileExplorer::handleUndo() {
         if (valid) {
             applyOperation(op, true);
             _undoStateDirty = true;  // Mark as dirty instead of immediate save
+            saveCurrentFile();  // Save file after undo operation
         }
     }
 }
@@ -533,6 +534,7 @@ void FileExplorer::handleRedo() {
         if (valid) {
             applyOperation(op, false);
             _undoStateDirty = true;  // Mark as dirty instead of immediate save
+            saveCurrentFile();  // Save file after redo operation
         }
     }
 }
