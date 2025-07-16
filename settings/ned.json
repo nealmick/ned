@@ -1,7 +1,7 @@
 {
     "agent_model": "google/gemini-2.5-flash-preview-05-20",
     "agent_pane_visible": false,
-    "agent_split_pos": 0.4130013585090637,
+    "agent_split_pos": 0.5710411667823792,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -15,7 +15,7 @@
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.0,
     "font": "JetBrainsMonoNL-Regular",
-    "fontSize": 25.0,
+    "fontSize": 33.0,
     "fps_target": 64.0,
     "fps_target_unfocused": 30.0,
     "fps_toggle": true,
