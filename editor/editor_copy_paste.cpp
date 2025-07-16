@@ -3,6 +3,7 @@
 #include "../ai/ai_tab.h"
 #include "editor_highlight.h"
 #include "../files/files.h"
+#include "../lsp/lsp_autocomplete.h"
 #include <algorithm>
 
 // Global instance
@@ -34,6 +35,11 @@ void EditorCopyPaste::processClipboardShortcuts()
 	}
 	if (ImGui::IsKeyPressed(ImGuiKey_V, false))
 	{
+		// Close autocomplete when pasting
+		gLSPAutocomplete.showCompletions = false;
+		gLSPAutocomplete.wasShowingLastFrame = false;
+		editor_state.block_input = false;
+		
 		gEditorCopyPaste.pasteText();
 		editor_state.ensure_cursor_visible.vertical = true;
 		editor_state.ensure_cursor_visible.horizontal = true;

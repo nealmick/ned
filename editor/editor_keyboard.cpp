@@ -1118,7 +1118,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 									   window_width);
 
 
-	if (ImGui::IsWindowFocused() && ctrl_pressed)
+	if (ctrl_pressed)
 		gEditorCopyPaste.processClipboardShortcuts();
 
 	// Update cursor visibility if text has changed
