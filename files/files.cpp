@@ -209,7 +209,6 @@ void FileExplorer::openFolderDialog()
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
-
 	try
 	{
 		// First check if the path exists and is a regular file
@@ -359,6 +358,7 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		updateFilePathStates(path);
 		updateFileColorBuffer();
 		setupUndoManager(path);
+
 		gEditorHighlight.highlightContent();
 
 		// Initialize file tracking for external change detection
@@ -400,6 +400,14 @@ void FileExplorer::addUndoState() {
         // The save will happen periodically through the existing update() calls
     }
 }
+
+void FileExplorer::forceCommitUndoState() {
+    if (currentUndoManager) {
+        currentUndoManager->forceCommitPending();
+    }
+}
+
+
 
 void FileExplorer::renderFileContent()
 {
@@ -459,6 +467,7 @@ void FileExplorer::resetColorBuffer()
 
 	std::cout << "Reset " << new_size << " colors to white\n";
 }
+
 // Updated Undo/Redo helpers
 void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isUndo) {
     gEditorHighlight.cancelHighlighting();
@@ -470,8 +479,25 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isU
     // Update editor state
     editor_state.fileContent = newContent;
     
-    // Set appropriate cursor position
-    int cursor_pos = isUndo ? op.cursor_before : op.cursor_after;
+    // Set appropriate cursor position based on the operation
+    int cursor_pos;
+    if (isUndo) {
+        // For undo: calculate where cursor should be after removing inserted text
+        if (op.inserted.length() > op.removed.length()) {
+            // We inserted more text than we removed, so when undoing we need to move cursor back
+            cursor_pos = op.cursor_after - (op.inserted.length() - op.removed.length());
+        } else if (op.removed.length() > op.inserted.length()) {
+            // We removed more text than we inserted, so when undoing we need to move cursor forward
+            cursor_pos = op.cursor_after + (op.removed.length() - op.inserted.length());
+        } else {
+            // Equal lengths, cursor stays the same
+            cursor_pos = op.cursor_after;
+        }
+    } else {
+        // For redo: use the cursor position that was recorded after the original operation
+        cursor_pos = op.cursor_after;
+    }
+    
     if (cursor_pos < 0) cursor_pos = 0;
     if (cursor_pos > static_cast<int>(newContent.length())) {
         cursor_pos = newContent.length();
@@ -496,6 +522,7 @@ void FileExplorer::handleUndo() {
         if (valid) {
             applyOperation(op, true);
             _undoStateDirty = true;  // Mark as dirty instead of immediate save
+            saveCurrentFile();  // Save file after undo operation
         }
     }
 }
@@ -506,6 +533,7 @@ void FileExplorer::handleRedo() {
         if (valid) {
             applyOperation(op, false);
             _undoStateDirty = true;  // Mark as dirty instead of immediate save
+            saveCurrentFile();  // Save file after redo operation
         }
     }
 }

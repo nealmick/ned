@@ -365,11 +365,18 @@ void Settings::renderOpenRouterKeyInput()
 	
 	// Handle block_input logic for all inputs
 	bool anyInputActive = isInputActive || isAgentModelActive || isCompletionModelActive;
+	
 	if (anyInputActive && !wasInputActive) {
 		editor_state.block_input = true;
 	} else if (!anyInputActive && wasInputActive) {
 		editor_state.block_input = false;
 	}
+	
+	// Also ensure block_input is set if any input is currently active
+	if (anyInputActive && !editor_state.block_input) {
+		editor_state.block_input = true;
+	}
+	
 	wasInputActive = anyInputActive;
 }
 

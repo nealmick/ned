@@ -19,7 +19,7 @@ void EditorCursor::spawnCursorAbove()
 
 	// Calculate character offset (not visual column)
 	int current_line =
-		EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, original_cursor);
+	EditorUtils::GetLineFromPosition(editor_state.editor_content_lines, original_cursor);
 	int original_char_offset = original_cursor - editor_state.editor_content_lines[current_line];
 
 	// Find current line

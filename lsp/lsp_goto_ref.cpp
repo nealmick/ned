@@ -354,8 +354,11 @@ void LSPGotoRef::renderReferenceOptions()
 				showReferenceOptions = false;
 				editor_state.block_input = false;
 			}
-			showReferenceOptions = false;
-			editor_state.block_input = false;
+			else
+			{
+				showReferenceOptions = false;
+				editor_state.block_input = false;
+			}
 		}
 
 		// Handle escape key

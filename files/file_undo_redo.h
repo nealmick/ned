@@ -126,6 +126,7 @@ public:
 
     // Simplified API: Only current content and cursor index
     void addState(const std::string& currentContent, int cursor_after) {
+        std::cout << "Adding state: " << cursor_after << std::endl;
         if (!hasPending) {
             // First change in a series
             pendingInitialContent = lastCommittedState;
@@ -197,6 +198,13 @@ public:
     bool hasOperations() const {
         return !undoStack.empty() || !redoStack.empty();
     }
+
+    // Force commit pending state immediately (useful for paste operations)
+    void forceCommitPending() {
+        commitPending();
+    }
+
+
 
 private:
     std::vector<Operation> undoStack;

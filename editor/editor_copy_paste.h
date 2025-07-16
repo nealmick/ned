@@ -31,6 +31,14 @@ class EditorCopyPaste
 	// Get selection bounds (helper methods)
 	int getSelectionStart() const;
 	int getSelectionEnd() const;
+	
+	// Indentation handling methods
+	// Returns true for tabs, false for spaces
+	bool checkIndentationType() const;
+	// Convert 4 spaces to 1 tab
+	std::string convertSpacesToTabs(const std::string& text) const;
+	// Convert 1 tab to 4 spaces
+	std::string convertTabsToSpaces(const std::string& text) const;
 };
 
 // Global instance

@@ -399,8 +399,11 @@ void LSPGotoDef::renderDefinitionOptions()
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
 			}
-			showDefinitionOptions = false;
-			editor_state.block_input = false;
+			else
+			{
+				showDefinitionOptions = false;
+				editor_state.block_input = false;
+			}
 		}
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{

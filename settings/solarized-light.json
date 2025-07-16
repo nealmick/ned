@@ -1,6 +1,6 @@
 {
     "agent_model": "deepseek/deepseek-chat-v3-0324",
-    "agent_pane_visible": true,
+    "agent_pane_visible": false,
     "agent_split_pos": 0.21298927068710327,
     "ai_autocomplete": true,
     "backgroundColor": [
@@ -17,6 +17,7 @@
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 25.0,
     "fps_target": 60.0,
+    "fps_target_unfocused": 30.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,

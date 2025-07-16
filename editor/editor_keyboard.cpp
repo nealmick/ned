@@ -206,6 +206,8 @@ void EditorKeyboard::handleCharacterInput()
 		return;
 	}
 
+
+
 	// Only close LSP completion menu for specific characters
 	bool shouldCloseCompletion = false;
 	for (char c : inputText) {
@@ -840,7 +842,6 @@ void EditorKeyboard::handleTextInput()
 	handleEnterKey();
 	handleBackspaceKey();
 	handleDeleteKey();
-	gLineJump.handleLineJumpInput();
 
 	if (editor_state.text_changed)
 	{
@@ -859,8 +860,6 @@ void EditorKeyboard::handleTextInput()
 		gFileExplorer.addUndoState();
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
-
-		
 
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
@@ -920,7 +919,7 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	bool shift_pressed = ImGui::GetIO().KeyShift;
 
 	// block input if searching for file...
-	if (gFileFinder.showFFWindow || gLSPAutocomplete.blockTab)
+	if (gFileFinder.showFFWindow || gLineJump.showLineJumpWindow || gLSPAutocomplete.blockTab)
 	{
 		gLSPAutocomplete.blockTab = false;
 		return;
@@ -1029,7 +1028,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			}
 			processFontSizeAdjustment();
 			processSelectAll();
-			gEditorKeyboard.processUndoRedo();
 			gBookmarks.handleBookmarkInput(gFileExplorer);
 			gEditorCursor.processCursorJump(editor_state.fileContent,
 											editor_state.ensure_cursor_visible);
@@ -1119,8 +1117,17 @@ void EditorKeyboard::handleEditorKeyboardInput()
 									   window_width);
 
 
-	if (ImGui::IsWindowFocused() && ctrl_pressed)
+	// Always process clipboard shortcuts and undo/redo, even when input is blocked
+	ImGuiIO &io = ImGui::GetIO();
+	if (io.KeyCtrl || io.KeySuper) {
+		// Close autocomplete when using keyboard shortcuts
+		gLSPAutocomplete.showCompletions = false;
+		gLSPAutocomplete.wasShowingLastFrame = false;
+		editor_state.block_input = false;
+		
 		gEditorCopyPaste.processClipboardShortcuts();
+		gEditorKeyboard.processUndoRedo();
+	}
 
 	// Update cursor visibility if text has changed
 	updateCursorVisibilityOnTextChange();

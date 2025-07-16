@@ -34,9 +34,10 @@ public:
     std::vector<Message> messages;
     std::mutex messagesMutex;
     bool needsFollowUpMessage = false; // Flag to trigger follow-up message
+    std::atomic<bool> messageDisplayLinesDirty{true};
 
 private:
-    char inputBuffer[256] = {0};
+    char inputBuffer[10000] = {0};
     unsigned int frameCounter;
     void renderMessageHistory(const ImVec2& size, ImFont* largeFont = nullptr);
     bool scrollToBottom = false;
@@ -46,7 +47,6 @@ private:
     
     // Message display and UI
     std::vector<std::string> messageDisplayLines;
-    std::atomic<bool> messageDisplayLinesDirty{true};
     TextSelect textSelect;
     void rebuildMessageDisplayLines();
     void wrapTextToWidth(const std::string& text, float maxWidth);
@@ -62,6 +62,9 @@ private:
     bool shouldAllowToolCall(const std::string& toolName);
     void recordFailedToolCall(const std::string& toolName);
     
+    // Helper method to trigger AI response after tool calls
+    void triggerAIResponse();
+    
     // History management
     AIAgentHistory historyManager;
     
@@ -75,5 +78,4 @@ private:
     std::map<std::string, int> failedToolCalls; // tool_name -> failure_count
     std::chrono::system_clock::time_point lastToolCallTime;
     static const int MAX_FAILED_CALLS = 3; // Maximum consecutive failures for same tool
-    bool toolCallsProcessed = false; // Flag to prevent duplicate tool call processing
 };

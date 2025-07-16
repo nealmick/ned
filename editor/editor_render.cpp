@@ -30,6 +30,8 @@ void EditorRender::renderEditorFrame()
 {
 	
 	gEditorRender.renderEditorContent();
+	
+	gLineJump.renderLineJumpWindow();
 
 	gFileFinder.renderWindow();
 
@@ -153,7 +155,6 @@ void EditorRender::beginTextEditorChild(const char *label,
 
 void EditorRender::renderEditorContent()
 {
-	gLineJump.renderLineJumpWindow();
 
 	renderText();
 

@@ -118,6 +118,7 @@ struct EditorState
 	bool text_changed = false;
 	bool ghost_text_changed = false;  // New flag for ghost text changes
 
+
 	bool get_autocomplete = false;
 	EditorState()
 		: cursor_column_prefered(0), cursor_index(0), selection_start(0), selection_end(0),

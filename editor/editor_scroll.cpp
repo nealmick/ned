@@ -452,3 +452,8 @@ void EditorScroll::centerCursorVertically()
 	// Reset horizontal animation if needed
 	scrollAnimation.active_x = false;
 }
+
+bool EditorScroll::isScrollAnimationActive() const
+{
+	return scrollAnimation.active_x || scrollAnimation.active_y;
+}

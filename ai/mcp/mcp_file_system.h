@@ -22,9 +22,6 @@ public:
     // Method to read file contents with sensible truncation
     std::string readFile(const std::string& path);
     
-    // Method to write content to a file (overwrites existing content)
-    bool writeFile(const std::string& path, const std::string& content);
-    
     // Edit file using Morph's fast apply API
     std::string editFile(const std::string& target_file, const std::string& instructions, const std::string& code_edit);
 };
