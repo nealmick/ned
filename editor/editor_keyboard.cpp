@@ -1028,7 +1028,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			}
 			processFontSizeAdjustment();
 			processSelectAll();
-			gEditorKeyboard.processUndoRedo();
 			gBookmarks.handleBookmarkInput(gFileExplorer);
 			gEditorCursor.processCursorJump(editor_state.fileContent,
 											editor_state.ensure_cursor_visible);
@@ -1118,8 +1117,17 @@ void EditorKeyboard::handleEditorKeyboardInput()
 									   window_width);
 
 
-	if (ctrl_pressed)
+	// Always process clipboard shortcuts and undo/redo, even when input is blocked
+	ImGuiIO &io = ImGui::GetIO();
+	if (io.KeyCtrl || io.KeySuper) {
+		// Close autocomplete when using keyboard shortcuts
+		gLSPAutocomplete.showCompletions = false;
+		gLSPAutocomplete.wasShowingLastFrame = false;
+		editor_state.block_input = false;
+		
 		gEditorCopyPaste.processClipboardShortcuts();
+		gEditorKeyboard.processUndoRedo();
+	}
 
 	// Update cursor visibility if text has changed
 	updateCursorVisibilityOnTextChange();
