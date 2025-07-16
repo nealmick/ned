@@ -159,7 +159,7 @@ std::string EditorGit::gitPlusMinus(const std::string& filePath) {
     }
 
     // Check if file exists in git
-    std::string checkCmd = "git ls-files --error-unmatch -- " + relativePath + " 2>/dev/null";
+    std::string checkCmd = "git ls-files --error-unmatch -- " + relativePath + " >/dev/null 2>&1";
     int checkResult = system(checkCmd.c_str());
     if (checkResult != 0) {
         chdir(originalDir.c_str()); // Restore original directory
