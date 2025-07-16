@@ -129,6 +129,19 @@ void EditorCopyPaste::pasteText()
 		std::string paste_content = clipboard_text;
 		if (!paste_content.empty())
 		{
+			// Handle indentation conversion
+			bool fileUsesTabs = checkIndentationType();
+			if (fileUsesTabs)
+			{
+				// File uses tabs, convert spaces to tabs in paste content
+				paste_content = convertSpacesToTabs(paste_content);
+			}
+			else
+			{
+				// File uses spaces, convert tabs to spaces in paste content
+				paste_content = convertTabsToSpaces(paste_content);
+			}
+			
 			int paste_start = editor_state.cursor_index;
 			int paste_end = paste_start + paste_content.size();
 			if (editor_state.selection_start != editor_state.selection_end)
@@ -159,4 +172,73 @@ void EditorCopyPaste::pasteText()
 			gEditorHighlight.highlightContent();
 		}
 	}
+}
+
+bool EditorCopyPaste::checkIndentationType() const
+{
+	// Check if the file contains any tabs
+	// Returns true for tabs, false for spaces
+	return editor_state.fileContent.find('\t') != std::string::npos;
+}
+
+std::string EditorCopyPaste::convertSpacesToTabs(const std::string& text) const
+{
+	std::string result;
+	result.reserve(text.size()); // Pre-allocate space for efficiency
+	
+	for (size_t i = 0; i < text.size(); ++i)
+	{
+		if (text[i] == ' ')
+		{
+			// Check if we have 4 consecutive spaces
+			int spaceCount = 0;
+			while (i < text.size() && text[i] == ' ' && spaceCount < 4)
+			{
+				spaceCount++;
+				i++;
+			}
+			
+			if (spaceCount == 4)
+			{
+				result += '\t';
+			}
+			else
+			{
+				// Add back the spaces we consumed
+				for (int j = 0; j < spaceCount; ++j)
+				{
+					result += ' ';
+				}
+			}
+			
+			// Adjust i since we already incremented it in the while loop
+			i--;
+		}
+		else
+		{
+			result += text[i];
+		}
+	}
+	
+	return result;
+}
+
+std::string EditorCopyPaste::convertTabsToSpaces(const std::string& text) const
+{
+	std::string result;
+	result.reserve(text.size() * 4); // Pre-allocate space for efficiency
+	
+	for (char c : text)
+	{
+		if (c == '\t')
+		{
+			result += "    "; // 4 spaces
+		}
+		else
+		{
+			result += c;
+		}
+	}
+	
+	return result;
 }

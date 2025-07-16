@@ -209,7 +209,6 @@ void FileExplorer::openFolderDialog()
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
-
 	try
 	{
 		// First check if the path exists and is a regular file
