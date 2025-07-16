@@ -33,8 +33,7 @@ AIAgent::AIAgent() : frameCounter(0),
     textSelect([](size_t){ return ""; }, []{ return 0; }, true), // dummy accessors, word wrap enabled
     forceScrollToBottomNextFrame(false),
     lastKnownWidth(0.0f),
-    lastToolCallTime(std::chrono::system_clock::now()),
-    toolCallsProcessed(false)
+    lastToolCallTime(std::chrono::system_clock::now())
 {
     // Initialize input buffer
     strncpy(inputBuffer, "", sizeof(inputBuffer));
@@ -119,11 +118,6 @@ void AIAgent::recordFailedToolCall(const std::string& toolName) {
 }
 
 void AIAgent::render(float agentPaneWidth, ImFont* largeFont) {
-    // Check if we need to send a follow-up message from a tool call
-    if (needsFollowUpMessage) {
-        needsFollowUpMessage = false;
-        sendMessage("### SYSTEM MESSAGE ### The tool call has been completed and the results are shown above. Please continue with the user's request. ### END SYSTEM MESSAGE ###", true);
-    }
     
     float inputWidth = ImGui::GetContentRegionAvail().x;
     float windowHeight = ImGui::GetWindowHeight();
@@ -170,6 +164,7 @@ void AIAgent::rebuildMessageDisplayLines() {
     }
     messageDisplayLines.clear();
     
+    
     // Calculate available width for text (accounting for padding, scrollbar, and some buffer)
     float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
     float childPadding = ImGui::GetStyle().ChildRounding * 2.0f; // Account for child window padding
@@ -179,8 +174,11 @@ void AIAgent::rebuildMessageDisplayLines() {
     for (size_t i = 0; i < messagesCopy.size(); ++i) {
         const auto& msg = messagesCopy[i];
         
+        //std::cout << "Processing message " << i << ": role=" << msg.role << ", text length=" << msg.text.length() << std::endl;
+        
         // Skip hidden messages
         if (msg.hide_message) {
+            //std::cout << "Skipping hidden message" << std::endl;
             continue;
         }
         
@@ -189,6 +187,20 @@ void AIAgent::rebuildMessageDisplayLines() {
         // Use role-based display only
         if (msg.role == "assistant") {
             displayText = "##### Agent: " + displayText;
+            
+            // If this assistant message contains tool calls, add details about them
+            if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() && !msg.tool_calls.empty()) {
+                displayText += "\n[Tool calls made:";
+                for (size_t i = 0; i < msg.tool_calls.size(); ++i) {
+                    const auto& toolCall = msg.tool_calls[i];
+                    if (toolCall.contains("function") && toolCall["function"].contains("name")) {
+                        std::string toolName = toolCall["function"]["name"];
+                        displayText += " " + toolName;
+                        if (i < msg.tool_calls.size() - 1) displayText += ",";
+                    }
+                }
+                displayText += "]";
+            }
         } else if (msg.role == "user") {
             displayText = "##### User: " + displayText;
         } else if (msg.role == "tool") {
@@ -215,6 +227,7 @@ void AIAgent::rebuildMessageDisplayLines() {
             }
         }
     }
+    
 }
 
 // Helper function to wrap text to a specific width
@@ -526,11 +539,6 @@ void AIAgent::printAllMessages() {
 }
 
 void AIAgent::sendMessage(const char* msg, bool hide_message) {
-    if (needsFollowUpMessage) {
-        needsFollowUpMessage = false;
-        sendMessage("Complete the message with the tool call results", false);
-        return;
-    }
     userScrolledUp = false;
     scrollToBottom = true;
     forceScrollToBottomNextFrame = true;
@@ -582,7 +590,23 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
     json messagesJson = json::array();
     json systemMessage;
     systemMessage["role"] = "system";
-    systemMessage["content"] = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n Available tools: listFiles, readFile, writeFile, createFile, createFolder, editFile, executeCommand \n\n CRITICAL: You must use the actual tool calling mechanism. NEVER output fake tool results or what the tool results would be, always run the tools if needed to get updated correct results.";
+    
+    // Build system prompt with current context
+    std::string systemPrompt = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n";
+    
+    // Add current project directory if available
+    if (!gFileExplorer.selectedFolder.empty()) {
+        systemPrompt += "Current project directory: " + gFileExplorer.selectedFolder + "\n";
+    }
+    
+    // Add current open file if available
+    if (!gFileExplorer.currentOpenFile.empty()) {
+        systemPrompt += "Current open file: " + gFileExplorer.currentOpenFile + "\n";
+    }
+    
+    systemPrompt += "\n";
+    
+    systemMessage["content"] = systemPrompt;
     messagesJson.push_back(systemMessage);
     {
         std::lock_guard<std::mutex> lock(messagesMutex);
@@ -591,17 +615,24 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
                 json messageObj;
                 messageObj["role"] = msg.role;
                 if (msg.role == "tool") {
-                    messageObj["tool_call_id"] = msg.tool_call_id;
                     messageObj["content"] = msg.text;
+                    if (!msg.tool_call_id.empty()) {
+                        messageObj["tool_call_id"] = msg.tool_call_id;
+                    }
                 } else if (!msg.tool_calls.is_null()) {
                     if (msg.text.empty()) {
-                        messageObj["content"] = nullptr;
+                        messageObj["content"] = "";
                     } else {
                         messageObj["content"] = msg.text;
                     }
                     messageObj["tool_calls"] = msg.tool_calls;
                 } else {
-                    messageObj["content"] = msg.text;
+                    // For regular messages without tool calls, handle empty content properly
+                    if (msg.text.empty()) {
+                        messageObj["content"] = "";
+                    } else {
+                        messageObj["content"] = msg.text;
+                    }
                 }
                 messagesJson.push_back(messageObj);
             }
@@ -651,63 +682,90 @@ void AIAgent::sendMessage(const char* msg, bool hide_message) {
             scrollToBottom = true;
         },
         [this](const std::string& finalResult, bool hadToolCall) {
+            std::cout << "=== COMPLETION CALLBACK: STARTED ===" << std::endl;
+            std::cout << "Final result length: " << finalResult.length() << " bytes" << std::endl;
+            std::cout << "Had tool call: " << (hadToolCall ? "YES" : "NO") << std::endl;
+            std::cout << "Final result preview: " << finalResult.substr(0, 100) << "..." << std::endl;
+            
             {
                 std::lock_guard<std::mutex> lock(messagesMutex);
+                std::cout << "Messages count: " << messages.size() << std::endl;
+                if (!messages.empty()) {
+                    std::cout << "Last message role: " << messages.back().role << std::endl;
+                    std::cout << "Last message streaming: " << (messages.back().isStreaming ? "YES" : "NO") << std::endl;
+                }
+                
                 if (!messages.empty() && messages.back().isStreaming) {
-                    // Clean up the final result to remove any malformed tool call remnants
-                    std::string cleanedResult = finalResult;
-                    
-                    // Remove any incomplete or malformed tool call markers
-                    size_t malformedPos = cleanedResult.find("TOOL_CALL:{");
-                    if (malformedPos != std::string::npos) {
-                        size_t endPos = cleanedResult.find("]", malformedPos);
-                        if (endPos != std::string::npos) {
-                            cleanedResult.erase(malformedPos, endPos - malformedPos + 1);
-                        } else {
-                            // If no closing bracket, remove everything from malformed position
-                            cleanedResult.erase(malformedPos);
+                    if (hadToolCall) {
+                        std::cout << "Processing tool call completion..." << std::endl;
+                        // For tool calls, the assistant message should already be updated with tool_calls
+                        // and the tool results should be added as separate tool messages
+                        // The assistant message should remain as "assistant" role
+                        if (messages.back().role == "assistant") {
+                            messages.back().isStreaming = false;
+                            // The tool_calls should already be set by agent_request.cpp
+                            std::cout << "Updated assistant message with tool calls" << std::endl;
                         }
+                        messageDisplayLinesDirty = true;
+                        
+                        // Set flag to trigger automatic follow-up after tool calls
+                        needsFollowUpMessage = true;
+                        std::cout << "Set needsFollowUpMessage flag" << std::endl;
+                    } else {
+                        std::cout << "Processing regular assistant message completion..." << std::endl;
+                        // Regular assistant message
+                        messages.back().text = finalResult;
+                        messages.back().isStreaming = false;
+                        messages.back().role = "assistant";
+                        messageDisplayLinesDirty = true;
+                        std::cout << "Updated assistant message with final result" << std::endl;
                     }
-                    
-                    // Remove any trailing incomplete JSON
-                    size_t lastBrace = cleanedResult.find_last_of('}');
-                    if (lastBrace != std::string::npos) {
-                        size_t afterBrace = cleanedResult.find_first_not_of(" \t\n\r", lastBrace + 1);
-                        if (afterBrace != std::string::npos && cleanedResult[afterBrace] == ']') {
-                            cleanedResult.erase(afterBrace);
-                        }
-                    }
-                    
-                    // Remove any standalone closing brackets that shouldn't be there
-                    while (cleanedResult.find("\n]") != std::string::npos) {
-                        size_t bracketPos = cleanedResult.find("\n]");
-                        cleanedResult.erase(bracketPos, 2);
-                    }
-                    
-                    // Remove any trailing closing brackets
-                    while (!cleanedResult.empty() && cleanedResult.back() == ']') {
-                        cleanedResult.pop_back();
-                    }
-                    
-                    // Trim any trailing whitespace or newlines
-                    while (!cleanedResult.empty() && (cleanedResult.back() == '\n' || cleanedResult.back() == '\r' || cleanedResult.back() == ' ' || cleanedResult.back() == '\t')) {
-                        cleanedResult.pop_back();
-                    }
-                    
-                    messages.back().text = cleanedResult;
-                    messages.back().isStreaming = false;
-                    messageDisplayLinesDirty = true;
-                    
-                    // Reset tool calls processed flag
-                    toolCallsProcessed = false;
+                } else {
+                    std::cout << "WARNING: No streaming message found to update" << std::endl;
                 }
                 scrollToBottom = true;
             }
             historyManager.saveConversationHistory();
-            if (hadToolCall && !toolCallsProcessed) {
-                toolCallsProcessed = true;
-                needsFollowUpMessage = true;
+            std::cout << "Saved conversation history" << std::endl;
+            
+            // If we had tool calls, trigger the follow-up response
+            if (hadToolCall) {
+                std::cout << "Triggering follow-up response for tool calls..." << std::endl;
+                // Use a small delay to ensure the current request is fully processed
+                std::thread([this]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    if (needsFollowUpMessage) {
+                        std::cout << "Executing follow-up message..." << std::endl;
+                        needsFollowUpMessage = false;
+                        // Add a hidden system message to prompt the AI to continue
+                        std::string followUpPrompt = "Please continue with the conversation based on the tool results. You can make additional tool calls if needed to complete the user's request.";
+                        
+                        // Add the follow-up prompt as a hidden system message to the conversation
+                        {
+                            std::lock_guard<std::mutex> lock(messagesMutex);
+                            Message followUpMsg;
+                            followUpMsg.text = followUpPrompt;
+                            followUpMsg.role = "system";
+                            followUpMsg.isStreaming = false;
+                            followUpMsg.hide_message = true;
+                            followUpMsg.timestamp = std::chrono::system_clock::now();
+                            messages.push_back(followUpMsg);
+                            messageDisplayLinesDirty = true;
+                            std::cout << "Added hidden system message for follow-up" << std::endl;
+                        }
+                        
+                        // Trigger the AI response directly
+                        triggerAIResponse();
+                        std::cout << "Triggered AI response" << std::endl;
+                    } else {
+                        std::cout << "Follow-up message flag was cleared, skipping" << std::endl;
+                    }
+                }).detach();
+            } else {
+                std::cout << "No tool calls, no follow-up needed" << std::endl;
             }
+            
+            std::cout << "=== COMPLETION CALLBACK: FINISHED ===" << std::endl;
         }
     );
 }
@@ -723,7 +781,6 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     
     // Reset conversation state variables to prevent issues when switching conversations
     needsFollowUpMessage = false;
-    toolCallsProcessed = false;
     failedToolCalls.clear();
     lastToolCallTime = std::chrono::system_clock::now();
     
@@ -731,13 +788,16 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     for (const auto& formattedMsg : formattedMessages) {
         Message msg;
         
-        // Check if it's an agent or user message and set the role correctly
+        // Check if it's an agent, user, or tool message and set the role correctly
         if (formattedMsg.find("##### Agent: ") == 0) {
             msg.text = formattedMsg.substr(12); // Remove "##### Agent: " prefix
             msg.role = "assistant";
         } else if (formattedMsg.find("##### User: ") == 0) {
             msg.text = formattedMsg.substr(11); // Remove "##### User: " prefix
             msg.role = "user";
+        } else if (formattedMsg.find("##### Tool Result: ") == 0) {
+            msg.text = formattedMsg.substr(18); // Remove "##### Tool Result: " prefix
+            msg.role = "tool";
         } else {
             // Fallback: treat as user message
             msg.text = formattedMsg;
@@ -756,4 +816,283 @@ void AIAgent::loadConversationFromHistory(const std::vector<std::string>& format
     scrollToBottom = true;
     
     std::cout << "Loaded " << messages.size() << " messages from conversation history" << std::endl;
+}
+
+void AIAgent::triggerAIResponse() {
+    std::cout << "=== TRIGGER AI RESPONSE: STARTED ===" << std::endl;
+    
+    std::string api_key = gSettingsFileManager.getOpenRouterKey();
+    if (api_key.empty()) {
+        std::cout << "ERROR: No API key available for follow-up response" << std::endl;
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        Message errorMsg;
+        errorMsg.text = "Error: No OpenRouter API key configured. Please set your API key in Settings.";
+        errorMsg.role = "assistant";
+        errorMsg.isStreaming = false;
+        errorMsg.hide_message = false;
+        errorMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(errorMsg);
+        scrollToBottom = true;
+        return;
+    }
+    
+    std::cout << "API key available, length: " << api_key.length() << std::endl;
+    
+    stopStreaming();
+    if (agentRequest.isProcessing()) {
+        std::cout << "WARNING: Agent request already processing, aborting follow-up" << std::endl;
+        return;
+    }
+    
+    std::cout << "Adding assistant message for streaming..." << std::endl;
+    // Add assistant message for streaming
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        Message agentMsg;
+        agentMsg.text = "";
+        agentMsg.role = "assistant";
+        agentMsg.isStreaming = true;
+        agentMsg.hide_message = false;
+        agentMsg.timestamp = std::chrono::system_clock::now();
+        messages.push_back(agentMsg);
+        messageDisplayLinesDirty = true;
+        std::cout << "Added streaming assistant message, total messages: " << messages.size() << std::endl;
+    }
+    
+    scrollToBottom = true;
+    
+    std::cout << "Building payload for follow-up response..." << std::endl;
+    // Build the payload (same logic as sendMessage but without adding a user message)
+    json payload;
+    payload["model"] = gSettings.getAgentModel();
+    payload["temperature"] = 0.7;
+    payload["max_tokens"] = 2000;
+    json messagesJson = json::array();
+    json systemMessage;
+    systemMessage["role"] = "system";
+    
+    // Build system prompt with current context
+    std::string systemPrompt = "You are a helpful AI assistant with access to file system and terminal tools. Use these tools when they would help accomplish the user's request.\n\n";
+    
+    // Add current project directory if available
+    if (!gFileExplorer.selectedFolder.empty()) {
+        systemPrompt += "Current project directory: " + gFileExplorer.selectedFolder + "\n";
+    }
+    
+    // Add current open file if available
+    if (!gFileExplorer.currentOpenFile.empty()) {
+        systemPrompt += "Current open file: " + gFileExplorer.currentOpenFile + "\n";
+    }
+    
+    systemPrompt += "\n";
+    
+    systemMessage["content"] = systemPrompt;
+    messagesJson.push_back(systemMessage);
+    
+    // Add all messages including hidden ones for context
+    {
+        std::lock_guard<std::mutex> lock(messagesMutex);
+        std::cout << "Adding " << messages.size() << " messages to payload" << std::endl;
+        
+        // Process messages in pairs to ensure tool results immediately follow tool calls
+        for (size_t i = 0; i < messages.size(); ++i) {
+            const auto& msg = messages[i];
+            json messageObj;
+            messageObj["role"] = msg.role;
+            
+            // If this is the last message and an assistant, trim trailing whitespace from content
+            bool isLastMessage = (i == messages.size() - 1);
+            if (msg.role == "assistant" && isLastMessage) {
+                std::string trimmed = msg.text;
+                // Remove trailing whitespace safely
+                size_t lastNonWhitespace = trimmed.find_last_not_of(" \t\n\r");
+                if (lastNonWhitespace != std::string::npos) {
+                    trimmed.erase(lastNonWhitespace + 1);
+                } else {
+                    // String is all whitespace, make it empty
+                    trimmed.clear();
+                }
+                // If the content is empty after trimming, skip this message entirely
+                // to avoid the "final assistant content cannot end with trailing whitespace" error
+                if (trimmed.empty() && msg.tool_calls.is_null()) {
+                    std::cout << "Skipping last assistant message with empty content to avoid API error" << std::endl;
+                    continue;
+                } else if (trimmed.empty()) {
+                    // If it has tool calls, we need to keep it but use empty string instead of null
+                    messageObj["content"] = "";
+                } else {
+                    messageObj["content"] = trimmed;
+                }
+                if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() && !msg.tool_calls.empty()) {
+                    messageObj["tool_calls"] = msg.tool_calls;
+                }
+            } else if (msg.role == "tool") {
+                messageObj["content"] = msg.text;
+                if (!msg.tool_call_id.empty()) {
+                    messageObj["tool_call_id"] = msg.tool_call_id;
+                }
+            } else if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() && !msg.tool_calls.empty()) {
+                // This is an assistant message with tool calls
+                if (msg.text.empty()) {
+                    messageObj["content"] = "";
+                } else {
+                    messageObj["content"] = msg.text;
+                }
+                messageObj["tool_calls"] = msg.tool_calls;
+            } else {
+                messageObj["content"] = msg.text;
+            }
+            messagesJson.push_back(messageObj);
+            
+            // If this message has tool calls, ensure the next message is the corresponding tool result
+            if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() && !msg.tool_calls.empty()) {
+                // Check if the next message is a tool result for these tool calls
+                if (i + 1 < messages.size()) {
+                    const auto& nextMsg = messages[i + 1];
+                    if (nextMsg.role == "tool" && !nextMsg.tool_call_id.empty()) {
+                        // Verify this tool result corresponds to one of the tool calls
+                        bool foundMatchingToolCall = false;
+                        for (const auto& toolCall : msg.tool_calls) {
+                            if (toolCall.contains("id") && toolCall["id"].get<std::string>() == nextMsg.tool_call_id) {
+                                foundMatchingToolCall = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!foundMatchingToolCall) {
+                            std::cout << "WARNING: Tool result message doesn't match any tool call ID" << std::endl;
+                            std::cout << "Tool call IDs: ";
+                            for (const auto& toolCall : msg.tool_calls) {
+                                if (toolCall.contains("id")) {
+                                    std::cout << toolCall["id"].get<std::string>() << " ";
+                                }
+                            }
+                            std::cout << std::endl;
+                            std::cout << "Tool result ID: " << nextMsg.tool_call_id << std::endl;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    payload["messages"] = messagesJson;
+    json toolsJson = json::array();
+    std::vector<MCP::ToolDefinition> tools = gMCPManager.getToolDefinitions();
+    std::cout << "Adding " << tools.size() << " tools to payload" << std::endl;
+    for (const auto& tool : tools) {
+        json toolObj;
+        toolObj["type"] = "function";
+        json functionObj;
+        functionObj["name"] = tool.name;
+        functionObj["description"] = tool.description;
+        json properties = json::object();
+        json required = json::array();
+        for (const auto& param : tool.parameters) {
+            json paramObj;
+            paramObj["type"] = param.type;
+            paramObj["description"] = param.description;
+            properties[param.name] = paramObj;
+            if (param.required) {
+                required.push_back(param.name);
+            }
+        }
+        json parametersObj;
+        parametersObj["type"] = "object";
+        parametersObj["properties"] = properties;
+        parametersObj["required"] = required;
+        functionObj["parameters"] = parametersObj;
+        toolObj["function"] = functionObj;
+        toolsJson.push_back(toolObj);
+    }
+    payload["tools"] = toolsJson;
+    payload["tool_choice"] = "auto";
+    
+    std::string payloadStr = payload.dump();
+    std::cout << "Payload prepared, length: " << payloadStr.length() << " bytes" << std::endl;
+    
+    std::cout << "Sending follow-up request..." << std::endl;
+    agentRequest.sendMessage(
+        payloadStr, api_key,
+        [this](const std::string& token) {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            if (!messages.empty() && messages.back().isStreaming) {
+                messages.back().text += token;
+                messageDisplayLinesDirty = true;
+            }
+            scrollToBottom = true;
+        },
+        [this](const std::string& finalResult, bool hadToolCall) {
+            std::cout << "=== FOLLOW-UP COMPLETION CALLBACK: STARTED ===" << std::endl;
+            std::cout << "Final result length: " << finalResult.length() << " bytes" << std::endl;
+            std::cout << "Had tool call: " << (hadToolCall ? "YES" : "NO") << std::endl;
+            
+            {
+                std::lock_guard<std::mutex> lock(messagesMutex);
+                if (!messages.empty() && messages.back().isStreaming) {
+                    if (hadToolCall) {
+                        std::cout << "Follow-up had tool calls, updating message" << std::endl;
+                        // For tool calls, the assistant message should already be updated with tool_calls
+                        if (messages.back().role == "assistant") {
+                            messages.back().isStreaming = false;
+                        }
+                        messageDisplayLinesDirty = true;
+                        
+                        // Set flag to trigger automatic follow-up after tool calls
+                        needsFollowUpMessage = true;
+                        std::cout << "Set needsFollowUpMessage flag for follow-up tool calls" << std::endl;
+                    } else {
+                        std::cout << "Follow-up completed with regular response" << std::endl;
+                        // Regular assistant message
+                        messages.back().text = finalResult;
+                        messages.back().isStreaming = false;
+                        messages.back().role = "assistant";
+                        messageDisplayLinesDirty = true;
+                    }
+                }
+                scrollToBottom = true;
+            }
+            historyManager.saveConversationHistory();
+            std::cout << "=== FOLLOW-UP COMPLETION CALLBACK: FINISHED ===" << std::endl;
+            
+            // If we had tool calls in the follow-up, trigger another follow-up response
+            if (hadToolCall) {
+                std::cout << "Triggering follow-up response for follow-up tool calls..." << std::endl;
+                // Use a small delay to ensure the current request is fully processed
+                std::thread([this]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    if (needsFollowUpMessage) {
+                        std::cout << "Executing follow-up message for follow-up tool calls..." << std::endl;
+                        needsFollowUpMessage = false;
+                        // Add a hidden system message to prompt the AI to continue
+                        std::string followUpPrompt = "Please continue with the conversation based on the tool results. You can make additional tool calls if needed to complete the user's request.";
+                        
+                        // Add the follow-up prompt as a hidden system message to the conversation
+                        {
+                            std::lock_guard<std::mutex> lock(messagesMutex);
+                            Message followUpMsg;
+                            followUpMsg.text = followUpPrompt;
+                            followUpMsg.role = "system";
+                            followUpMsg.isStreaming = false;
+                            followUpMsg.hide_message = true;
+                            followUpMsg.timestamp = std::chrono::system_clock::now();
+                            messages.push_back(followUpMsg);
+                            messageDisplayLinesDirty = true;
+                            std::cout << "Added hidden system message for follow-up tool calls" << std::endl;
+                        }
+                        
+                        // Trigger the AI response directly
+                        triggerAIResponse();
+                        std::cout << "Triggered AI response for follow-up tool calls" << std::endl;
+                    } else {
+                        std::cout << "Follow-up message flag was cleared, skipping" << std::endl;
+                    }
+                }).detach();
+            } else {
+                std::cout << "No tool calls in follow-up, no further follow-up needed" << std::endl;
+            }
+        }
+    );
+    
+    std::cout << "=== TRIGGER AI RESPONSE: FINISHED ===" << std::endl;
 }

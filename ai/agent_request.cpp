@@ -6,6 +6,9 @@
 #include "ai_agent.h"
 #include "../lib/json.hpp"
 #include <curl/curl.h>
+#include <thread>
+#include <chrono>
+#include <mutex>
 
 using json = nlohmann::json;
 
@@ -49,8 +52,28 @@ void AgentRequest::stopRequest() {
 void AgentRequest::sendMessage(const std::string& payload, const std::string& api_key,
                                StreamingCallback onStreamingToken,
                                CompleteCallback onComplete) {
+    
+    std::cout << "=== AGENT REQUEST: STARTING NEW REQUEST ===" << std::endl;
+    std::cout << "API Key length: " << api_key.length() << " (first 10 chars: " << api_key.substr(0, 10) << "...)" << std::endl;
+    std::cout << "Payload length: " << payload.length() << " bytes" << std::endl;
+    
+    std::cout << "-----------------------------------" << std::endl;
+    try {
+        json payloadJson = json::parse(payload);
+        std::cout << payloadJson.dump(4) << std::endl;
+    } catch (const json::parse_error& e) {
+        std::cout << "Error parsing JSON: " << e.what() << std::endl;
+        std::cout << "Raw payload: " << payload << std::endl;
+    }
+    std::cout << "-----------------------------------" << std::endl;
+    
     stopRequest();
-    if (isStreaming.load()) return;
+    if (isStreaming.load()) {
+        std::cout << "ERROR: Request already in progress, aborting" << std::endl;
+        return;
+    }
+    
+    std::cout << "Setting up streaming state..." << std::endl;
     isStreaming.store(true);
     shouldCancelStreaming.store(false);
     
@@ -63,140 +86,292 @@ void AgentRequest::sendMessage(const std::string& payload, const std::string& ap
     auto toolCallMarkers = std::make_shared<std::vector<std::string>>();
 
     streamingThread = std::thread([this, payload, api_key, onStreamingToken, onComplete, fullResponse, toolCallMarkers]() {
+        std::cout << "=== STREAMING THREAD: STARTED ===" << std::endl;
         try {
             // Parse the JSON payload
             json payloadJson;
             try {
                 payloadJson = json::parse(payload);
+                std::cout << "JSON payload parsed successfully" << std::endl;
             } catch (const json::parse_error& e) {
-                std::cerr << "Error parsing JSON payload: " << e.what() << std::endl;
+                std::cerr << "ERROR: Failed to parse JSON payload: " << e.what() << std::endl;
+                std::cerr << "Raw payload: " << payload << std::endl;
                 isStreaming.store(false);
                 if (onComplete) onComplete("Error: Invalid JSON payload", false);
                 return;
             }
             
-            // Check if this is a modern API call with tools
-            bool hasTools = payloadJson.contains("tools") && !payloadJson["tools"].empty();
+
+            // Track the full JSON response
+            auto fullJsonResponse = std::make_shared<json>();
             
-            if (hasTools) {
-                // Modern tool calling approach
-                // std::cout << "DEBUG: Using modern tool calling API" << std::endl;
-                
-                // Use the new JSON payload streaming function
-                bool streamSuccess = OpenRouter::jsonPayloadStream(payloadJson.dump(), api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
+            std::cout << "Calling OpenRouter::jsonPayloadStreamWithResponse..." << std::endl;
+            // Use the new JSON payload streaming function with response callback
+            bool streamSuccess = OpenRouter::jsonPayloadStreamWithResponse(payloadJson.dump(), api_key, 
+                [this, onStreamingToken, fullResponse](const std::string& token) {
                     *fullResponse += token;
+                    
+                    // Filter out tool call JSON tokens to prevent them from appearing in the agent's text
+                    // Tool call JSON tokens typically start with "{" and contain "function" or "tool_calls"
+                    if (token.find("{") == 0 && (token.find("function") != std::string::npos || token.find("tool_calls") != std::string::npos)) {
+                        // This is likely a tool call JSON token, skip it
+                        return;
+                    }
+                    
                     if (onStreamingToken) onStreamingToken(token);
-                }, &shouldCancelStreaming);
-                
-                if (!streamSuccess) {
-                    // std::cerr << "DEBUG: Streaming failed" << std::endl;
-                    isStreaming.store(false);
-                    if (onComplete) onComplete("Error: Streaming failed", false);
-                    return;
-                }
-                
+                },
+                [fullJsonResponse](const json& response) {
+                    *fullJsonResponse = response;
+                },
+                &shouldCancelStreaming);
+            
+            
+            if (!streamSuccess) {
                 isStreaming.store(false);
-                // std::cout << "DEBUG: Modern API streaming completed" << std::endl;
-                // std::cout << "DEBUG: Full response: " << *fullResponse << std::endl;
                 
-                // After streaming is done, ensure all tool call markers are in fullResponse
-                for (const auto& marker : *toolCallMarkers) {
-                    if (fullResponse->find(marker) == std::string::npos) {
-                        *fullResponse += marker;
-                        // std::cout << "DEBUG: Appended missing TOOL_CALL marker after streaming: " << marker << std::endl;
+                // Clean up any empty streaming messages that failed
+                {
+                    std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                    if (!gAIAgent.messages.empty() && 
+                        gAIAgent.messages.back().role == "assistant" && 
+                        gAIAgent.messages.back().isStreaming &&
+                        gAIAgent.messages.back().text.empty()) {
+                        gAIAgent.messages.pop_back();
+                        gAIAgent.messageDisplayLinesDirty = true;
+                        std::cout << "Removed empty streaming message due to failure" << std::endl;
                     }
                 }
                 
-                // Parse for tool calls in the streamed response
-                std::string finalResult = *fullResponse;
-                bool hadToolCall = false;
-                
-                // std::cout << "DEBUG: About to parse tool calls in fullResponse: [" << *fullResponse << "]" << std::endl;
-                
-                // Check if we have tool call markers in the response
-                if (fullResponse->find("TOOL_CALL:") != std::string::npos) {
-                    // std::cout << "DEBUG: Tool call markers found in response" << std::endl;
-                    hadToolCall = true;
-                    finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
-                } else {
-                    // Fallback to legacy tool call detection
-                    hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
-                    if (hadToolCall) {
-                        // std::cout << "DEBUG: Tool call detected in streamed response" << std::endl;
-                        finalResult = gMCPManager.processToolCalls(*fullResponse);
-                        // std::cout << "DEBUG: Tool call result: " << finalResult << std::endl;
-                    }
-                }
-                
-                if (onComplete) onComplete(finalResult, hadToolCall);
+                if (onComplete) onComplete("Error: Streaming failed", false);
                 return;
-                
-            } else {
-                // Fallback to legacy format for backward compatibility
-                // std::cout << "DEBUG: Using legacy prompt format" << std::endl;
-                
-                // Convert the modern format back to the old format for compatibility
-                std::string legacyPrompt = "";
-                
-                if (payloadJson.contains("messages") && payloadJson["messages"].is_array()) {
-                    for (const auto& msg : payloadJson["messages"]) {
-                        std::string role = msg.value("role", "user");
-                        std::string content = msg.value("content", "");
-                        
-                        if (role == "system") {
-                            legacyPrompt += "SYSTEM: " + content + "\n\n";
-                        } else if (role == "user") {
-                            legacyPrompt += "#User: " + content + "\n";
-                        } else if (role == "assistant") {
-                            legacyPrompt += "#Assistant: " + content + "\n";
-                        } else if (role == "tool") {
-                            legacyPrompt += "TOOL_RESULT: " + content + "\n";
-                        }
-                    }
-                }
-                
-                // std::cout << "DEBUG: Converted to legacy prompt format:" << std::endl;
-                // std::cout << legacyPrompt << std::endl;
-                
-                OpenRouter::promptRequestStream(legacyPrompt, api_key, [this, onStreamingToken, fullResponse](const std::string& token) {
-                    std::string combined = utf8_buffer + token;
-                    auto valid_end = combined.begin();
-                    try { valid_end = utf8::find_invalid(combined.begin(), combined.end()); }
-                    catch (...) { valid_end = combined.begin(); }
-                    std::string validToken = std::string(combined.begin(), valid_end);
-                    *fullResponse += validToken;
-                    if (onStreamingToken) onStreamingToken(validToken);
-                    utf8_buffer = std::string(valid_end, combined.end());
-                }, &shouldCancelStreaming);
-                
-                isStreaming.store(false);
-                // std::cout << "fgot final repsoine here for ya boss:" << std::endl;
-                // std::cout << *fullResponse << std::endl;
-                
-                // Parse for tool calls (legacy method)
-                std::string finalResult = *fullResponse;
-                // std::cout << "checking for tool calls" << std::endl;
-                // std::cout << "Response content: " << *fullResponse << std::endl;
-                bool hadToolCall = gMCPManager.hasToolCalls(*fullResponse);
-                // std::cout << "hasToolCalls returned: " << (hadToolCall ? "true" : "false") << std::endl;
-                if (hadToolCall) {
-                    // std::cout << "Tool call detected in response!" << std::endl;
-                    finalResult = gMCPManager.processToolCalls(*fullResponse);
-                    // std::cout << "Tool call result: " << finalResult << std::endl;
-                }
-                
-                if (onComplete) onComplete(finalResult, hadToolCall);
             }
             
-        } catch (const std::exception& e) {
-            std::cerr << "Exception in streaming thread: " << e.what() << std::endl;
+            std::cout << "Streaming completed successfully, processing response..." << std::endl;
             isStreaming.store(false);
+            
+            // Print the full JSON response object
+            std::cout << "=== FULL JSON RESPONSE OBJECT ===" << std::endl;
+            if (!fullJsonResponse->is_null()) {
+                std::cout << fullJsonResponse->dump(4) << std::endl;
+                
+                // Check if there are tool calls in the response
+                if (fullJsonResponse->contains("choices") && 
+                    (*fullJsonResponse)["choices"].is_array() && 
+                    !(*fullJsonResponse)["choices"].empty()) {
+                    
+                    const auto& choices = (*fullJsonResponse)["choices"];
+                    const auto& choice = choices[0];
+                    
+                    if (choice.contains("message") && choice["message"].contains("tool_calls")) {
+                        std::cout << "=== PROCESSING TOOL CALLS ===" << std::endl;
+                        
+                        // Update the assistant message with tool calls
+                        {
+                            std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                            if (!gAIAgent.messages.empty()) {
+                                Message& lastMsg = gAIAgent.messages.back();
+                                if (lastMsg.role == "assistant" && lastMsg.isStreaming) {
+                                    lastMsg.tool_calls = choice["message"]["tool_calls"];
+                                    lastMsg.isStreaming = false;
+                                    // Handle null content properly - don't set empty string for null content
+                                    if (choice["message"].contains("content") && !choice["message"]["content"].is_null()) {
+                                        lastMsg.text = choice["message"]["content"].get<std::string>();
+                                    } else {
+                                        // Keep the text as is, don't set to empty string for null content
+                                        // This will be handled properly when building the payload
+                                    }
+                                    gAIAgent.messageDisplayLinesDirty = true;
+                                    std::cout << "=== DEBUG: Updated assistant message with tool calls ===" << std::endl;
+                                    std::cout << "Tool calls count: " << lastMsg.tool_calls.size() << std::endl;
+                                    std::cout << "=== END DEBUG ===" << std::endl;
+                                }
+                            }
+                        }
+                        
+                        // Process each tool call
+                        const auto& toolCalls = choice["message"]["tool_calls"];
+                        for (const auto& toolCall : toolCalls) {
+                            if (toolCall.contains("function") && toolCall["function"].contains("name")) {
+                                std::string toolName = toolCall["function"]["name"].get<std::string>();
+                                std::string argumentsStr = toolCall["function"]["arguments"].get<std::string>();
+                                
+                                std::cout << "Executing tool call: " << toolName << std::endl;
+                                std::cout << "Arguments: " << argumentsStr << std::endl;
+                                
+                                std::string result;
+                                bool toolCallSucceeded = false;
+                                
+                                try {
+                                    // Validate that the arguments string is complete JSON
+                                    if (argumentsStr.empty() || argumentsStr.find('}') == std::string::npos) {
+                                        std::cerr << "Error: Incomplete tool call arguments: " << argumentsStr << std::endl;
+                                        result = "ERROR: Incomplete tool call arguments: " + argumentsStr;
+                                        toolCallSucceeded = false;
+                                    } else {
+                                        // Additional validation for common malformed patterns
+                                        bool isMalformed = false;
+                                        
+                                        // Check for unmatched quotes
+                                        if (argumentsStr.find('"') != std::string::npos) {
+                                            int quoteCount = 0;
+                                            for (char c : argumentsStr) {
+                                                if (c == '"') quoteCount++;
+                                            }
+                                            if (quoteCount % 2 != 0) {
+                                                isMalformed = true;
+                                                std::cerr << "Error: Tool call arguments have unmatched quotes: " << argumentsStr << std::endl;
+                                            }
+                                        }
+                                        
+                                        // Check for invalid escape sequences
+                                        if (argumentsStr.find("\\") != std::string::npos) {
+                                            size_t pos = 0;
+                                            while ((pos = argumentsStr.find("\\", pos)) != std::string::npos) {
+                                                if (pos + 1 < argumentsStr.length()) {
+                                                    char nextChar = argumentsStr[pos + 1];
+                                                    if (nextChar != '"' && nextChar != '\\' && nextChar != '/' && 
+                                                        nextChar != 'b' && nextChar != 'f' && nextChar != 'n' && 
+                                                        nextChar != 'r' && nextChar != 't' && nextChar != 'u') {
+                                                        isMalformed = true;
+                                                        std::cerr << "Error: Tool call arguments contain invalid escape sequence \\" << nextChar << ": " << argumentsStr << std::endl;
+                                                        break;
+                                                    }
+                                                }
+                                                pos += 2;
+                                            }
+                                        }
+                                        
+                                        if (isMalformed) {
+                                            result = "ERROR: Malformed tool call arguments: " + argumentsStr;
+                                            toolCallSucceeded = false;
+                                        } else {
+                                            json argumentsJson = json::parse(argumentsStr);
+                                            std::unordered_map<std::string, std::string> parameters;
+                                            
+                                            for (auto it = argumentsJson.begin(); it != argumentsJson.end(); ++it) {
+                                                parameters[it.key()] = it.value().get<std::string>();
+                                            }
+                                            
+                                            // Execute the tool call
+                                            result = gMCPManager.executeToolCall(toolName, parameters);
+                                            toolCallSucceeded = true;
+                                            
+                                            std::cout << "=== TOOL CALL RESULT ===" << std::endl;
+                                            std::cout << result << std::endl;
+                                            std::cout << "=== END TOOL CALL RESULT ===" << std::endl;
+                                        }
+                                    }
+                                    
+                                } catch (const json::parse_error& e) {
+                                    std::cerr << "Error parsing tool call arguments: " << e.what() << std::endl;
+                                    result = "ERROR: Failed to parse tool call arguments: " + std::string(e.what());
+                                    toolCallSucceeded = false;
+                                } catch (const std::exception& e) {
+                                    std::cerr << "Error executing tool call: " << e.what() << std::endl;
+                                    result = "ERROR: Tool execution failed: " + std::string(e.what());
+                                    toolCallSucceeded = false;
+                                }
+                                
+                                // Always add a tool result message, even if the tool call failed
+                                {
+                                    std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                                    Message toolMsg;
+                                    toolMsg.text = result;
+                                    toolMsg.role = "tool";
+                                    toolMsg.isStreaming = false;
+                                    toolMsg.hide_message = false;
+                                    toolMsg.timestamp = std::chrono::system_clock::now();
+                                    
+                                    // Set the tool_call_id to match the tool call ID
+                                    if (toolCall.contains("id")) {
+                                        toolMsg.tool_call_id = toolCall["id"].get<std::string>();
+                                    }
+                                    
+                                    gAIAgent.messages.push_back(toolMsg);
+                                    gAIAgent.messageDisplayLinesDirty = true;
+                                    
+                                    std::cout << "=== DEBUG: Added tool message to agent ===" << std::endl;
+                                    std::cout << "Message count: " << gAIAgent.messages.size() << std::endl;
+                                    std::cout << "Display dirty flag: " << gAIAgent.messageDisplayLinesDirty.load() << std::endl;
+                                    std::cout << "Tool message text: " << toolMsg.text.substr(0, 100) << "..." << std::endl;
+                                    std::cout << "Tool call ID: " << toolMsg.tool_call_id << std::endl;
+                                    std::cout << "Tool call succeeded: " << (toolCallSucceeded ? "YES" : "NO") << std::endl;
+                                    std::cout << "=== END DEBUG ===" << std::endl;
+                                    
+                                    // If the tool call failed due to malformed JSON, log it
+                                    if (!toolCallSucceeded && (result.find("ERROR: Incomplete tool call arguments") != std::string::npos || 
+                                                              result.find("ERROR: Failed to parse tool call arguments") != std::string::npos ||
+                                                              result.find("ERROR: Malformed tool call arguments") != std::string::npos)) {
+                                        std::cout << "Tool call failed for " << toolName << " due to malformed JSON" << std::endl;
+                                    }
+                                }
+                            }
+                        }
+                        std::cout << "=== END PROCESSING TOOL CALLS ===" << std::endl;
+                        
+                        // Set flag to trigger follow-up message after tool calls
+                        gAIAgent.needsFollowUpMessage = true;
+                        
+                        // Call the completion callback to indicate tool calls were processed
+                        if (onComplete) {
+                            onComplete("", true); // Empty result, but had tool call
+                        }
+                        
+                        return;
+                    }
+                }
+            } else {
+                std::cout << "No JSON response object captured" << std::endl;
+            }
+            std::cout << "=== END JSON RESPONSE ===" << std::endl;
+            
+            // If we get here, there were no tool calls, so call the completion callback
+            if (onComplete) {
+                onComplete(*fullResponse, false); // Full response, no tool call
+            }
+            
+            return;
+            
+            
+        } catch (const std::exception& e) {
+            std::cerr << "EXCEPTION in streaming thread: " << e.what() << std::endl;
+            std::cerr << "Exception type: " << typeid(e).name() << std::endl;
+            isStreaming.store(false);
+            
+            // Clean up any empty streaming messages that failed
+            {
+                std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                if (!gAIAgent.messages.empty() && 
+                    gAIAgent.messages.back().role == "assistant" && 
+                    gAIAgent.messages.back().isStreaming &&
+                    gAIAgent.messages.back().text.empty()) {
+                    gAIAgent.messages.pop_back();
+                    gAIAgent.messageDisplayLinesDirty = true;
+                    std::cout << "Removed empty streaming message due to exception" << std::endl;
+                }
+            }
+            
             if (onComplete) onComplete("Error: Exception occurred during streaming", false);
         } catch (...) {
-            std::cerr << "Unknown exception in streaming thread" << std::endl;
+            std::cerr << "UNKNOWN EXCEPTION in streaming thread" << std::endl;
             isStreaming.store(false);
+            
+            // Clean up any empty streaming messages that failed
+            {
+                std::lock_guard<std::mutex> lock(gAIAgent.messagesMutex);
+                if (!gAIAgent.messages.empty() && 
+                    gAIAgent.messages.back().role == "assistant" && 
+                    gAIAgent.messages.back().isStreaming &&
+                    gAIAgent.messages.back().text.empty()) {
+                    gAIAgent.messages.pop_back();
+                    gAIAgent.messageDisplayLinesDirty = true;
+                    std::cout << "Removed empty streaming message due to unknown exception" << std::endl;
+                }
+            }
+            
             if (onComplete) onComplete("Error: Unknown error occurred during streaming", false);
         }
     });
+    
+    std::cout << "=== AGENT REQUEST: THREAD STARTED ===" << std::endl;
 }

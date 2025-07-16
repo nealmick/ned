@@ -74,6 +74,9 @@ class EditorScroll
 	// dependency)
 	int getLineFromPosition(const std::vector<int> &line_starts, int pos);
 
+	// Check if scroll animation is currently active
+	bool isScrollAnimationActive() const;
+
 	// Scroll state (moved from EditorState)
 	ImVec2 scrollPos = ImVec2(0, 0);	  // Replaces state.scroll_pos
 	float scrollX = 0.0f;				  // Replaces state.scroll_x

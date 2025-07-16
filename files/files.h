@@ -48,6 +48,8 @@ class FileExplorer
 	void handleUndo();
 	void handleRedo();
 	void addUndoState();
+	void forceCommitUndoState();  // Force commit pending undo state immediately
+
 	void saveUndoRedoState();
 	void loadUndoRedoState();
 	void forceSaveUndoState();  // Force save when needed (e.g., on app close)
@@ -127,6 +129,7 @@ class FileExplorer
 	std::string selectedFolder;
 	bool _showFileDialog = false;
 	bool _undoStateDirty = false;  // Track if undo state needs saving
+
 
 	// External file change detection
 	std::map<std::string, fs::file_time_type> _fileModificationTimes;

@@ -55,6 +55,9 @@ class LSPAutocomplete
 	bool blockTab = false;
 	bool blockEnter = false;
 
+	// State tracking for focus/frame logic
+	static bool wasShowingLastFrame;
+
   private:
 	std::vector<CompletionDisplayItem> currentCompletionItems;
 	std::queue<CompletionRequest> requestQueue;
@@ -81,9 +84,6 @@ class LSPAutocomplete
 	bool handleClickOutside();
 	void finalizeRenderState();
 	void resetPopupPosition(); // New function to reset position cache
-
-	// State tracking for focus/frame logic
-	static bool wasShowingLastFrame;
 
 	// requesting logic
 	std::string formCompletionRequest(int requestId, const std::string &filePath, int line, int character);

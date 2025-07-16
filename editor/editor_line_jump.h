@@ -1,5 +1,5 @@
 /*
-	util/line_jump.h
+	editor/editor_line_jump.h
 	This utility handles line changes, such as jumping to line 300...
 	Use keybind cmd : to activate the number input box, type a number then
    press enter. The cursor jumps to the line number and scrolls the view to
@@ -16,165 +16,156 @@
 #include "editor_types.h"
 
 #include <string>
+
 class LineJump
 {
   private:
 	char lineNumberBuffer[32] = "";
 	bool justJumped = false; // Track if we just performed a jump
+	bool wasKeyboardFocusSet = false; // Track if keyboard focus was set
 
   public:
 	bool showLineJumpWindow = false;
-	inline void handleLineJumpInput()
+
+	// Helper: Render window header (setup and title)
+	inline void renderHeader()
 	{
-		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
-		bool shift_pressed = ImGui::GetIO().KeyShift;
-
-		// Reset justJumped if Enter isn't being pressed
-		if (!ImGui::IsKeyPressed(ImGuiKey_Enter))
-		{
-			justJumped = false;
-		}
-		ImGuiKey line_jump_key = gKeybinds.getActionKey("line_jump_key");
-		 
-
-		if (main_key && (ImGui::IsKeyPressed(line_jump_key, false)||
-						 (shift_pressed && ImGui::IsKeyPressed(line_jump_key, false))))
-		{
-
-			showLineJumpWindow = !showLineJumpWindow;
-			if (showLineJumpWindow)
-			{ // Only close others if we're opening
-				ClosePopper::closeAllExcept(ClosePopper::Type::LineJump); // RIGHT
-			}
-			if (showLineJumpWindow)
-			{
-				memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
-				ImGui::SetKeyboardFocusHere();
-			}
-			editor_state.block_input = showLineJumpWindow;
-		}
-	}
-inline void renderLineJumpWindow()
-	{
-		if (!showLineJumpWindow)
-			return;
-
-		ImGui::GetIO().WantTextInput = true;
-		editor_state.block_input = true;
-
-		// Push custom styles for the window
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,
-							10.0f);								   // Add rounded corners
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f); // Add border
-
-		// Balanced window padding - not too much, not too little
-		float fontHeight = ImGui::GetFontSize();
-		float paddingHorizontal = fontHeight * 0.75f; // Horizontal padding scales with font
-		float paddingVertical = fontHeight * 0.5f;	  // Vertical padding scales with font
-
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-							ImVec2(paddingHorizontal, paddingVertical));
-		
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-			   1.0f));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-	   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-	   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-	   1.0f));
-		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f)); // This color will be used for the InputText border
-
-		// Calculate dimensions based on font size
-		float itemSpacing = fontHeight * 0.3f;	// Space between elements
-		float inputHeight = fontHeight * 1.5f;	// Input field height
-		float windowWidth = fontHeight * 20.0f; // Width scales with font size
-
-		// Calculate window height with proper spacing
-		float windowHeight = paddingVertical * 2 + // Top and bottom padding
-							 fontHeight +		   // Title text
-							 itemSpacing +		   // Space after title
-							 inputHeight +		   // Input field
-							 itemSpacing +		   // Space after input
-							 fontHeight;		   // Help text
-
-		// Position window
-		ImGui::SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_Always);
+		// Window setup (size, position, flags)
+		ImGui::SetNextWindowSize(ImVec2(400, 120), ImGuiCond_Always);
 		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
 									   ImGui::GetIO().DisplaySize.y * 0.2f),
 								ImGuiCond_Always,
 								ImVec2(0.5f, 0.5f));
-
 		ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
 									   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
 									   ImGuiWindowFlags_NoScrollWithMouse;
+		// Push window style (3 style vars, 3 style colors)
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
+		// background
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+				   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
+					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+					   1.0f));
 
-		// Set custom item spacing
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(paddingHorizontal, itemSpacing));
+		ImGui::Begin("LineJump", nullptr, windowFlags);
 
-		if (ImGui::Begin("Line Jump", nullptr, windowFlags))
+		ImGui::TextUnformatted("Jump to line:");
+		ImGui::Spacing();
+		ImGui::Spacing();
+
+		// Ensure keyboard focus is set on first render
+		if (!wasKeyboardFocusSet)
 		{
-			// Make input field use full width
-			ImGui::PushItemWidth(-1);
-
-			// Title
-			ImGui::TextUnformatted("Jump to line:");
-
-			// Custom frame padding for the input field
-			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-								ImVec2(paddingHorizontal * 0.5f, fontHeight * 0.25f));
-
-			// --- ADD THIS ---
-			// Set the border thickness for the InputText frame to match the window border
-			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f); 
-			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f); 
-			// ----------------
-
-			// Set keyboard focus to input field
 			ImGui::SetKeyboardFocusHere();
-
-			if (ImGui::InputText("##linejump",
-								 lineNumberBuffer,
-								 sizeof(lineNumberBuffer),
-								 ImGuiInputTextFlags_CharsDecimal |
-									 ImGuiInputTextFlags_EnterReturnsTrue))
-			{
-				int lineNumber = std::atoi(lineNumberBuffer);
-				jumpToLine(lineNumber - 1);
-				showLineJumpWindow = false;
-				editor_state.block_input = false;
-				memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
-				justJumped = true;
-				ImGui::GetIO().ClearInputCharacters();
-			}
-
-			// --- MODIFY THIS ---
-			// Pop FrameBorderSize (for InputText border)
-			ImGui::PopStyleVar(); 
-			// Pop FramePadding style (for InputText padding)
-			ImGui::PopStyleVar(); 
-			ImGui::PopStyleVar(); 
-			// -------------------
-
-			// Instruction text
-			ImGui::Text("Type line number then Enter");
-
-			if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-			{
-				showLineJumpWindow = false;
-				editor_state.block_input = false;
-				memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
-			}
-
-			ImGui::PopItemWidth();
+			wasKeyboardFocusSet = true;
 		}
-		ImGui::End();
-
-		// Pop the styles we pushed earlier
-		ImGui::PopStyleVar(); // Pop ItemSpacing style
-		ImGui::PopStyleColor(3);
-		ImGui::PopStyleVar(3); // Pop WindowRounding, WindowBorderSize, WindowPadding
 	}
+
+	// Helper: Render the input box and force keyboard focus
+	inline bool renderInput()
+	{
+		float inputWidth = ImGui::GetContentRegionAvail().x;
+		ImGui::PushItemWidth(inputWidth);
+		
+		// Add border styling to match FileFinder
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+		
+		// Match border and background colors from FileFinder
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
+			gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
+			gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
+			gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
+			1.0f));
+
+		// Force keyboard focus each frame so the input stays focused
+		ImGui::SetKeyboardFocusHere();
+		bool enterPressed = ImGui::InputText(
+			"##LineJumpInput",
+			lineNumberBuffer,
+			sizeof(lineNumberBuffer),
+			ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue
+		);
+
+		// Clean up style changes
+		ImGui::PopStyleColor(2);
+		ImGui::PopStyleVar(3);
+		
+		ImGui::PopItemWidth();
+		return enterPressed;
+	}
+
+	// The main renderWindow() now calls the helpers - EXACTLY like file finder
+	inline void renderLineJumpWindow()
+	{
+		// Toggle with keybind - EXACTLY like file finder
+		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
+		bool shift_pressed = ImGui::GetIO().KeyShift;
+		ImGuiKey line_jump_key = gKeybinds.getActionKey("line_jump_key");
+		
+		if (main_key && (ImGui::IsKeyPressed(line_jump_key, false)||
+						 (shift_pressed && ImGui::IsKeyPressed(line_jump_key, false))))
+		{
+			showLineJumpWindow = !showLineJumpWindow;
+			if (showLineJumpWindow)
+			{
+				ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
+				memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
+				wasKeyboardFocusSet = false;
+			}
+			editor_state.block_input = showLineJumpWindow;
+			return;
+		}
+
+		if (showLineJumpWindow && ImGui::IsKeyPressed(ImGuiKey_Escape))
+		{
+			showLineJumpWindow = false;
+			editor_state.block_input = false;
+			memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
+			return;
+		}
+
+		if (!showLineJumpWindow)
+			return;
+
+		// Render header (window setup and title)
+		renderHeader();
+
+		// Render input; if Enter is pressed, perform the jump
+		bool enterPressed = renderInput();
+		if (enterPressed)
+		{
+			int lineNumber = std::atoi(lineNumberBuffer);
+			jumpToLine(lineNumber - 1);
+			showLineJumpWindow = false;
+			editor_state.block_input = false;
+			memset(lineNumberBuffer, 0, sizeof(lineNumberBuffer));
+			justJumped = true;
+			ImGui::GetIO().ClearInputCharacters();
+			ImGui::End();
+			ImGui::PopStyleColor(3);
+			ImGui::PopStyleVar(3);
+			return;
+		}
+
+		ImGui::Spacing();
+		ImGui::Text("Type line number then Enter");
+
+		ImGui::End();
+		// Pop the window style colors and vars pushed in renderHeader()
+		ImGui::PopStyleColor(3);
+		ImGui::PopStyleVar(3);
+	}
+
 	inline void jumpToLine(int lineNumber)
 	{
 		if (lineNumber < 0)
@@ -201,4 +192,4 @@ inline void renderLineJumpWindow()
 	inline bool hasJustJumped() const { return justJumped; }
 };
 
-extern LineJump gLineJump;
+extern LineJump gLineJump; 

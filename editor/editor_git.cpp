@@ -11,6 +11,7 @@
 #include "../files/files.h"
 #include <map>
 #include <vector>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 
@@ -37,17 +38,32 @@ std::string execCommand(const char* cmd) {
 }
 
 void EditorGit::gitEditedLines() {
+    if (gFileExplorer.selectedFolder.empty()) {
+        return;
+    }
+
+    // Change to the project directory before running git commands
+    std::string originalDir = fs::current_path().string();
+    if (chdir(gFileExplorer.selectedFolder.c_str()) != 0) {
+        return; // Failed to change directory
+    }
+
     const char* cmd = "git diff --unified=0 --no-color | awk '\n/^diff --git a\\// {\n    if (file) print \"\";\n    file = substr($3, 3);\n    print \"file: \" file;\n    next\n}\n/^@@/ {\n    plus = index($0, \"+\");\n    comma = index(substr($0, plus+1), \",\");\n    if (comma > 0) {\n        new_line = substr($0, plus+1, comma-1) + 0;\n    } else {\n        new_line = substr($0, plus+1) + 0;\n    }\n    next\n}\n/^\\+/ && !/^\\+\\+\\+/ {\n    print new_line;\n    new_line++;\n}\n/^ / { new_line++; }\n'";
     std::array<char, 256> buffer;
     std::string result;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
     if (!pipe) {
         std::cerr << "Failed to run git diff awk command!" << std::endl;
+        chdir(originalDir.c_str()); // Restore original directory
         return;
     }
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
     }
+
+    // Restore original directory
+    chdir(originalDir.c_str());
+
     std::istringstream iss(result);
     std::string line;
     std::string currentFile;
@@ -125,7 +141,7 @@ bool EditorGit::isLineEdited(const std::string& filePath, int lineNumber) const 
 }
 
 std::string EditorGit::gitPlusMinus(const std::string& filePath) {
-    if (!git_enabled) return "";
+    if (!git_enabled || gFileExplorer.selectedFolder.empty()) return "";
     
     // Get relative path if needed
     std::string relativePath = filePath;
@@ -136,19 +152,37 @@ std::string EditorGit::gitPlusMinus(const std::string& filePath) {
         }
     }
 
+    // Change to the project directory before running git commands
+    std::string originalDir = fs::current_path().string();
+    if (chdir(gFileExplorer.selectedFolder.c_str()) != 0) {
+        return ""; // Failed to change directory
+    }
+
+    // Check if file exists in git
+    std::string checkCmd = "git ls-files --error-unmatch -- " + relativePath + " >/dev/null 2>&1";
+    int checkResult = system(checkCmd.c_str());
+    if (checkResult != 0) {
+        chdir(originalDir.c_str()); // Restore original directory
+        return ""; // File not tracked by git
+    }
+
     // Run git diff command to get added/removed lines
-    std::string cmd = "git diff --numstat " + relativePath + " | awk '{print $1,$2}'";
+    std::string cmd = "git diff --numstat -- " + relativePath + " | awk '{print $1,$2}'";
     std::array<char, 128> buffer;
     std::string result;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
     
     if (!pipe) {
+        chdir(originalDir.c_str()); // Restore original directory
         return "";
     }
     
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
     }
+
+    // Restore original directory
+    chdir(originalDir.c_str());
 
     // Parse the result
     std::istringstream iss(result);

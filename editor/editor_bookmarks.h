@@ -1,6 +1,6 @@
 /*
-	util/bookmarks.h
-	This utility allows for saving a bookmark and restore back to the bookmark
+   util/bookmarks.h
+   This utility allows for saving a bookmark and restore back to the bookmark
    position. Each bookmark stores the current file, the cursor location, and
    scroll position. Up to 10 bookmarks can be set at once, to set a bookmark
    press cmd option 0-9. To restore a bookmark postion press cmd 0-9 with the
@@ -164,6 +164,7 @@ class Bookmarks
 		{
 			showBookmarksWindow = false;
 			editor_state.block_input = false;
+
 		}
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 		
@@ -171,6 +172,9 @@ class Bookmarks
 		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false) && !gTerminal.isTerminalVisible())
 		{
 			showBookmarksWindow = !showBookmarksWindow;
+			if(!showBookmarksWindow){
+				editor_state.block_input = false;
+			}
 		}
 
 		if (showBookmarksWindow)

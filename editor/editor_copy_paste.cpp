@@ -2,6 +2,8 @@
 #include "editor.h"
 #include "../ai/ai_tab.h"
 #include "editor_highlight.h"
+#include "../files/files.h"
+#include "../lsp/lsp_autocomplete.h"
 #include <algorithm>
 
 // Global instance
@@ -64,6 +66,12 @@ void EditorCopyPaste::cutSelectedText()
 {
 	if (editor_state.selection_start != editor_state.selection_end)
 	{
+		// Save the state before making any changes
+		std::string beforeContent = editor_state.fileContent;
+		int beforeCursor = editor_state.cursor_index;
+		int cutStart = getSelectionStart();
+		int cutEnd = getSelectionEnd();
+		
 		int start = getSelectionStart();
 		int end = getSelectionEnd();
 		std::string selected_text = editor_state.fileContent.substr(start, end - start);
@@ -82,6 +90,10 @@ void EditorCopyPaste::cutWholeLine()
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
 
+	// Save the state before making any changes
+	std::string beforeContent = editor_state.fileContent;
+	int beforeCursor = editor_state.cursor_index;
+
 	int line = EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												editor_state.cursor_index);
 	int line_start = editor_state.editor_content_lines[line];
@@ -98,6 +110,7 @@ void EditorCopyPaste::cutWholeLine()
 
 	editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
 	editor_state.text_changed = true;
+	
 	gEditor.updateLineStarts();
 }
 
@@ -105,12 +118,30 @@ void EditorCopyPaste::pasteText()
 {
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
+	
+	// Save the state before making any changes
+	std::string beforeContent = editor_state.fileContent;
+	int beforeCursor = editor_state.cursor_index;
+	
 	const char *clipboard_text = ImGui::GetClipboardText();
 	if (clipboard_text != nullptr)
 	{
 		std::string paste_content = clipboard_text;
 		if (!paste_content.empty())
 		{
+			// Handle indentation conversion
+			bool fileUsesTabs = checkIndentationType();
+			if (fileUsesTabs)
+			{
+				// File uses tabs, convert spaces to tabs in paste content
+				paste_content = convertSpacesToTabs(paste_content);
+			}
+			else
+			{
+				// File uses spaces, convert tabs to spaces in paste content
+				paste_content = convertTabsToSpaces(paste_content);
+			}
+			
 			int paste_start = editor_state.cursor_index;
 			int paste_end = paste_start + paste_content.size();
 			if (editor_state.selection_start != editor_state.selection_end)
@@ -141,4 +172,73 @@ void EditorCopyPaste::pasteText()
 			gEditorHighlight.highlightContent();
 		}
 	}
+}
+
+bool EditorCopyPaste::checkIndentationType() const
+{
+	// Check if the file contains any tabs
+	// Returns true for tabs, false for spaces
+	return editor_state.fileContent.find('\t') != std::string::npos;
+}
+
+std::string EditorCopyPaste::convertSpacesToTabs(const std::string& text) const
+{
+	std::string result;
+	result.reserve(text.size()); // Pre-allocate space for efficiency
+	
+	for (size_t i = 0; i < text.size(); ++i)
+	{
+		if (text[i] == ' ')
+		{
+			// Check if we have 4 consecutive spaces
+			int spaceCount = 0;
+			while (i < text.size() && text[i] == ' ' && spaceCount < 4)
+			{
+				spaceCount++;
+				i++;
+			}
+			
+			if (spaceCount == 4)
+			{
+				result += '\t';
+			}
+			else
+			{
+				// Add back the spaces we consumed
+				for (int j = 0; j < spaceCount; ++j)
+				{
+					result += ' ';
+				}
+			}
+			
+			// Adjust i since we already incremented it in the while loop
+			i--;
+		}
+		else
+		{
+			result += text[i];
+		}
+	}
+	
+	return result;
+}
+
+std::string EditorCopyPaste::convertTabsToSpaces(const std::string& text) const
+{
+	std::string result;
+	result.reserve(text.size() * 4); // Pre-allocate space for efficiency
+	
+	for (char c : text)
+	{
+		if (c == '\t')
+		{
+			result += "    "; // 4 spaces
+		}
+		else
+		{
+			result += c;
+		}
+	}
+	
+	return result;
 }

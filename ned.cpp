@@ -14,6 +14,7 @@ Description: Main application class implementation for NED text editor.
 
 #include "editor/editor_bookmarks.h"
 #include "editor/editor_highlight.h"
+#include "editor/editor_scroll.h"
 #include "util/debug_console.h"
 #include "util/settings.h"
 #include "util/keybinds.h"
@@ -229,7 +230,8 @@ void Ned::handleManualResizing()
 
 		{
 
-		    if (resizingRight || resizingBottom) 
+		    if (
+		    resizingRight || resizingBottom) 
 		    {
 		        int newWidth = static_cast<int>(initialWindowSize.x);
 		        int newHeight = static_cast<int>(initialWindowSize.y);
@@ -345,6 +347,47 @@ void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
 	app->scrollXAccumulator += xoffset * 0.3; // Same multiplier as vertical
 	app->scrollYAccumulator += yoffset * 0.3;
+}
+
+void Ned::checkForActivity()
+{
+	// This function will be called every loop to check for immediate input.
+	ImGuiIO &io = ImGui::GetIO();
+
+	// Check for any input activity
+	bool hasInput = false;
+	
+	// Mouse activity
+	if (io.MousePos.x != io.MousePosPrev.x ||
+		io.MousePos.y != io.MousePosPrev.y ||
+		io.MouseWheel != 0.0f ||
+		io.MouseWheelH != 0.0f ||
+		io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2])
+	{
+		hasInput = true;
+	}
+
+	// Keyboard activity
+	if (io.InputQueueCharacters.size() > 0 ||
+		io.KeysDown[0] || io.KeysDown[1] || io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
+	{
+		hasInput = true;
+	}
+	
+	// ImGui widget activity
+	if (ImGui::IsAnyItemActive()) {
+		hasInput = true;
+	}
+
+	// Check for active scroll animation (treat as input activity for smooth rendering)
+	if (gEditorScroll.isScrollAnimationActive()) {
+		hasInput = true;
+	}
+
+	// If we have any input, update activity time
+	if (hasInput) {
+		m_lastActivityTime = glfwGetTime();
+	}
 }
 // In Ned::initializeResources()
 void Ned::initializeResources()
@@ -509,67 +552,94 @@ void Ned::run()
 		return;
 	}
 
-	while (!glfwWindowShouldClose(window))
+		while (!glfwWindowShouldClose(window))
 	{
+		// Get current time for activity tracking
+		double currentTime = glfwGetTime();
+		
+		// Poll for events (this will block until something happens, or timeout)
+		// When shaders are enabled, use settings FPS target for timeout
+		// When shaders are disabled, use normal timeout logic
+		double timeout;
+		if (shader_toggle) {
+			// Use settings FPS target when shaders are enabled
+			float fpsTarget = 60.0f;
+			if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+				fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+			}
+			timeout = 1.0 / fpsTarget; // Convert FPS to timeout
+		} else {
+			// Use shorter timeout if we recently had activity (for smoother interaction)
+			// Also respect minimum FPS: 25 FPS normally
+			double minFPS = 25.0;
+			double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
+			timeout = (currentTime - m_lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
+		}
+		glfwWaitEventsTimeout(timeout);
+
+		// Handle scroll accumulators (this was removed but needed for scrolling)
+		if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
+		{
+			ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
+			ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
+			scrollXAccumulator = 0.0;
+			scrollYAccumulator = 0.0;
+		}
+
+		// Check for activity and decide if we should keep rendering
+		checkForActivity();
+		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5; // Keep rendering for 0.5 seconds after activity
+
+		// Always render a frame after polling events
 		auto frame_start = std::chrono::high_resolution_clock::now();
 
-		// Handle events and updates
-		handleEvents();
-		double currentTime = glfwGetTime();
 		handleBackgroundUpdates(currentTime);
+		handleSettingsChanges();
 
-		// Handle framebuffer updates
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
 		handleFramebuffer(display_w, display_h);
 
-		// Setup ImGui frame and state
 		setupImGuiFrame();
 		handleWindowFocus();
-		handleSettingsChanges();
 		handleFileDialog();
-
-		// Render frame
 		renderFrame();
 		handleFontReload();
-		// Frame timing
 		handleFrameTiming(frame_start);
 	}
 }
-void Ned::handleEvents()
-{
-	// Handle scroll accumulators at the start
-	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
-	{
-		ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
-		ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
-		scrollXAccumulator = 0.0;
-		scrollYAccumulator = 0.0;
-	}
 
-	// Always poll events if resizing
-	if (resizingRight || resizingBottom || resizingCorner)
-	{
-		 glfwPollEvents();
-	} else if (glfwGetWindowAttrib(window, GLFW_FOCUSED))
-	{
-		glfwPollEvents();
-	} else
-	{
-		glfwWaitEventsTimeout(0.016);
-	}
-}
 void Ned::handleBackgroundUpdates(double currentTime)
 {
 	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
 	{
+		// Store previous state to detect changes
+		bool hadSettingsChanged = gSettings.hasSettingsChanged();
+		bool hadFontChanged = gSettings.hasFontChanged();
+		bool hadFontSizeChanged = gSettings.hasFontSizeChanged();
+		bool hadThemeChanged = gSettings.hasThemeChanged();
+		
 		gSettings.checkSettingsFile();
+		
+		// Check if any settings changed
+		if (gSettings.hasSettingsChanged() != hadSettingsChanged ||
+			gSettings.hasFontChanged() != hadFontChanged ||
+			gSettings.hasFontSizeChanged() != hadFontSizeChanged ||
+			gSettings.hasThemeChanged() != hadThemeChanged)
+		{
+			m_needsRedraw = true;
+			m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
+		}
 		timing.lastSettingsCheck = currentTime;
 	}
 
 	if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL)
 	{
-		gFileTree.refreshFileTree(); // Changed from gFileExplorer to gFileTree
+		// File tree refresh doesn't return a value, but we can trigger redraw
+		// when it's called since it updates the UI
+		gFileTree.refreshFileTree();
+		m_needsRedraw = true; // Always redraw after file tree refresh
+		m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
 		timing.lastFileTreeRefresh = currentTime;
 	}
 }
@@ -653,14 +723,22 @@ void Ned::setupImGuiFrame()
 void Ned::handleWindowFocus()
 {
 	bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-	if (windowFocused && !currentFocus)
+	if (windowFocused != currentFocus)
 	{
-		gFileExplorer.saveCurrentFile();
+		m_needsRedraw = true; // Redraw on focus change.
+		m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
+		if (windowFocused && !currentFocus)
+		{
+			gFileExplorer.saveCurrentFile();
+		}
+		windowFocused = currentFocus;
 	}
-	windowFocused = currentFocus;
 }
 void Ned::handleKeyboardShortcuts()
 {
+	// At the very top of this function, add a local flag.
+	bool shortcutPressed = false;
+
 	ImGuiIO &io = ImGui::GetIO();
 	// Accept either Ctrl or Super (Command on macOS)
 	bool modPressed = io.KeyCtrl || io.KeySuper;
@@ -701,6 +779,7 @@ void Ned::handleKeyboardShortcuts()
 		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
 
 		std::cout << "Toggled sidebar visibility" << std::endl;
+		shortcutPressed = true;
 	}
 
 	ImGuiKey toggleAgent = gKeybinds.getActionKey("toggle_agent");
@@ -713,6 +792,7 @@ void Ned::handleKeyboardShortcuts()
 		gSettings.saveSettings();
 		
 		std::cout << "Toggled agent pane visibility" << std::endl;
+		shortcutPressed = true;
 	}
 
 	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
@@ -724,6 +804,7 @@ void Ned::handleKeyboardShortcuts()
 		{
 			ClosePopper::closeAll();
 		}
+		shortcutPressed = true;
 	}
 	ImGuiKey togglesetings = gKeybinds.getActionKey("toggle_settings_window");
 	 
@@ -731,6 +812,7 @@ void Ned::handleKeyboardShortcuts()
 	{
 		gFileExplorer.showWelcomeScreen = false;
 		gSettings.toggleSettingsWindow();
+		shortcutPressed = true;
 	}
 
 	if (modPressed)
@@ -742,6 +824,7 @@ void Ned::handleKeyboardShortcuts()
 			editor_state.ensure_cursor_visible.vertical = true;
 			editor_state.ensure_cursor_visible.horizontal = true;
 			std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
+			shortcutPressed = true;
 		} else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
 		{ // '-' key
 			float currentSize = gSettings.getFontSize();
@@ -749,6 +832,7 @@ void Ned::handleKeyboardShortcuts()
 			editor_state.ensure_cursor_visible.vertical = true;
 			editor_state.ensure_cursor_visible.horizontal = true;
 			std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
+			shortcutPressed = true;
 		}
 	}
 
@@ -761,6 +845,7 @@ void Ned::handleKeyboardShortcuts()
 			gTerminal.toggleVisibility();
 		}
 		gFileExplorer.saveCurrentFile();
+		shortcutPressed = true;
 	}
 	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false))
 	{
@@ -769,6 +854,13 @@ void Ned::handleKeyboardShortcuts()
 		gFileExplorer.showWelcomeScreen = false;
 		gFileExplorer.saveCurrentFile();
 		gFileExplorer._showFileDialog = true;
+		shortcutPressed = true;
+	}
+
+	// At the very end of the function, set the main redraw flag.
+	if (shortcutPressed) {
+		m_needsRedraw = true;
+		m_framesToRender = std::max(m_framesToRender, 12); // Render many frames for shortcuts
 	}
 }
 
@@ -1422,9 +1514,14 @@ void Ned::handleFileDialog()
 {
 	if (gFileExplorer.showFileDialog())
 	{
+		m_needsRedraw = true;
+		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
 		gFileExplorer.openFolderDialog();
 		if (!gFileExplorer.selectedFolder.empty())
 		{
+			// ...
+			m_needsRedraw = true; // Redraw again after a folder is selected.
+			m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
 			auto &rootNode = gFileTree.rootNode; // Changed to use gFileTree
 			rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
 			rootNode.fullPath = gFileExplorer.selectedFolder;
@@ -1555,11 +1652,24 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 	auto frame_end = std::chrono::high_resolution_clock::now();
 	auto frame_duration = frame_end - frame_start;
 	
-	// Get FPS target from settings directly
-	float fpsTarget = 120.0f;
-	if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
-		fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+	float fpsTarget = 60.0f;
+	
+	if (shader_toggle) {
+		// When shaders are enabled, use settings FPS target but don't sleep
+		if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+		}
+		// Don't apply sleep delays when shaders are enabled - let GPU run naturally
+		return;
+	} else {
+		// Only apply frame timing when shaders are disabled
+		if (!windowFocused) {
+			fpsTarget = 15.0f;
+		} else if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+		}
 	}
+	
 	// Only apply frame timing if FPS target is reasonable (not unlimited)
 	if (fpsTarget > 0.0f && fpsTarget < 10000.0f) {
 		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
@@ -1573,6 +1683,9 @@ void Ned::handleSettingsChanges()
 {
 	if (gSettings.hasSettingsChanged())
 	{
+		m_needsRedraw = true; // Set the flag!
+		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		
 		ImGuiStyle &style = ImGui::GetStyle();
 
 		
@@ -1623,6 +1736,9 @@ void Ned::handleFontReload()
 {
 	if (needFontReload)
 	{
+		m_needsRedraw = true; // A redraw is needed after the new font is loaded.
+		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		
 		ImGui_ImplOpenGL3_DestroyFontsTexture();
 		ImGui::GetIO().Fonts->Clear();
 		currentFont =
