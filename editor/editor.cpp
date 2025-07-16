@@ -11,7 +11,7 @@
 	3. Input Processing - Handle keyboard and mouse input to modify text
 	4. Scroll Management - Handle scrolling and cursor visibility
 	5. Rendering - Draw the text, cursor, selection, and UI elements
-	6. Cleanup - Finalize the frame and return controlq
+	6. Cleanup - Finalize the frame and return control
 */
 
 #include "editor.h"

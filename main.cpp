@@ -6,7 +6,7 @@
 #include "ned.h"
 int main()
 {
-    Ned ned;
+	Ned ned;
     if(!ned.initialize())
     {
         return -1;

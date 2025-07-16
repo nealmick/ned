@@ -2,6 +2,7 @@
 #include "lsp_autocomplete.h"
 #include "../editor/editor.h"
 #include "../editor/editor_cursor.h"
+#include "../editor/editor_tree_sitter.h"
 #include "lib/json.hpp"
 #include "lsp.h"
 #include "lsp_manager.h"
@@ -285,11 +286,21 @@ void LSPAutocomplete::insertText(
 		// Insert into fileContent
 		editor_state.fileContent.insert(start_index, text);
 
-		// Insert into fileColors (using default color for new text)
-		ImVec4 default_color(1.0f, 1.0f, 1.0f, 1.0f); // White as placeholder
+		// Get the proper default text color from the theme
+		TreeSitter::updateThemeColors();
+		ImVec4 defaultColor = TreeSitter::cachedColors.text;
+		
+		// Optionally extend the previous character's color for better visual continuity
+		ImVec4 insertColor = defaultColor;
+		if (start_index > 0 && start_index <= editor_state.fileColors.size())
+		{
+			// Use the color of the character before the insertion point
+			insertColor = editor_state.fileColors[start_index - 1];
+		}
+		
 		editor_state.fileColors.insert(editor_state.fileColors.begin() + start_index,
 									   text.size(),
-									   default_color);
+									   insertColor);
 	}
 	editor_state.cursor_index = start_index + text.size();
 	editor_state.text_changed = true;

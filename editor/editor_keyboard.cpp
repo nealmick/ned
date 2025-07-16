@@ -16,6 +16,7 @@
 #include "editor_render.h"
 #include "editor_scroll.h"
 #include "editor_selection.h"
+#include "editor_tree_sitter.h"
 #include "editor_utils.h"
 #include "imgui.h"
 #include <algorithm>
@@ -341,17 +342,28 @@ void EditorKeyboard::handleCharacterInput()
 
 		editor_state.fileContent.insert(actual_insert_pos, inputText);
 
+		// Get the proper default text color from the theme
+		TreeSitter::updateThemeColors();
+		ImVec4 defaultColor = TreeSitter::cachedColors.text;
+		
+		// Optionally extend the previous character's color for better visual continuity
+		ImVec4 insertColor = defaultColor;
+		if (actual_insert_pos > 0 && actual_insert_pos <= editor_state.fileColors.size())
+		{
+			// Use the color of the character before the insertion point
+			insertColor = editor_state.fileColors[actual_insert_pos - 1];
+		}
+
 		if (static_cast<size_t>(actual_insert_pos) <= editor_state.fileColors.size())
 		{
 			editor_state.fileColors.insert(editor_state.fileColors.begin() + actual_insert_pos,
 										   inputText.size(),
-										   ImVec4(1.0f, 1.0f, 1.0f, 1.0f) // Default color
-			);
+										   insertColor);
 		} else
 		{
 			for (size_t k = 0; k < inputText.size(); ++k)
 			{
-				editor_state.fileColors.push_back(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				editor_state.fileColors.push_back(insertColor);
 			}
 		}
 

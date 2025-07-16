@@ -2,6 +2,7 @@
 #include "editor.h"
 #include "../ai/ai_tab.h"
 #include "editor_highlight.h"
+#include "editor_tree_sitter.h"
 #include "../files/files.h"
 #include "../lsp/lsp_autocomplete.h"
 #include <algorithm>
@@ -142,6 +143,10 @@ void EditorCopyPaste::pasteText()
 				paste_content = convertTabsToSpaces(paste_content);
 			}
 			
+			// Get the proper default text color from the theme
+			TreeSitter::updateThemeColors();
+			ImVec4 defaultColor = TreeSitter::cachedColors.text;
+			
 			int paste_start = editor_state.cursor_index;
 			int paste_end = paste_start + paste_content.size();
 			if (editor_state.selection_start != editor_state.selection_end)
@@ -153,7 +158,7 @@ void EditorCopyPaste::pasteText()
 											  editor_state.fileColors.begin() + end);
 				editor_state.fileColors.insert(editor_state.fileColors.begin() + start,
 											   paste_content.size(),
-											   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+											   defaultColor);
 				paste_start = start;
 				paste_end = start + paste_content.size();
 			} else
@@ -162,7 +167,7 @@ void EditorCopyPaste::pasteText()
 				editor_state.fileColors.insert(editor_state.fileColors.begin() +
 												   editor_state.cursor_index,
 											   paste_content.size(),
-											   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+											   defaultColor);
 			}
 			editor_state.cursor_index = paste_end;
 			editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
