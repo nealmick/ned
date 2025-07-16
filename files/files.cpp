@@ -495,17 +495,8 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isU
             cursor_pos = op.cursor_after;
         }
     } else {
-        // For redo: calculate where cursor should be after adding inserted text
-        if (op.inserted.length() > op.removed.length()) {
-            // We inserted more text than we removed, so when redoing we need to move cursor forward
-            cursor_pos = op.cursor_before + (op.inserted.length() - op.removed.length());
-        } else if (op.removed.length() > op.inserted.length()) {
-            // We removed more text than we inserted, so when redoing we need to move cursor back
-            cursor_pos = op.cursor_before - (op.removed.length() - op.inserted.length());
-        } else {
-            // Equal lengths, cursor stays the same
-            cursor_pos = op.cursor_before;
-        }
+        // For redo: use the cursor position that was recorded after the original operation
+        cursor_pos = op.cursor_after;
     }
     
     if (cursor_pos < 0) cursor_pos = 0;
