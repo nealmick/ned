@@ -83,6 +83,9 @@ void EditorCopyPaste::cutSelectedText()
 		editor_state.cursor_index = start;
 		editor_state.selection_start = editor_state.selection_end = start;
 		editor_state.text_changed = true;
+		
+		// Update line starts immediately to prevent visual glitch
+		gEditor.updateLineStarts();
 	}
 }
 
@@ -172,6 +175,9 @@ void EditorCopyPaste::pasteText()
 			editor_state.cursor_index = paste_end;
 			editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
 			editor_state.text_changed = true;
+
+			// Update line starts immediately to prevent visual glitch
+			gEditor.updateLineStarts();
 
 			// Trigger syntax highlighting for the pasted content
 			gEditorHighlight.highlightContent();
