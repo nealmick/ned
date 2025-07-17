@@ -304,6 +304,7 @@ void LSPAutocomplete::insertText(
 	}
 	editor_state.cursor_index = start_index + text.size();
 	editor_state.text_changed = true;
+	gEditor.updateLineStarts();
 	gEditorHighlight.highlightContent();
 }
 

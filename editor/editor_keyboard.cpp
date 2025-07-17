@@ -397,7 +397,7 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.multi_selections.clear(); // Important: clear multi-selections after typing
 
 	editor_state.text_changed = true;
-	//gEditor.updateLineStarts();
+	gEditor.updateLineStarts();
 
 	// After processing the input, trigger LSP completion only if there was no space
 	if (!inputText.empty() && !shouldCloseCompletion) {
@@ -665,6 +665,7 @@ void EditorKeyboard::handleEnterKey()
 	if (text_changed_by_deletion || text_changed_by_insertion)
 	{
 		editor_state.text_changed = true;
+		gEditor.updateLineStarts();
 	}
 }
 void EditorKeyboard::handleDeleteKey()
