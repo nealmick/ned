@@ -476,6 +476,60 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isU
     std::string newContent = isUndo ? op.apply(editor_state.fileContent)
                                     : op.applyInverse(editor_state.fileContent);
     
+    // Synchronize colors vector with content changes
+    // This prevents the visual glitch where colors vector doesn't match content vector
+    if (isUndo) {
+        // For undo: we need to reverse the original operation
+        // If original operation inserted text, we need to remove colors
+        // If original operation removed text, we need to add colors back
+        if (op.inserted.length() > 0) {
+            // Original operation inserted text, so we need to remove colors
+            if (op.position >= 0 && op.position + op.inserted.length() <= editor_state.fileColors.size()) {
+                editor_state.fileColors.erase(
+                    editor_state.fileColors.begin() + op.position,
+                    editor_state.fileColors.begin() + op.position + op.inserted.length()
+                );
+            }
+        }
+        if (op.removed.length() > 0) {
+            // Original operation removed text, so we need to add colors back
+            // Get the proper default text color from the theme
+            ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
+            if (op.position >= 0 && op.position <= editor_state.fileColors.size()) {
+                editor_state.fileColors.insert(
+                    editor_state.fileColors.begin() + op.position,
+                    op.removed.length(),
+                    defaultColor
+                );
+            }
+        }
+    } else {
+        // For redo: we need to apply the original operation
+        // If original operation inserted text, we need to add colors
+        // If original operation removed text, we need to remove colors
+        if (op.inserted.length() > 0) {
+            // Original operation inserted text, so we need to add colors
+            // Get the proper default text color from the theme
+            ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
+            if (op.position >= 0 && op.position <= editor_state.fileColors.size()) {
+                editor_state.fileColors.insert(
+                    editor_state.fileColors.begin() + op.position,
+                    op.inserted.length(),
+                    defaultColor
+                );
+            }
+        }
+        if (op.removed.length() > 0) {
+            // Original operation removed text, so we need to remove colors
+            if (op.position >= 0 && op.position + op.removed.length() <= editor_state.fileColors.size()) {
+                editor_state.fileColors.erase(
+                    editor_state.fileColors.begin() + op.position,
+                    editor_state.fileColors.begin() + op.position + op.removed.length()
+                );
+            }
+        }
+    }
+    
     // Update editor state
     editor_state.fileContent = newContent;
     
@@ -509,8 +563,7 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isU
     editor_state.selection_active = false;
     editor_state.multi_selections.clear();
     
-    // Reset color buffer and trigger highlighting
-    resetColorBuffer();
+    // Trigger highlighting to apply proper colors
     gEditorHighlight.highlightContent(true);
 
     _unsavedChanges = true;
