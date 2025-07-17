@@ -24,7 +24,7 @@ class EditorHighlight
 	EditorHighlight();
 	~EditorHighlight() = default;
 
-	void highlightContent(bool fullRehighlight = false);
+	void highlightContent(bool fullRehighlight = false, bool sync = false);
 
 	void cancelHighlighting();
 

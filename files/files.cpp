@@ -359,7 +359,8 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 		updateFileColorBuffer();
 		setupUndoManager(path);
 
-		gEditorHighlight.highlightContent();
+		// Use synchronous highlighting to prevent white flash on file load
+		gEditorHighlight.highlightContent(false, true);
 
 		// Initialize file tracking for external change detection
 		updateFileModificationTime(path);
