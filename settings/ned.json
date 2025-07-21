@@ -1,7 +1,7 @@
 {
     "agent_model": "google/gemini-2.5-flash-preview-05-20",
-    "agent_pane_visible": false,
-    "agent_split_pos": 0.28286662697792053,
+    "agent_pane_visible": true,
+    "agent_split_pos": 0.3251075744628906,
     "ai_autocomplete": false,
     "backgroundColor": [
         0.0923076868057251,
@@ -10,13 +10,13 @@
         0.0
     ],
     "bloom_intensity": 0.7699999809265137,
-    "burnin_intensity": 0.9150000214576721,
+    "burnin_intensity": 0.9380000233650208,
     "colorshift_intensity": 1.090000033378601,
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.0,
-    "font": "JetBrainsMonoNL-Regular",
+    "font": "SourceCodePro-Regular",
     "fontSize": 25.0,
-    "fps_target": 64.0,
+    "fps_target": 57.0,
     "fps_target_unfocused": 30.0,
     "fps_toggle": true,
     "git_changed_lines": true,
@@ -31,7 +31,7 @@
     "settings_file": "ned.json",
     "shader_toggle": false,
     "sidebar_visible": true,
-    "splitPos": 0.22620689868927002,
+    "splitPos": 0.2064327448606491,
     "static_intensity": 0.21199999749660492,
     "theme": "default",
     "themes": {
