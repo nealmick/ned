@@ -4,6 +4,8 @@
 #include "editor_highlight.h"
 #include "editor_indentation.h"
 
+#include "editor_tree_sitter.h"
+
 #include <algorithm>
 #include <iostream>
 #include <set>
@@ -118,9 +120,14 @@ void EditorIndentation::handleMultiLineIndentation()
 	// Update colors vector
 	auto &colors = editor_state.fileColors;
 	colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
+	
+	// Get the proper default text color from the theme
+	TreeSitter::updateThemeColors();
+	ImVec4 defaultColor = TreeSitter::cachedColors.text;
+	
 	colors.insert(colors.begin() + firstLineStart,
 				lastLineEnd - firstLineStart + totalTabsInserted,
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
+				defaultColor);
 }
 
 void EditorIndentation::handleSingleLineIndentation()
@@ -151,15 +158,18 @@ void EditorIndentation::handleSingleLineIndentation()
 
 		editor_state.fileContent.insert(actual_insert_pos, 1, TAB_CHAR);
 
-		ImVec4 default_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+		// Get the proper default text color from the theme
+		TreeSitter::updateThemeColors();
+		ImVec4 defaultColor = TreeSitter::cachedColors.text;
+		
 		if (static_cast<size_t>(actual_insert_pos) <= editor_state.fileColors.size())
 		{
 			editor_state.fileColors.insert(editor_state.fileColors.begin() + actual_insert_pos,
 										   INSERT_LEN,
-										   default_color);
+										   defaultColor);
 		} else
 		{
-			editor_state.fileColors.push_back(default_color);
+			editor_state.fileColors.push_back(defaultColor);
 		}
 
 		new_final_cursor_positions.push_back(actual_insert_pos + INSERT_LEN);
@@ -293,9 +303,14 @@ void EditorIndentation::removeIndentation()
 	// Update colors vector
 	auto &colors = editor_state.fileColors;
 	colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
+	
+	// Get the proper default text color from the theme
+	TreeSitter::updateThemeColors();
+	ImVec4 defaultColor = TreeSitter::cachedColors.text;
+	
 	colors.insert(colors.begin() + firstLineStart,
 				lastLineEnd - firstLineStart - totalSpacesRemoved,
-				ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // Insert default color
+				defaultColor);
 
 	// Update line starts
 	gEditor.updateLineStarts();

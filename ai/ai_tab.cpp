@@ -285,6 +285,7 @@ void AITab::insert(const std::string &code)
 								 code.size(), ghost_color);
 
 	editor_state.ghost_text_changed = true;
+	gEditor.updateLineStarts();
 }
 
 void AITab::accept_completion()
@@ -336,6 +337,7 @@ void AITab::dismiss_completion()
 	ghost_text_end = 0;
 
 	editor_state.ghost_text_changed = true;
+	gEditor.updateLineStarts();
 }
 
 void AITab::handle_editor_operation()

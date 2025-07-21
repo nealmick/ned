@@ -35,7 +35,7 @@ class FileExplorer
 	std::string currentOpenFile;
 	std::string previousOpenFile;
 	std::string currentFile;
-
+	
 	bool showWelcomeScreen = true;
 
 	// File operations
