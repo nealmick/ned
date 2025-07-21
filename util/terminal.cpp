@@ -2560,19 +2560,21 @@ void Terminal::processInput(const std::string &input)
 
 void Terminal::readOutput()
 {
-	char buffer[4096];
-	while (!shouldTerminate)
-	{
-		ssize_t bytesRead = read(ptyFd, buffer, sizeof(buffer) - 1);
-		if (bytesRead > 0)
-		{
-			std::lock_guard<std::mutex> lock(bufferMutex);
-			writeToBuffer(buffer, bytesRead);
-		} else if (bytesRead < 0 && errno != EINTR)
-		{
-			break;
-		}
-	}
+    char buffer[4096];
+    while (!shouldTerminate)
+    {
+        ssize_t bytesRead = read(ptyFd, buffer, sizeof(buffer) - 1);
+        if (bytesRead > 0)
+        {
+            std::lock_guard<std::mutex> lock(bufferMutex);
+            writeToBuffer(buffer, bytesRead);
+        } else if (bytesRead < 0 && errno != EINTR)
+        {
+            break;
+        }
+        // Add this line:
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 void Terminal::tputtab(int n)
 {
