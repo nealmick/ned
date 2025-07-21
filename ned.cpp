@@ -588,7 +588,7 @@ void Ned::run()
 
 		// Check for activity and decide if we should keep rendering
 		checkForActivity();
-		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5; // Keep rendering for 0.5 seconds after activity
+		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5 || gEditorScroll.isScrollAnimationActive();
 
 		// Always render a frame after polling events
 		auto frame_start = std::chrono::high_resolution_clock::now();
