@@ -182,6 +182,9 @@ set(IMGUI_SOURCES
   lib/imgui/misc/freetype/imgui_freetype.cpp
 )
 
+# Custom ImGui configuration to avoid modifying the submodule
+add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
+
 # Utility library
 add_library(util STATIC
   util/settings.cpp
