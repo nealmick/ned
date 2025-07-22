@@ -356,6 +356,7 @@ void Ned::initializeImGui()
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
+	io.IniFilename = NULL; // Disable ImGui .ini file writing
 	(void)io;
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
