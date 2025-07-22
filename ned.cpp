@@ -6,6 +6,9 @@ Description: Main application class implementation for NED text editor.
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_internal.h"
+#ifdef IMGUI_ENABLE_FREETYPE
+#include "misc/freetype/imgui_freetype.h"
+#endif
 #ifdef __APPLE__
 #include "macos_window.h"
 #endif
@@ -481,16 +484,57 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	}
 
 	static const ImWchar ranges[] = {
-		0x0020, 0x00FF, // Basic Latin + Latin Supplement
-		0x2500, 0x257F, // Box Drawing Characters
-		0x2580, 0x259F, // Block Elements
-		0x25A0, 0x25FF, // Geometric Shapes
-		0x2600, 0x26FF, // Miscellaneous Symbols
-		0x2700, 0x27BF, // Dingbats
-		0x2900, 0x297F, // Supplemental Arrows-B
-		0x2B00, 0x2BFF, // Miscellaneous Symbols and Arrows
-		0x3000, 0x303F, // CJK Symbols and Punctuation
-		0xE000, 0xE0FF, // Private Use Area
+		0x0020,
+		0x00FF, // Basic Latin + Latin Supplement
+		0x2500,
+		0x257F, // Box Drawing Characters
+		0x2580,
+		0x259F, // Block Elements
+		0x25A0,
+		0x25FF, // Geometric Shapes
+		0x2600,
+		0x26FF, // Miscellaneous Symbols
+		0x2700,
+		0x27BF, // Dingbats
+		0x2900,
+		0x297F, // Supplemental Arrows-B
+		0x2B00,
+		0x2BFF, // Miscellaneous Symbols and Arrows
+		0x3000,
+		0x303F, // CJK Symbols and Punctuation
+		0xE000,
+		0xE0FF, // Private Use Area
+		// Add emoji ranges to main font as fallback
+		0x1F300,
+		0x1F9FF, // Miscellaneous Symbols and Pictographs
+		0x1F600,
+		0x1F64F, // Emoticons
+		0x1F680,
+		0x1F6FF, // Transport and Map Symbols
+		0x1F900,
+		0x1F9FF, // Supplemental Symbols and Pictographs
+		0xFE00,
+		0xFE0F, // Variation Selectors
+		0x1F000,
+		0x1F02F, // Mahjong Tiles
+		0x1F0A0,
+		0x1F0FF, // Playing Cards
+		0x1F100,
+		0x1F64F, // Enclosed Alphanumeric Supplement
+		0x1F650,
+		0x1F67F, // Ornamental Dingbats
+		0x1F700,
+		0x1F77F, // Alchemical Symbols
+		0x1F780,
+		0x1F7FF, // Geometric Shapes Extended
+		0x1F800,
+		0x1F8FF, // Supplemental Arrows-C
+		0x1FA00,
+		0x1FA6F, // Chess Symbols
+		0x1FA70,
+		0x1FAFF, // Symbols and Pictographs Extended-A
+		0x1FB00,
+		0x1FBFF, // Symbols for Legacy Computing
 		0,
 	};
 	ImFontConfig config_main;
@@ -513,6 +557,59 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	{
 		io.Fonts->AddFontFromFileTTF(
 			dejaVuPath.c_str(), fontSize, &config_braille, braille_ranges);
+	}
+
+	// Merge emoji font for emoji support
+	ImFontConfig config_emoji;
+	config_emoji.MergeMode = true;
+
+	// Enable color support for emojis (requires FreeType)
+#ifdef IMGUI_ENABLE_FREETYPE
+	config_emoji.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
+#endif
+
+	// Try seguiemj.ttf first (more compatible), then Emoji.ttf as fallback
+	std::string emojiPath = resourcePath + "/fonts/seguiemj.ttf";
+	if (!std::filesystem::exists(emojiPath))
+	{
+		emojiPath = resourcePath + "/fonts/Emoji.ttf";
+	}
+
+	if (std::filesystem::exists(emojiPath))
+	{
+		// Emoji ranges for merging
+		static const ImWchar emoji_ranges[] = {
+			0x1F300, 0x1F9FF, // Miscellaneous Symbols and Pictographs
+			0x1F600, 0x1F64F, // Emoticons
+			0x1F680, 0x1F6FF, // Transport and Map Symbols
+			0x1F900, 0x1F9FF, // Supplemental Symbols and Pictographs
+			0x2600,	 0x26FF,  // Miscellaneous Symbols
+			0x2700,	 0x27BF,  // Dingbats
+			0xFE00,	 0xFE0F,  // Variation Selectors
+			0x1F000, 0x1F02F, // Mahjong Tiles
+			0x1F0A0, 0x1F0FF, // Playing Cards
+			0x1F100, 0x1F64F, // Enclosed Alphanumeric Supplement
+			0x1F650, 0x1F67F, // Ornamental Dingbats
+			0x1F680, 0x1F6FF, // Transport and Map Symbols
+			0x1F700, 0x1F77F, // Alchemical Symbols
+			0x1F780, 0x1F7FF, // Geometric Shapes Extended
+			0x1F800, 0x1F8FF, // Supplemental Arrows-C
+			0x1F900, 0x1F9FF, // Supplemental Symbols and Pictographs
+			0x1FA00, 0x1FA6F, // Chess Symbols
+			0x1FA70, 0x1FAFF, // Symbols and Pictographs Extended-A
+			0x1FB00, 0x1FBFF, // Symbols for Legacy Computing
+			0,
+		};
+
+		// Use a slightly larger size for emoji font to ensure good rendering
+		float emojiFontSize = fontSize * 0.9f;
+		io.Fonts->AddFontFromFileTTF(
+			emojiPath.c_str(), emojiFontSize, &config_emoji, emoji_ranges);
+		std::cout << "[Ned::loadFont] Successfully merged emoji font: " << emojiPath
+				  << " at size " << emojiFontSize << std::endl;
+	} else
+	{
+		std::cerr << "[Ned::loadFont] No emoji font found at: " << emojiPath << std::endl;
 	}
 
 	if (!font)

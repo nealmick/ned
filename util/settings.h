@@ -151,6 +151,7 @@ class Settings
 		"VT323-Regular",
 		"IBM_MDA",
 		"VT100",
+		"seguiemj",
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed

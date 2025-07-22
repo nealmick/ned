@@ -26,6 +26,23 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(CURL REQUIRED)
 
+# FreeType for better font rendering and emoji support
+if(APPLE)
+  # On macOS, use Homebrew's FreeType
+  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(ARCH STREQUAL "arm64")
+    set(FREETYPE_INCLUDE_DIRS "/opt/homebrew/include/freetype2")
+    set(FREETYPE_LIBRARIES "/opt/homebrew/lib/libfreetype.dylib")
+  else()
+    set(FREETYPE_INCLUDE_DIRS "/usr/local/include/freetype2")
+    set(FREETYPE_LIBRARIES "/usr/local/lib/libfreetype.dylib")
+  endif()
+else()
+  find_package(Freetype REQUIRED)
+  set(FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIRS})
+  set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARIES})
+endif()
+
 # GLEW Configuration
 if(APPLE)
   execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -162,6 +179,7 @@ set(IMGUI_SOURCES
   lib/imgui/imgui_widgets.cpp
   lib/imgui/backends/imgui_impl_glfw.cpp
   lib/imgui/backends/imgui_impl_opengl3.cpp
+  lib/imgui/misc/freetype/imgui_freetype.cpp
 )
 
 # Utility library
@@ -238,6 +256,7 @@ target_include_directories(ned PRIVATE
   ai/mcp
   ${CMAKE_BINARY_DIR}
   ${GLEW_INCLUDE_DIRS}
+  ${FREETYPE_INCLUDE_DIRS}
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
   lib/utfcpp/source
@@ -252,6 +271,7 @@ target_link_libraries(ned PRIVATE
   nfd
   util
   ${GLEW_LIBRARIES}
+  ${FREETYPE_LIBRARIES}
   CURL::libcurl 
   tree-sitter-lib
   ${TS_GRAMMAR_LIBS}

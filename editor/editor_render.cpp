@@ -208,6 +208,18 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 	const char *char_end = (char_index + 1 < editor_state.fileContent.size())
 							   ? &editor_state.fileContent[char_index + 1]
 							   : nullptr;
+
+	// For multi-byte characters (like emojis), we need to find the end of the character
+	if (char_end && (*char_start & 0x80)) // Check if it's a multi-byte character
+	{
+		// Find the end of this UTF-8 character
+		while (char_end < &editor_state.fileContent[editor_state.fileContent.size()] &&
+			   (*char_end & 0xC0) == 0x80) // Continuation byte
+		{
+			char_end++;
+		}
+	}
+
 	float char_width = ImGui::CalcTextSize(char_start, char_end).x;
 
 	int s_start = selection_start; // Or editor_state.selection_start
@@ -246,11 +258,10 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 												  selection_color);
 	}
 
-	char current_char = editor_state.fileContent[char_index];
-	char buf[2] = {current_char, '\0'};
 	ImU32 text_color =
 		ImGui::ColorConvertFloat4ToU32(editor_state.fileColors[char_index]);
-	ImGui::GetWindowDrawList()->AddText(current_draw_pos, text_color, buf);
+	ImGui::GetWindowDrawList()->AddText(
+		current_draw_pos, text_color, char_start, char_end);
 
 	current_draw_pos.x += char_width;
 }
@@ -265,7 +276,21 @@ bool EditorRender::skipLineIfAboveVisible(size_t &char_index,
 		while (char_index < editor_state.fileContent.size() &&
 			   editor_state.fileContent[char_index] != '\n')
 		{
-			char_index++;
+			// Handle multi-byte UTF-8 characters
+			if ((editor_state.fileContent[char_index] & 0x80) == 0)
+			{
+				// Single byte character
+				char_index++;
+			} else
+			{
+				// Multi-byte character, find the end
+				while (char_index < editor_state.fileContent.size() &&
+					   (editor_state.fileContent[char_index] & 0xC0) == 0x80)
+				{
+					char_index++;
+				}
+				char_index++; // Move past the last byte of the character
+			}
 		}
 		return true;
 	}
@@ -338,9 +363,15 @@ void EditorRender::renderText()
 
 		// 3. Iterate through characters *of this specific line*.
 		for (size_t char_idx_in_file = line_char_start_idx;
-			 char_idx_in_file < line_char_end_idx;
-			 ++char_idx_in_file)
+			 char_idx_in_file < line_char_end_idx;)
 		{
+			// Skip continuation bytes of multi-byte characters
+			if (char_idx_in_file < editor_state.fileContent.size() &&
+				(editor_state.fileContent[char_idx_in_file] & 0xC0) == 0x80)
+			{
+				char_idx_in_file++;
+				continue;
+			}
 
 			// This character is (at least partially) horizontally visible.
 			renderCharacterAndSelection(
@@ -354,6 +385,29 @@ void EditorRender::renderText()
 				break; // Reached end of current line's content (before
 					   // line_char_end_idx if line_char_end_idx pointed to
 					   // newline itself)
+			}
+
+			// Advance to next character, handling multi-byte UTF-8 characters
+			if (char_idx_in_file < editor_state.fileContent.size())
+			{
+				const char *current_char = &editor_state.fileContent[char_idx_in_file];
+				if ((*current_char & 0x80) == 0)
+				{
+					// Single byte character
+					char_idx_in_file++;
+				} else
+				{
+					// Multi-byte character, find the end
+					while (char_idx_in_file < editor_state.fileContent.size() &&
+						   (editor_state.fileContent[char_idx_in_file] & 0xC0) == 0x80)
+					{
+						char_idx_in_file++;
+					}
+					char_idx_in_file++; // Move past the last byte of the character
+				}
+			} else
+			{
+				char_idx_in_file++;
 			}
 		}
 		// If the line ended without a newline char (e.g., last line of file),
