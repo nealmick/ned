@@ -223,7 +223,32 @@ void EditorCursor::cursorLeft()
 	// Main cursor
 	if (editor_state.cursor_index > 0)
 	{
-		editor_state.cursor_index--;
+		// Handle UTF-8 characters properly
+		if (editor_state.cursor_index < editor_state.fileContent.size() &&
+			(editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
+		{
+			// We're in the middle of a multi-byte character, move to the start
+			while (editor_state.cursor_index > 0 &&
+				   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
+			{
+				editor_state.cursor_index--;
+			}
+		} else
+		{
+			// Move to the start of the previous character
+			editor_state.cursor_index--;
+			if (editor_state.cursor_index > 0 &&
+				(editor_state.fileContent[editor_state.cursor_index] & 0x80))
+			{
+				// Find the start of this multi-byte character
+				while (editor_state.cursor_index > 0 &&
+					   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) ==
+						   0x80)
+				{
+					editor_state.cursor_index--;
+				}
+			}
+		}
 		calculateVisualColumn();
 	}
 
@@ -232,7 +257,37 @@ void EditorCursor::cursorLeft()
 	{
 		if (editor_state.multi_cursor_indices[i] > 0)
 		{
-			editor_state.multi_cursor_indices[i]--;
+			// Handle UTF-8 characters properly for multi-cursors
+			if (editor_state.multi_cursor_indices[i] < editor_state.fileContent.size() &&
+				(editor_state.fileContent[editor_state.multi_cursor_indices[i]] & 0xC0) ==
+					0x80)
+			{
+				// We're in the middle of a multi-byte character, move to the start
+				while (editor_state.multi_cursor_indices[i] > 0 &&
+					   (editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
+						0xC0) == 0x80)
+				{
+					editor_state.multi_cursor_indices[i]--;
+				}
+			} else
+			{
+				// Move to the start of the previous character
+				editor_state.multi_cursor_indices[i]--;
+				if (editor_state.multi_cursor_indices[i] > 0 &&
+					(editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
+					 0x80))
+				{
+					// Find the start of this multi-byte character
+					while (
+						editor_state.multi_cursor_indices[i] > 0 &&
+						(editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
+						 0xC0) == 0x80)
+					{
+						editor_state.multi_cursor_indices[i]--;
+					}
+				}
+			}
+
 			int current_multi_cursor_line =
 				EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												 editor_state.multi_cursor_indices[i]);
@@ -254,6 +309,16 @@ void EditorCursor::cursorRight()
 	// Main cursor
 	if (editor_state.cursor_index < editor_state.fileContent.size())
 	{
+		// Handle UTF-8 characters properly
+		if ((editor_state.fileContent[editor_state.cursor_index] & 0x80))
+		{
+			// Find the end of this multi-byte character
+			while (editor_state.cursor_index < editor_state.fileContent.size() &&
+				   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
+			{
+				editor_state.cursor_index++;
+			}
+		}
 		editor_state.cursor_index++;
 		calculateVisualColumn();
 	}
@@ -263,7 +328,20 @@ void EditorCursor::cursorRight()
 	{
 		if (editor_state.multi_cursor_indices[i] < editor_state.fileContent.size())
 		{
+			// Handle UTF-8 characters properly for multi-cursors
+			if ((editor_state.fileContent[editor_state.multi_cursor_indices[i]] & 0x80))
+			{
+				// Find the end of this multi-byte character
+				while (editor_state.multi_cursor_indices[i] <
+						   editor_state.fileContent.size() &&
+					   (editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
+						0xC0) == 0x80)
+				{
+					editor_state.multi_cursor_indices[i]++;
+				}
+			}
 			editor_state.multi_cursor_indices[i]++;
+
 			int current_multi_cursor_line =
 				EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												 editor_state.multi_cursor_indices[i]);
@@ -699,14 +777,49 @@ float EditorCursor::getCursorXPosition(const ImVec2 &text_pos,
 									   int cursor_pos)
 {
 	float x = text_pos.x;
-	for (int i = 0; i < cursor_pos; i++)
+	for (int i = 0; i < cursor_pos;)
 	{
 		if (text[i] == '\n')
 		{
 			x = text_pos.x;
+			i++;
 		} else
 		{
-			x += ImGui::CalcTextSize(&text[i], &text[i + 1]).x;
+			// Skip continuation bytes of multi-byte characters (same logic as rendering)
+			if ((text[i] & 0xC0) == 0x80)
+			{
+				i++;
+				continue;
+			}
+
+			// Handle UTF-8 characters properly (same logic as renderCharacterAndSelection)
+			const char *char_start = &text[i];
+			const char *char_end = (i + 1 < text.size()) ? &text[i + 1] : nullptr;
+
+			// For multi-byte characters, find the end
+			if (char_end && (*char_start & 0x80))
+			{
+				while (char_end < &text[text.size()] && (*char_end & 0xC0) == 0x80)
+				{
+					char_end++;
+				}
+			}
+
+			x += ImGui::CalcTextSize(char_start, char_end).x;
+
+			// Advance by the character length (same logic as rendering loop)
+			if ((*char_start & 0x80) == 0)
+			{
+				i++; // Single byte character
+			} else
+			{
+				// Multi-byte character, find the end
+				while (i < text.size() && (text[i] & 0xC0) == 0x80)
+				{
+					i++;
+				}
+				i++; // Move past the last byte of the character
+			}
 		}
 	}
 	return x;

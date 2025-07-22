@@ -76,8 +76,22 @@ void EditorKeyboard::handleBackspaceKey()
 		{
 			if (pos > 0)
 			{
-				ranges_to_delete.emplace_back(pos - 1,
-											  pos); // Range is [pos-1, pos)
+				// Handle UTF-8 characters properly for backspace
+				int start_pos = pos - 1;
+
+				// If we're in the middle of a multi-byte character, find the start
+				if (start_pos < editor_state.fileContent.size() &&
+					(editor_state.fileContent[start_pos] & 0xC0) == 0x80)
+				{
+					// Find the start of this multi-byte character
+					while (start_pos > 0 &&
+						   (editor_state.fileContent[start_pos] & 0xC0) == 0x80)
+					{
+						start_pos--;
+					}
+				}
+
+				ranges_to_delete.emplace_back(start_pos, pos);
 			}
 		}
 	}
@@ -756,7 +770,22 @@ void EditorKeyboard::handleDeleteKey()
 		}
 		for (int pos : unique_cursor_positions_for_delete)
 		{
-			ranges_to_delete.emplace_back(pos, pos + 1);
+			// Handle UTF-8 characters properly for delete
+			int end_pos = pos + 1;
+
+			// If we're at the start of a multi-byte character, find the end
+			if (pos < editor_state.fileContent.size() &&
+				(editor_state.fileContent[pos] & 0x80))
+			{
+				// Find the end of this multi-byte character
+				while (end_pos < editor_state.fileContent.size() &&
+					   (editor_state.fileContent[end_pos] & 0xC0) == 0x80)
+				{
+					end_pos++;
+				}
+			}
+
+			ranges_to_delete.emplace_back(pos, end_pos);
 		}
 	}
 
