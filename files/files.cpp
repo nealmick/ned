@@ -607,6 +607,10 @@ void FileExplorer::handleUndo()
 			applyOperation(op, true);
 			_undoStateDirty = true; // Mark as dirty instead of immediate save
 			saveCurrentFile();		// Save file after undo operation
+
+			// Update pendingFinalCursor after undo so cursor movements are tracked for
+			// next "first edit"
+			currentUndoManager->updatePendingFinalCursor(editor_state.cursor_index);
 		}
 	}
 }
