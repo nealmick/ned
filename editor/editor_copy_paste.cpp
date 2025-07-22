@@ -94,7 +94,7 @@ void EditorCopyPaste::cutWholeLine()
 {
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
-
+	gFileExplorer.addUndoState();
 	// Save the state before making any changes
 	std::string beforeContent = editor_state.fileContent;
 	int beforeCursor = editor_state.cursor_index;

@@ -406,6 +406,9 @@ void FileExplorer::addUndoState()
 {
 	if (currentUndoManager)
 	{
+		// Print the cursor index before saving the undo state
+		printf("[addUndoState] Saving undo state. Cursor index: %d\n",
+			   editor_state.cursor_index);
 		currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
 
 		// Mark that we have unsaved undo state
@@ -568,31 +571,7 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation &op, bool isU
 	editor_state.fileContent = newContent;
 
 	// Set appropriate cursor position based on the operation
-	int cursor_pos;
-	if (isUndo)
-	{
-		// For undo: calculate where cursor should be after removing inserted text
-		if (op.inserted.length() > op.removed.length())
-		{
-			// We inserted more text than we removed, so when undoing we need to
-			// move cursor back
-			cursor_pos = op.cursor_after - (op.inserted.length() - op.removed.length());
-		} else if (op.removed.length() > op.inserted.length())
-		{
-			// We removed more text than we inserted, so when undoing we need to
-			// move cursor forward
-			cursor_pos = op.cursor_after + (op.removed.length() - op.inserted.length());
-		} else
-		{
-			// Equal lengths, cursor stays the same
-			cursor_pos = op.cursor_after;
-		}
-	} else
-	{
-		// For redo: use the cursor position that was recorded after the
-		// original operation
-		cursor_pos = op.cursor_after;
-	}
+	int cursor_pos = isUndo ? op.cursor_before : op.cursor_after;
 
 	if (cursor_pos < 0)
 		cursor_pos = 0;
@@ -601,6 +580,11 @@ void FileExplorer::applyOperation(const UndoRedoManager::Operation &op, bool isU
 		cursor_pos = newContent.length();
 	}
 	editor_state.cursor_index = cursor_pos;
+
+	// Print the cursor index after applying the operation (undo/redo)
+	printf("[applyOperation] Cursor index after %s: %d\n",
+		   isUndo ? "undo" : "redo",
+		   editor_state.cursor_index);
 
 	// Reset selection state
 	editor_state.selection_start = editor_state.selection_end = cursor_pos;
@@ -636,7 +620,7 @@ void FileExplorer::handleRedo()
 		{
 			applyOperation(op, false);
 			_undoStateDirty = true; // Mark as dirty instead of immediate save
-			saveCurrentFile();		// Save file after redo operation
+			saveCurrentFile();
 		}
 	}
 }
