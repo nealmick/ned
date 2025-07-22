@@ -1,4 +1,5 @@
 #include "editor_cursor.h"
+#include "../files/files.h"
 #include "../util/settings.h"
 #include "editor.h"
 #include "editor_utils.h"
@@ -223,27 +224,29 @@ void EditorCursor::cursorLeft()
 	if (editor_state.cursor_index > 0)
 	{
 		editor_state.cursor_index--;
-		int current_line =
-			EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-											 editor_state.cursor_index);
-		editor_state.cursor_column_prefered =
-			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		calculateVisualColumn();
 	}
 
+	// Multi-cursors
 	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
 	{
 		if (editor_state.multi_cursor_indices[i] > 0)
 		{
 			editor_state.multi_cursor_indices[i]--;
-			// Update preferred column for this specific multi-cursor
 			int current_multi_cursor_line =
 				EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
 												 editor_state.multi_cursor_indices[i]);
-			// Simple character offset based preferred column:
 			editor_state.multi_cursor_prefered_columns[i] =
 				editor_state.multi_cursor_indices[i] -
 				editor_state.editor_content_lines[current_multi_cursor_line];
 		}
+	}
+
+	// Update undo manager's pendingFinalCursor for first edit logic
+	if (gFileExplorer.currentUndoManager)
+	{
+		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
+			editor_state.cursor_index);
 	}
 }
 void EditorCursor::cursorRight()
@@ -268,6 +271,13 @@ void EditorCursor::cursorRight()
 				editor_state.multi_cursor_indices[i] -
 				editor_state.editor_content_lines[current_multi_cursor_line];
 		}
+	}
+
+	// Update undo manager's pendingFinalCursor for first edit logic
+	if (gFileExplorer.currentUndoManager)
+	{
+		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
+			editor_state.cursor_index);
 	}
 }
 
@@ -346,6 +356,13 @@ void EditorCursor::cursorUp()
 	// Restore main cursor's actual state
 	editor_state.cursor_index = original_main_cursor_index;
 	editor_state.cursor_column_prefered = original_main_cursor_pref_col;
+
+	// Update undo manager's pendingFinalCursor for first edit logic
+	if (gFileExplorer.currentUndoManager)
+	{
+		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
+			editor_state.cursor_index);
+	}
 }
 
 void EditorCursor::cursorDown()
@@ -415,6 +432,13 @@ void EditorCursor::cursorDown()
 	}
 	editor_state.cursor_index = original_main_cursor_index;
 	editor_state.cursor_column_prefered = original_main_cursor_pref_col;
+
+	// Update undo manager's pendingFinalCursor for first edit logic
+	if (gFileExplorer.currentUndoManager)
+	{
+		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
+			editor_state.cursor_index);
+	}
 }
 
 void EditorCursor::moveCursorVertically(std::string &text, int line_delta)

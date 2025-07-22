@@ -170,6 +170,13 @@ void EditorMouse::handleMouseClick(int char_index)
 		editor_state.ensure_cursor_visible.horizontal = true;
 	}
 	is_dragging = true;
+
+	// Update undo manager's pendingFinalCursor for first edit logic
+	if (gFileExplorer.currentUndoManager)
+	{
+		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
+			editor_state.cursor_index);
+	}
 }
 
 void EditorMouse::handleMouseDrag(int char_index)

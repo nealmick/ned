@@ -223,6 +223,14 @@ class UndoRedoManager
 	// Force commit pending state immediately (useful for paste operations)
 	void forceCommitPending() { commitPending(); }
 
+	void updatePendingFinalCursor(int cursor)
+	{
+		if (!hasPending)
+		{
+			pendingFinalCursor = cursor;
+		}
+	}
+
   private:
 	std::vector<Operation> undoStack;
 	std::vector<Operation> redoStack;
