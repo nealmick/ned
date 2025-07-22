@@ -164,7 +164,8 @@ class Lexer
 		return tokens;
 	}
 
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		try
 		{
@@ -218,8 +219,14 @@ class Lexer
 		colorsNeedUpdate = false;
 	}
 
-	bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isWhitespace(char c) const
+	{
+		return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+	}
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
 	bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; }
 
@@ -318,7 +325,8 @@ class Lexer
 			return {TokenType::Dot, start, 1};
 
 		std::string op;
-		while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos]))
+		while (pos < code.length() && !isAlphaNumeric(code[pos]) &&
+			   !isWhitespace(code[pos]))
 		{
 			op += code[pos++];
 			if (operators.find(op) != operators.end())
@@ -330,7 +338,8 @@ class Lexer
 			op = code[pos++];
 		}
 
-		return {operators.find(op) != operators.end() ? TokenType::Operator : TokenType::Unknown,
+		return {operators.find(op) != operators.end() ? TokenType::Operator
+													  : TokenType::Unknown,
 				start,
 				op.length()};
 	}

@@ -15,8 +15,8 @@ class LSPAdapterGo
 
 	// Protocol communication
 	bool sendRequest(const std::string &request);
-	std::string
-	readResponse(int *outContentLength = nullptr); // Added outContentLength like Omnisharp
+	std::string readResponse(
+		int *outContentLength = nullptr); // Added outContentLength like Omnisharp
 
 	// Go-specific functionality (or common LSP functionality)
 	std::string getLanguageId(const std::string &filePath) const;

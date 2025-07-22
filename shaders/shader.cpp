@@ -8,9 +8,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <unistd.h>
-#include <set>
 
 Shader::Shader() { shaderProgram = 0; }
 
@@ -37,16 +37,16 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	if (std::filesystem::exists(vertexShaderRelativePath))
 	{
 		finalVertexShaderPath = vertexShaderRelativePath;
-		// std::cout << "[Shader] Found vertex shader at primary path: " << finalVertexShaderPath <<
-		// std::endl;
+		// std::cout << "[Shader] Found vertex shader at primary path: " <<
+		// finalVertexShaderPath << std::endl;
 	} else
 	{
 		std::string packagedPath = debian_package_base_path + vertexShaderRelativePath;
 		if (std::filesystem::exists(packagedPath))
 		{
 			finalVertexShaderPath = packagedPath;
-			// std::cout << "[Shader] Found vertex shader at Debian package path: " <<
-			// finalVertexShaderPath << std::endl;
+			// std::cout << "[Shader] Found vertex shader at Debian package
+			// path: " << finalVertexShaderPath << std::endl;
 		} else
 		{
 			std::cerr << "🔴 ERROR: Cannot find vertex shader. Tried:\n"
@@ -68,8 +68,8 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 		if (std::filesystem::exists(packagedPath))
 		{
 			finalFragmentShaderPath = packagedPath;
-			// std::cout << "[Shader] Found fragment shader at Debian package path: " <<
-			// finalFragmentShaderPath << std::endl;
+			// std::cout << "[Shader] Found fragment shader at Debian package
+			// path: " << finalFragmentShaderPath << std::endl;
 		} else
 		{
 			std::cerr << "🔴 ERROR: Cannot find fragment shader. Tried:\n"
@@ -79,19 +79,19 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 		}
 	}
 
-	// std::cout << "Attempting to load vertex shader from: " << finalVertexShaderPath << std::endl;
-	// std::cout << "Attempting to load fragment shader from: " << finalFragmentShaderPath <<
-	// std::endl;
+	// std::cout << "Attempting to load vertex shader from: " <<
+	// finalVertexShaderPath << std::endl; std::cout << "Attempting to load
+	// fragment shader from: " << finalFragmentShaderPath << std::endl;
 
 	// Read vertex shader
 	std::string vertexShaderCode;
 	std::ifstream vertexShaderFile(finalVertexShaderPath);
 	if (!vertexShaderFile.is_open())
 	{
-		// This should ideally not be reached if std::filesystem::exists passed, but good for
-		// robustness
-		std::cerr << "🔴 ERROR: Cannot open resolved vertex shader file: " << finalVertexShaderPath
-				  << std::endl;
+		// This should ideally not be reached if std::filesystem::exists passed,
+		// but good for robustness
+		std::cerr << "🔴 ERROR: Cannot open resolved vertex shader file: "
+				  << finalVertexShaderPath << std::endl;
 		return false;
 	}
 	std::stringstream vertexShaderStream;
@@ -117,14 +117,14 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	// Check if shaders are empty
 	if (vertexShaderCode.empty())
 	{
-		std::cerr << "🔴 ERROR: Vertex shader is empty (from " << finalVertexShaderPath << ")!"
-				  << std::endl;
+		std::cerr << "🔴 ERROR: Vertex shader is empty (from " << finalVertexShaderPath
+				  << ")!" << std::endl;
 		return false;
 	}
 	if (fragmentShaderCode.empty())
 	{
-		std::cerr << "🔴 ERROR: Fragment shader is empty (from " << finalFragmentShaderPath << ")!"
-				  << std::endl;
+		std::cerr << "🔴 ERROR: Fragment shader is empty (from "
+				  << finalFragmentShaderPath << ")!" << std::endl;
 		return false;
 	}
 
@@ -140,8 +140,8 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	if (!success)
 	{
 		glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Vertex shader compilation failed (from " << finalVertexShaderPath
-				  << ")\n"
+		std::cerr << "🔴 ERROR: Vertex shader compilation failed (from "
+				  << finalVertexShaderPath << ")\n"
 				  << infoLog << std::endl;
 		return false;
 	}
@@ -196,7 +196,8 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-	// GLint screenTexLoc = glGetUniformLocation(shaderProgram, "screenTexture"); // Optional check
+	// GLint screenTexLoc = glGetUniformLocation(shaderProgram,
+	// "screenTexture"); // Optional check
 
 	return true;
 }
@@ -205,9 +206,10 @@ void Shader::useShader()
 	glUseProgram(shaderProgram);
 
 	// Remove this check entirely - not all shaders need 'screenTexture'
-	// GLint textureLocation = glGetUniformLocation(shaderProgram, "screenTexture");
-	// if (textureLocation == -1) {
-	//     std::cerr << "🔴 Failed to find 'screenTexture' uniform" << std::endl;
+	// GLint textureLocation = glGetUniformLocation(shaderProgram,
+	// "screenTexture"); if (textureLocation == -1) {
+	//     std::cerr << "🔴 Failed to find 'screenTexture' uniform" <<
+	//     std::endl;
 	// }
 }
 
@@ -217,8 +219,10 @@ void Shader::setFloat(const std::string &name, float value)
 	if (location == -1)
 	{
 		// Only warn if we haven't warned about this uniform before
-		if (warnedUniforms.find(name) == warnedUniforms.end()) {
-			std::cerr << "Warning: Uniform '" << name << "' not found in shader program" << std::endl;
+		if (warnedUniforms.find(name) == warnedUniforms.end())
+		{
+			std::cerr << "Warning: Uniform '" << name << "' not found in shader program"
+					  << std::endl;
 			warnedUniforms.insert(name);
 		}
 		return;

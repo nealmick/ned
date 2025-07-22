@@ -92,8 +92,8 @@ class EditorScroll
 	bool pendingBookmarkScroll = false;
 	float pendingScrollX = 0.0f;
 	float pendingScrollY = 0.0f;
+
   private:
-	
 };
 
 // Global instance

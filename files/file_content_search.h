@@ -33,9 +33,9 @@ class FileContentSearch
 	std::string toLower(const std::string &s);
 	void handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox);
 
-  ImVec2 findBoxRectMin;
-  ImVec2 findBoxRectMax;
-  bool findBoxRectSet = false;	
+	ImVec2 findBoxRectMin;
+	ImVec2 findBoxRectMax;
+	bool findBoxRectSet = false;
 
 	// UI Constants
 	struct Style

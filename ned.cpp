@@ -16,8 +16,8 @@ Description: Main application class implementation for NED text editor.
 #include "editor/editor_highlight.h"
 #include "editor/editor_scroll.h"
 #include "util/debug_console.h"
-#include "util/settings.h"
 #include "util/keybinds.h"
+#include "util/settings.h"
 #include "util/terminal.h"
 #include "util/welcome.h"
 
@@ -39,7 +39,6 @@ static double fps_lastTime = 0.0;
 static int fps_frames = 0;
 static double fps_currentFPS = 0.0;
 
-
 float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
 
 constexpr float kAgentSplitterWidth = 6.0f;
@@ -51,8 +50,6 @@ Ned::Ned()
 	  explorerWidth(0.0f), editorWidth(0.0f), initialized(false)
 {
 }
-
-
 
 Ned::~Ned()
 {
@@ -77,7 +74,8 @@ void Ned::ShaderQuad::initialize()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+	glVertexAttribPointer(
+		1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 }
 
@@ -94,35 +92,38 @@ bool Ned::initialize()
 		return false;
 	}
 	gSettings.loadSettings();
- 	if (gKeybinds.loadKeybinds()) {
-        std::cout << "Initial keybinds loaded successfully." << std::endl;
-    } else {
-        std::cout << "Failed to load initial keybinds." << std::endl;
-    }
+	if (gKeybinds.loadKeybinds())
+	{
+		std::cout << "Initial keybinds loaded successfully." << std::endl;
+	} else
+	{
+		std::cout << "Failed to load initial keybinds." << std::endl;
+	}
 
 	// Load sidebar visibility settings
 	showSidebar = gSettings.getSettings().value("sidebar_visible", true);
 	showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
 
 	// Adjust agent split position if sidebar is hidden (first load only)
-	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar) {
+	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar)
+	{
 		float currentAgentSplitPos = gSettings.getAgentSplitPos();
 		float originalValue = currentAgentSplitPos;
-		// When sidebar is hidden, the agent split position represents editor width, not agent pane width
-		// So we need to invert it: 1 - saved_agent_position
+		// When sidebar is hidden, the agent split position represents editor width,
+		// not agent pane width So we need to invert it: 1 - saved_agent_position
 		float newAgentSplitPos = 1.0f - currentAgentSplitPos;
 		gSettings.setAgentSplitPos(newAgentSplitPos);
-		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to " << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
+		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to "
+				  << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
 	}
 
-	
 #ifdef __APPLE__
 	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
 	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
-	
+
 	// Initial configuration
 	configureMacOSWindow(window, opacity, blurEnabled);
-	
+
 	// Initialize tracking variables
 	lastOpacity = opacity;
 	lastBlurEnabled = blurEnabled;
@@ -139,21 +140,27 @@ bool Ned::initialize()
 
 void Ned::renderResizeHandles()
 {
-	const float resizeBorder = 10.0f;   // <--- CHANGE THIS VALUE
+	const float resizeBorder = 10.0f; // <--- CHANGE THIS VALUE
 	ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
 	ImVec2 windowSize = ImGui::GetMainViewport()->Size;
 
 	// Right edge
 	ImGui::PushID("resize_right");
-	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
-	ImGui::InvisibleButton("##resize_right", ImVec2(resizeBorder, windowSize.y)); // Will now be 100px wide
+	ImGui::SetCursorScreenPos(
+		ImVec2(windowPos.x + windowSize.x - resizeBorder, windowPos.y));
+	ImGui::InvisibleButton("##resize_right",
+						   ImVec2(resizeBorder,
+								  windowSize.y)); // Will now be 100px wide
 	bool hoverRight = ImGui::IsItemHovered();
 	ImGui::PopID();
 
 	// Bottom edge
 	ImGui::PushID("resize_bottom");
-	ImGui::SetCursorScreenPos(ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_bottom", ImVec2(windowSize.x, resizeBorder)); // Will now be 100px high
+	ImGui::SetCursorScreenPos(
+		ImVec2(windowPos.x, windowPos.y + windowSize.y - resizeBorder));
+	ImGui::InvisibleButton("##resize_bottom",
+						   ImVec2(windowSize.x,
+								  resizeBorder)); // Will now be 100px high
 	bool hoverBottom = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -161,7 +168,9 @@ void Ned::renderResizeHandles()
 	ImGui::PushID("resize_corner");
 	ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowSize.x - resizeBorder,
 									 windowPos.y + windowSize.y - resizeBorder));
-	ImGui::InvisibleButton("##resize_corner", ImVec2(resizeBorder, resizeBorder)); // Will now be 100x100px
+	ImGui::InvisibleButton("##resize_corner",
+						   ImVec2(resizeBorder,
+								  resizeBorder)); // Will now be 100x100px
 	bool hoverCorner = ImGui::IsItemHovered();
 	ImGui::PopID();
 
@@ -177,95 +186,104 @@ void Ned::renderResizeHandles()
 		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
 	}
 	// else {
-	// Optionally set a default cursor if not hovering any resize handle and not resizing
-	// ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow); 
+	// Optionally set a default cursor if not hovering any resize handle and not
+	// resizing ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
 	// }
 }
 
 void Ned::handleManualResizing()
 {
 
-    ImGuiIO &io = ImGui::GetIO();
-    int currentScreenWidth, currentScreenHeight; // Renamed to avoid confusion with initial size
-    glfwGetWindowSize(window, &currentScreenWidth, &currentScreenHeight);
+	ImGuiIO &io = ImGui::GetIO();
+	int currentScreenWidth,
+		currentScreenHeight; // Renamed to avoid confusion with initial size
+	glfwGetWindowSize(window, &currentScreenWidth, &currentScreenHeight);
 
-    double mouseX, mouseY;
-    glfwGetCursorPos(window, &mouseX, &mouseY);
+	double mouseX, mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
 
-    const float resizeBorder = 10.0f;
-    // Hover detection based on current mouse position and current window size
-    // This is primarily for initiating the resize operation.
-    bool hoverRightEdge = mouseX >= (currentScreenWidth - resizeBorder) && mouseX < currentScreenWidth;
-    bool hoverBottomEdge = mouseY >= (currentScreenHeight - resizeBorder) && mouseY < currentScreenHeight;
-    bool hoverCorner = hoverRightEdge && hoverBottomEdge; // More specific corner detection
+	const float resizeBorder = 10.0f;
+	// Hover detection based on current mouse position and current window size
+	// This is primarily for initiating the resize operation.
+	bool hoverRightEdge =
+		mouseX >= (currentScreenWidth - resizeBorder) && mouseX < currentScreenWidth;
+	bool hoverBottomEdge =
+		mouseY >= (currentScreenHeight - resizeBorder) && mouseY < currentScreenHeight;
+	bool hoverCorner =
+		hoverRightEdge && hoverBottomEdge; // More specific corner detection
 
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-    {
-        if (hoverCorner) {
-            resizingCorner = true;
-            resizingRight = true; 
-            resizingBottom = true;
-        } else if (hoverRightEdge) {
-            resizingCorner = false;
-            resizingRight = true;
-            resizingBottom = false;
-        } else if (hoverBottomEdge) {
-            resizingCorner = false;
-            resizingRight = false;
-            resizingBottom = true;
-        } else {
-            resizingCorner = false;
-            resizingRight = false;
-            resizingBottom = false;
-        }
-
-        if (resizingRight || resizingBottom) 
-        {
-            dragStart = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
-            initialWindowSize = ImVec2(static_cast<float>(currentScreenWidth), static_cast<float>(currentScreenHeight));
-        }
-    }
-
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		if (hoverCorner)
 		{
-
-		    if (
-		    resizingRight || resizingBottom) 
-		    {
-		        int newWidth = static_cast<int>(initialWindowSize.x);
-		        int newHeight = static_cast<int>(initialWindowSize.y);
-
-		        if (resizingRight) 
-		        {
-		            newWidth = static_cast<int>(initialWindowSize.x + (mouseX - dragStart.x));   
-		        }
-
-		        if (resizingBottom)
-		        {
-		            float deltaY = static_cast<float>(mouseY - dragStart.y);
-		            newHeight = static_cast<int>(initialWindowSize.y + deltaY);
-
-		        }
-		        newWidth = std::max(newWidth, 100);  
-		        newHeight = std::max(newHeight, 100); 
-
-
-		        // Conditional break or further check if values are extreme
-		        if (newHeight > 10000 || newHeight < 0 || newWidth > 10000 || newWidth < 0) {
-		            std::cerr << "CRITICAL: Extreme resize values detected before glfwSetWindowSize!" << std::endl;
-		        }
-
-		        glfwSetWindowSize(window, newWidth, newHeight);
-		    }
+			resizingCorner = true;
+			resizingRight = true;
+			resizingBottom = true;
+		} else if (hoverRightEdge)
+		{
+			resizingCorner = false;
+			resizingRight = true;
+			resizingBottom = false;
+		} else if (hoverBottomEdge)
+		{
+			resizingCorner = false;
+			resizingRight = false;
+			resizingBottom = true;
+		} else
+		{
+			resizingCorner = false;
+			resizingRight = false;
+			resizingBottom = false;
 		}
-    // Handle drag end
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-    {
-        resizingRight = false;
-        resizingBottom = false;
-        resizingCorner = false;
-    }
+
+		if (resizingRight || resizingBottom)
+		{
+			dragStart = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
+			initialWindowSize = ImVec2(static_cast<float>(currentScreenWidth),
+									   static_cast<float>(currentScreenHeight));
+		}
+	}
+
+	if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+
+	{
+
+		if (resizingRight || resizingBottom)
+		{
+			int newWidth = static_cast<int>(initialWindowSize.x);
+			int newHeight = static_cast<int>(initialWindowSize.y);
+
+			if (resizingRight)
+			{
+				newWidth = static_cast<int>(initialWindowSize.x + (mouseX - dragStart.x));
+			}
+
+			if (resizingBottom)
+			{
+				float deltaY = static_cast<float>(mouseY - dragStart.y);
+				newHeight = static_cast<int>(initialWindowSize.y + deltaY);
+			}
+			newWidth = std::max(newWidth, 100);
+			newHeight = std::max(newHeight, 100);
+
+			// Conditional break or further check if values are extreme
+			if (newHeight > 10000 || newHeight < 0 || newWidth > 10000 || newWidth < 0)
+			{
+				std::cerr << "CRITICAL: Extreme resize values detected before "
+							 "glfwSetWindowSize!"
+						  << std::endl;
+			}
+
+			glfwSetWindowSize(window, newWidth, newHeight);
+		}
+	}
+	// Handle drag end
+	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+	{
+		resizingRight = false;
+		resizingBottom = false;
+		resizingCorner = false;
+	}
 }
 
 bool Ned::initializeGraphics()
@@ -280,7 +298,8 @@ bool Ned::initializeGraphics()
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 #ifdef __APPLE__
-	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // No OS decorations for macOS (custom handling)
+	glfwWindowHint(GLFW_DECORATED,
+				   GLFW_FALSE); // No OS decorations for macOS (custom handling)
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
 	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
 #else // For Linux/Ubuntu and other non-Apple platforms
@@ -306,16 +325,17 @@ bool Ned::initializeGraphics()
 
 	// Enable raw mouse motion for more accurate tracking
 	glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-	
+
 	glewExperimental = GL_TRUE;
 	if (GLenum err = glewInit(); GLEW_OK != err)
 	{
-		std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+		std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err)
+				  << std::endl;
 		glfwTerminate();
 		return false;
 	}
 	glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); 
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glGetError(); // Clear any GLEW startup errors
 
 	// Load both shaders
@@ -356,36 +376,38 @@ void Ned::checkForActivity()
 
 	// Check for any input activity
 	bool hasInput = false;
-	
+
 	// Mouse activity
-	if (io.MousePos.x != io.MousePosPrev.x ||
-		io.MousePos.y != io.MousePosPrev.y ||
-		io.MouseWheel != 0.0f ||
-		io.MouseWheelH != 0.0f ||
-		io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2])
+	if (io.MousePos.x != io.MousePosPrev.x || io.MousePos.y != io.MousePosPrev.y ||
+		io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f || io.MouseDown[0] ||
+		io.MouseDown[1] || io.MouseDown[2])
 	{
 		hasInput = true;
 	}
 
 	// Keyboard activity
-	if (io.InputQueueCharacters.size() > 0 ||
-		io.KeysDown[0] || io.KeysDown[1] || io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
+	if (io.InputQueueCharacters.size() > 0 || io.KeysDown[0] || io.KeysDown[1] ||
+		io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
 	{
 		hasInput = true;
 	}
-	
+
 	// ImGui widget activity
-	if (ImGui::IsAnyItemActive()) {
+	if (ImGui::IsAnyItemActive())
+	{
 		hasInput = true;
 	}
 
-	// Check for active scroll animation (treat as input activity for smooth rendering)
-	if (gEditorScroll.isScrollAnimationActive()) {
+	// Check for active scroll animation (treat as input activity for smooth
+	// rendering)
+	if (gEditorScroll.isScrollAnimationActive())
+	{
 		hasInput = true;
 	}
 
 	// If we have any input, update activity time
-	if (hasInput) {
+	if (hasInput)
+	{
 		m_lastActivityTime = glfwGetTime();
 	}
 }
@@ -419,7 +441,7 @@ void Ned::initializeResources()
 		std::cerr << "🔴 Failed to load font, using default font" << std::endl;
 		currentFont = ImGui::GetIO().Fonts->AddFontDefault();
 	}
-	
+
 	// Load large font for resolution overlay
 	largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
 	if (!largeFont)
@@ -446,7 +468,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	std::string resourcePath = Settings::getAppResourcesPath();
 	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
 	// Always print the path, before existence check
-	// std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath << " at size "
+	// std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath
+	// << " at size "
 	//		  << fontSize << std::endl;
 
 	if (!std::filesystem::exists(fontPath))
@@ -476,7 +499,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	// if you want to stack multiple fonts, you might skip clearing.
 	io.Fonts->Clear();
 
-	ImFont *font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config_main, ranges);
+	ImFont *font =
+		io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config_main, ranges);
 
 	// Merge DejaVu Sans for Braille, etc. if you want
 	ImFontConfig config_braille;
@@ -485,7 +509,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	std::string dejaVuPath = resourcePath + "/fonts/DejaVuSans.ttf";
 	if (std::filesystem::exists(dejaVuPath))
 	{
-		io.Fonts->AddFontFromFileTTF(dejaVuPath.c_str(), fontSize, &config_braille, braille_ranges);
+		io.Fonts->AddFontFromFileTTF(
+			dejaVuPath.c_str(), fontSize, &config_braille, braille_ranges);
 	}
 
 	if (!font)
@@ -498,7 +523,8 @@ ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
 	ImGui_ImplOpenGL3_DestroyFontsTexture();
 	ImGui_ImplOpenGL3_CreateFontsTexture();
 
-	// std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName << " from " << fontPath
+	// std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName <<
+	// " from " << fontPath
 	//		  << " at size " << fontSize << std::endl;
 
 	return font;
@@ -514,25 +540,29 @@ ImFont *Ned::loadLargeFont(const std::string &fontName, float fontSize)
 
 	if (!std::filesystem::exists(fontPath))
 	{
-		std::cerr << "[Ned::loadLargeFont] Font does not exist: " << fontPath << std::endl;
+		std::cerr << "[Ned::loadLargeFont] Font does not exist: " << fontPath
+				  << std::endl;
 		return io.Fonts->AddFontDefault();
 	}
 
 	static const ImWchar ranges[] = {
-		0x0020, 0x00FF, // Basic Latin + Latin Supplement
+		0x0020,
+		0x00FF, // Basic Latin + Latin Supplement
 		0,
 	};
-	
+
 	ImFontConfig config;
 	config.MergeMode = false;
 	config.GlyphRanges = ranges;
 
 	// Don't clear existing fonts - just add the new one
-	ImFont *font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config, ranges);
+	ImFont *font =
+		io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config, ranges);
 
 	if (!font)
 	{
-		std::cerr << "[Ned::loadLargeFont] Failed to load font: " << fontPath << std::endl;
+		std::cerr << "[Ned::loadLargeFont] Failed to load font: " << fontPath
+				  << std::endl;
 		return io.Fonts->AddFontDefault();
 	}
 
@@ -543,7 +573,6 @@ ImFont *Ned::loadLargeFont(const std::string &fontName, float fontSize)
 	return font;
 }
 
-
 void Ned::run()
 {
 	if (!initialized)
@@ -552,25 +581,29 @@ void Ned::run()
 		return;
 	}
 
-		while (!glfwWindowShouldClose(window))
+	while (!glfwWindowShouldClose(window))
 	{
 		// Get current time for activity tracking
 		double currentTime = glfwGetTime();
-		
+
 		// Poll for events (this will block until something happens, or timeout)
 		// When shaders are enabled, use settings FPS target for timeout
 		// When shaders are disabled, use normal timeout logic
 		double timeout;
-		if (shader_toggle) {
+		if (shader_toggle)
+		{
 			// Use settings FPS target when shaders are enabled
 			float fpsTarget = 60.0f;
-			if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+			if (gSettings.getSettings().contains("fps_target") &&
+				gSettings.getSettings()["fps_target"].is_number())
+			{
 				fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
 			}
 			timeout = 1.0 / fpsTarget; // Convert FPS to timeout
-		} else {
-			// Use shorter timeout if we recently had activity (for smoother interaction)
-			// Also respect minimum FPS: 25 FPS normally
+		} else
+		{
+			// Use shorter timeout if we recently had activity (for smoother
+			// interaction) Also respect minimum FPS: 25 FPS normally
 			double minFPS = 25.0;
 			double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
 			timeout = (currentTime - m_lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
@@ -588,7 +621,8 @@ void Ned::run()
 
 		// Check for activity and decide if we should keep rendering
 		checkForActivity();
-		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5 || gEditorScroll.isScrollAnimationActive();
+		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5 ||
+								   gEditorScroll.isScrollAnimationActive();
 
 		// Always render a frame after polling events
 		auto frame_start = std::chrono::high_resolution_clock::now();
@@ -618,9 +652,9 @@ void Ned::handleBackgroundUpdates(double currentTime)
 		bool hadFontChanged = gSettings.hasFontChanged();
 		bool hadFontSizeChanged = gSettings.hasFontSizeChanged();
 		bool hadThemeChanged = gSettings.hasThemeChanged();
-		
+
 		gSettings.checkSettingsFile();
-		
+
 		// Check if any settings changed
 		if (gSettings.hasSettingsChanged() != hadSettingsChanged ||
 			gSettings.hasFontChanged() != hadFontChanged ||
@@ -675,10 +709,8 @@ void Ned::handleFramebuffer(int width, int height)
 		glGenRenderbuffers(1, &fb.rbo);
 		glBindRenderbuffer(GL_RENDERBUFFER, fb.rbo);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-								  GL_DEPTH_STENCIL_ATTACHMENT,
-								  GL_RENDERBUFFER,
-								  fb.rbo);
+		glFramebufferRenderbuffer(
+			GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb.rbo);
 
 		// Check completeness
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -696,7 +728,8 @@ void Ned::handleFramebuffer(int width, int height)
 		if (fb.renderTexture)
 		{
 			glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+			glTexImage2D(
+				GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		}
 	};
 
@@ -725,7 +758,7 @@ void Ned::handleWindowFocus()
 	bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 	if (windowFocused != currentFocus)
 	{
-		m_needsRedraw = true; // Redraw on focus change.
+		m_needsRedraw = true;							  // Redraw on focus change.
 		m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
 		if (windowFocused && !currentFocus)
 		{
@@ -743,16 +776,22 @@ void Ned::handleKeyboardShortcuts()
 	// Accept either Ctrl or Super (Command on macOS)
 	bool modPressed = io.KeyCtrl || io.KeySuper;
 	ImGuiKey toggleSidebar = gKeybinds.getActionKey("toggle_sidebar");
-	 
-	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false)){
+
+	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false))
+	{
 		float windowWidth = ImGui::GetWindowWidth();
 		float padding = ImGui::GetStyle().WindowPadding.x;
-		float availableWidth = windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f); // Only account for splitter width when agent pane is visible
+		float availableWidth = windowWidth - padding * 3 -
+							   (showAgentPane ? kAgentSplitterWidth
+											  : 0.0f); // Only account for splitter width
+													   // when agent pane is visible
 
 		float agentPaneWidthPx;
-		if (showSidebar) {
+		if (showSidebar)
+		{
 			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
-		} else {
+		} else
+		{
 			float agentSplit = gSettings.getAgentSplitPos();
 			float editorWidth = availableWidth * agentSplit;
 			agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
@@ -767,12 +806,15 @@ void Ned::handleKeyboardShortcuts()
 
 		// Recompute availableWidth after toggling
 		windowWidth = ImGui::GetWindowWidth();
-		availableWidth = windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
+		availableWidth =
+			windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
 
 		float newRightSplit;
-		if (showSidebar) {
+		if (showSidebar)
+		{
 			newRightSplit = agentPaneWidthPx / availableWidth;
-		} else {
+		} else
+		{
 			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
 			newRightSplit = editorWidth / availableWidth;
 		}
@@ -783,21 +825,23 @@ void Ned::handleKeyboardShortcuts()
 	}
 
 	ImGuiKey toggleAgent = gKeybinds.getActionKey("toggle_agent");
-	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false)) {
+	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false))
+	{
 		// Only toggle visibility, do not recalculate or set agentSplitPos
 		showAgentPane = !showAgentPane;
-		
+
 		// Save agent pane visibility setting
 		gSettings.getSettings()["agent_pane_visible"] = showAgentPane;
 		gSettings.saveSettings();
-		
+
 		std::cout << "Toggled agent pane visibility" << std::endl;
 		shortcutPressed = true;
 	}
 
 	ImGuiKey toggleTerminal = gKeybinds.getActionKey("toggle_terminal");
-	
-	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false)){
+
+	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false))
+	{
 		gTerminal.toggleVisibility();
 		gFileExplorer.saveCurrentFile();
 		if (gTerminal.isTerminalVisible())
@@ -807,7 +851,7 @@ void Ned::handleKeyboardShortcuts()
 		shortcutPressed = true;
 	}
 	ImGuiKey togglesetings = gKeybinds.getActionKey("toggle_settings_window");
-	 
+
 	if (modPressed && ImGui::IsKeyPressed(togglesetings, false))
 	{
 		gFileExplorer.showWelcomeScreen = false;
@@ -823,7 +867,8 @@ void Ned::handleKeyboardShortcuts()
 			gSettings.setFontSize(currentSize + 2.0f);
 			editor_state.ensure_cursor_visible.vertical = true;
 			editor_state.ensure_cursor_visible.horizontal = true;
-			std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize() << std::endl;
+			std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize()
+					  << std::endl;
 			shortcutPressed = true;
 		} else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
 		{ // '-' key
@@ -831,7 +876,8 @@ void Ned::handleKeyboardShortcuts()
 			gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
 			editor_state.ensure_cursor_visible.vertical = true;
 			editor_state.ensure_cursor_visible.horizontal = true;
-			std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize() << std::endl;
+			std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize()
+					  << std::endl;
 			shortcutPressed = true;
 		}
 	}
@@ -858,9 +904,11 @@ void Ned::handleKeyboardShortcuts()
 	}
 
 	// At the very end of the function, set the main redraw flag.
-	if (shortcutPressed) {
+	if (shortcutPressed)
+	{
 		m_needsRedraw = true;
-		m_framesToRender = std::max(m_framesToRender, 12); // Render many frames for shortcuts
+		m_framesToRender =
+			std::max(m_framesToRender, 12); // Render many frames for shortcuts
 	}
 }
 
@@ -868,11 +916,10 @@ void Ned::renderFileExplorer(float explorerWidth)
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
-	ImGui::BeginChild("File Explorer",
-					  ImVec2(explorerWidth, -1),
-					  true,
-					  ImGuiWindowFlags_NoScrollbar);
+	ImGui::PushStyleColor(
+		ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
+	ImGui::BeginChild(
+		"File Explorer", ImVec2(explorerWidth, -1), true, ImGuiWindowFlags_NoScrollbar);
 
 	if (!gFileExplorer.selectedFolder.empty())
 	{
@@ -990,10 +1037,10 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 void Ned::renderEditorHeader(ImFont *currentFont)
 {
 	float windowWidth = ImGui::GetWindowWidth();
-	
+
 	// Disable git changes if window width is less than 250
 	bool showGitChanges = windowWidth >= 250.0f;
-	
+
 	ImGui::BeginGroup();
 	ImGui::PushFont(currentFont);
 
@@ -1007,8 +1054,11 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 
 	// Calculate space needed for git changes if enabled and available
 	float gitChangesWidth = 0.0f;
-	if(showGitChanges && gSettings.getSettings()["git_changed_lines"] && !gEditorGit.currentGitChanges.empty()) {
-		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x + ImGui::GetStyle().ItemSpacing.x;
+	if (showGitChanges && gSettings.getSettings()["git_changed_lines"] &&
+		!gEditorGit.currentGitChanges.empty())
+	{
+		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x +
+						  ImGui::GetStyle().ItemSpacing.x;
 	}
 
 	// Render left side (file icon and name)
@@ -1031,7 +1081,9 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		// Calculate available width for the text, accounting for all elements
 		float x_cursor = ImGui::GetCursorPosX();
 		float x_right_group = ImGui::GetWindowWidth();
-		float available_width = x_right_group - x_cursor - ImGui::GetStyle().ItemSpacing.x - totalStatusWidth - gitChangesWidth;
+		float available_width = x_right_group - x_cursor -
+								ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
+								gitChangesWidth;
 
 		// Truncate the file path to fit available space
 		std::string truncatedText =
@@ -1040,13 +1092,14 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 		ImGui::Text("%s", truncatedText.c_str());
 
 		// Add git changes info if available and window is wide enough
-		if(showGitChanges && gSettings.getSettings()["git_changed_lines"]){
-			if (!gEditorGit.currentGitChanges.empty()) {
+		if (showGitChanges && gSettings.getSettings()["git_changed_lines"])
+		{
+			if (!gEditorGit.currentGitChanges.empty())
+			{
 				ImGui::SameLine();
 				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
 			}
 		}
-		
 	}
 
 	// Right-aligned status area
@@ -1103,8 +1156,8 @@ void Ned::renderSettingsIcon(float iconSize)
 		}
 		bool isHovered = ImGui::IsItemHovered();
 		ImGui::SetCursorPos(cursor_pos);
-		ImTextureID icon =
-			isHovered ? gFileExplorer.getIcon("gear-hover") : gFileExplorer.getIcon("gear");
+		ImTextureID icon = isHovered ? gFileExplorer.getIcon("gear-hover")
+									 : gFileExplorer.getIcon("gear");
 		ImGui::Image(icon, ImVec2(iconSize, iconSize));
 	} else
 	{
@@ -1196,101 +1249,111 @@ void Ned::renderSplitter(float padding, float availableWidth)
 
 void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible)
 {
-    ImGui::SameLine(0, 0);
+	ImGui::SameLine(0, 0);
 
-    // Interaction settings
-    const float visible_width = 1.0f;    // Rendered width at rest
-    const float hover_width = 6.0f;        // Invisible hitbox size
-    const float hover_expansion = 3.0f;    // Expanded visual width
-    const float hover_delay = 0.15f;        // Seconds before hover effect
+	// Interaction settings
+	const float visible_width = 1.0f;	// Rendered width at rest
+	const float hover_width = 6.0f;		// Invisible hitbox size
+	const float hover_expansion = 3.0f; // Expanded visual width
+	const float hover_delay = 0.15f;	// Seconds before hover effect
 
-    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
 
-    // Create invisible button with larger hitbox
-    ImGui::Button("##vsplitter_right", ImVec2(hover_width, -1));
+	// Create invisible button with larger hitbox
+	ImGui::Button("##vsplitter_right", ImVec2(hover_width, -1));
 
-    // Hover delay logic
-    static float hover_start_time = -1.0f;
-    bool visual_hover = false;
-    const bool is_hovered = ImGui::IsItemHovered();
-    const bool is_active = ImGui::IsItemActive();
+	// Hover delay logic
+	static float hover_start_time = -1.0f;
+	bool visual_hover = false;
+	const bool is_hovered = ImGui::IsItemHovered();
+	const bool is_active = ImGui::IsItemActive();
 
-    if (is_hovered && !is_active)
-    {
-        if (hover_start_time < 0)
-        {
-            hover_start_time = ImGui::GetTime();
-        }
-        float elapsed = ImGui::GetTime() - hover_start_time;
-        visual_hover = elapsed >= hover_delay;
-    } else
-    {
-        hover_start_time = -1.0f;
-    }
+	if (is_hovered && !is_active)
+	{
+		if (hover_start_time < 0)
+		{
+			hover_start_time = ImGui::GetTime();
+		}
+		float elapsed = ImGui::GetTime() - hover_start_time;
+		visual_hover = elapsed >= hover_delay;
+	} else
+	{
+		hover_start_time = -1.0f;
+	}
 
-    // Calculate dimensions
-    ImVec2 min = ImGui::GetItemRectMin();
-    ImVec2 max = ImGui::GetItemRectMax();
-    const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
+	// Calculate dimensions
+	ImVec2 min = ImGui::GetItemRectMin();
+	ImVec2 max = ImGui::GetItemRectMax();
+	const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
 
-    // Center the visible splitter in the hover zone
-    min.x += (hover_width - width) * 0.5f;
-    max.x = min.x + width;
+	// Center the visible splitter in the hover zone
+	min.x += (hover_width - width) * 0.5f;
+	max.x = min.x + width;
 
-    // Color setup
-    const ImU32 color_base = IM_COL32(134, 134, 134, 140);
-    const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
-    const ImU32 color_active = IM_COL32(11, 94, 215, 255);
+	// Color setup
+	const ImU32 color_base = IM_COL32(134, 134, 134, 140);
+	const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
+	const ImU32 color_active = IM_COL32(11, 94, 215, 255);
 
-    // Determine color
-    ImU32 current_color = color_base;
-    if (is_active)
-    {
-        current_color = color_active;
-    } else if (visual_hover)
-    {
-        current_color = color_hover;
-    }
+	// Determine color
+	ImU32 current_color = color_base;
+	if (is_active)
+	{
+		current_color = color_active;
+	} else if (visual_hover)
+	{
+		current_color = color_hover;
+	}
 
-    // Draw the splitter
-    ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
+	// Draw the splitter
+	ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
 
-    // Drag logic
-    static bool dragging = false;
-    static float dragOffset = 0.0f;
+	// Drag logic
+	static bool dragging = false;
+	static float dragOffset = 0.0f;
 
-    float rightSplit = gSettings.getAgentSplitPos();
-    float splitterX;
-    if (sidebarVisible) {
-        splitterX = availableWidth - (availableWidth * rightSplit) - kAgentSplitterWidth;
-    } else {
-        splitterX = availableWidth * rightSplit;
-    }
+	float rightSplit = gSettings.getAgentSplitPos();
+	float splitterX;
+	if (sidebarVisible)
+	{
+		splitterX = availableWidth - (availableWidth * rightSplit) - kAgentSplitterWidth;
+	} else
+	{
+		splitterX = availableWidth * rightSplit;
+	}
 
-    if (ImGui::IsItemActive() && !dragging) {
-        dragging = true;
-        dragOffset = ImGui::GetMousePos().x - (ImGui::GetWindowPos().x + splitterX);
-    }
-    if (!ImGui::IsItemActive() && dragging) {
-        dragging = false;
-        gSettings.saveSettings();
-    }
-    if (dragging) {
-        float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
-        float new_split;
-        float leftSplit = gSettings.getSplitPos();
-        float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
-        if (sidebarVisible) {
-            new_split = clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth, 0.15f, maxRightSplit);
-        } else {
-            new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
-        }
-        gSettings.setAgentSplitPos(new_split);
-    }
+	if (ImGui::IsItemActive() && !dragging)
+	{
+		dragging = true;
+		dragOffset = ImGui::GetMousePos().x - (ImGui::GetWindowPos().x + splitterX);
+	}
+	if (!ImGui::IsItemActive() && dragging)
+	{
+		dragging = false;
+		gSettings.saveSettings();
+	}
+	if (dragging)
+	{
+		float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
+		float new_split;
+		float leftSplit = gSettings.getSplitPos();
+		float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
+		if (sidebarVisible)
+		{
+			new_split =
+				clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth,
+					  0.15f,
+					  maxRightSplit);
+		} else
+		{
+			new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
+		}
+		gSettings.setAgentSplitPos(new_split);
+	}
 
-    ImGui::PopStyleColor(3);
+	ImGui::PopStyleColor(3);
 }
 
 void Ned::renderEditor(ImFont *currentFont, float editorWidth)
@@ -1310,14 +1373,14 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 
 void Ned::renderAgentPane(float agentPaneWidth)
 {
-    gAIAgent.render(agentPaneWidth, largeFont);
+	gAIAgent.render(agentPaneWidth, largeFont);
 }
 
 void Ned::renderMainWindow()
 {
 
 #ifdef __APPLE__
-	//renderTopLeftMenu();
+	// renderTopLeftMenu();
 #endif
 
 	handleKeyboardShortcuts();
@@ -1356,7 +1419,10 @@ void Ned::renderMainWindow()
 
 	float windowWidth = ImGui::GetWindowWidth();
 	float padding = ImGui::GetStyle().WindowPadding.x;
-	float availableWidth = windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f); // Only account for splitter width when agent pane is visible
+	float availableWidth =
+		windowWidth - padding * 3 -
+		(showAgentPane ? kAgentSplitterWidth : 0.0f); // Only account for splitter width
+													  // when agent pane is visible
 
 	if (showSidebar)
 	{
@@ -1366,7 +1432,9 @@ void Ned::renderMainWindow()
 
 		float explorerWidth = availableWidth * leftSplit;
 		float agentPaneWidth = availableWidth * rightSplit;
-		float editorWidth = availableWidth - explorerWidth - (showAgentPane ? agentPaneWidth : 0.0f) - (padding * 2) + 16.0f;
+		float editorWidth = availableWidth - explorerWidth -
+							(showAgentPane ? agentPaneWidth : 0.0f) - (padding * 2) +
+							16.0f;
 
 		// Render File Explorer
 		renderFileExplorer(explorerWidth);
@@ -1378,7 +1446,8 @@ void Ned::renderMainWindow()
 
 		// Render Editor
 		renderEditor(currentFont, editorWidth);
-		if (showAgentPane) {
+		if (showAgentPane)
+		{
 			ImGui::SameLine(0, 0);
 			// Render right splitter (new)
 			renderAgentSplitter(padding, availableWidth, showSidebar);
@@ -1386,14 +1455,20 @@ void Ned::renderMainWindow()
 			// Render Agent Pane (new)
 			renderAgentPane(agentPaneWidth);
 		}
-	} else {
+	} else
+	{
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
-		float editorWidth = showAgentPane ? (availableWidth * agentSplit) : availableWidth + 5.0f; // Add extra width when agent pane is hidden
-		float agentPaneWidth = showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
+		float editorWidth =
+			showAgentPane
+				? (availableWidth * agentSplit)
+				: availableWidth + 5.0f; // Add extra width when agent pane is hidden
+		float agentPaneWidth =
+			showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
 
 		renderEditor(currentFont, editorWidth);
-		if (showAgentPane) {
+		if (showAgentPane)
+		{
 			ImGui::SameLine(0, 0);
 			renderAgentSplitter(padding, availableWidth, showSidebar);
 			ImGui::SameLine(0, 0);
@@ -1408,50 +1483,50 @@ void Ned::renderMainWindow()
 
 void Ned::renderFrame()
 {
-    // Calculate FPS
-    double currentTime = glfwGetTime();
-    fps_frames++;
-    if (currentTime - fps_lastTime >= 1.0) {
-        fps_currentFPS = fps_frames / (currentTime - fps_lastTime);
-        fps_frames = 0;
-        fps_lastTime = currentTime;
-    }
+	// Calculate FPS
+	double currentTime = glfwGetTime();
+	fps_frames++;
+	if (currentTime - fps_lastTime >= 1.0)
+	{
+		fps_currentFPS = fps_frames / (currentTime - fps_lastTime);
+		fps_frames = 0;
+		fps_lastTime = currentTime;
+	}
 
-    int display_w, display_h;
-    glfwGetFramebufferSize(window, &display_w, &display_h);
+	int display_w, display_h;
+	glfwGetFramebufferSize(window, &display_w, &display_h);
 
-    // [STEP 1] Render UI to framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-    glViewport(0, 0, display_w, display_h);
+	// [STEP 1] Render UI to framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
+	glViewport(0, 0, display_w, display_h);
 
-    // Get background color from settings
-    auto &bg = gSettings.getSettings()["backgroundColor"];
-    
-    // Use different alpha based on shader state
-    float alpha = shader_toggle ? bg[3].get<float>() : 1.0f;
-    glClearColor(bg[0], bg[1], bg[2], alpha);
-    glClear(GL_COLOR_BUFFER_BIT);
+	// Get background color from settings
+	auto &bg = gSettings.getSettings()["backgroundColor"];
 
-    renderMainWindow();
-    gBookmarks.renderBookmarksWindow();
-    gSettings.renderSettingsWindow();
-    gSettings.renderNotification("");
-    gKeybinds.checkKeybindsFile(); 
+	// Use different alpha based on shader state
+	float alpha = shader_toggle ? bg[3].get<float>() : 1.0f;
+	glClearColor(bg[0], bg[1], bg[2], alpha);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-    handleUltraSimpleResizeOverlay();
+	renderMainWindow();
+	gBookmarks.renderBookmarksWindow();
+	gSettings.renderSettingsWindow();
+	gSettings.renderNotification("");
+	gKeybinds.checkKeybindsFile();
 
-    // Render FPS counter overlay
-    renderFPSCounter();
+	handleUltraSimpleResizeOverlay();
 
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	// Render FPS counter overlay
+	renderFPSCounter();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    renderWithShader(display_w, display_h, glfwGetTime());
-    glfwSwapBuffers(window);
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	renderWithShader(display_w, display_h, glfwGetTime());
+	glfwSwapBuffers(window);
 }
-
 
 void Ned::handleUltraSimpleResizeOverlay()
 {
@@ -1473,17 +1548,18 @@ void Ned::handleUltraSimpleResizeOverlay()
 	{
 		return;
 	}
-	if (currentSizeIsValid && (currentWidth != m_sroLastWidth || currentHeight != m_sroLastHeight))
+	if (currentSizeIsValid &&
+		(currentWidth != m_sroLastWidth || currentHeight != m_sroLastHeight))
 	{
 		m_sroStartTime = glfwGetTime();
 		m_sroLastWidth = currentWidth;
 		m_sroLastHeight = currentHeight;
 	}
-	
+
 	double currentTime = glfwGetTime();
 	double elapsedTime = currentTime - m_sroStartTime;
 	const double displayDuration = 0.5; // Display for 0.5 seconds
-	
+
 	if (m_sroStartTime > 0.0 && elapsedTime < displayDuration)
 	{
 		ImDrawList *drawList = ImGui::GetForegroundDrawList();
@@ -1507,7 +1583,8 @@ void Ned::handleUltraSimpleResizeOverlay()
 		ImVec2 textPos = ImVec2(viewportPos.x + (viewportSize.x - textSize.x) * 0.5f,
 								viewportPos.y + (viewportSize.y - textSize.y) * 0.5f);
 
-		drawList->AddText(font, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
+		drawList->AddText(
+			font, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
 	}
 }
 void Ned::handleFileDialog()
@@ -1522,7 +1599,7 @@ void Ned::handleFileDialog()
 			// ...
 			m_needsRedraw = true; // Redraw again after a folder is selected.
 			m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-			auto &rootNode = gFileTree.rootNode; // Changed to use gFileTree
+			auto &rootNode = gFileTree.rootNode;			  // Changed to use gFileTree
 			rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
 			rootNode.fullPath = gFileExplorer.selectedFolder;
 			rootNode.isDirectory = true;
@@ -1536,144 +1613,160 @@ void Ned::handleFileDialog()
 
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-    // Only run burn-in shader if shaders are enabled
-    if (shader_toggle) 
-    {
-        // Get current accumulation buffers
-        int prev = accum.swap ? 1 : 0;
-        int curr = accum.swap ? 0 : 1;
+	// Only run burn-in shader if shaders are enabled
+	if (shader_toggle)
+	{
+		// Get current accumulation buffers
+		int prev = accum.swap ? 1 : 0;
+		int curr = accum.swap ? 0 : 1;
 
-        // Burn-in accumulation pass
-        glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
-        accum.burnInShader.useShader();
-        accum.burnInShader.setInt("currentFrame", 0);
-        accum.burnInShader.setInt("previousFrame", 1);
-        accum.burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
-        
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture);
-        
-        glClear(GL_COLOR_BUFFER_BIT);
-        glBindVertexArray(quad.VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+		// Burn-in accumulation pass
+		glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
+		accum.burnInShader.useShader();
+		accum.burnInShader.setInt("currentFrame", 0);
+		accum.burnInShader.setInt("previousFrame", 1);
+		accum.burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
 
-        accum.swap = !accum.swap;
-    }
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture);
 
-    // CRT effects pass
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    crtShader.useShader();
+		glClear(GL_COLOR_BUFFER_BIT);
+		glBindVertexArray(quad.VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    // Set CRT shader uniforms
-    crtShader.setInt("screenTexture", 0);
-    if (shader_toggle) {
-        crtShader.setFloat("u_effects_enabled", 1.0f);
-    } else {
-        crtShader.setFloat("u_effects_enabled", 0.0f);
-    }
-    crtShader.setFloat("u_scanline_intensity", gSettings.getSettings()["scanline_intensity"]);
-    crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
-    crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
-    crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
-    crtShader.setFloat("u_colorshift_intensity", gSettings.getSettings()["colorshift_intensity"]);
-    crtShader.setFloat("u_jitter_intensity",
-                       gSettings.getSettings()["jitter_intensity"].get<float>());
-    crtShader.setFloat("u_curvature_intensity",
-                       gSettings.getSettings()["curvature_intensity"].get<float>());
-    crtShader.setFloat("u_pixelation_intensity",
-                       gSettings.getSettings()["pixelation_intensity"].get<float>());
-    crtShader.setFloat("u_pixel_width", gSettings.getSettings()["pixel_width"].get<float>());
-    
-    // Set time and resolution uniforms
-    GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-    GLint resolutionLocation = glGetUniformLocation(crtShader.shaderProgram, "resolution");
-    if (timeLocation != -1)
-        glUniform1f(timeLocation, currentTime);
-    if (resolutionLocation != -1)
-        glUniform2f(resolutionLocation, display_w, display_h);
+		accum.swap = !accum.swap;
+	}
 
-    // Bind appropriate texture based on shader toggle
-    glActiveTexture(GL_TEXTURE0);
-    if (shader_toggle) {
-        int curr = accum.swap ? 0 : 1; // Get current accumulation buffer
-        glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture);
-    } else {
-        glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-    }
+	// CRT effects pass
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	crtShader.useShader();
 
-    // Draw final quad
-    glBindVertexArray(quad.VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+	// Set CRT shader uniforms
+	crtShader.setInt("screenTexture", 0);
+	if (shader_toggle)
+	{
+		crtShader.setFloat("u_effects_enabled", 1.0f);
+	} else
+	{
+		crtShader.setFloat("u_effects_enabled", 0.0f);
+	}
+	crtShader.setFloat("u_scanline_intensity",
+					   gSettings.getSettings()["scanline_intensity"]);
+	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
+	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
+	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+	crtShader.setFloat("u_colorshift_intensity",
+					   gSettings.getSettings()["colorshift_intensity"]);
+	crtShader.setFloat("u_jitter_intensity",
+					   gSettings.getSettings()["jitter_intensity"].get<float>());
+	crtShader.setFloat("u_curvature_intensity",
+					   gSettings.getSettings()["curvature_intensity"].get<float>());
+	crtShader.setFloat("u_pixelation_intensity",
+					   gSettings.getSettings()["pixelation_intensity"].get<float>());
+	crtShader.setFloat("u_pixel_width",
+					   gSettings.getSettings()["pixel_width"].get<float>());
+
+	// Set time and resolution uniforms
+	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
+	GLint resolutionLocation =
+		glGetUniformLocation(crtShader.shaderProgram, "resolution");
+	if (timeLocation != -1)
+		glUniform1f(timeLocation, currentTime);
+	if (resolutionLocation != -1)
+		glUniform2f(resolutionLocation, display_w, display_h);
+
+	// Bind appropriate texture based on shader toggle
+	glActiveTexture(GL_TEXTURE0);
+	if (shader_toggle)
+	{
+		int curr = accum.swap ? 0 : 1; // Get current accumulation buffer
+		glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture);
+	} else
+	{
+		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
+	}
+
+	// Draw final quad
+	glBindVertexArray(quad.VAO);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void Ned::renderFPSCounter()
 {
-    // Check if FPS counter is enabled in settings
-    if (!gSettings.getSettings()["fps_toggle"].get<bool>()) {
-        return;
-    }
+	// Check if FPS counter is enabled in settings
+	if (!gSettings.getSettings()["fps_toggle"].get<bool>())
+	{
+		return;
+	}
 
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImVec2 viewportPos = viewport->Pos;
-    ImVec2 viewportSize = viewport->Size;
-    
-    // Position in bottom right corner with some padding
-    const float padding = 10.0f;
-    const float fontSize = gSettings.getFontSize();
-    
-    // Format FPS text
-    char fpsText[32];
-    snprintf(fpsText, sizeof(fpsText), "%.1f", fps_currentFPS);
-    
-    // Calculate text size
-    ImVec2 textSize = ImGui::CalcTextSize(fpsText);
-    
-    // Position text in bottom right
-    ImVec2 textPos = ImVec2(
-        viewportPos.x + viewportSize.x - textSize.x - padding,
-        viewportPos.y + viewportSize.y - textSize.y - padding
-    );
-    
-    // Draw background rectangle for better visibility
-    ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    ImVec2 bgMin = ImVec2(textPos.x - 5.0f, textPos.y - 2.0f);
-    ImVec2 bgMax = ImVec2(textPos.x + textSize.x + 5.0f, textPos.y + textSize.y + 2.0f);
-    drawList->AddRectFilled(bgMin, bgMax, IM_COL32(0, 0, 0, 180));
-    
-    // Draw FPS text
-    drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), fpsText);
+	ImGuiViewport *viewport = ImGui::GetMainViewport();
+	ImVec2 viewportPos = viewport->Pos;
+	ImVec2 viewportSize = viewport->Size;
+
+	// Position in bottom right corner with some padding
+	const float padding = 10.0f;
+	const float fontSize = gSettings.getFontSize();
+
+	// Format FPS text
+	char fpsText[32];
+	snprintf(fpsText, sizeof(fpsText), "%.1f", fps_currentFPS);
+
+	// Calculate text size
+	ImVec2 textSize = ImGui::CalcTextSize(fpsText);
+
+	// Position text in bottom right
+	ImVec2 textPos = ImVec2(viewportPos.x + viewportSize.x - textSize.x - padding,
+							viewportPos.y + viewportSize.y - textSize.y - padding);
+
+	// Draw background rectangle for better visibility
+	ImDrawList *drawList = ImGui::GetForegroundDrawList();
+	ImVec2 bgMin = ImVec2(textPos.x - 5.0f, textPos.y - 2.0f);
+	ImVec2 bgMax = ImVec2(textPos.x + textSize.x + 5.0f, textPos.y + textSize.y + 2.0f);
+	drawList->AddRectFilled(bgMin, bgMax, IM_COL32(0, 0, 0, 180));
+
+	// Draw FPS text
+	drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), fpsText);
 }
 
 void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
 {
 	auto frame_end = std::chrono::high_resolution_clock::now();
 	auto frame_duration = frame_end - frame_start;
-	
+
 	float fpsTarget = 60.0f;
-	
-	if (shader_toggle) {
+
+	if (shader_toggle)
+	{
 		// When shaders are enabled, use settings FPS target but don't sleep
-		if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+		if (gSettings.getSettings().contains("fps_target") &&
+			gSettings.getSettings()["fps_target"].is_number())
+		{
 			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
 		}
 		// Don't apply sleep delays when shaders are enabled - let GPU run naturally
 		return;
-	} else {
+	} else
+	{
 		// Only apply frame timing when shaders are disabled
-		if (!windowFocused) {
+		if (!windowFocused)
+		{
 			fpsTarget = 15.0f;
-		} else if (gSettings.getSettings().contains("fps_target") && gSettings.getSettings()["fps_target"].is_number()) {
+		} else if (gSettings.getSettings().contains("fps_target") &&
+				   gSettings.getSettings()["fps_target"].is_number())
+		{
 			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
 		}
 	}
-	
+
 	// Only apply frame timing if FPS target is reasonable (not unlimited)
-	if (fpsTarget > 0.0f && fpsTarget < 10000.0f) {
+	if (fpsTarget > 0.0f && fpsTarget < 10000.0f)
+	{
 		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
-		if (frame_duration < targetFrameTime) {
+		if (frame_duration < targetFrameTime)
+		{
 			std::this_thread::sleep_for(targetFrameTime - frame_duration);
 		}
 	}
@@ -1683,13 +1776,12 @@ void Ned::handleSettingsChanges()
 {
 	if (gSettings.hasSettingsChanged())
 	{
-		m_needsRedraw = true; // Set the flag!
+		m_needsRedraw = true;							  // Set the flag!
 		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-		
+
 		ImGuiStyle &style = ImGui::GetStyle();
 
-		
-		ApplySettings(style); 
+		ApplySettings(style);
 
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
@@ -1697,7 +1789,6 @@ void Ned::handleSettingsChanges()
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 				   0.0f);
 
-		
 		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
 
 		// Update sidebar visibility from settings
@@ -1717,18 +1808,19 @@ void Ned::handleSettingsChanges()
 		{
 			needFontReload = true;
 		}
-		 #ifdef __APPLE__
-            // Always update with current values
-            float currentOpacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
-            bool currentBlurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
-            
-            updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
-            
-            // Update tracking variables
-            lastOpacity = currentOpacity;
-            lastBlurEnabled = currentBlurEnabled;
-        #endif
-		
+#ifdef __APPLE__
+		// Always update with current values
+		float currentOpacity =
+			gSettings.getSettings().value("mac_background_opacity", 0.5f);
+		bool currentBlurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+
+		updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
+
+		// Update tracking variables
+		lastOpacity = currentOpacity;
+		lastBlurEnabled = currentBlurEnabled;
+#endif
+
 		gSettings.resetSettingsChanged();
 	}
 }
@@ -1738,15 +1830,15 @@ void Ned::handleFontReload()
 	{
 		m_needsRedraw = true; // A redraw is needed after the new font is loaded.
 		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-		
+
 		ImGui_ImplOpenGL3_DestroyFontsTexture();
 		ImGui::GetIO().Fonts->Clear();
-		currentFont =
-			loadFont(gSettings.getCurrentFont(), gSettings.getSettings()["fontSize"].get<float>());
-		
+		currentFont = loadFont(gSettings.getCurrentFont(),
+							   gSettings.getSettings()["fontSize"].get<float>());
+
 		// Also reload largeFont since it was cleared above
 		largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
-		
+
 		ImGui::GetIO().Fonts->Build();
 		ImGui_ImplOpenGL3_CreateFontsTexture();
 		gSettings.resetFontChanged();
@@ -1818,5 +1910,6 @@ void ApplySettings(ImGuiStyle &style)
 	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
 
 	// Set the global font scale.
-	// ImGui::GetIO().FontGlobalScale = gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
+	// ImGui::GetIO().FontGlobalScale =
+	// gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }

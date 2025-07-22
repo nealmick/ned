@@ -12,61 +12,70 @@
 #include <iostream>
 #include <string>
 #include <thread>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 using json = nlohmann::json;
 
 LSPAutocomplete gLSPAutocomplete;
 bool LSPAutocomplete::wasShowingLastFrame = false;
 
-LSPAutocomplete::LSPAutocomplete() {
+LSPAutocomplete::LSPAutocomplete()
+{
 	// Start the worker thread
 	workerThread = std::thread(&LSPAutocomplete::workerFunction, this);
 }
 
-LSPAutocomplete::~LSPAutocomplete() {
+LSPAutocomplete::~LSPAutocomplete()
+{
 	// Signal the worker thread to stop
 	shouldStop = true;
 	queueCondition.notify_one();
-	
+
 	// Wait for the thread to finish
-	if (workerThread.joinable()) {
+	if (workerThread.joinable())
+	{
 		workerThread.join();
 	}
 }
 
-void LSPAutocomplete::workerFunction() {
-	while (!shouldStop) {
+void LSPAutocomplete::workerFunction()
+{
+	while (!shouldStop)
+	{
 		CompletionRequest request;
 		{
 			std::unique_lock<std::mutex> lock(queueMutex);
-			queueCondition.wait(lock, [this] { 
-				return !requestQueue.empty() || shouldStop; 
-			});
-			
-			if (shouldStop) {
+			queueCondition.wait(lock,
+								[this] { return !requestQueue.empty() || shouldStop; });
+
+			if (shouldStop)
+			{
 				break;
 			}
-			
+
 			request = requestQueue.front();
 			requestQueue.pop();
 		}
 
 		// Process the request
-		if (!gLSPManager.isInitialized()) {
+		if (!gLSPManager.isInitialized())
+		{
 			std::cout << "\033[31mLSP Autocomplete:\033[0m Not initialized" << std::endl;
 			continue;
 		}
 
-		if (!gLSPManager.selectAdapterForFile(request.filePath)) {
-			std::cout << "\033[31mLSP Autocomplete:\033[0m No LSP adapter available for file: "
+		if (!gLSPManager.selectAdapterForFile(request.filePath))
+		{
+			std::cout << "\033[31mLSP Autocomplete:\033[0m No LSP adapter "
+						 "available for file: "
 					  << request.filePath << std::endl;
 			continue;
 		}
 
-		std::cout << "\033[35mLSP Autocomplete:\033[0m Processing request at line " << request.line
-				  << ", char " << request.character << " (ID: " << request.requestId << ")" << std::endl;
+		std::cout << "\033[35mLSP Autocomplete:\033[0m Processing request at line "
+				  << request.line << ", char " << request.character
+				  << " (ID: " << request.requestId << ")" << std::endl;
 
 		// Store the request for later coordinate retrieval
 		{
@@ -75,9 +84,12 @@ void LSPAutocomplete::workerFunction() {
 		}
 
 		// Form and send request
-		std::string request_str = formCompletionRequest(request.requestId, request.filePath, request.line, request.character);
-		if (!gLSPManager.sendRequest(request_str)) {
-			std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request" << std::endl;
+		std::string request_str = formCompletionRequest(
+			request.requestId, request.filePath, request.line, request.character);
+		if (!gLSPManager.sendRequest(request_str))
+		{
+			std::cout << "\033[31mLSP Autocomplete:\033[0m Failed to send request"
+					  << std::endl;
 			// Remove from active requests if send failed
 			std::lock_guard<std::mutex> lock(activeRequestsMutex);
 			activeRequests.erase(request.requestId);
@@ -87,13 +99,16 @@ void LSPAutocomplete::workerFunction() {
 		// Wait for response with timeout
 		const int MAX_ATTEMPTS = 15;
 		const int WAIT_MS = 50;
-		for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
+		for (int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt)
+		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_MS));
 			int contentLength = 0;
 			std::string response = gLSPManager.readResponse(&contentLength);
 
-			if (!response.empty()) {
-				if (processResponse(response, request.requestId)) {
+			if (!response.empty())
+			{
+				if (processResponse(response, request.requestId))
+				{
 					break;
 				}
 			}
@@ -101,10 +116,12 @@ void LSPAutocomplete::workerFunction() {
 	}
 }
 
-void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, int character)
+void LSPAutocomplete::requestCompletion(const std::string &filePath,
+										int line,
+										int character)
 {
 	int requestId = gEditorLSP.getNextRequestId();
-	
+
 	// Add request to queue
 	{
 		std::lock_guard<std::mutex> lock(queueMutex);
@@ -113,7 +130,8 @@ void LSPAutocomplete::requestCompletion(const std::string &filePath, int line, i
 	queueCondition.notify_one();
 }
 
-void LSPAutocomplete::processPendingResponses() {
+void LSPAutocomplete::processPendingResponses()
+{
 	// This method is called from the main thread to process any UI updates
 	// Currently empty as we're handling UI updates directly in processResponse
 	// We could move UI updates here if needed
@@ -141,7 +159,8 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 	bool navigationKeyPressed = false;
 
 	// Close completion menu for Delete, Backspace, or Space
-	if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace) || ImGui::IsKeyPressed(ImGuiKey_Space))
+	if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace) ||
+		ImGui::IsKeyPressed(ImGuiKey_Space))
 	{
 		closeAndUnblock = true;
 		resetPopupPosition(); // Reset position on close
@@ -149,7 +168,8 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 	{
-		std::cout << "[renderCompletions] Escape pressed, hiding completions." << std::endl;
+		std::cout << "[renderCompletions] Escape pressed, hiding completions."
+				  << std::endl;
 		closeAndUnblock = true;
 		resetPopupPosition(); // Reset position on escape
 	} else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
@@ -163,7 +183,7 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		}
 		navigationKeyPressed = true;
 		editor_state.block_input = true; // Only block input during navigation
-		resetPopupPosition(); // Reset position on navigation
+		resetPopupPosition();			 // Reset position on navigation
 	} else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
 	{
 		if (!currentCompletionItems.empty())
@@ -175,14 +195,16 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 		}
 		navigationKeyPressed = true;
 		editor_state.block_input = true; // Only block input during navigation
-		resetPopupPosition(); // Reset position on navigation
-	} else if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
+		resetPopupPosition();			 // Reset position on navigation
+	} else if (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+			   ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 	{
 		closeAndUnblock = true;
 		resetPopupPosition(); // Reset position on enter
 	} else if (ImGui::IsKeyPressed(ImGuiKey_Tab))
 	{
-		if (selectedCompletionIndex >= 0 && selectedCompletionIndex < currentCompletionItems.size())
+		if (selectedCompletionIndex >= 0 &&
+			selectedCompletionIndex < currentCompletionItems.size())
 		{
 			blockTab = true;
 			const auto &selected_item = currentCompletionItems[selectedCompletionIndex];
@@ -205,24 +227,30 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 			for (int n = 0; n < io.InputQueueCharacters.Size; n++)
 			{
 				char c = static_cast<char>(io.InputQueueCharacters[n]);
-				if (c == '.' || c == '(' || c == ')' || c == '[' || c == ']' || 
-					c == '{' || c == '}' || c == ',' || c == ';' || c == ':' || c == '+' || 
-					c == '-' || c == '*' || c == '/' || c == '=' || c == '!' || c == '&' || 
-					c == '|' || c == '^' || c == '%' || c == '<' || c == '>') {
+				if (c == '.' || c == '(' || c == ')' || c == '[' || c == ']' ||
+					c == '{' || c == '}' || c == ',' || c == ';' || c == ':' ||
+					c == '+' || c == '-' || c == '*' || c == '/' || c == '=' ||
+					c == '!' || c == '&' || c == '|' || c == '^' || c == '%' ||
+					c == '<' || c == '>')
+				{
 					shouldClose = true;
 					break;
 				}
 			}
-			if (shouldClose) {
+			if (shouldClose)
+			{
 				closeAndUnblock = true;
 			}
 		} else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
 		{
-			std::cout << "[renderCompletions] Left Arrow pressed, hiding completions." << std::endl;
+			std::cout << "[renderCompletions] Left Arrow pressed, hiding completions."
+					  << std::endl;
 			closeAndUnblock = true;
 		} else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
 		{
-			std::cout << "[renderCompletions] Right Arrow pressed, hiding completions." << std::endl;
+			std::cout << "[renderCompletions] Right Arrow pressed, hiding "
+						 "completions."
+					  << std::endl;
 			closeAndUnblock = true;
 		}
 	}
@@ -237,7 +265,8 @@ bool LSPAutocomplete::handleInputAndCheckClose()
 	}
 
 	// If we're not navigating and not closing, ensure input is not blocked
-	if (!navigationKeyPressed) {
+	if (!navigationKeyPressed)
+	{
 		editor_state.block_input = false;
 	}
 
@@ -248,19 +277,22 @@ void LSPAutocomplete::insertText(
 	int row_start, int col__start, int row_end, int col__end, std::string text)
 {
 	int start_index, end_index;
-	
+
 	// Bounds check for row indices
 	if (row_start < 0 || row_start >= editor_state.editor_content_lines.size() ||
-		row_end < 0 || row_end >= editor_state.editor_content_lines.size()) {
+		row_end < 0 || row_end >= editor_state.editor_content_lines.size())
+	{
 		std::cerr << "Invalid row positions - using cursor insertion" << std::endl;
 		start_index = end_index = editor_state.cursor_index;
-	} else {
+	} else
+	{
 		start_index = editor_state.editor_content_lines[row_start] + col__start;
 		end_index = editor_state.editor_content_lines[row_end] + col__end;
-		
+
 		// Additional bounds checking
 		if (start_index < 0 || end_index < 0 || start_index > end_index ||
-			start_index > editor_state.fileContent.size() || end_index > editor_state.fileContent.size())
+			start_index > editor_state.fileContent.size() ||
+			end_index > editor_state.fileContent.size())
 		{
 			std::cerr << "Invalid positions - using cursor insertion" << std::endl;
 			start_index = end_index = editor_state.cursor_index;
@@ -289,15 +321,16 @@ void LSPAutocomplete::insertText(
 		// Get the proper default text color from the theme
 		TreeSitter::updateThemeColors();
 		ImVec4 defaultColor = TreeSitter::cachedColors.text;
-		
-		// Optionally extend the previous character's color for better visual continuity
+
+		// Optionally extend the previous character's color for better visual
+		// continuity
 		ImVec4 insertColor = defaultColor;
 		if (start_index > 0 && start_index <= editor_state.fileColors.size())
 		{
 			// Use the color of the character before the insertion point
 			insertColor = editor_state.fileColors[start_index - 1];
 		}
-		
+
 		editor_state.fileColors.insert(editor_state.fileColors.begin() + start_index,
 									   text.size(),
 									   insertColor);
@@ -348,13 +381,16 @@ void LSPAutocomplete::calculateWindowGeometry(ImVec2 &outWindowSize, ImVec2 &out
 void LSPAutocomplete::applyStyling()
 {
 	const float window_padding = 5.0f;
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(window_padding, window_padding));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+						ImVec2(window_padding, window_padding));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 4.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-		   1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_WindowBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
 }
@@ -367,7 +403,8 @@ void LSPAutocomplete::renderCompletionListItems()
 	const ImGuiStyle &style = ImGui::GetStyle();
 	ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
-	const ImU32 selection_color = ImGui::ColorConvertFloat4ToU32(style.Colors[ImGuiCol_Header]);
+	const ImU32 selection_color =
+		ImGui::ColorConvertFloat4ToU32(style.Colors[ImGuiCol_Header]);
 	const ImU32 text_color = ImGui::ColorConvertFloat4ToU32(style.Colors[ImGuiCol_Text]);
 
 	bool use_child_window = current_item_count > max_visible_items;
@@ -394,10 +431,12 @@ void LSPAutocomplete::renderCompletionListItems()
 
 		ImVec2 item_pos = ImGui::GetCursorScreenPos();
 		float item_width = ImGui::GetContentRegionAvail().x;
-		float adjusted_item_width = item_width - (use_child_window ? style.ScrollbarSize : 0.0f);
+		float adjusted_item_width =
+			item_width - (use_child_window ? style.ScrollbarSize : 0.0f);
 		adjusted_item_width = std::max(1.0f, adjusted_item_width);
 		ImVec2 item_rect_min = item_pos;
-		ImVec2 item_rect_max = ImVec2(item_pos.x + adjusted_item_width, item_pos.y + item_height);
+		ImVec2 item_rect_max =
+			ImVec2(item_pos.x + adjusted_item_width, item_pos.y + item_height);
 
 		ImGui::Dummy(ImVec2(0.0f, item_height));
 
@@ -412,8 +451,8 @@ void LSPAutocomplete::renderCompletionListItems()
 		ImVec2 text_size = ImGui::CalcTextSize(item.insertText.c_str());
 		float text_padding_y = (item_height - text_size.y) * 0.5f;
 		text_padding_y = std::max(0.0f, text_padding_y);
-		ImVec2 text_pos =
-			ImVec2(item_rect_min.x + style.FramePadding.x, item_rect_min.y + text_padding_y);
+		ImVec2 text_pos = ImVec2(item_rect_min.x + style.FramePadding.x,
+								 item_rect_min.y + text_padding_y);
 		draw_list->AddText(text_pos, text_color, item.insertText.c_str());
 
 		if (is_selected && selection_changed_by_keyboard)
@@ -481,11 +520,12 @@ void LSPAutocomplete::renderCompletions()
 
 	applyStyling(); // Now pushes 3 Colors, 3 Vars
 
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-								   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
-								   ImGuiWindowFlags_NoScrollWithMouse |
-								   ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_NoNav;
 
 	if (ImGui::Begin("##CompletionPopupActual", nullptr, windowFlags))
 	{
@@ -514,7 +554,7 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId,
 	bool is_triggered_by_dot = false;
 	bool is_triggered_by_colon = false;
 	bool is_triggered_by_arrow = false;
-	
+
 	if (editor_state.cursor_index > 0)
 	{
 		prev_char = editor_state.fileContent[editor_state.cursor_index - 1];
@@ -535,12 +575,10 @@ std::string LSPAutocomplete::formCompletionRequest(int requestId,
 	if (is_triggered_by_dot)
 	{
 		triggerChar = "\".\"";
-	}
-	else if (is_triggered_by_colon)
+	} else if (is_triggered_by_colon)
 	{
 		triggerChar = "\":\"";
-	}
-	else if (is_triggered_by_arrow)
+	} else if (is_triggered_by_arrow)
 	{
 		triggerChar = "\">\"";
 	}
@@ -579,13 +617,14 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		json j = json::parse(response);
 
 		// Check if response matches our request ID
-		if (!j.contains("id") || !j["id"].is_number_integer() || j["id"].get<int>() != requestId)
+		if (!j.contains("id") || !j["id"].is_number_integer() ||
+			j["id"].get<int>() != requestId)
 		{
 			return false;
 		}
 
-		std::cout << "\033[32mLSP Autocomplete:\033[0m Received response for ID " << requestId
-				  << std::endl;
+		std::cout << "\033[32mLSP Autocomplete:\033[0m Received response for ID "
+				  << requestId << std::endl;
 
 		// Handle errors
 		if (j.contains("error"))
@@ -610,13 +649,14 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 			{
 				std::lock_guard<std::mutex> lock(activeRequestsMutex);
 				auto it = activeRequests.find(requestId);
-				if (it != activeRequests.end()) {
+				if (it != activeRequests.end())
+				{
 					requestLine = it->second.line;
 					requestCharacter = it->second.character;
 					activeRequests.erase(it); // Clean up completed request
 				}
 			}
-			
+
 			parseCompletionResult(j["result"], requestLine, requestCharacter);
 			return true;
 		}
@@ -635,7 +675,8 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		return true;
 	} catch (const json::exception &e)
 	{
-		std::cerr << "\033[31mLSP Autocomplete:\033[0m JSON error: " << e.what() << std::endl;
+		std::cerr << "\033[31mLSP Autocomplete:\033[0m JSON error: " << e.what()
+				  << std::endl;
 		// Clean up failed request
 		{
 			std::lock_guard<std::mutex> lock(activeRequestsMutex);
@@ -646,7 +687,9 @@ bool LSPAutocomplete::processResponse(const std::string &response, int requestId
 		return true;
 	}
 }
-void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine, int requestCharacter)
+void LSPAutocomplete::parseCompletionResult(const json &result,
+											int requestLine,
+											int requestCharacter)
 {
 	std::vector<json> items_json;
 	bool is_incomplete = false;
@@ -654,16 +697,14 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 	if (result.is_array())
 	{
 		items_json = result.get<std::vector<json>>();
-	}
-	else if (result.is_object())
+	} else if (result.is_object())
 	{
 		if (result.contains("items") && result["items"].is_array())
 		{
 			items_json = result["items"].get<std::vector<json>>();
 		}
 		is_incomplete = result.value("isIncomplete", false);
-	}
-	else if (result.is_null())
+	} else if (result.is_null())
 	{
 		std::cout << "\033[33mLSP Autocomplete:\033[0m No completions found "
 					 "(result is null)."
@@ -671,8 +712,7 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 		currentCompletionItems.clear();
 		showCompletions = false;
 		return;
-	}
-	else
+	} else
 	{
 		std::cout << "\033[31mLSP Autocomplete:\033[0m Unexpected result format: "
 				  << result.type_name() << std::endl;
@@ -687,71 +727,83 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 	// Use the original request coordinates that were sent to server
 	int currentLine = requestLine;
 	int currentChar = requestCharacter;
-	
+
 	// Calculate the original cursor position when the request was made
 	int request_cursor_pos = -1;
-	if (currentLine >= 0 && currentLine < editor_state.editor_content_lines.size()) {
+	if (currentLine >= 0 && currentLine < editor_state.editor_content_lines.size())
+	{
 		int line_start = editor_state.editor_content_lines[currentLine];
 		request_cursor_pos = line_start + currentChar;
-		
+
 		// Bounds check to ensure we don't exceed file content
-		if (request_cursor_pos < 0 || request_cursor_pos > editor_state.fileContent.size()) {
+		if (request_cursor_pos < 0 || request_cursor_pos > editor_state.fileContent.size())
+		{
 			request_cursor_pos = editor_state.cursor_index;
 			auto [line, character] = getLineAndCharFromIndex(request_cursor_pos);
 			currentLine = line;
 			currentChar = character;
 		}
-	} else {
+	} else
+	{
 		// Fallback to current cursor if coordinates are invalid
 		request_cursor_pos = editor_state.cursor_index;
 		auto [line, character] = getLineAndCharFromIndex(request_cursor_pos);
 		currentLine = line;
 		currentChar = character;
 	}
-	
+
 	// Find the start of the current word for filtering purposes
 	std::string currentWord;
 	int word_start = request_cursor_pos;
-	
+
 	// Smart word boundary detection for property access
 	// First, check if we're in a property access context (has a dot before cursor)
 	bool isPropertyAccess = false;
 	int lastDotPos = -1;
-	
+
 	// Look backwards to find the last dot
-	for (int i = request_cursor_pos - 1; i >= 0; i--) {
+	for (int i = request_cursor_pos - 1; i >= 0; i--)
+	{
 		char c = editor_state.fileContent[i];
-		if (c == '.') {
+		if (c == '.')
+		{
 			lastDotPos = i;
 			isPropertyAccess = true;
 			break;
 		}
 		// Stop if we hit a space, newline, or other non-identifier character
-		if (!isalnum(c) && c != '_') {
+		if (!isalnum(c) && c != '_')
+		{
 			break;
 		}
 	}
-	
-	if (isPropertyAccess && lastDotPos != -1) {
+
+	if (isPropertyAccess && lastDotPos != -1)
+	{
 		// For property access, word starts after the last dot
 		word_start = lastDotPos + 1;
-	} else {
+	} else
+	{
 		// Normal word boundary detection
-		const std::string additionalWordChars = ":$#@"; // Removed . for better property handling
-		
+		const std::string additionalWordChars =
+			":$#@"; // Removed . for better property handling
+
 		while (word_start > 0)
 		{
 			char c = editor_state.fileContent[word_start - 1];
 			// Include characters that are typically part of identifiers
-			if (!(isalnum(c) || c == '_' || additionalWordChars.find(c) != std::string::npos)) 
+			if (!(isalnum(c) || c == '_' ||
+				  additionalWordChars.find(c) != std::string::npos))
 				break;
 			word_start--;
 		}
 	}
-	
-	if (word_start < request_cursor_pos && word_start >= 0 && request_cursor_pos <= editor_state.fileContent.size())
+
+	if (word_start < request_cursor_pos && word_start >= 0 &&
+		request_cursor_pos <= editor_state.fileContent.size())
 	{
-		currentWord = editor_state.fileContent.substr(word_start, request_cursor_pos - word_start);
+		currentWord =
+			editor_state.fileContent.substr(word_start, request_cursor_pos - word_start);
 	}
 
 	// Use a map to deduplicate completions while preserving the best one
@@ -782,7 +834,7 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 			std::string positionInfo;
 
 			// Reduced debug output
-			
+
 			// First try to get textEdit data
 			if (item_json.contains("textEdit") && item_json["textEdit"].is_object())
 			{
@@ -804,23 +856,27 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 							newItem.startChar = start.value("character", -1);
 							newItem.endLine = end.value("line", -1);
 							newItem.endChar = end.value("character", -1);
-							
+
 							// Debug removed for performance
 						}
 					}
 					hasTextEdit = true;
 				}
-			} else {
+			} else
+			{
 				// No textEdit found
 			}
 
-			// If no textEdit OR textEdit has invalid coordinates, use server coordinates and LSP standard behavior
-			if (!hasTextEdit || newItem.startLine == -1 || newItem.startChar == -1 || newItem.endLine == -1 || newItem.endChar == -1)
+			// If no textEdit OR textEdit has invalid coordinates, use server
+			// coordinates and LSP standard behavior
+			if (!hasTextEdit || newItem.startLine == -1 || newItem.startChar == -1 ||
+				newItem.endLine == -1 || newItem.endChar == -1)
 			{
-				// According to LSP spec, when no textEdit is provided, the completion
-				// replaces from the start of the current word to the cursor position
+				// According to LSP spec, when no textEdit is provided, the
+				// completion replaces from the start of the current word to the
+				// cursor position
 				auto [wordStartLine, wordStartChar] = getLineAndCharFromIndex(word_start);
-				
+
 				newItem.startLine = wordStartLine;
 				newItem.startChar = wordStartChar;
 				newItem.endLine = currentLine;
@@ -829,11 +885,11 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 				// Using calculated word boundaries
 
 				// Get insert text from either insertText or label
-				if (item_json.contains("insertText") && item_json["insertText"].is_string())
+				if (item_json.contains("insertText") &&
+					item_json["insertText"].is_string())
 				{
 					newItem.insertText = item_json["insertText"].get<std::string>();
-				}
-				else
+				} else
 				{
 					newItem.insertText = newItem.label;
 				}
@@ -842,21 +898,27 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 			// Universal relevance boosting based on prefix match
 			if (!currentWord.empty())
 			{
-				const std::string& label = newItem.label;
+				const std::string &label = newItem.label;
 				std::string labelLower = label;
-				std::transform(labelLower.begin(), labelLower.end(), labelLower.begin(), ::tolower);
+				std::transform(
+					labelLower.begin(), labelLower.end(), labelLower.begin(), ::tolower);
 				std::string currentWordLower = currentWord;
-				std::transform(currentWordLower.begin(), currentWordLower.end(), currentWordLower.begin(), ::tolower);
+				std::transform(currentWordLower.begin(),
+							   currentWordLower.end(),
+							   currentWordLower.begin(),
+							   ::tolower);
 
 				// Tier 1: Exact prefix match (case-sensitive)
-				if (label.length() >= currentWord.length() && 
+				if (label.length() >= currentWord.length() &&
 					label.substr(0, currentWord.length()) == currentWord)
 				{
-					newItem.sortText = " " + newItem.sortText; // Space sorts before alphanumeric
+					newItem.sortText =
+						" " + newItem.sortText; // Space sorts before alphanumeric
 				}
 				// Tier 2: Case-insensitive prefix match
-				else if (labelLower.length() >= currentWordLower.length() && 
-						 labelLower.substr(0, currentWordLower.length()) == currentWordLower)
+				else if (labelLower.length() >= currentWordLower.length() &&
+						 labelLower.substr(0, currentWordLower.length()) ==
+							 currentWordLower)
 				{
 					newItem.sortText = "!" + newItem.sortText; // ! sorts after space
 				}
@@ -880,7 +942,8 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 	}
 
 	// Sort completions using our universal sortText
-	std::sort(currentCompletionItems.begin(), currentCompletionItems.end(),
+	std::sort(currentCompletionItems.begin(),
+			  currentCompletionItems.end(),
 			  [](const CompletionDisplayItem &a, const CompletionDisplayItem &b) {
 				  return a.sortText < b.sortText;
 			  });
@@ -891,27 +954,32 @@ void LSPAutocomplete::parseCompletionResult(const json &result, int requestLine,
 		updatePopupPosition();
 		showCompletions = true;
 		selectedCompletionIndex = 0;
-	}
-	else
+	} else
 	{
 		showCompletions = false;
 	}
 }
 
-void LSPAutocomplete::resetPopupPosition() {
+void LSPAutocomplete::resetPopupPosition()
+{
 	lastPositionUpdate = std::chrono::steady_clock::time_point::min();
 }
 
-void LSPAutocomplete::updatePopupPosition() {
-	try {
+void LSPAutocomplete::updatePopupPosition()
+{
+	try
+	{
 		auto now = std::chrono::steady_clock::now();
 		auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(
-			now - lastPositionUpdate).count();
+									   now - lastPositionUpdate)
+									   .count();
 
-		// Only update position if it's been more than 2 seconds or we don't have a cached position
-		if (timeSinceLastUpdate > POSITION_CACHE_DURATION_MS || 
-			lastPositionUpdate == std::chrono::steady_clock::time_point::min()) {
-			
+		// Only update position if it's been more than 2 seconds or we don't
+		// have a cached position
+		if (timeSinceLastUpdate > POSITION_CACHE_DURATION_MS ||
+			lastPositionUpdate == std::chrono::steady_clock::time_point::min())
+		{
+
 			int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
 			float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
 															  editor_state.fileContent,
@@ -919,18 +987,21 @@ void LSPAutocomplete::updatePopupPosition() {
 			completionPopupPos = editor_state.text_pos;
 			completionPopupPos.x = cursor_x;
 			completionPopupPos.y += cursor_line * editor_state.line_height;
-			
+
 			// Cache the new position and timestamp
 			lastPopupPos = completionPopupPos;
 			lastPositionUpdate = now;
-			
-			std::cout << ">>> [requestCompletion] Updated Anchor Pos: (" << completionPopupPos.x << ", "
-					  << completionPopupPos.y << ")" << std::endl;
-		} else {
+
+			std::cout << ">>> [requestCompletion] Updated Anchor Pos: ("
+					  << completionPopupPos.x << ", " << completionPopupPos.y << ")"
+					  << std::endl;
+		} else
+		{
 			// Reuse the cached position
 			completionPopupPos = lastPopupPos;
 		}
-	} catch (const std::exception &e) {
+	} catch (const std::exception &e)
+	{
 		std::cerr << "!!! ERROR calculating cursor pos: " << e.what() << std::endl;
 		completionPopupPos = ImVec2(0, 0);
 		lastPopupPos = completionPopupPos;

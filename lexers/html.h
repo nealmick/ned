@@ -190,7 +190,8 @@ class Lexer
 		}
 		return tokens;
 	}
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		try
 		{
@@ -353,9 +354,10 @@ class Lexer
 		};
 
 		cachedColors.text = loadColor("text");
-		cachedColors.tagName = loadColor("keyword");		// Use keyword color for tags
-		cachedColors.attributeName = loadColor("function"); // Use function color for attributes
-		cachedColors.attributeValue = loadColor("string");	// Use string color for values
+		cachedColors.tagName = loadColor("keyword"); // Use keyword color for tags
+		cachedColors.attributeName =
+			loadColor("function"); // Use function color for attributes
+		cachedColors.attributeValue = loadColor("string"); // Use string color for values
 		cachedColors.string = loadColor("string");
 		cachedColors.comment = loadColor("comment");
 		cachedColors.bracket = loadColor("keyword");  // Use keyword color for brackets
@@ -368,13 +370,22 @@ class Lexer
 
 		colorsNeedUpdate = false;
 	}
-	bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
+	bool isWhitespace(char c) const
+	{
+		return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+	}
 
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
 
-	bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_' || c == '-'; }
+	bool isAlphaNumeric(char c) const
+	{
+		return isAlpha(c) || isDigit(c) || c == '_' || c == '-';
+	}
 
 	Token lexTag(const std::string &code, size_t &pos)
 	{
@@ -485,11 +496,10 @@ class Lexer
 		return {TokenType::StyleContent, contentStart, pos - contentStart};
 	}
 
-	std::unordered_set<std::string> jsKeywords = {"function",  "var",	 "let",	  "const", "if",
-												  "else",	   "for",	 "while", "do",	   "break",
-												  "continue",  "return", "class", "new",   "this",
-												  "undefined", "null",	 "true",  "false", "typeof",
-												  "instanceof"};
+	std::unordered_set<std::string> jsKeywords = {
+		"function", "var",		 "let",	  "const",	  "if",		"else",	  "for",
+		"while",	"do",		 "break", "continue", "return", "class",  "new",
+		"this",		"undefined", "null",  "true",	  "false",	"typeof", "instanceof"};
 
 	Token lexJavaScript(const std::string &code, size_t &pos)
 	{
@@ -517,7 +527,8 @@ class Lexer
 				// Multi-line comment
 				size_t start = pos;
 				pos += 2;
-				while (pos + 1 < code.length() && !(code[pos] == '*' && code[pos + 1] == '/'))
+				while (pos + 1 < code.length() &&
+					   !(code[pos] == '*' && code[pos + 1] == '/'))
 					pos++;
 				pos += 2;
 				return {TokenType::JsComment, start, pos - start};
@@ -745,7 +756,8 @@ class Lexer
 			{
 				size_t start = pos;
 				pos += 2;
-				while (pos + 1 < code.length() && !(code[pos] == '*' && code[pos + 1] == '/'))
+				while (pos + 1 < code.length() &&
+					   !(code[pos] == '*' && code[pos + 1] == '/'))
 					pos++;
 				pos += 2;
 				return {TokenType::CssComment, start, pos - start};
@@ -840,16 +852,18 @@ class Lexer
 			std::string word = code.substr(start, pos - start);
 
 			// Check for properties
-			if (cssProperties.find(word) != cssProperties.end() || (word.substr(0, 2) == "--"))
+			if (cssProperties.find(word) != cssProperties.end() ||
+				(word.substr(0, 2) == "--"))
 			{ // Custom properties
 				return {TokenType::CssProperty, start, pos - start};
 			}
 
 			// Special values
 			static const std::unordered_set<std::string> specialValues = {
-				"inherit",		"initial", "unset",	 "none",	 "auto",	 "block", "inline",
-				"inline-block", "flex",	   "grid",	 "absolute", "relative", "fixed", "sticky",
-				"bold",			"normal",  "italic", "center",	 "left",	 "right"};
+				"inherit",	"initial",	"unset",		"none",	  "auto",
+				"block",	"inline",	"inline-block", "flex",	  "grid",
+				"absolute", "relative", "fixed",		"sticky", "bold",
+				"normal",	"italic",	"center",		"left",	  "right"};
 
 			if (specialValues.find(word) != specialValues.end())
 			{

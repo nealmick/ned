@@ -10,12 +10,15 @@
 // Global instance
 EditorMouse gEditorMouse;
 
-EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false) {}
+EditorMouse::EditorMouse() : is_dragging(false), anchor_pos(-1), show_context_menu(false)
+{
+}
 
 // Helper function to check if a character is a word boundary
-bool isWordBoundary(char c) {
-	return c == ' ' || c == '.' || c == '(' || c == ')' || c == '{' || c == '}' || 
-		   c == '[' || c == ']' || c == ',' || c == ';' || c == ':' || c == '\n' || 
+bool isWordBoundary(char c)
+{
+	return c == ' ' || c == '.' || c == '(' || c == ')' || c == '{' || c == '}' ||
+		   c == '[' || c == ']' || c == ',' || c == ';' || c == ':' || c == '\n' ||
 		   c == '\t' || c == '\0' || c == '+' || c == '-' || c == '*' || c == '/' ||
 		   c == '%' || c == '=' || c == '!' || c == '<' || c == '>' || c == '&' ||
 		   c == '|' || c == '^' || c == '~' || c == '?' || c == '@' || c == '#' ||
@@ -23,16 +26,19 @@ bool isWordBoundary(char c) {
 }
 
 // Helper function to find word boundaries
-void findWordBoundaries(const std::string& text, int cursor_pos, int& start, int& end) {
+void findWordBoundaries(const std::string &text, int cursor_pos, int &start, int &end)
+{
 	// Find start boundary (move left until we hit a boundary)
 	start = cursor_pos;
-	while (start > 0 && !isWordBoundary(text[start - 1])) {
+	while (start > 0 && !isWordBoundary(text[start - 1]))
+	{
 		start--;
 	}
-	
+
 	// Find end boundary (move right until we hit a boundary)
 	end = cursor_pos;
-	while (end < text.size() && !isWordBoundary(text[end])) {
+	while (end < text.size() && !isWordBoundary(text[end]))
+	{
 		end++;
 	}
 }
@@ -42,20 +48,21 @@ void EditorMouse::handleMouseInput()
 	int char_index = getCharIndexFromCoords();
 
 	// Handle double click
-	if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+	if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+	{
 		// Find word boundaries
 		int start, end;
 		findWordBoundaries(editor_state.fileContent, char_index, start, end);
-		
+
 		// Set selection
 		editor_state.selection_active = true;
 		editor_state.selection_start = start;
 		editor_state.selection_end = end;
 		editor_state.cursor_index = end;
-		
+
 		// Update cursor column preference
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		editor_state.cursor_column_prefered = 
+		editor_state.cursor_column_prefered =
 			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
 		gAITab.cancel_request();
 		gAITab.dismiss_completion();
@@ -112,7 +119,8 @@ void EditorMouse::handleMouseClick(int char_index)
 		auto &pref_cols = editor_state.multi_cursor_prefered_columns;
 		int current_line = gEditor.getLineFromPos(char_index);
 
-		int new_preferred_col = char_index - editor_state.editor_content_lines[current_line];
+		int new_preferred_col =
+			char_index - editor_state.editor_content_lines[current_line];
 
 		if (std::find(cursors.begin(), cursors.end(), char_index) == cursors.end())
 		{
@@ -157,7 +165,8 @@ void EditorMouse::handleMouseClick(int char_index)
 		editor_state.selection_end = char_index;
 		editor_state.selection_active = false;
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		editor_state.cursor_column_prefered = editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		editor_state.cursor_column_prefered =
+			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
 		editor_state.ensure_cursor_visible.horizontal = true;
 	}
 	is_dragging = true;
@@ -255,20 +264,24 @@ void EditorMouse::handleContextMenu()
 	ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding,
 						10.0f); // Specific rounding for popups
 	ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize,
-						1.0f);									  // Thin border for the popup
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6)); // Reduced vertical spacing
+						1.0f); // Thin border for the popup
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+						ImVec2(8, 6)); // Reduced vertical spacing
 
-
-	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-		   1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_PopupBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 
 	// Set hover color to match your selection highlight
-	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.3f)); // Pink hover
-	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));		   // Pink selection
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+						  ImVec4(1.0f, 0.1f, 0.7f, 0.3f)); // Pink hover
+	ImGui::PushStyleColor(ImGuiCol_Header,
+						  ImVec4(1.0f, 0.1f, 0.7f, 0.5f)); // Pink selection
 
 	// Begin the popup with flags to prevent it from closing on outside clicks
 	if (ImGui::BeginPopup("##EditorContextMenu",
@@ -353,7 +366,9 @@ void EditorMouse::handleContextMenu()
 			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 			int line_start = editor_state.editor_content_lines[current_line];
 			int char_offset = editor_state.cursor_index - line_start;
-			gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile, current_line, char_offset);
+			gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile,
+									   current_line,
+									   char_offset);
 			show_context_menu = false;
 			ImGui::CloseCurrentPopup();
 		}
@@ -363,13 +378,16 @@ void EditorMouse::handleContextMenu()
 		{
 			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
 			int line_start = 0;
-			if (current_line >= 0 && current_line < editor_state.editor_content_lines.size())
+			if (current_line >= 0 &&
+				current_line < editor_state.editor_content_lines.size())
 			{
 				line_start = editor_state.editor_content_lines[current_line];
 			}
 			int char_offset = editor_state.cursor_index - line_start;
 			char_offset = std::max(0, char_offset);
-			gLSPGotoRef.findReferences(gFileExplorer.currentFile, current_line, char_offset);
+			gLSPGotoRef.findReferences(gFileExplorer.currentFile,
+									   current_line,
+									   char_offset);
 			show_context_menu = false;
 			ImGui::CloseCurrentPopup();
 		}
@@ -394,10 +412,11 @@ int EditorMouse::getCharIndexFromCoords()
 	ImVec2 mouse_pos = ImGui::GetMousePos();
 
 	// Determine which line was clicked (clamped to valid indices)
-	int clicked_line = std::clamp(static_cast<int>((mouse_pos.y - editor_state.text_pos.y) /
-												   editor_state.line_height),
-								  0,
-								  static_cast<int>(editor_state.editor_content_lines.size()) - 1);
+	int clicked_line =
+		std::clamp(static_cast<int>((mouse_pos.y - editor_state.text_pos.y) /
+									editor_state.line_height),
+				   0,
+				   static_cast<int>(editor_state.editor_content_lines.size()) - 1);
 
 	// Get start/end indices for that line in the text.
 	int line_start = editor_state.editor_content_lines[clicked_line];

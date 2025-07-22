@@ -14,7 +14,8 @@ class Shader
 	~Shader();
 
 	// Load and compile shader functions
-	bool loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath);
+	bool loadShader(const std::string &vertexShaderPath,
+					const std::string &fragmentShaderPath);
 	void useShader();
 
 	// Utility functions

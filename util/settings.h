@@ -13,8 +13,14 @@ class Settings
 {
   public:
 	// --- STATIC HELPERS: publicly accessible ---
-	static std::string getAppResourcesPath() { return SettingsFileManager::getAppResourcesPath(); }
-	static std::string getUserSettingsPath() { return SettingsFileManager::getUserSettingsPath(); }
+	static std::string getAppResourcesPath()
+	{
+		return SettingsFileManager::getAppResourcesPath();
+	}
+	static std::string getUserSettingsPath()
+	{
+		return SettingsFileManager::getUserSettingsPath();
+	}
 
 	// --- Normal members & methods ---
 	Settings();
@@ -109,7 +115,8 @@ class Settings
 
 	bool getAIAutocompleteMode() const
 	{
-		if (settings.contains("ai_autocomplete") && settings["ai_autocomplete"].is_boolean())
+		if (settings.contains("ai_autocomplete") &&
+			settings["ai_autocomplete"].is_boolean())
 		{
 			return settings["ai_autocomplete"].get<bool>();
 		}
@@ -127,7 +134,8 @@ class Settings
 
 	std::string getCompletionModel() const
 	{
-		if (settings.contains("completion_model") && settings["completion_model"].is_string())
+		if (settings.contains("completion_model") &&
+			settings["completion_model"].is_string())
 		{
 			return settings["completion_model"].get<std::string>();
 		}
@@ -146,13 +154,14 @@ class Settings
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
-	
-	void renderNotification(const std::string& message, float duration = 2.0f);
+
+	void renderNotification(const std::string &message, float duration = 2.0f);
 
   private:
-	json settings;			  // Holds the settings from the *active* file
-	std::string settingsPath; // Path to the *active* settings file (e.g., ned.json or test.json)
-	float splitPos = 0.3f;	  // Default, will be overwritten by loaded settings
+	json settings;				 // Holds the settings from the *active* file
+	std::string settingsPath;	 // Path to the *active* settings file (e.g.,
+								 // ned.json or test.json)
+	float splitPos = 0.3f;		 // Default, will be overwritten by loaded settings
 	float agentSplitPos = 0.75f; // Default, will be overwritten by loaded settings
 
 	bool settingsChanged = false;
@@ -160,7 +169,8 @@ class Settings
 	bool fontChanged = false;
 	bool fontSizeChanged = false;
 	bool blockInput = false;
-	bool agentSplitPosProcessed = false; // Track if we've processed agent split pos for current file
+	bool agentSplitPosProcessed =
+		false; // Track if we've processed agent split pos for current file
 
 	float currentFontSize = 0.0f; // Will be set by loadSettings()
 	int settingsCheckFrameCounter = 0;
@@ -175,8 +185,12 @@ class Settings
 	void renderSyntaxColors();
 	void renderToggleSettings();
 	void renderShaderSettings();
-	void renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
-		const char* format, float default_val);
+	void renderShaderSlider(const char *label,
+							const char *key,
+							float min_val,
+							float max_val,
+							const char *format,
+							float default_val);
 	void renderKeybindsSettings();
 	void handleWindowInput();
 	void applyImGuiStyles(); // New function for handling ImGui styles

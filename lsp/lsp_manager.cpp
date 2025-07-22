@@ -1,7 +1,7 @@
 #include "lsp_manager.h"
 #include <iostream>
-// #include <sys/select.h> // Not strictly used here, can be removed if not needed elsewhere by
-// LSPManager
+// #include <sys/select.h> // Not strictly used here, can be removed if not
+// needed elsewhere by LSPManager
 
 // Global instance
 LSPManager gLSPManager;
@@ -31,16 +31,19 @@ bool LSPManager::initialize(const std::string &path)
 			success = clangdAdapter->initialize(workspacePath);
 			if (success)
 			{
-				std::cout << "\033[32mLSP Manager:\033[0m Initialized clangd adapter for "
+				std::cout << "\033[32mLSP Manager:\033[0m Initialized clangd "
+							 "adapter for "
 						  << workspacePath << std::endl;
 			} else
 			{
-				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize clangd adapter for "
+				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize "
+							 "clangd adapter for "
 						  << workspacePath << std::endl;
 			}
 		} else
 		{
-			std::cout << "\033[32mLSP Manager:\033[0m Clangd adapter already initialized."
+			std::cout << "\033[32mLSP Manager:\033[0m Clangd adapter already "
+						 "initialized."
 					  << std::endl;
 			success = true; // Already initialized counts as success for this call
 		}
@@ -52,16 +55,19 @@ bool LSPManager::initialize(const std::string &path)
 			success = pyrightAdapter->initialize(workspacePath);
 			if (success)
 			{
-				std::cout << "\033[32mLSP Manager:\033[0m Initialized pyright adapter for "
+				std::cout << "\033[32mLSP Manager:\033[0m Initialized pyright "
+							 "adapter for "
 						  << workspacePath << std::endl;
 			} else
 			{
-				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize pyright adapter for "
+				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize "
+							 "pyright adapter for "
 						  << workspacePath << std::endl;
 			}
 		} else
 		{
-			std::cout << "\033[32mLSP Manager:\033[0m Pyright adapter already initialized."
+			std::cout << "\033[32mLSP Manager:\033[0m Pyright adapter already "
+						 "initialized."
 					  << std::endl;
 			success = true;
 		}
@@ -73,17 +79,19 @@ bool LSPManager::initialize(const std::string &path)
 			success = typescriptAdapter->initialize(workspacePath);
 			if (success)
 			{
-				std::cout << "\033[32mLSP Manager:\033[0m Initialized typescript adapter for "
+				std::cout << "\033[32mLSP Manager:\033[0m Initialized "
+							 "typescript adapter for "
 						  << workspacePath << std::endl;
 			} else
 			{
-				std::cerr
-					<< "\033[31mLSP Manager:\033[0m Failed to initialize typescript adapter for "
-					<< workspacePath << std::endl;
+				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize "
+							 "typescript adapter for "
+						  << workspacePath << std::endl;
 			}
 		} else
 		{
-			std::cout << "\033[32mLSP Manager:\033[0m Typescript adapter already initialized."
+			std::cout << "\033[32mLSP Manager:\033[0m Typescript adapter "
+						 "already initialized."
 					  << std::endl;
 			success = true;
 		}
@@ -99,19 +107,22 @@ bool LSPManager::initialize(const std::string &path)
 						  << workspacePath << std::endl;
 			} else
 			{
-				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize Go adapter for "
+				std::cerr << "\033[31mLSP Manager:\033[0m Failed to initialize "
+							 "Go adapter for "
 						  << workspacePath << std::endl;
 			}
 		} else
 		{
-			std::cout << "\033[32mLSP Manager:\033[0m Go adapter already initialized." << std::endl;
+			std::cout << "\033[32mLSP Manager:\033[0m Go adapter already initialized."
+					  << std::endl;
 			success = true;
 		}
 		break;
 
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager:\033[0m Cannot initialize, no active adapter selected or "
+		std::cerr << "\033[31mLSP Manager:\033[0m Cannot initialize, no active "
+					 "adapter selected or "
 					 "unknown type. Active adapter type: "
 				  << activeAdapter << std::endl;
 		return false;
@@ -146,15 +157,17 @@ bool LSPManager::selectAdapterForFile(const std::string &filePath)
 		// No extension, decide if you want to deactivate or keep current.
 		// Deactivating might be safer.
 		// activeAdapter = NONE;
-		// std::cout << "\033[33mLSP Manager:\033[0m No file extension for '" << filePath << "'. No
-		// adapter selected." << std::endl;
-		return false; // Or return true if you want to allow no adapter for extensionless files
+		// std::cout << "\033[33mLSP Manager:\033[0m No file extension for '" <<
+		// filePath << "'. No adapter selected." << std::endl;
+		return false; // Or return true if you want to allow no adapter for
+					  // extensionless files
 	}
 
 	std::string ext = filePath.substr(dot_pos + 1);
 	AdapterType newAdapter = NONE;
 
-	if (ext == "c" || ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" || ext == "hpp")
+	if (ext == "c" || ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" ||
+		ext == "hpp")
 	{
 		newAdapter = CLANGD;
 	} else if (ext == "py")
@@ -176,24 +189,26 @@ bool LSPManager::selectAdapterForFile(const std::string &filePath)
 	{
 		if (activeAdapter != newAdapter)
 		{
-			// Optional: If switching from an initialized adapter, you might want to shut it down.
-			// For simplicity, this example just switches. The old adapter's process might still
-			// run. Consider adding shutdown logic here if resource usage is a concern. e.g., if
-			// (isInitialized()) { /* get current adapter and call its shutdown methods */ }
-			std::cout << "\033[35mLSP Manager:\033[0m Switching active adapter to: " << newAdapter
-					  << " for file: " << filePath << std::endl;
+			// Optional: If switching from an initialized adapter, you might want
+			// to shut it down. For simplicity, this example just switches. The
+			// old adapter's process might still run. Consider adding shutdown
+			// logic here if resource usage is a concern. e.g., if (isInitialized())
+			// { /* get current adapter and call its shutdown methods */ }
+			std::cout << "\033[35mLSP Manager:\033[0m Switching active adapter to: "
+					  << newAdapter << " for file: " << filePath << std::endl;
 			activeAdapter = newAdapter;
 		} else
 		{
-			// It's the same adapter, no need to switch, just ensure it's "selected"
-			// This path is fine.
+			// It's the same adapter, no need to switch, just ensure it's
+			// "selected" This path is fine.
 		}
 		return true;
 	}
 
 	// If no specific adapter is found for the extension
-	std::cout << "\033[33mLSP Manager:\033[0m No specific adapter found for extension '" << ext
-			  << "'. Active adapter remains: " << activeAdapter << std::endl;
+	std::cout << "\033[33mLSP Manager:\033[0m No specific adapter found for "
+				 "extension '"
+			  << ext << "'. Active adapter remains: " << activeAdapter << std::endl;
 	// activeAdapter = NONE; // Or keep the current one if that's desired behavior
 	return false; // No *new* adapter was selected for this extension
 }
@@ -212,9 +227,9 @@ bool LSPManager::sendRequest(const std::string &request)
 		return goAdapter->sendRequest(request);
 	case NONE:
 	default:
-		std::cerr
-			<< "\033[31mLSP Manager:\033[0m Cannot send request, no active adapter or unknown type."
-			<< std::endl;
+		std::cerr << "\033[31mLSP Manager:\033[0m Cannot send request, no "
+					 "active adapter or unknown type."
+				  << std::endl;
 		return false;
 	}
 }
@@ -236,7 +251,8 @@ std::string LSPManager::readResponse(int *contentLength)
 		return goAdapter->readResponse(contentLength);
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager:\033[0m Cannot read response, no active adapter or "
+		std::cerr << "\033[31mLSP Manager:\033[0m Cannot read response, no "
+					 "active adapter or "
 					 "unknown type."
 				  << std::endl;
 		// if (contentLength) *contentLength = -1; // Already set at the start
@@ -246,8 +262,8 @@ std::string LSPManager::readResponse(int *contentLength)
 
 std::string LSPManager::getLanguageId(const std::string &filePath) const
 {
-	// This method is typically called after selectAdapterForFile has set the activeAdapter
-	// based on the filePath. So, we can trust activeAdapter here.
+	// This method is typically called after selectAdapterForFile has set the
+	// activeAdapter based on the filePath. So, we can trust activeAdapter here.
 	switch (activeAdapter)
 	{
 	case CLANGD:
@@ -260,12 +276,12 @@ std::string LSPManager::getLanguageId(const std::string &filePath) const
 		return goAdapter->getLanguageId(filePath);
 	case NONE:
 	default:
-		// If selectAdapterForFile failed (e.g. unknown extension), activeAdapter might be NONE
-		// or the previously active one. Returning "plaintext" is a safe default.
-		// However, the adapter itself should provide the ID, so this path should ideally
-		// not be hit if an adapter is truly active and selected.
-		// std::cout << "\033[33mLSP Manager:\033[0m getLanguageId called with no specific active
-		// adapter. File: " << filePath << std::endl;
+		// If selectAdapterForFile failed (e.g. unknown extension), activeAdapter
+		// might be NONE or the previously active one. Returning "plaintext" is
+		// a safe default. However, the adapter itself should provide the ID, so
+		// this path should ideally not be hit if an adapter is truly active and
+		// selected. std::cout << "\033[33mLSP Manager:\033[0m getLanguageId called
+		// with no specific active adapter. File: " << filePath << std::endl;
 		return "plaintext";
 	}
 }

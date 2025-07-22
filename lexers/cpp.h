@@ -116,16 +116,20 @@ class Lexer
 					"char32_t",		"export",	 "explicit", "final",
 					"override",		"operator",	 "this"};
 
-		operators = {
-			{"+", TokenType::Operator},	 {"-", TokenType::Operator},   {"*", TokenType::Operator},
-			{"/", TokenType::Operator},	 {"%", TokenType::Operator},   {"=", TokenType::Operator},
-			{"==", TokenType::Operator}, {"!=", TokenType::Operator},  {">", TokenType::Operator},
-			{"<", TokenType::Operator},	 {">=", TokenType::Operator},  {"<=", TokenType::Operator},
-			{"&&", TokenType::Operator}, {"||", TokenType::Operator},  {"!", TokenType::Operator},
-			{"&", TokenType::Operator},	 {"|", TokenType::Operator},   {"^", TokenType::Operator},
-			{"~", TokenType::Operator},	 {"<<", TokenType::Operator},  {">>", TokenType::Operator},
-			{"++", TokenType::Operator}, {"--", TokenType::Operator},  {"->", TokenType::Operator},
-			{".*", TokenType::Operator}, {"->*", TokenType::Operator}, {"::", TokenType::Operator}};
+		operators = {{"+", TokenType::Operator},  {"-", TokenType::Operator},
+					 {"*", TokenType::Operator},  {"/", TokenType::Operator},
+					 {"%", TokenType::Operator},  {"=", TokenType::Operator},
+					 {"==", TokenType::Operator}, {"!=", TokenType::Operator},
+					 {">", TokenType::Operator},  {"<", TokenType::Operator},
+					 {">=", TokenType::Operator}, {"<=", TokenType::Operator},
+					 {"&&", TokenType::Operator}, {"||", TokenType::Operator},
+					 {"!", TokenType::Operator},  {"&", TokenType::Operator},
+					 {"|", TokenType::Operator},  {"^", TokenType::Operator},
+					 {"~", TokenType::Operator},  {"<<", TokenType::Operator},
+					 {">>", TokenType::Operator}, {"++", TokenType::Operator},
+					 {"--", TokenType::Operator}, {"->", TokenType::Operator},
+					 {".*", TokenType::Operator}, {"->*", TokenType::Operator},
+					 {"::", TokenType::Operator}};
 	}
 	void themeChanged() { colorsNeedUpdate = true; }
 	std::vector<Token> tokenize(const std::string &code)
@@ -197,7 +201,8 @@ class Lexer
 		std::cout << "Exiting C++ tokenizer, tokens size: " << tokens.size() << std::endl;
 		return tokens;
 	}
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		std::cout << "Entering C++ applyHighlighting, code length: " << code.length()
 				  << ", colors size: " << colors.size() << ", start_pos: " << start_pos
@@ -225,12 +230,17 @@ class Lexer
 					  << " color values" << std::endl;
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Exception in C++ applyHighlighting: " << e.what() << std::endl;
-			std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+			std::cerr << "🔴 Exception in C++ applyHighlighting: " << e.what()
+					  << std::endl;
+			std::fill(colors.begin() + start_pos,
+					  colors.end(),
+					  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		} catch (...)
 		{
 			std::cerr << "🔴 Unknown exception in C++ applyHighlighting" << std::endl;
-			std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+			std::fill(colors.begin() + start_pos,
+					  colors.end(),
+					  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 	}
 	void forceColorUpdate() { colorsNeedUpdate = true; }
@@ -262,8 +272,14 @@ class Lexer
 		colorsNeedUpdate = false;
 	}
 
-	bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isWhitespace(char c) const
+	{
+		return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+	}
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
 	bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; }
 
@@ -327,9 +343,10 @@ class Lexer
 	{
 		size_t start = pos;
 		while (pos < code.length() &&
-			   (isDigit(code[pos]) || code[pos] == '.' || code[pos] == 'e' || code[pos] == 'E' ||
-				code[pos] == '+' || code[pos] == '-' || code[pos] == 'f' || code[pos] == 'F' ||
-				code[pos] == 'l' || code[pos] == 'L' || code[pos] == 'u' || code[pos] == 'U'))
+			   (isDigit(code[pos]) || code[pos] == '.' || code[pos] == 'e' ||
+				code[pos] == 'E' || code[pos] == '+' || code[pos] == '-' ||
+				code[pos] == 'f' || code[pos] == 'F' || code[pos] == 'l' ||
+				code[pos] == 'L' || code[pos] == 'u' || code[pos] == 'U'))
 		{
 			pos++;
 		}
@@ -413,7 +430,8 @@ class Lexer
 
 		// Handle multi-character operators
 		std::string op;
-		while (pos < code.length() && !isAlphaNumeric(code[pos]) && !isWhitespace(code[pos]))
+		while (pos < code.length() && !isAlphaNumeric(code[pos]) &&
+			   !isWhitespace(code[pos]))
 		{
 			op += code[pos];
 			if (operators.find(op) != operators.end())

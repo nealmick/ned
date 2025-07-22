@@ -1,54 +1,55 @@
 // keybinds.h
 #pragma once
-#include <string>
+#include "../lib/json.hpp"
+#include "imgui.h" // <<< ADD THIS for ImGuiKey
+#include "settings_file_manager.h"
 #include <filesystem>
 #include <map> // <<< ADD THIS for std::map
-#include "imgui.h" // <<< ADD THIS for ImGuiKey
-#include "../lib/json.hpp"
-#include "settings_file_manager.h"
+#include <string>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-class KeybindsManager {
-public:
-    KeybindsManager();
+class KeybindsManager
+{
+  public:
+	KeybindsManager();
 
-    bool loadKeybinds();
-    void printKeybinds() const;
-    void checkKeybindsFile();
-    
-    // Getter for the raw JSON keybinds (can still be useful for inspection)
-    const json& getRawKeybinds() const { return keybinds_; }
+	bool loadKeybinds();
+	void printKeybinds() const;
+	void checkKeybindsFile();
 
-    // Getter for the processed ImGuiKey map
-    // Returns ImGuiKey_None if the actionName is not found or key is unmapped
-    ImGuiKey getActionKey(const std::string& actionName) const;
+	// Getter for the raw JSON keybinds (can still be useful for inspection)
+	const json &getRawKeybinds() const { return keybinds_; }
 
-private:
-    std::string getUserKeybindsFilePath();
-    void ensureUserKeybindsFileExists();
-    bool loadKeybindsFromFile(const std::string& filePath);
-    void updateLastModificationTime();
+	// Getter for the processed ImGuiKey map
+	// Returns ImGuiKey_None if the actionName is not found or key is unmapped
+	ImGuiKey getActionKey(const std::string &actionName) const;
 
-    // Helper to convert string to ImGuiKey
-    static ImGuiKey stringToImGuiKey(const std::string& keyString); // <<< ADD THIS
+  private:
+	std::string getUserKeybindsFilePath();
+	void ensureUserKeybindsFileExists();
+	bool loadKeybindsFromFile(const std::string &filePath);
+	void updateLastModificationTime();
 
-    // Helper to process raw JSON keybinds into the ImGuiKey map
-    void processKeybinds(); // <<< ADD THIS
+	// Helper to convert string to ImGuiKey
+	static ImGuiKey stringToImGuiKey(const std::string &keyString); // <<< ADD THIS
 
-    json keybinds_; // Raw JSON data from the file
-    std::map<std::string, ImGuiKey> processedKeybinds_; // <<< ADD THIS (Action name -> ImGuiKey)
-    
-    std::string keybindsFilePath_;
-    SettingsFileManager settingsFileManager_;
-    fs::file_time_type lastKeybindsModificationTime_;
-    
-    int checkFrameCounter_ = 0;
-    static const int CHECK_INTERVAL_FRAMES = 60;
-    
-    const std::string KEYBINDS_FILENAME_ = "keybinds.json";
+	// Helper to process raw JSON keybinds into the ImGuiKey map
+	void processKeybinds(); // <<< ADD THIS
+
+	json keybinds_; // Raw JSON data from the file
+	std::map<std::string, ImGuiKey>
+		processedKeybinds_; // <<< ADD THIS (Action name -> ImGuiKey)
+
+	std::string keybindsFilePath_;
+	SettingsFileManager settingsFileManager_;
+	fs::file_time_type lastKeybindsModificationTime_;
+
+	int checkFrameCounter_ = 0;
+	static const int CHECK_INTERVAL_FRAMES = 60;
+
+	const std::string KEYBINDS_FILENAME_ = "keybinds.json";
 };
 
 extern KeybindsManager gKeybinds;
-

@@ -10,7 +10,7 @@
 #include <limits.h> // Or <climits> for C++ style
 #include <unistd.h> // For getcwd
 
-#include <algorithm> 
+#include <algorithm>
 #include <iostream>
 
 #ifdef __APPLE__
@@ -82,7 +82,8 @@ TreeSitter::detectLanguageAndQuery(const std::string &extension)
 	if (extension == ".c")
 	{
 		return {tree_sitter_c(), query_prefix + "c.scm"};
-	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp" || extension == ".mm")
+	} else if (extension == ".cpp" || extension == ".h" || extension == ".hpp" ||
+			   extension == ".mm")
 	{
 		return {tree_sitter_cpp(), query_prefix + "cpp.scm"};
 	} else if (extension == ".js" || extension == ".jsx")
@@ -186,7 +187,8 @@ TSInput TreeSitter::createInput(const std::string &content)
 			.encoding = TSInputEncodingUTF8};
 }
 
-TSTree *TreeSitter::createNewTree(TSParser *parser, bool initialParse, const std::string &content)
+TSTree *
+TreeSitter::createNewTree(TSParser *parser, bool initialParse, const std::string &content)
 {
 	if (initialParse)
 	{
@@ -211,7 +213,8 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		if (resourceURL)
 		{
 			char path[PATH_MAX];
-			if (CFURLGetFileSystemRepresentation(resourceURL, true, (UInt8 *)path, PATH_MAX))
+			if (CFURLGetFileSystemRepresentation(
+					resourceURL, true, (UInt8 *)path, PATH_MAX))
 			{
 				CFRelease(resourceURL);
 				CFRelease(relPath);
@@ -245,44 +248,52 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 	return "editor/queries/" + relativePath;
 }
 
-TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path)
+TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
+											  const std::string &query_path)
 {
-    std::string full_path = getResourcePath(query_path);
-    
-    // Use full_path as the cache key consistently
-    auto cacheIt = queryCache.find(full_path);
-    if (cacheIt != queryCache.end()) {
-        return cacheIt->second;
-    }
+	std::string full_path = getResourcePath(query_path);
 
-    std::ifstream file(full_path);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open query file: " << full_path << "\n";
-        return nullptr;
-    }
-    std::string query_src((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
+	// Use full_path as the cache key consistently
+	auto cacheIt = queryCache.find(full_path);
+	if (cacheIt != queryCache.end())
+	{
+		return cacheIt->second;
+	}
 
-    uint32_t error_offset;
-    TSQueryError error_type;
-    TSQuery *query = ts_query_new(lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
-    
-    if (!query) {
-        std::cerr << "Query error (" << error_type << ") at offset " << error_offset << "\n";
-        return nullptr;
-    }
+	std::ifstream file(full_path);
+	if (!file.is_open())
+	{
+		std::cerr << "Failed to open query file: " << full_path << "\n";
+		return nullptr;
+	}
+	std::string query_src((std::istreambuf_iterator<char>(file)),
+						  std::istreambuf_iterator<char>());
+	file.close();
 
-    // Store using full_path as key
-    queryCache[full_path] = query;
-    return query;
+	uint32_t error_offset;
+	TSQueryError error_type;
+	TSQuery *query = ts_query_new(
+		lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
+
+	if (!query)
+	{
+		std::cerr << "Query error (" << error_type << ") at offset " << error_offset
+				  << "\n";
+		return nullptr;
+	}
+
+	// Store using full_path as key
+	queryCache[full_path] = query;
+	return query;
 }
 void TreeSitter::clearQueryCache()
 {
-    std::lock_guard<std::mutex> lock(parserMutex);
-    for (auto& [key, query] : queryCache) {
-        ts_query_delete(query);
-    }
-    queryCache.clear();
+	std::lock_guard<std::mutex> lock(parserMutex);
+	for (auto &[key, query] : queryCache)
+	{
+		ts_query_delete(query);
+	}
+	queryCache.clear();
 }
 void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 										  TSTree *tree,
@@ -328,8 +339,9 @@ void TreeSitter::executeQueryAndHighlight(TSQuery *query,
 				ts_query_capture_name_for_id(query, match.captures[i].index, &name_length);
 			std::string name(name_ptr, name_length);
 
-			const ImVec4 color = capture_colors.count(name) ? capture_colors.at(name)
-															: text_color; // Fallback to text color
+			const ImVec4 color = capture_colors.count(name)
+									 ? capture_colors.at(name)
+									 : text_color; // Fallback to text color
 
 			const uint32_t start = ts_node_start_byte(node);
 			const uint32_t end = ts_node_end_byte(node);
@@ -345,7 +357,7 @@ void TreeSitter::parse(const std::string &fileContent,
 					   const std::string &extension,
 					   bool fullRehighlight)
 {
-	
+
 	std::lock_guard<std::mutex> lock(parserMutex);
 	if (fileContent.empty())
 	{
@@ -426,8 +438,9 @@ void TreeSitter::parse(const std::string &fileContent,
 	TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
 	if (!query)
 		return;
-	
-	executeQueryAndHighlight(query, newTree, fileContent, fileColors, initialParse, start, newEnd);
+
+	executeQueryAndHighlight(
+		query, newTree, fileContent, fileColors, initialParse, start, newEnd);
 }
 
 void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
@@ -440,8 +453,6 @@ void TreeSitter::printAST(TSTree *tree, const std::string &fileContent)
 	std::cout << "──────────────────────────────────────" << std::endl;
 }
 
-
-
 void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int depth)
 {
 	if (ts_node_is_null(node))
@@ -452,7 +463,8 @@ void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int d
 	std::string_view node_text_sv(fileContent.c_str() + start_byte, end_byte - start_byte);
 
 	// Existing: Skip nodes that are purely punctuation or empty
-	if (node_text_sv.empty() || node_text_sv.find_first_not_of("(){};,") == std::string_view::npos)
+	if (node_text_sv.empty() ||
+		node_text_sv.find_first_not_of("(){};,") == std::string_view::npos)
 		return;
 
 	// --- Simplified Indentation ---
@@ -474,12 +486,14 @@ void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int d
 	} else
 	{
 		size_t last_char = inline_node_snippet.find_last_not_of(whitespace_chars);
-		inline_node_snippet = inline_node_snippet.substr(first_char, (last_char - first_char + 1));
+		inline_node_snippet =
+			inline_node_snippet.substr(first_char, (last_char - first_char + 1));
 	}
 	const size_t MAX_INLINE_SNIPPET_LENGTH = 35;
 	if (inline_node_snippet.length() > MAX_INLINE_SNIPPET_LENGTH)
 	{
-		inline_node_snippet = inline_node_snippet.substr(0, MAX_INLINE_SNIPPET_LENGTH - 3) + "...";
+		inline_node_snippet =
+			inline_node_snippet.substr(0, MAX_INLINE_SNIPPET_LENGTH - 3) + "...";
 	}
 	// --- End Snippet Preparation ---
 
@@ -494,7 +508,8 @@ void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int d
 
 	// --- Simplified Print Output ---
 	std::cout << simple_indent << "\033[33m" << ts_node_type(node) << "\033[0m"
-			  << " \033[90m[\033[37m" << inline_node_snippet << "\033[90m]\033[0m" << std::endl;
+			  << " \033[90m[\033[37m" << inline_node_snippet << "\033[90m]\033[0m"
+			  << std::endl;
 	// Optionally print the second line preview if you still find it useful
 	if (!second_line_preview.empty() && second_line_preview != inline_node_snippet)
 	{									   // Avoid redundant print
@@ -507,7 +522,8 @@ void TreeSitter::printASTNode(TSNode node, const std::string &fileContent, int d
 	for (uint32_t i = 0; i < child_count; i++)
 	{
 		TSNode child = ts_node_child(node, i);
-		printASTNode(child, fileContent, depth + 1); // Depth is correctly incremented
+		printASTNode(child, fileContent,
+					 depth + 1); // Depth is correctly incremented
 	}
 }
 

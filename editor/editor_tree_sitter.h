@@ -3,12 +3,12 @@
 #include "../util/settings.h"
 #include "imgui.h"
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <tree_sitter/api.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <mutex>
 struct ThemeColors
 {
 	ImVec4 keyword;
@@ -54,12 +54,16 @@ class TreeSitter
 
 	static std::pair<TSLanguage *, std::string>
 	detectLanguageAndQuery(const std::string &extension);
-	static void
-	computeEditRange(const std::string &newContent, size_t &start, size_t &newEnd, size_t &oldEnd);
+	static void computeEditRange(const std::string &newContent,
+								 size_t &start,
+								 size_t &newEnd,
+								 size_t &oldEnd);
 	static TSInputEdit createEdit(size_t start, size_t oldEnd, size_t newEnd);
 	static TSInput createInput(const std::string &content);
-	static TSTree *createNewTree(TSParser *parser, bool initialParse, const std::string &content);
-	static TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path);
+	static TSTree *
+	createNewTree(TSParser *parser, bool initialParse, const std::string &content);
+	static TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang,
+											 const std::string &query_path);
 	static void executeQueryAndHighlight(TSQuery *query,
 										 TSTree *tree,
 										 const std::string &content,
