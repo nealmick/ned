@@ -5,19 +5,20 @@
 #include "../editor/editor_cursor.h"
 #include "../lib/json.hpp"
 #include "imgui.h"
-#include <string>
-#include <vector>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
-#include <thread>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <string>
+#include <thread>
 #include <unordered_map>
+#include <vector>
 
 using json = nlohmann::json;
 
-struct CompletionRequest {
+struct CompletionRequest
+{
 	std::string filePath;
 	int line;
 	int character;
@@ -29,13 +30,13 @@ struct CompletionDisplayItem
 	std::string label;
 	std::string detail;
 	std::string insertText;
-	std::string sortText;  // Added for LSP server's sorting
+	std::string sortText; // Added for LSP server's sorting
 	int kind;
 	int startLine = -1;
 	int startChar = -1;
 	int endLine = -1;
 	int endChar = -1;
-	float score = 0.0f;  // Add score field for sorting
+	float score = 0.0f; // Add score field for sorting
 };
 
 class LSPAutocomplete
@@ -65,7 +66,7 @@ class LSPAutocomplete
 	std::condition_variable queueCondition;
 	std::atomic<bool> shouldStop{false};
 	std::thread workerThread;
-	
+
 	// Track active requests to preserve original coordinates
 	std::unordered_map<int, CompletionRequest> activeRequests;
 	std::mutex activeRequestsMutex;
@@ -86,13 +87,17 @@ class LSPAutocomplete
 	void resetPopupPosition(); // New function to reset position cache
 
 	// requesting logic
-	std::string formCompletionRequest(int requestId, const std::string &filePath, int line, int character);
+	std::string formCompletionRequest(int requestId,
+									  const std::string &filePath,
+									  int line,
+									  int character);
 	bool processResponse(const std::string &response, int requestId);
 	void parseCompletionResult(const json &result, int requestLine, int requestCharacter);
 	void updatePopupPosition();
 	void workerFunction(); // New method for background thread
 
-	void insertText(int row_start, int col__start, int row_end, int col__end, std::string text);
+	void
+	insertText(int row_start, int col__start, int row_end, int col__end, std::string text);
 
 	std::pair<int, int> getLineAndCharFromIndex(int index) const
 	{

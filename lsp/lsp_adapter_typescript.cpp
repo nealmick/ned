@@ -14,7 +14,8 @@ class LSPAdapterTypescript::TypescriptImpl
 {
   public:
 	TypescriptImpl() : input(nullptr), output(nullptr), pid(0) {}
-	// Destructor for TypescriptImpl: FILE* are managed by LSPAdapterTypescript's destructor
+	// Destructor for TypescriptImpl: FILE* are managed by
+	// LSPAdapterTypescript's destructor
 	~TypescriptImpl() = default;
 
 	FILE *input;  // To LSP server (child's stdin)
@@ -22,7 +23,8 @@ class LSPAdapterTypescript::TypescriptImpl
 	pid_t pid;	  // LSP server process ID
 };
 
-LSPAdapterTypescript::LSPAdapterTypescript() : impl(new TypescriptImpl()), initialized(false)
+LSPAdapterTypescript::LSPAdapterTypescript()
+	: impl(new TypescriptImpl()), initialized(false)
 {
 	// Path to the typescript-language-server executable
 	lspPath = "/opt/homebrew/bin/typescript-language-server"; // User provided path
@@ -35,16 +37,19 @@ LSPAdapterTypescript::~LSPAdapterTypescript()
 	{
 		if (initialized)
 		{ // Only send shutdown/exit if successfully initialized
-			std::cout << "\033[35mTypescript:\033[0m Sending shutdown request." << std::endl;
+			std::cout << "\033[35mTypescript:\033[0m Sending shutdown request."
+					  << std::endl;
 			std::string shutdownRequest =
 				R"({"jsonrpc":"2.0","id":9998,"method":"shutdown","params":null})";
 			// Best effort: ignore result of sendRequest during shutdown
 			sendRequest(shutdownRequest);
-			// Note: Some servers might close connection after shutdown req, before exit
-			// notification is sent/processed.
+			// Note: Some servers might close connection after shutdown req,
+			// before exit notification is sent/processed.
 
-			std::cout << "\033[35mTypescript:\033[0m Sending exit notification." << std::endl;
-			std::string exitNotification = R"({"jsonrpc":"2.0","method":"exit","params":null})";
+			std::cout << "\033[35mTypescript:\033[0m Sending exit notification."
+					  << std::endl;
+			std::string exitNotification =
+				R"({"jsonrpc":"2.0","method":"exit","params":null})";
 			sendRequest(exitNotification);
 		}
 		// fclose will also close the underlying file descriptor for the pipe.
@@ -60,28 +65,33 @@ LSPAdapterTypescript::~LSPAdapterTypescript()
 
 	if (impl && impl->pid > 0)
 	{
-		std::cout << "\033[35mTypescript:\033[0m Waiting for LSP server process (PID: " << impl->pid
-				  << ") to exit." << std::endl;
+		std::cout << "\033[35mTypescript:\033[0m Waiting for LSP server "
+					 "process (PID: "
+				  << impl->pid << ") to exit." << std::endl;
 		int status;
 		if (waitpid(impl->pid, &status, 0) == -1)
 		{
-			std::cerr << "\033[31mTypescript:\033[0m Error waiting for LSP server process: "
+			std::cerr << "\033[31mTypescript:\033[0m Error waiting for LSP "
+						 "server process: "
 					  << strerror(errno) << std::endl;
 		} else
 		{
 			if (WIFEXITED(status))
 			{
-				std::cout << "\033[32mTypescript:\033[0m LSP server exited with status "
+				std::cout << "\033[32mTypescript:\033[0m LSP server exited "
+							 "with status "
 						  << WEXITSTATUS(status) << std::endl;
 			} else if (WIFSIGNALED(status))
 			{
-				std::cout << "\033[33mTypescript:\033[0m LSP server terminated by signal "
+				std::cout << "\033[33mTypescript:\033[0m LSP server terminated "
+							 "by signal "
 						  << WTERMSIG(status) << std::endl;
 			}
 		}
 		impl->pid = 0; // Mark as waited for
 	}
-	// The unique_ptr impl will delete the TypescriptImpl object, calling its destructor.
+	// The unique_ptr impl will delete the TypescriptImpl object, calling its
+	// destructor.
 }
 
 bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
@@ -100,22 +110,23 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 	std::cout << "\033[35mTypescript:\033[0m Starting LSP server with path: " << lspPath
 			  << std::endl;
 
-	int toServerPipeFDs[2];	  // Parent writes to toServerPipeFDs[1], Child reads from
-							  // toServerPipeFDs[0] (child's stdin)
-	int fromServerPipeFDs[2]; // Child writes to fromServerPipeFDs[1] (child's stdout), Parent reads
-							  // from fromServerPipeFDs[0]
+	int toServerPipeFDs[2];	  // Parent writes to toServerPipeFDs[1], Child reads
+							  // from toServerPipeFDs[0] (child's stdin)
+	int fromServerPipeFDs[2]; // Child writes to fromServerPipeFDs[1] (child's
+							  // stdout), Parent reads from fromServerPipeFDs[0]
 
 	if (pipe(toServerPipeFDs) < 0 || pipe(fromServerPipeFDs) < 0)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Failed to create pipes: " << strerror(errno)
-				  << std::endl;
+		std::cerr << "\033[31mTypescript:\033[0m Failed to create pipes: "
+				  << strerror(errno) << std::endl;
 		return false;
 	}
 
 	impl->pid = fork();
 	if (impl->pid < 0)
 	{ // Fork failed
-		std::cerr << "\033[31mTypescript:\033[0m Fork failed: " << strerror(errno) << std::endl;
+		std::cerr << "\033[31mTypescript:\033[0m Fork failed: " << strerror(errno)
+				  << std::endl;
 		close(toServerPipeFDs[0]);
 		close(toServerPipeFDs[1]);
 		close(fromServerPipeFDs[0]);
@@ -137,10 +148,11 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 			exit(1);
 		}
 		// stderr could be redirected to a log file or /dev/null if desired
-		// e.g., int devNull = open("/dev/null", O_WRONLY); dup2(devNull, STDERR_FILENO);
-		// close(devNull);
+		// e.g., int devNull = open("/dev/null", O_WRONLY); dup2(devNull,
+		// STDERR_FILENO); close(devNull);
 
-		// Close all original pipe FDs in child, as they are now duplicated to stdin/stdout
+		// Close all original pipe FDs in child, as they are now duplicated to
+		// stdin/stdout
 		close(toServerPipeFDs[0]);
 		close(toServerPipeFDs[1]);
 		close(fromServerPipeFDs[0]);
@@ -161,16 +173,17 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 	close(toServerPipeFDs[0]);	 // Parent does not read from this end
 	close(fromServerPipeFDs[1]); // Parent does not write to this end
 
-	// Open FILE streams for communication. These FDs are now owned by the FILE* streams.
-	impl->input =
-		fdopen(toServerPipeFDs[1], "w"); // Parent writes to server's stdin via this pipe end
-	impl->output =
-		fdopen(fromServerPipeFDs[0], "r"); // Parent reads from server's stdout via this pipe end
+	// Open FILE streams for communication. These FDs are now owned by the FILE*
+	// streams.
+	impl->input = fdopen(toServerPipeFDs[1],
+						 "w"); // Parent writes to server's stdin via this pipe end
+	impl->output = fdopen(fromServerPipeFDs[0],
+						  "r"); // Parent reads from server's stdout via this pipe end
 
 	if (!impl->input || !impl->output)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Failed to fdopen pipes: " << strerror(errno)
-				  << std::endl;
+		std::cerr << "\033[31mTypescript:\033[0m Failed to fdopen pipes: "
+				  << strerror(errno) << std::endl;
 		// If fdopen failed, the FDs might still be open. Close them directly.
 		// If FILE* were successfully created, fclose would handle the FD.
 		if (impl->input)
@@ -195,7 +208,8 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 	setvbuf(impl->input, nullptr, _IONBF, 0);
 	setvbuf(impl->output, nullptr, _IONBF, 0);
 
-	std::cout << "\033[35mTypescript:\033[0m Sending initialize request for workspace: "
+	std::cout << "\033[35mTypescript:\033[0m Sending initialize request for "
+				 "workspace: "
 			  << workspacePath << std::endl;
 	// Using a comprehensive set of capabilities for typescript-language-server
 	std::string initRequest = R"({
@@ -238,17 +252,20 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 
 	if (!sendRequest(initRequest))
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Failed to send initialize request" << std::endl;
+		std::cerr << "\033[31mTypescript:\033[0m Failed to send initialize request"
+				  << std::endl;
 		// Destructor path will handle cleanup of PID and any opened FILE* or FDs.
 		return false;
 	}
-	std::cout << "\033[32mTypescript:\033[0m Initialize request sent successfully" << std::endl;
+	std::cout << "\033[32mTypescript:\033[0m Initialize request sent successfully"
+			  << std::endl;
 
 	const int MAX_INIT_ATTEMPTS = 20; // Increased attempts for potentially slower servers
 	bool initResponseReceived = false;
 	for (int attempt = 0; attempt < MAX_INIT_ATTEMPTS; ++attempt)
 	{
-		std::cout << "\033[35mTypescript:\033[0m Waiting for initialization response (attempt "
+		std::cout << "\033[35mTypescript:\033[0m Waiting for initialization "
+					 "response (attempt "
 				  << (attempt + 1) << ")" << std::endl;
 
 		int responseLength = 0;
@@ -256,13 +273,15 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 
 		if (responseLength == -1)
 		{ // Error indicated by readResponse
-			std::cerr << "\033[31mTypescript:\033[0m Error reading response during initialization."
+			std::cerr << "\033[31mTypescript:\033[0m Error reading response "
+						 "during initialization."
 					  << std::endl;
 			return false; // Destructor handles cleanup
 		}
 		if (response.empty() && responseLength == 0)
 		{ // Valid empty JSON body, but not for init response.
-			std::cout << "\033[33mTypescript:\033[0m Empty JSON body received, expected init "
+			std::cout << "\033[33mTypescript:\033[0m Empty JSON body received, "
+						 "expected init "
 						 "response. Retrying..."
 					  << std::endl;
 			usleep(200000); // 200ms
@@ -270,7 +289,8 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 		}
 		if (response.empty())
 		{ // No header / content at all
-			std::cout << "\033[33mTypescript:\033[0m No response or empty header, retrying..."
+			std::cout << "\033[33mTypescript:\033[0m No response or empty "
+						 "header, retrying..."
 					  << std::endl;
 			usleep(500000); // 500ms, server might be slow starting
 			continue;
@@ -281,23 +301,26 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 		{
 			if (response.find("\"result\":") != std::string::npos)
 			{
-				std::cout << "\033[32mTypescript:\033[0m Received initialization response."
+				std::cout << "\033[32mTypescript:\033[0m Received "
+							 "initialization response."
 						  << std::endl;
 				// You can log part of the response if needed for debugging:
-				// std::cout << response.substr(0, std::min((size_t)400, response.length())) <<
-				// (response.length() > 400 ? "..." : "") << std::endl;
+				// std::cout << response.substr(0, std::min((size_t)400,
+				// response.length())) << (response.length() > 400 ? "..." : "")
+				// << std::endl;
 				initResponseReceived = true;
 				break;
 			} else if (response.find("\"error\":") != std::string::npos)
 			{
-				std::cerr
-					<< "\033[31mTypescript:\033[0m Initialization failed with error from server: "
-					<< response << std::endl;
+				std::cerr << "\033[31mTypescript:\033[0m Initialization failed "
+							 "with error from server: "
+						  << response << std::endl;
 				return false; // Destructor handles cleanup
 			}
 		}
 
-		std::cout << "\033[33mTypescript:\033[0m Received non-init message or unrelated response: "
+		std::cout << "\033[33mTypescript:\033[0m Received non-init message or "
+					 "unrelated response: "
 				  << response.substr(0, std::min((size_t)100, response.length())) << "..."
 				  << std::endl;
 		// The server might send notifications before the init response.
@@ -305,7 +328,8 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 
 	if (!initResponseReceived)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Failed to receive initialization response after "
+		std::cerr << "\033[31mTypescript:\033[0m Failed to receive "
+					 "initialization response after "
 				  << MAX_INIT_ATTEMPTS << " attempts." << std::endl;
 		return false; // Destructor handles cleanup
 	}
@@ -315,7 +339,8 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 		R"({"jsonrpc": "2.0", "method": "initialized", "params": {}})";
 	if (!sendRequest(initializedNotification))
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Failed to send initialized notification"
+		std::cerr << "\033[31mTypescript:\033[0m Failed to send initialized "
+					 "notification"
 				  << std::endl;
 		return false; // Destructor handles cleanup
 	}
@@ -329,27 +354,33 @@ bool LSPAdapterTypescript::sendRequest(const std::string &request)
 {
 	if (!impl || !impl->input)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Cannot send request - server not initialized or "
+		std::cerr << "\033[31mTypescript:\033[0m Cannot send request - server "
+					 "not initialized or "
 					 "input pipe closed"
 				  << std::endl;
 		return false;
 	}
 
 	// LSP messages require Content-Length header
-	// For debugging: std::cout << "DEBUG TS SEND: Content-Length: " << request.length() <<
+	// For debugging: std::cout << "DEBUG TS SEND: Content-Length: " <<
+	// request.length() <<
 	// "\r\n\r\n" << request << std::endl;
-	if (fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str()) <
-		0)
+	if (fprintf(impl->input,
+				"Content-Length: %zu\r\n\r\n%s",
+				request.length(),
+				request.c_str()) < 0)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m fprintf failed to write request. Error: "
+		std::cerr << "\033[31mTypescript:\033[0m fprintf failed to write "
+					 "request. Error: "
 				  << strerror(errno) << std::endl;
 		// This often means the pipe is broken (e.g., server crashed).
 		// Consider this a fatal error for the adapter's current session.
-		// initialized = false; // Could mark as uninitialized to trigger re-init later.
+		// initialized = false; // Could mark as uninitialized to trigger
+		// re-init later.
 		return false;
 	}
-	// fflush(impl->input) is implicitly handled by _IONBF or explicitly if needed,
-	// but for _IONBF, fprintf should send data immediately.
+	// fflush(impl->input) is implicitly handled by _IONBF or explicitly if
+	// needed, but for _IONBF, fprintf should send data immediately.
 	return true;
 }
 
@@ -360,7 +391,8 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 
 	if (!impl || !impl->output)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Cannot read response - server not initialized or "
+		std::cerr << "\033[31mTypescript:\033[0m Cannot read response - server "
+					 "not initialized or "
 					 "output pipe closed"
 				  << std::endl;
 		return "";
@@ -378,9 +410,9 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 		{
 			if (sscanf(header_line + 15, " %d", &content_length) != 1)
 			{
-				std::cerr
-					<< "\033[31mTypescript:\033[0m Failed to parse Content-Length value from: "
-					<< header_line << std::endl;
+				std::cerr << "\033[31mTypescript:\033[0m Failed to parse "
+							 "Content-Length value from: "
+						  << header_line << std::endl;
 				return ""; // Malformed header
 			}
 		} else if (strcmp(header_line, "\r\n") == 0)
@@ -395,12 +427,14 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 	{ // fgets returned nullptr before finding an empty line
 		if (feof(impl->output))
 		{
-			std::cerr << "\033[33mTypescript:\033[0m EOF reached while reading header (server "
+			std::cerr << "\033[33mTypescript:\033[0m EOF reached while reading "
+						 "header (server "
 						 "likely closed connection)."
 					  << std::endl;
 		} else
 		{ // ferror
-			std::cerr << "\033[31mTypescript:\033[0m Failed to read response header line. Error: "
+			std::cerr << "\033[31mTypescript:\033[0m Failed to read response "
+						 "header line. Error: "
 					  << strerror(errno) << std::endl;
 		}
 		return ""; // Error or EOF
@@ -408,7 +442,8 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 
 	if (content_length < 0)
 	{
-		std::cerr << "\033[31mTypescript:\033[0m Invalid or missing Content-Length header after "
+		std::cerr << "\033[31mTypescript:\033[0m Invalid or missing "
+					 "Content-Length header after "
 					 "reading all headers."
 				  << std::endl;
 		return "";
@@ -420,8 +455,8 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 	if (content_length == 0)
 	{
 		// For debugging: std::cout << "DEBUG TS RECV (empty content)" << std::endl;
-		return ""; // Valid case: empty JSON body (e.g., for some notifications if they were
-				   // responses)
+		return ""; // Valid case: empty JSON body (e.g., for some notifications
+				   // if they were responses)
 	}
 
 	std::vector<char> buffer(content_length);
@@ -436,18 +471,22 @@ std::string LSPAdapterTypescript::readResponse(int *outContentLength)
 		{ // Error or EOF
 			if (feof(impl->output))
 			{
-				std::cerr << "\033[31mTypescript:\033[0m EOF reached prematurely while reading "
+				std::cerr << "\033[31mTypescript:\033[0m EOF reached "
+							 "prematurely while reading "
 							 "message body. Expected "
-						  << content_length << ", got " << total_bytes_read << "." << std::endl;
+						  << content_length << ", got " << total_bytes_read << "."
+						  << std::endl;
 			} else
 			{ // ferror
-				std::cerr << "\033[31mTypescript:\033[0m Failed to read message body. Expected "
+				std::cerr << "\033[31mTypescript:\033[0m Failed to read "
+							 "message body. Expected "
 						  << content_length << ", got " << total_bytes_read
 						  << ". Error: " << strerror(errno) << std::endl;
 			}
 			if (outContentLength)
 				*outContentLength = -1; // Ensure error signaled for length
-			// Return what was read, even if partial, but caller checks outContentLength
+			// Return what was read, even if partial, but caller checks
+			// outContentLength
 			return std::string(buffer.data(), total_bytes_read);
 		}
 		total_bytes_read += current_bytes_read;

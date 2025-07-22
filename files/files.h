@@ -13,14 +13,14 @@
 #include "file_tree.h"
 #include "file_undo_redo.h"
 
+#include <chrono>
 #include <filesystem>
+#include <functional>
+#include <iomanip>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <chrono>
-#include <functional>
-#include <sstream>
-#include <iomanip>
 
 namespace fs = std::filesystem;
 
@@ -35,7 +35,7 @@ class FileExplorer
 	std::string currentOpenFile;
 	std::string previousOpenFile;
 	std::string currentFile;
-	
+
 	bool showWelcomeScreen = true;
 
 	// File operations
@@ -48,11 +48,11 @@ class FileExplorer
 	void handleUndo();
 	void handleRedo();
 	void addUndoState();
-	void forceCommitUndoState();  // Force commit pending undo state immediately
+	void forceCommitUndoState(); // Force commit pending undo state immediately
 
 	void saveUndoRedoState();
 	void loadUndoRedoState();
-	void forceSaveUndoState();  // Force save when needed (e.g., on app close)
+	void forceSaveUndoState(); // Force save when needed (e.g., on app close)
 
 	// UI functions
 	void openFolderDialog();
@@ -128,8 +128,7 @@ class FileExplorer
 	bool _unsavedChanges = false;
 	std::string selectedFolder;
 	bool _showFileDialog = false;
-	bool _undoStateDirty = false;  // Track if undo state needs saving
-
+	bool _undoStateDirty = false; // Track if undo state needs saving
 
 	// External file change detection
 	std::map<std::string, fs::file_time_type> _fileModificationTimes;
@@ -141,10 +140,10 @@ class FileExplorer
 
 	// External file change detection methods
 	void checkForExternalFileChanges();
-	void updateFileModificationTime(const std::string& filePath);
-	std::string calculateFileHash(const std::string& content);
-	void handleExternalFileChange(const std::string& filePath);
-	bool shouldReloadFile(const std::string& filePath);
+	void updateFileModificationTime(const std::string &filePath);
+	std::string calculateFileHash(const std::string &content);
+	void handleExternalFileChange(const std::string &filePath);
+	bool shouldReloadFile(const std::string &filePath);
 	void reloadCurrentFile();
 
   private:
@@ -172,8 +171,7 @@ class FileExplorer
 	void updateFilePathStates(const std::string &path);
 
 	// Undo/Redo helpers
-	void applyOperation(const UndoRedoManager::Operation& op, bool isUndo);
-
+	void applyOperation(const UndoRedoManager::Operation &op, bool isUndo);
 
 	void resetColorBuffer();
 

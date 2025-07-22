@@ -36,7 +36,8 @@ int EditorIndentation::findLineStart(int position)
 int EditorIndentation::findLineEnd(int position)
 {
 	int lineEnd = position;
-	while (lineEnd < editor_state.fileContent.length() && editor_state.fileContent[lineEnd] != '\n')
+	while (lineEnd < editor_state.fileContent.length() &&
+		   editor_state.fileContent[lineEnd] != '\n')
 	{
 		lineEnd++;
 	}
@@ -107,11 +108,13 @@ void EditorIndentation::handleMultiLineIndentation()
 	editor_state.fileContent = std::move(newText);
 
 	// Update selection and cursor positions
-	if (editor_state.selection_start < editor_state.selection_end) {
+	if (editor_state.selection_start < editor_state.selection_end)
+	{
 		editor_state.selection_start += 1;
 		editor_state.selection_end += totalTabsInserted;
 		editor_state.cursor_index += totalTabsInserted;
-	} else {
+	} else
+	{
 		editor_state.selection_start += totalTabsInserted;
 		editor_state.selection_end += 1;
 		editor_state.cursor_index += 1;
@@ -120,14 +123,14 @@ void EditorIndentation::handleMultiLineIndentation()
 	// Update colors vector
 	auto &colors = editor_state.fileColors;
 	colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
-	
+
 	// Get the proper default text color from the theme
 	TreeSitter::updateThemeColors();
 	ImVec4 defaultColor = TreeSitter::cachedColors.text;
-	
+
 	colors.insert(colors.begin() + firstLineStart,
-				lastLineEnd - firstLineStart + totalTabsInserted,
-				defaultColor);
+				  lastLineEnd - firstLineStart + totalTabsInserted,
+				  defaultColor);
 }
 
 void EditorIndentation::handleSingleLineIndentation()
@@ -152,19 +155,21 @@ void EditorIndentation::handleSingleLineIndentation()
 	{
 		int actual_insert_pos = original_pos + cumulative_offset;
 
-		actual_insert_pos = std::max(0,
-									 std::min(actual_insert_pos,
-											  static_cast<int>(editor_state.fileContent.length())));
+		actual_insert_pos =
+			std::max(0,
+					 std::min(actual_insert_pos,
+							  static_cast<int>(editor_state.fileContent.length())));
 
 		editor_state.fileContent.insert(actual_insert_pos, 1, TAB_CHAR);
 
 		// Get the proper default text color from the theme
 		TreeSitter::updateThemeColors();
 		ImVec4 defaultColor = TreeSitter::cachedColors.text;
-		
+
 		if (static_cast<size_t>(actual_insert_pos) <= editor_state.fileColors.size())
 		{
-			editor_state.fileColors.insert(editor_state.fileColors.begin() + actual_insert_pos,
+			editor_state.fileColors.insert(editor_state.fileColors.begin() +
+											   actual_insert_pos,
 										   INSERT_LEN,
 										   defaultColor);
 		} else
@@ -179,7 +184,8 @@ void EditorIndentation::handleSingleLineIndentation()
 
 	if (!new_final_cursor_positions.empty())
 	{
-		// Assign the first new position to the primary cursor, the rest to multi-cursors
+		// Assign the first new position to the primary cursor, the rest to
+		// multi-cursors
 		editor_state.cursor_index = new_final_cursor_positions[0];
 		editor_state.multi_cursor_indices.assign(new_final_cursor_positions.begin() + 1,
 												 new_final_cursor_positions.end());
@@ -189,9 +195,11 @@ void EditorIndentation::handleSingleLineIndentation()
 	editor_state.selection_active = false;
 	editor_state.selection_start = editor_state.cursor_index;
 	editor_state.selection_end = editor_state.cursor_index;
-	// Reset preferred columns, as tab insertion explicitly changes horizontal (visual) position.
+	// Reset preferred columns, as tab insertion explicitly changes horizontal
+	// (visual) position.
 	editor_state.cursor_column_prefered = 0;
-	editor_state.multi_cursor_prefered_columns.assign(editor_state.multi_cursor_indices.size(), 0);
+	editor_state.multi_cursor_prefered_columns.assign(
+		editor_state.multi_cursor_indices.size(), 0);
 }
 
 void EditorIndentation::finishIndentationChange()
@@ -228,8 +236,7 @@ void EditorIndentation::removeIndentation()
 	{
 		start = getSelectionStart();
 		end = getSelectionEnd();
-	}
-	else
+	} else
 	{
 		// If no selection, work on the current line
 		start = end = editor_state.cursor_index;
@@ -262,15 +269,14 @@ void EditorIndentation::removeIndentation()
 			editor_state.fileContent.substr(lineStart, 4) == "    ")
 		{
 			spacesToRemove = 4;
-		}
-		else if (lineStart < editor_state.fileContent.length() &&
-				editor_state.fileContent[lineStart] == '\t')
+		} else if (lineStart < editor_state.fileContent.length() &&
+				   editor_state.fileContent[lineStart] == '\t')
 		{
 			spacesToRemove = 1;
 		}
 
-		newText.append(editor_state.fileContent.substr(lineStart + spacesToRemove,
-													lineEnd - lineStart - spacesToRemove));
+		newText.append(editor_state.fileContent.substr(
+			lineStart + spacesToRemove, lineEnd - lineStart - spacesToRemove));
 
 		if (lineEnd < lastLineEnd)
 			newText.push_back('\n');
@@ -284,33 +290,34 @@ void EditorIndentation::removeIndentation()
 
 	// Update text
 	editor_state.fileContent = std::move(newText);
-	if(totalSpacesRemoved > 0){
-		if(editor_state.selection_end > editor_state.selection_start){
-		editor_state.selection_start -= 1;
-				editor_state.selection_end -=totalSpacesRemoved;
-		editor_state.cursor_index -=totalSpacesRemoved;
-		
-	}else{
-		editor_state.selection_start -= totalSpacesRemoved;
-		editor_state.selection_end -=1;
-		editor_state.cursor_index -=1;
-		std::cout << "moved cursor back 1"<< std::endl;
+	if (totalSpacesRemoved > 0)
+	{
+		if (editor_state.selection_end > editor_state.selection_start)
+		{
+			editor_state.selection_start -= 1;
+			editor_state.selection_end -= totalSpacesRemoved;
+			editor_state.cursor_index -= totalSpacesRemoved;
 
+		} else
+		{
+			editor_state.selection_start -= totalSpacesRemoved;
+			editor_state.selection_end -= 1;
+			editor_state.cursor_index -= 1;
+			std::cout << "moved cursor back 1" << std::endl;
+		}
 	}
-	}
-	
 
 	// Update colors vector
 	auto &colors = editor_state.fileColors;
 	colors.erase(colors.begin() + firstLineStart, colors.begin() + lastLineEnd);
-	
+
 	// Get the proper default text color from the theme
 	TreeSitter::updateThemeColors();
 	ImVec4 defaultColor = TreeSitter::cachedColors.text;
-	
+
 	colors.insert(colors.begin() + firstLineStart,
-				lastLineEnd - firstLineStart - totalSpacesRemoved,
-				defaultColor);
+				  lastLineEnd - firstLineStart - totalSpacesRemoved,
+				  defaultColor);
 
 	// Update line starts
 	gEditor.updateLineStarts();

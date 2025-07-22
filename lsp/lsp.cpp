@@ -80,8 +80,8 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
 		// Extract workspace path from file path (use directory containing the
 		// file)
 		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
-		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: " << workspacePath
-				  << std::endl;
+		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: "
+				  << workspacePath << std::endl;
 
 		if (!gLSPManager.initialize(workspacePath))
 		{
@@ -109,7 +109,8 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
         })";
 
 	gLSPManager.sendRequest(notification);
-	// std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully" << std::endl;
+	// std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully"
+	// << std::endl;
 }
 
 void EditorLSP::didChange(const std::string &filePath, int version)
@@ -124,8 +125,8 @@ void EditorLSP::didChange(const std::string &filePath, int version)
 	if (!gLSPManager.isInitialized())
 	{
 		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
-		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: " << workspacePath
-				  << std::endl;
+		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: "
+				  << workspacePath << std::endl;
 
 		if (!gLSPManager.initialize(workspacePath))
 		{

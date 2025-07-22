@@ -1,10 +1,10 @@
 #include "editor_copy_paste.h"
-#include "editor.h"
 #include "../ai/ai_tab.h"
-#include "editor_highlight.h"
-#include "editor_tree_sitter.h"
 #include "../files/files.h"
 #include "../lsp/lsp_autocomplete.h"
+#include "editor.h"
+#include "editor_highlight.h"
+#include "editor_tree_sitter.h"
 #include <algorithm>
 
 // Global instance
@@ -12,7 +12,8 @@ EditorCopyPaste gEditorCopyPaste;
 
 void EditorCopyPaste::processClipboardShortcuts()
 {
-	// If input is blocked (e.g., by agent history text selection), don't process editor shortcuts
+	// If input is blocked (e.g., by agent history text selection), don't
+	// process editor shortcuts
 	if (editor_state.block_input)
 	{
 		return;
@@ -72,7 +73,7 @@ void EditorCopyPaste::cutSelectedText()
 		int beforeCursor = editor_state.cursor_index;
 		int cutStart = getSelectionStart();
 		int cutEnd = getSelectionEnd();
-		
+
 		int start = getSelectionStart();
 		int end = getSelectionEnd();
 		std::string selected_text = editor_state.fileContent.substr(start, end - start);
@@ -83,7 +84,7 @@ void EditorCopyPaste::cutSelectedText()
 		editor_state.cursor_index = start;
 		editor_state.selection_start = editor_state.selection_end = start;
 		editor_state.text_changed = true;
-		
+
 		// Update line starts immediately to prevent visual glitch
 		gEditor.updateLineStarts();
 	}
@@ -105,7 +106,8 @@ void EditorCopyPaste::cutWholeLine()
 					   ? editor_state.editor_content_lines[line + 1]
 					   : editor_state.fileContent.size();
 
-	std::string line_text = editor_state.fileContent.substr(line_start, line_end - line_start);
+	std::string line_text =
+		editor_state.fileContent.substr(line_start, line_end - line_start);
 	ImGui::SetClipboardText(line_text.c_str());
 
 	editor_state.fileContent.erase(line_start, line_end - line_start);
@@ -114,7 +116,7 @@ void EditorCopyPaste::cutWholeLine()
 
 	editor_state.cursor_index = line > 0 ? editor_state.editor_content_lines[line] : 0;
 	editor_state.text_changed = true;
-	
+
 	gEditor.updateLineStarts();
 }
 
@@ -122,11 +124,11 @@ void EditorCopyPaste::pasteText()
 {
 	gAITab.cancel_request();
 	gAITab.dismiss_completion();
-	
+
 	// Save the state before making any changes
 	std::string beforeContent = editor_state.fileContent;
 	int beforeCursor = editor_state.cursor_index;
-	
+
 	const char *clipboard_text = ImGui::GetClipboardText();
 	if (clipboard_text != nullptr)
 	{
@@ -139,17 +141,16 @@ void EditorCopyPaste::pasteText()
 			{
 				// File uses tabs, convert spaces to tabs in paste content
 				paste_content = convertSpacesToTabs(paste_content);
-			}
-			else
+			} else
 			{
 				// File uses spaces, convert tabs to spaces in paste content
 				paste_content = convertTabsToSpaces(paste_content);
 			}
-			
+
 			// Get the proper default text color from the theme
 			TreeSitter::updateThemeColors();
 			ImVec4 defaultColor = TreeSitter::cachedColors.text;
-			
+
 			int paste_start = editor_state.cursor_index;
 			int paste_end = paste_start + paste_content.size();
 			if (editor_state.selection_start != editor_state.selection_end)
@@ -173,7 +174,8 @@ void EditorCopyPaste::pasteText()
 											   defaultColor);
 			}
 			editor_state.cursor_index = paste_end;
-			editor_state.selection_start = editor_state.selection_end = editor_state.cursor_index;
+			editor_state.selection_start = editor_state.selection_end =
+				editor_state.cursor_index;
 			editor_state.text_changed = true;
 
 			// Update line starts immediately to prevent visual glitch
@@ -192,11 +194,11 @@ bool EditorCopyPaste::checkIndentationType() const
 	return editor_state.fileContent.find('\t') != std::string::npos;
 }
 
-std::string EditorCopyPaste::convertSpacesToTabs(const std::string& text) const
+std::string EditorCopyPaste::convertSpacesToTabs(const std::string &text) const
 {
 	std::string result;
 	result.reserve(text.size()); // Pre-allocate space for efficiency
-	
+
 	for (size_t i = 0; i < text.size(); ++i)
 	{
 		if (text[i] == ' ')
@@ -208,12 +210,11 @@ std::string EditorCopyPaste::convertSpacesToTabs(const std::string& text) const
 				spaceCount++;
 				i++;
 			}
-			
+
 			if (spaceCount == 4)
 			{
 				result += '\t';
-			}
-			else
+			} else
 			{
 				// Add back the spaces we consumed
 				for (int j = 0; j < spaceCount; ++j)
@@ -221,35 +222,33 @@ std::string EditorCopyPaste::convertSpacesToTabs(const std::string& text) const
 					result += ' ';
 				}
 			}
-			
+
 			// Adjust i since we already incremented it in the while loop
 			i--;
-		}
-		else
+		} else
 		{
 			result += text[i];
 		}
 	}
-	
+
 	return result;
 }
 
-std::string EditorCopyPaste::convertTabsToSpaces(const std::string& text) const
+std::string EditorCopyPaste::convertTabsToSpaces(const std::string &text) const
 {
 	std::string result;
 	result.reserve(text.size() * 4); // Pre-allocate space for efficiency
-	
+
 	for (char c : text)
 	{
 		if (c == '\t')
 		{
 			result += "    "; // 4 spaces
-		}
-		else
+		} else
 		{
 			result += c;
 		}
 	}
-	
+
 	return result;
 }

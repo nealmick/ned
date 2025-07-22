@@ -27,20 +27,8 @@ cat << "EOF"
 EOF
 echo "${NC}"
 
-echo "${BLUE}📝 Starting code formatting...${NC}"
 
-# Count and format files
-count=$(find . \
-   \( -name "*.cpp" -o -name "*.h" \) \
-   -not -path "./lib/*" \
-   -not -path "./fonts/*" \
-   -not -path "./icons/*" \
-   -not -path "./.build/*" \
-   -not -path "./build/*" \
-  xec clang-format -i {} \; \
-  xec echo "." \; | wc -l)
-    
-echo "${GREEN}✨ Formatted ${count} files ${NC}"
+./format.sh
 
 # Build steps
 mkdir -p "$BUILD_DIR"

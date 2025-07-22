@@ -9,7 +9,8 @@
 #include <thread>
 FileFinder gFileFinder;
 
-FileFinder::FileFinder() : stopThread(false), lastSelectionTime(std::chrono::steady_clock::now())
+FileFinder::FileFinder()
+	: stopThread(false), lastSelectionTime(std::chrono::steady_clock::now())
 {
 	workerThread = std::thread(&FileFinder::backgroundRefresh, this);
 }
@@ -113,12 +114,13 @@ void FileFinder::updateFilteredList()
 	for (const auto &file : localFileList)
 	{
 		std::string relativeLower = file.relativePath;
-		std::transform(relativeLower.begin(), relativeLower.end(), relativeLower.begin(), ::tolower);
+		std::transform(
+			relativeLower.begin(), relativeLower.end(), relativeLower.begin(), ::tolower);
 
 		if (relativeLower.find(searchTerm) != std::string::npos)
 		{
-			if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() &&
-				file.filenameLower[0] == '.')
+			if (searchTerm.find('.') == std::string::npos &&
+				!file.filenameLower.empty() && file.filenameLower[0] == '.')
 			{
 				continue;
 			}
@@ -126,9 +128,11 @@ void FileFinder::updateFilteredList()
 		}
 	}
 
-	std::sort(filteredList.begin(), filteredList.end(), [](const FileEntry &a, const FileEntry &b) {
-		return a.relativePath.size() < b.relativePath.size();
-	});
+	std::sort(filteredList.begin(),
+			  filteredList.end(),
+			  [](const FileEntry &a, const FileEntry &b) {
+				  return a.relativePath.size() < b.relativePath.size();
+			  });
 }
 void FileFinder::handleSelectionChange()
 {
@@ -153,7 +157,8 @@ void FileFinder::checkPendingSelection()
 		return;
 
 	auto now = std::chrono::steady_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSelectionTime);
+	auto elapsed =
+		std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSelectionTime);
 
 	if (elapsed.count() >= 50) // 0.3 seconds
 	{
@@ -194,25 +199,30 @@ void FileFinder::renderHeader()
 								   ImGui::GetIO().DisplaySize.y * 0.35f),
 							ImGuiCond_Always,
 							ImVec2(0.5f, 0.5f));
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
+								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+								   ImGuiWindowFlags_NoScrollbar |
 								   ImGuiWindowFlags_NoScrollWithMouse;
 	// Push window style (3 style vars, 3 style colors)
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
 	// background
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+	ImGui::PushStyleColor(
+		ImGuiCol_WindowBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 			   1.0f));
 	// window styles...
 
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-				   1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_FrameBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 
 	ImGui::Begin("FileFinder", nullptr, windowFlags);
 
@@ -232,37 +242,37 @@ void FileFinder::renderHeader()
 // Update in renderSearchInput() function
 bool FileFinder::renderSearchInput()
 {
-    float inputWidth = ImGui::GetContentRegionAvail().x;
-    ImGui::PushItemWidth(inputWidth);
-    
-    // Add border styling to match FileContentSearch
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-    
-    // Match border and background colors from FileContentSearch
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
-        gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
-        gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
-        gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
-        1.0f));
+	float inputWidth = ImGui::GetContentRegionAvail().x;
+	ImGui::PushItemWidth(inputWidth);
 
-    // Force keyboard focus each frame so the input stays focused
-    ImGui::SetKeyboardFocusHere();
-    bool enterPressed = ImGui::InputText(
-        "##SearchInput",
-        searchBuffer,
-        sizeof(searchBuffer),
-        ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_EnterReturnsTrue
-    );
+	// Add border styling to match FileContentSearch
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
 
-    // Clean up style changes
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
-    
-    ImGui::PopItemWidth();
-    return enterPressed;
+	// Match border and background colors from FileContentSearch
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_FrameBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
+			   1.0f));
+
+	// Force keyboard focus each frame so the input stays focused
+	ImGui::SetKeyboardFocusHere();
+	bool enterPressed = ImGui::InputText("##SearchInput",
+										 searchBuffer,
+										 sizeof(searchBuffer),
+										 ImGuiInputTextFlags_AutoSelectAll |
+											 ImGuiInputTextFlags_EnterReturnsTrue);
+
+	// Clean up style changes
+	ImGui::PopStyleColor(2);
+	ImGui::PopStyleVar(3);
+
+	ImGui::PopItemWidth();
+	return enterPressed;
 }
 // Helper: Render the file list with manual clipping and no mouse hover effect.
 void FileFinder::renderFileList()
@@ -292,7 +302,8 @@ void FileFinder::renderFileList()
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
 	// Disable hover effect by making hover color transparent and keeping
 	// selection color
-	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 1.0f)); // Selection color
+	ImGui::PushStyleColor(ImGuiCol_Header,
+						  ImVec4(1.0f, 0.1f, 0.7f, 1.0f)); // Selection color
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
 						  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent hover
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive,
@@ -421,7 +432,7 @@ void FileFinder::renderWindow()
 	renderFileList();
 
 	ImGui::Separator();
-	ImGui::Text( "Press Ctrl+P or ESC to close");
+	ImGui::Text("Press Ctrl+P or ESC to close");
 	ImGui::End();
 	// Pop the window style colors and vars pushed in renderHeader()
 	ImGui::PopStyleColor(3);

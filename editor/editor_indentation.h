@@ -44,8 +44,9 @@ class EditorIndentation
 									   int firstLineStart,
 									   int lastLineEnd,
 									   int totalSpacesRemoved);
-	void
-	updateColorsAfterIndentRemoval(int firstLineStart, int lastLineEnd, int totalSpacesRemoved);
+	void updateColorsAfterIndentRemoval(int firstLineStart,
+										int lastLineEnd,
+										int totalSpacesRemoved);
 };
 
 // Global instance

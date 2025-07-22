@@ -1,6 +1,6 @@
 {
     "agent_model": "google/gemini-2.5-flash-preview-05-20",
-    "agent_pane_visible": true,
+    "agent_pane_visible": false,
     "agent_split_pos": 0.3251075744628906,
     "ai_autocomplete": false,
     "backgroundColor": [

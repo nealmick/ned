@@ -66,14 +66,15 @@ class Lexer
 	Lexer()
 	{
 		// --- Keyword, ReactKeyword, Operator sets remain the same ---
-		keywords = {"function", "const",	  "let",	   "var",	  "if",		   "else",
-					"return",	"import",	  "export",	   "default", "class",	   "extends",
-					"super",	"this",		  "new",	   "try",	  "catch",	   "throw",
-					"typeof",	"instanceof", "async",	   "await",	  "for",	   "of",
-					"while",	"do",		  "switch",	   "case",	  "break",	   "continue",
-					"static",	"true",		  "false",	   "null",	  "undefined", "void",
-					"delete",	"yield",	  "interface", "type",	  "as",		   "from",
-					"in",		"is"};
+		keywords = {"function", "const",   "let",	 "var",		  "if",
+					"else",		"return",  "import", "export",	  "default",
+					"class",	"extends", "super",	 "this",	  "new",
+					"try",		"catch",   "throw",	 "typeof",	  "instanceof",
+					"async",	"await",   "for",	 "of",		  "while",
+					"do",		"switch",  "case",	 "break",	  "continue",
+					"static",	"true",	   "false",	 "null",	  "undefined",
+					"void",		"delete",  "yield",	 "interface", "type",
+					"as",		"from",	   "in",	 "is"};
 		reactKeywords = {"useState",
 						 "useEffect",
 						 "useContext",
@@ -87,9 +88,10 @@ class Lexer
 						 "createContext",
 						 "createRef",
 						 "forwardRef"};
-		operators = {"=",  "+",	 "-",  "*",	 "/", "%", "==", "===", "!=", "!==", ">",  "<",
-					 ">=", "<=", "&&", "||", "!", "?", "=>", "...", "++", "--",	 "+=", "-=",
-					 "*=", "/=", "%=", "??", "&", "|", "^",	 "~",	"<<", ">>",	 ";"};
+		operators = {"=",	"+",   "-",	 "*",  "/",	 "%",  "==", "===", "!=",
+					 "!==", ">",   "<",	 ">=", "<=", "&&", "||", "!",	"?",
+					 "=>",	"...", "++", "--", "+=", "-=", "*=", "/=",	"%=",
+					 "??",	"&",   "|",	 "^",  "~",	 "<<", ">>", ";"};
 		colorsNeedUpdate = true;
 	}
 
@@ -151,7 +153,8 @@ class Lexer
 				if (currentToken.length > 0)
 				{
 					tokens.push_back(currentToken);
-					lastNonWsToken = currentToken.type; // Update last non-whitespace token
+					lastNonWsToken =
+						currentToken.type; // Update last non-whitespace token
 
 					// Check for 'return' followed by potential JSX starter
 					if (currentToken.type == TokenType::Keyword &&
@@ -172,7 +175,8 @@ class Lexer
 							// the starter
 							if (nextCharPos > pos)
 							{
-								tokens.push_back({TokenType::Whitespace, pos, nextCharPos - pos});
+								tokens.push_back(
+									{TokenType::Whitespace, pos, nextCharPos - pos});
 							}
 							// Update position and switch state
 							pos = nextCharPos;
@@ -207,10 +211,10 @@ class Lexer
 
 			case LexerState::IN_RETURN_BLOCK: {
 				// lexReturnBlock consumes the entire block in one go
-				currentToken =
-					lexReturnBlock(code,
-								   pos,
-								   stateStack); // stateStack is popped inside lexReturnBlock
+				currentToken = lexReturnBlock(
+					code,
+					pos,
+					stateStack); // stateStack is popped inside lexReturnBlock
 				if (currentToken.length > 0)
 				{
 					tokens.push_back(currentToken);
@@ -231,9 +235,10 @@ class Lexer
 			}
 
 			case LexerState::TEMPLATE_LITERAL: {
-				currentToken = lexTemplateLiteral(code,
-												  pos,
-												  stateStack); // Handles state changes internally
+				currentToken =
+					lexTemplateLiteral(code,
+									   pos,
+									   stateStack); // Handles state changes internally
 				if (currentToken.length > 0)
 				{
 					tokens.push_back(currentToken);
@@ -272,7 +277,8 @@ class Lexer
 			// Max iteration check
 			if (iterations >= maxIterations)
 			{
-				std::cerr << "Error: JSX Tokenizer exceeded maximum iterations." << std::endl;
+				std::cerr << "Error: JSX Tokenizer exceeded maximum iterations."
+						  << std::endl;
 				if (pos < codeLen)
 				{
 					tokens.push_back({TokenType::Unknown, pos, codeLen - pos});
@@ -285,7 +291,8 @@ class Lexer
 	}
 
 	// --- applyHighlighting (unchanged, uses tokenize) ---
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{ /* ... unchanged ... */
 		if (colors.size() < code.length())
 		{
@@ -338,7 +345,8 @@ class Lexer
 		if (!colorsNeedUpdate)
 			return;
 		auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
-		auto loadColor = [&theme](const char *key, ImVec4 defaultColor = {1, 1, 1, 1}) -> ImVec4 {
+		auto loadColor = [&theme](const char *key,
+								  ImVec4 defaultColor = {1, 1, 1, 1}) -> ImVec4 {
 			try
 			{
 				if (theme.contains(key) && theme[key].is_array() && theme[key].size() >= 4)
@@ -370,10 +378,19 @@ class Lexer
 		colorsNeedUpdate = false;
 	}
 	// --- Character Checks (unchanged) ---
-	bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isWhitespace(char c) const
+	{
+		return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+	}
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
-	bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_' || c == '$'; }
+	bool isAlphaNumeric(char c) const
+	{
+		return isAlpha(c) || isDigit(c) || c == '_' || c == '$';
+	}
 
 	// --- Basic Lexing Helpers (unchanged) ---
 	Token lexSingleLineComment(const std::string &code, size_t &pos)
@@ -432,12 +449,14 @@ class Lexer
 		}
 		while (pos < code.length() && (isAlphaNumeric(code[pos]) || code[pos] == '.'))
 		{
-			if (code[pos] == '.' && code.substr(start, pos - start).find('.') != std::string::npos)
+			if (code[pos] == '.' &&
+				code.substr(start, pos - start).find('.') != std::string::npos)
 				break;
 			if (!isDigit(code[pos]) && code[pos] != '.' &&
 				!((code[pos] >= 'a' && code[pos] <= 'f') ||
-				  (code[pos] >= 'A' && code[pos] <= 'F') || code[pos] == 'x' || code[pos] == 'X' ||
-				  code[pos] == 'b' || code[pos] == 'B' || code[pos] == 'o' || code[pos] == 'O'))
+				  (code[pos] >= 'A' && code[pos] <= 'F') || code[pos] == 'x' ||
+				  code[pos] == 'X' || code[pos] == 'b' || code[pos] == 'B' ||
+				  code[pos] == 'o' || code[pos] == 'O'))
 				break;
 			pos++;
 		}
@@ -590,7 +609,9 @@ class Lexer
 					// Pop the actual JS state we just put back, the caller
 					// (lexTemplateLiteral) manages the actual pop later
 					stateStack.pop();
-					return {TokenType::TemplateExprEnd, start, 1}; // Return specific token
+					return {TokenType::TemplateExprEnd,
+							start,
+							1}; // Return specific token
 				}
 			}
 			// If not closing a template expr, it's a standard JS brace
@@ -609,7 +630,9 @@ class Lexer
 	// ========================================================================
 	// LEX RETURN BLOCK - Rewritten Logic
 	// ========================================================================
-	Token lexReturnBlock(const std::string &code, size_t &pos, std::stack<LexerState> &stateStack)
+	Token lexReturnBlock(const std::string &code,
+						 size_t &pos,
+						 std::stack<LexerState> &stateStack)
 	{
 		size_t block_start = pos; // Position of the '(', '{', or '<'
 
@@ -715,7 +738,8 @@ class Lexer
 				{
 					if (code[pos] == '\\' && pos + 1 < code.length())
 						pos += 2;
-					else if (code[pos] == '$' && pos + 1 < code.length() && code[pos + 1] == '{')
+					else if (code[pos] == '$' && pos + 1 < code.length() &&
+							 code[pos + 1] == '{')
 					{
 						pos += 2;
 						int templ_balance = 1;
@@ -843,8 +867,9 @@ class Lexer
 	}
 
 	// Lex inside a template literal `...` (Handles state changes correctly)
-	Token
-	lexTemplateLiteral(const std::string &code, size_t &pos, std::stack<LexerState> &stateStack)
+	Token lexTemplateLiteral(const std::string &code,
+							 size_t &pos,
+							 std::stack<LexerState> &stateStack)
 	{
 		size_t start = pos;
 		while (pos < code.length())
@@ -884,11 +909,14 @@ class Lexer
 					// End of literal right away (empty literal `` or just
 					// processed ${...})
 					pos++;
-					if (!stateStack.empty() && stateStack.top() == LexerState::TEMPLATE_LITERAL)
+					if (!stateStack.empty() &&
+						stateStack.top() == LexerState::TEMPLATE_LITERAL)
 					{
 						stateStack.pop(); // Exit TEMPLATE_LITERAL state
 					}
-					return {TokenType::TemplateString, start, 1}; // Token for the closing '`'
+					return {TokenType::TemplateString,
+							start,
+							1}; // Token for the closing '`'
 				}
 			} else
 			{

@@ -27,14 +27,14 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 
 	if (!gLSPManager.selectAdapterForFile(filePath))
 	{
-		std::cout << "\033[31mLSP FindRef:\033[0m No LSP adapter available for file: " << filePath
-				  << std::endl;
+		std::cout << "\033[31mLSP FindRef:\033[0m No LSP adapter available for file: "
+				  << filePath << std::endl;
 		return false;
 	}
 
 	int requestId = getNextRequestId();
-	std::cout << "\033[35mLSP FindRef:\033[0m Requesting references at line " << line << ", char "
-			  << character << " (ID: " << requestId << ")" << std::endl;
+	std::cout << "\033[35mLSP FindRef:\033[0m Requesting references at line " << line
+			  << ", char " << character << " (ID: " << requestId << ")" << std::endl;
 
 	std::string request = std::string(R"({
         "jsonrpc": "2.0",
@@ -76,7 +76,8 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 
 		if (response.empty())
 		{
-			std::cout << "\033[31mLSP FindRef:\033[0m Empty response received" << std::endl;
+			std::cout << "\033[31mLSP FindRef:\033[0m Empty response received"
+					  << std::endl;
 			if (attempt == MAX_ATTEMPTS - 1)
 			{
 				std::cout << "\033[31mLSP FindRef:\033[0m Timeout waiting for "
@@ -95,7 +96,8 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 
 			if (response.find("\"result\":[") != std::string::npos)
 			{
-				std::cout << "\033[32mLSP FindRef:\033[0m Found result array." << std::endl;
+				std::cout << "\033[32mLSP FindRef:\033[0m Found result array."
+						  << std::endl;
 				parseReferenceResponse(response); // Parse the array
 				return true;
 			} else if (response.find("\"result\":null") != std::string::npos)
@@ -139,7 +141,7 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 			  << response << "\n<<<<<<<<<<\n"
 			  << std::endl;
 
-	referenceLocations.clear(); 
+	referenceLocations.clear();
 	try
 	{
 		json j = json::parse(response);
@@ -166,7 +168,7 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 
 				std::string uri = "";
 				int startLine = -1, startChar = -1;
-				int endLine = -1, endChar = -1; 
+				int endLine = -1, endChar = -1;
 				// --- 5. Extract "uri" ---
 				if (loc_json.contains("uri") && loc_json["uri"].is_string())
 				{
@@ -184,7 +186,7 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 					std::cout << "\033[33mLSP FindRef Parse:\033[0m Missing or "
 								 "invalid 'uri' in location object."
 							  << std::endl;
-					continue; 
+					continue;
 				}
 
 				if (loc_json.contains("range") && loc_json["range"].is_object())
@@ -220,26 +222,24 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 				{
 					std::cout << "\033[32mLSP FindRef Parse:\033[0m "
 								 "Successfully Parsed: "
-							  << uri << " [Line: " << startLine + 1 << " Char: " << startChar + 1
-							  << "]" << std::endl;
-					referenceLocations.push_back({uri, startLine, startChar, endLine, endChar});
+							  << uri << " [Line: " << startLine + 1
+							  << " Char: " << startChar + 1 << "]" << std::endl;
+					referenceLocations.push_back(
+						{uri, startLine, startChar, endLine, endChar});
 				} else
 				{
 					std::cout << "\033[33mLSP FindRef Parse:\033[0m Failed to "
 								 "extract complete location info for object. URI:'"
-							  << uri << "', StartLine:" << startLine << ", StartChar:" << startChar
-							  << std::endl;
+							  << uri << "', StartLine:" << startLine
+							  << ", StartChar:" << startChar << std::endl;
 				}
-
-			} 
-		}
-		else if (j.contains("result") && j["result"].is_null())
+			}
+		} else if (j.contains("result") && j["result"].is_null())
 		{
 			std::cout << "\033[32mLSP FindRef Parse:\033[0m 'result' is null. "
 						 "No references found."
 					  << std::endl;
-		}
-		else
+		} else
 		{
 			std::cout << "\033[31mLSP FindRef Parse:\033[0m Response missing "
 						 "'result' array or it's not an array."
@@ -247,14 +247,16 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 		}
 	} catch (json::parse_error &e)
 	{
-		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON parsing error: " << e.what() << '\n'
+		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON parsing error: " << e.what()
+				  << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		referenceLocations.clear(); // Ensure list is empty on error
 		showReferenceOptions = false;
 		return; // Stop processing on parse error
 	} catch (json::exception &e)
 	{
-		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON exception: " << e.what() << '\n'
+		std::cerr << "\033[31mLSP FindRef Parse:\033[0m JSON exception: " << e.what()
+				  << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		referenceLocations.clear();
 		showReferenceOptions = false;
@@ -314,22 +316,23 @@ void LSPGotoRef::renderReferenceOptions()
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-								   ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_NoMouseInputs;
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_NoMouseInputs;
 
 	// Style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
-	
 
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-		   1.0f));
-
+	ImGui::PushStyleColor(
+		ImGuiCol_WindowBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
@@ -353,8 +356,7 @@ void LSPGotoRef::renderReferenceOptions()
 			{
 				showReferenceOptions = false;
 				editor_state.block_input = false;
-			}
-			else
+			} else
 			{
 				showReferenceOptions = false;
 				editor_state.block_input = false;
@@ -370,14 +372,13 @@ void LSPGotoRef::renderReferenceOptions()
 
 		// Fixed header
 		ImGui::BeginChild("##Header", ImVec2(0, titleHeight), false);
-		ImGui::Text(
-						   "Find References (%zu)",
-						   referenceLocations.size());
+		ImGui::Text("Find References (%zu)", referenceLocations.size());
 		ImGui::Separator();
 		ImGui::EndChild();
 
 		// Scrollable content area
-		float contentAvailableHeight = windowSize.y - titleHeight - footerHeight - padding * 2;
+		float contentAvailableHeight =
+			windowSize.y - titleHeight - footerHeight - padding * 2;
 		ImGui::BeginChild("##ContentScroll",
 						  ImVec2(0, contentAvailableHeight),
 						  false,
@@ -397,7 +398,8 @@ void LSPGotoRef::renderReferenceOptions()
 			}
 			if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
 			{
-				selectedReferenceIndex = (selectedReferenceIndex + 1) % referenceLocations.size();
+				selectedReferenceIndex =
+					(selectedReferenceIndex + 1) % referenceLocations.size();
 				ImGui::SetScrollHereY(1.0f);
 			}
 		}
@@ -430,8 +432,8 @@ void LSPGotoRef::renderReferenceOptions()
 				}
 			}
 
-			if (is_selected &&
-				(ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
+			if (is_selected && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+								ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
 			{
 				ImGui::SetScrollHereY();
 			}
@@ -450,7 +452,8 @@ void LSPGotoRef::renderReferenceOptions()
 		ImGui::EndChild();
 
 		// Handle Enter key
-		if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
+		if (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+			ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 		{
 			handleReferenceSelection();
 		}
@@ -481,8 +484,8 @@ void LSPGotoRef::handleReferenceSelection()
 		return;
 
 	const auto &selected = referenceLocations[selectedReferenceIndex];
-	std::cout << "Selected reference at " << selected.uri << " line " << (selected.startLine + 1)
-			  << std::endl;
+	std::cout << "Selected reference at " << selected.uri << " line "
+			  << (selected.startLine + 1) << std::endl;
 	std::cout << "Input Block... " << editor_state.block_input << std::endl;
 
 	// Close window first
@@ -495,7 +498,8 @@ void LSPGotoRef::handleReferenceSelection()
 			gEditorScroll.pending_cursor_line = selected.startLine;
 			gEditorScroll.pending_cursor_char = selected.startChar;
 		});
-	} else {
+	} else
+	{
 		int index = 0;
 		int currentLine = 0;
 		const std::string &content = editor_state.fileContent;

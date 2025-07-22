@@ -12,12 +12,12 @@
 #include <chrono>
 #include <string>
 
+#include "ai/ai_agent.h"
 #include "editor/editor.h"
 #include "editor/editor_bookmarks.h"
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader.h"
-#include "ai/ai_agent.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -74,7 +74,8 @@ class Ned
 	// Constants
 	static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
 	static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
-	static constexpr double TARGET_FPS = 120.0; // Fallback value, actual FPS target comes from settings
+	static constexpr double TARGET_FPS =
+		120.0; // Fallback value, actual FPS target comes from settings
 
 	// Core functions
 	bool initializeGraphics();
@@ -136,8 +137,6 @@ class Ned
 	ImVec2 dragStart;
 	ImVec2 initialWindowSize;
 
-
-
 	int m_sroLastWidth;
 	int m_sroLastHeight;
 	double m_sroStartTime;
@@ -145,13 +144,13 @@ class Ned
 	// Declaration for the single overlay function
 	void handleUltraSimpleResizeOverlay(); // Renamed for clarity
 	float lastOpacity = 0.5f;
-    bool lastBlurEnabled = false;
-	        
+	bool lastBlurEnabled = false;
+
 	// Removed gAIAgent member variable - using global instance instead
-	
+
 	// On-demand rendering flags
-	bool m_needsRedraw = true; // Start true to draw the first frame
-	int m_framesToRender = 0; // Number of frames to render for smooth interactions
+	bool m_needsRedraw = true;		 // Start true to draw the first frame
+	int m_framesToRender = 0;		 // Number of frames to render for smooth interactions
 	double m_lastActivityTime = 0.0; // Track when we last had activity
 };
 
@@ -160,5 +159,3 @@ extern Bookmarks gBookmarks;
 extern bool shader_toggle;
 extern bool showSidebar;
 extern bool showAgentPane;
-
-

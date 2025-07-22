@@ -273,7 +273,8 @@ class Lexer
 		std::vector<Token> tokens;
 		size_t pos = 0;
 		size_t lastPos = 0;
-		size_t maxIterations = code.length() * 4; // Increased slightly due to state complexity
+		size_t maxIterations =
+			code.length() * 4; // Increased slightly due to state complexity
 		size_t iterations = 0;
 
 		// Reset state for each tokenization pass
@@ -312,8 +313,8 @@ class Lexer
 							tokens.push_back(lexRegexLiteral(code, pos));
 						} else
 						{ // Assume division operator
-							tokens.push_back(
-								lexOperatorOrPunctuation(code, pos)); // Use the unified function
+							tokens.push_back(lexOperatorOrPunctuation(
+								code, pos)); // Use the unified function
 						}
 					} else if (current_char == '`')
 					{
@@ -321,7 +322,8 @@ class Lexer
 					} else if (current_char == '"' || current_char == '\'')
 					{
 						tokens.push_back(lexString(code, pos));
-					} else if (isAlpha(current_char) || current_char == '_' || current_char == '$')
+					} else if (isAlpha(current_char) || current_char == '_' ||
+							   current_char == '$')
 					{ // Identifiers can start with $, _
 						tokens.push_back(lexIdentifierKeywordOrType(code, pos, tokens));
 					} else if (isDigit(current_char) ||
@@ -367,10 +369,11 @@ class Lexer
 								// highlighting purposes Need a specific
 								// lexer or adapt multi-line? For now, let's
 								// treat it as unknown or handle simply
-								tokens.push_back(lexHtmlComment(code,
-																pos)); // Need to add lexHtmlComment
-																	   // helper
-								continue; // Skip rest of loop iteration
+								tokens.push_back(
+									lexHtmlComment(code,
+												   pos)); // Need to add lexHtmlComment
+														  // helper
+								continue;				  // Skip rest of loop iteration
 							}
 
 							// Context check: Is '<' acting as JSX start or
@@ -381,10 +384,10 @@ class Lexer
 							if (lastTokenIdx != -1)
 							{
 								const auto &prevToken = tokens[lastTokenIdx];
-								char prevChar =
-									(prevToken.length > 0 && prevToken.start < code.length())
-										? code[prevToken.start]
-										: '\0';
+								char prevChar = (prevToken.length > 0 &&
+												 prevToken.start < code.length())
+													? code[prevToken.start]
+													: '\0';
 
 								// Contexts expecting JSX
 								if (prevToken.type == TokenType::Keyword)
@@ -412,7 +415,8 @@ class Lexer
 								}
 								// Add check for JSX directly inside braces
 								// (e.g. array map)
-								else if (prevToken.type == TokenType::Brace && prevChar == '{')
+								else if (prevToken.type == TokenType::Brace &&
+										 prevChar == '{')
 								{
 									// If the opening brace didn't come
 									// from JSX itself, it might start
@@ -437,16 +441,22 @@ class Lexer
 									prevToken.type == TokenType::String ||
 									prevToken.type == TokenType::TemplateLiteral ||
 									prevToken.type == TokenType::RegexLiteral ||
-									(prevToken.type == TokenType::Parenthesis && prevChar == ')') ||
-									(prevToken.type == TokenType::Bracket && prevChar == ']') ||
-									(prevToken.type == TokenType::Brace && prevChar == '}') ||
+									(prevToken.type == TokenType::Parenthesis &&
+									 prevChar == ')') ||
+									(prevToken.type == TokenType::Bracket &&
+									 prevChar == ']') ||
+									(prevToken.type == TokenType::Brace &&
+									 prevChar == '}') ||
 									(prevToken.type == TokenType::Keyword &&
-									 (code.substr(prevToken.start, prevToken.length) == "type" ||
+									 (code.substr(prevToken.start, prevToken.length) ==
+										  "type" ||
 									  code.substr(prevToken.start, prevToken.length) ==
 										  "interface")) ||
 									(prevToken.type == TokenType::Operator &&
-									 (code.substr(prevToken.start, prevToken.length) == "++" ||
-									  code.substr(prevToken.start, prevToken.length) == "--")))
+									 (code.substr(prevToken.start, prevToken.length) ==
+										  "++" ||
+									  code.substr(prevToken.start, prevToken.length) ==
+										  "--")))
 								{
 									isJsxContext = false;
 								}
@@ -463,7 +473,8 @@ class Lexer
 							{
 								// --- Enter JSX Mode ---
 								currentState = LexerState::InJsxTag;
-								tokens.push_back({TokenType::JsxTag, pos, 1}); // Tokenize '<'
+								tokens.push_back(
+									{TokenType::JsxTag, pos, 1}); // Tokenize '<'
 								pos++;
 
 								if (pos < code.length())
@@ -508,8 +519,8 @@ class Lexer
 						size_t start = pos;
 						// Include dot for member components
 						while (pos < code.length() &&
-							   (isAlphaNumeric(code[pos]) || code[pos] == '-' || code[pos] == ':' ||
-								code[pos] == '.'))
+							   (isAlphaNumeric(code[pos]) || code[pos] == '-' ||
+								code[pos] == ':' || code[pos] == '.'))
 						{
 							pos++;
 						}
@@ -520,7 +531,8 @@ class Lexer
 						{
 							const auto &prevToken = tokens[lastNonWsIdx];
 							if (prevToken.type == TokenType::JsxTag &&
-								(code[prevToken.start] == '<' || code[prevToken.start] == '/'))
+								(code[prevToken.start] == '<' ||
+								 code[prevToken.start] == '/'))
 							{
 								determinedType = TokenType::JsxTagName;
 							}
@@ -538,14 +550,16 @@ class Lexer
 					} else if (current_char == '{')
 					{ // Start of embedded expression
 						tokens.push_back({TokenType::Brace, pos++, 1});
-						stateStack.push(LexerState::InJsxTag); // <<< PUSH originating state
-						currentState = LexerState::Default;	   // Switch back to parse
-															   // TS expression
+						stateStack.push(
+							LexerState::InJsxTag);			// <<< PUSH originating state
+						currentState = LexerState::Default; // Switch back to parse
+															// TS expression
 					} else if (current_char == '/')
 					{ // Potential self-closing tag />
 						if (pos + 1 < code.length() && code[pos + 1] == '>')
 						{
-							tokens.push_back({TokenType::JsxTag, pos, 2}); // Tokenize '/>'
+							tokens.push_back(
+								{TokenType::JsxTag, pos, 2}); // Tokenize '/>'
 							pos += 2;
 							// Finished tag, return to previous context (could
 							// be Content or Default)
@@ -562,13 +576,15 @@ class Lexer
 							}
 						} else
 						{
-							tokens.push_back(
-								{TokenType::Unknown, pos++, 1}); // Treat '/' alone as unknown here
+							tokens.push_back({TokenType::Unknown,
+											  pos++,
+											  1}); // Treat '/' alone as unknown here
 						}
 					} else if (current_char == '>')
 					{ // End of opening tag >
 						tokens.push_back({TokenType::JsxTag, pos++, 1});
-						currentState = LexerState::InJsxContent; // Move to content parsing
+						currentState =
+							LexerState::InJsxContent; // Move to content parsing
 					} else
 					{
 						tokens.push_back({TokenType::Unknown, pos++, 1});
@@ -581,7 +597,8 @@ class Lexer
 					// --- Parsing Between JSX Tags >...< ---
 					if (current_char == '<')
 					{ // Start of a new tag or closing tag
-						if (pos + 2 < code.length() && code[pos + 1] == '/' && code[pos + 2] == '>')
+						if (pos + 2 < code.length() && code[pos + 1] == '/' &&
+							code[pos + 2] == '>')
 						{ // Closing fragment </>
 							tokens.push_back({TokenType::JsxTag, pos, 3});
 							pos += 3;
@@ -604,31 +621,36 @@ class Lexer
 							// Stay in InJsxContent after comment
 						} else
 						{ // Start of opening/closing tag
-							tokens.push_back({TokenType::JsxTag, pos++, 1}); // Tokenize '<'
+							tokens.push_back(
+								{TokenType::JsxTag, pos++, 1}); // Tokenize '<'
 							currentState = LexerState::InJsxTag;
-							stateStack.push(LexerState::InJsxContent); // <<< PUSH
-																	   // originating state
-																	   // (before entering
-																	   // new tag)
+							stateStack.push(
+								LexerState::InJsxContent); // <<< PUSH
+														   // originating state
+														   // (before entering
+														   // new tag)
 							if (pos < code.length() && code[pos] == '/')
 							{ // Handle closing tag </ immediately
-								tokens.push_back({TokenType::JsxTag, pos++, 1}); // Tokenize '/'
+								tokens.push_back(
+									{TokenType::JsxTag, pos++, 1}); // Tokenize '/'
 							}
 						}
 					} else if (current_char == '{')
 					{ // Start of embedded expression or JSX
 						// comment
-						if (pos + 3 < code.length() && code[pos + 1] == '/' && code[pos + 2] == '*')
+						if (pos + 3 < code.length() && code[pos + 1] == '/' &&
+							code[pos + 2] == '*')
 						{
 							tokens.push_back(lexJsxComment(code, pos));
 							// Stay in InJsxContent after JSX comment
 						} else
 						{
 							tokens.push_back({TokenType::Brace, pos++, 1});
-							stateStack.push(LexerState::InJsxContent); // <<< PUSH
-																	   // originating state
-							currentState = LexerState::Default;		   // Switch to parse TS
-																	   // expression
+							stateStack.push(
+								LexerState::InJsxContent);		// <<< PUSH
+																// originating state
+							currentState = LexerState::Default; // Switch to parse TS
+																// expression
 						}
 					} else
 					{ // Treat as JsxText (anything not < or {)
@@ -672,7 +694,8 @@ class Lexer
 		return tokens;
 	}
 
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		// std::cout << "Entering TSX applyHighlighting, code length: " <<
 		// code.length() << ", colors size: " << colors.size() << ", start_pos:
@@ -721,13 +744,16 @@ class Lexer
 			// colorChanges << " color values" << std::endl;
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Exception in TSX applyHighlighting: " << e.what() << std::endl;
+			std::cerr << "🔴 Exception in TSX applyHighlighting: " << e.what()
+					  << std::endl;
 			if (!colorsNeedUpdate)
 			{ // <<< CORRECTED VARIABLE NAME
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			} else
 			{
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 			}
 		} catch (...)
 		{
@@ -737,7 +763,9 @@ class Lexer
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			} else
 			{
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 			}
 		}
 	}
@@ -794,7 +822,8 @@ class Lexer
 				} catch (const nlohmann::json::exception &e)
 				{
 					std::cerr << "Error loading theme color '" << key
-							  << "' (JSON error): " << e.what() << ". Using default." << std::endl;
+							  << "' (JSON error): " << e.what() << ". Using default."
+							  << std::endl;
 				} catch (const std::exception &e)
 				{
 					std::cerr << "Error loading theme color '" << key << "': " << e.what()
@@ -815,7 +844,8 @@ class Lexer
 			cachedColors.jsxAttribute = loadColor("jsx_attribute", cachedColors.text);
 			cachedColors.jsxText = loadColor("jsx_text", cachedColors.text);
 			cachedColors.operatorColor = loadColor("operator", cachedColors.text);
-			cachedColors.templateLiteral = loadColor("template_literal", cachedColors.string);
+			cachedColors.templateLiteral =
+				loadColor("template_literal", cachedColors.string);
 			cachedColors.regexLiteral = loadColor("regex_literal", cachedColors.string);
 			colorsNeedUpdate = false;
 		} catch (const std::exception &e)
@@ -825,10 +855,19 @@ class Lexer
 	}
 
 	// --- Basic Character Checks ---
-	bool isWhitespace(char c) const { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isWhitespace(char c) const
+	{
+		return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+	}
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
-	bool isAlphaNumeric(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; } // Allow _
+	bool isAlphaNumeric(char c) const
+	{
+		return isAlpha(c) || isDigit(c) || c == '_';
+	} // Allow _
 	bool isHexDigit(char c) const
 	{
 		return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -1039,7 +1078,9 @@ class Lexer
 		return {TokenType::Number, start, pos - start};
 	}
 
-	bool isRegexStart(const std::string &code, size_t pos, const std::vector<Token> &tokens) const
+	bool isRegexStart(const std::string &code,
+					  size_t pos,
+					  const std::vector<Token> &tokens) const
 	{
 		if (pos == 0)
 			return false;
@@ -1053,7 +1094,8 @@ class Lexer
 							: '\0';
 
 		// Contexts likely DIVISION
-		if (prevToken.type == TokenType::Identifier || prevToken.type == TokenType::Number ||
+		if (prevToken.type == TokenType::Identifier ||
+			prevToken.type == TokenType::Number ||
 			(prevToken.type == TokenType::Parenthesis && prevChar == ')') ||
 			(prevToken.type == TokenType::Bracket && prevChar == ']') ||
 			(prevToken.type == TokenType::Brace && prevChar == '}') ||
@@ -1068,14 +1110,16 @@ class Lexer
 		if (prevToken.type == TokenType::Keyword)
 		{
 			std::string kw = code.substr(prevToken.start, prevToken.length);
-			if (kw == "return" || kw == "yield" || kw == "case" || kw == "throw" || kw == "new" ||
-				kw == "await" || kw == "delete" || kw == "typeof" || kw == "void")
+			if (kw == "return" || kw == "yield" || kw == "case" || kw == "throw" ||
+				kw == "new" || kw == "await" || kw == "delete" || kw == "typeof" ||
+				kw == "void")
 				return true;
 		}
 		if ((prevToken.type == TokenType::Parenthesis && prevChar == '(') ||
 			(prevToken.type == TokenType::Bracket && prevChar == '[') ||
 			(prevToken.type == TokenType::Brace && prevChar == '{') ||
-			(prevToken.type == TokenType::Comma) || (prevToken.type == TokenType::Colon) ||
+			(prevToken.type == TokenType::Comma) ||
+			(prevToken.type == TokenType::Colon) ||
 			(prevToken.type == TokenType::Semicolon))
 		{
 			return true;
@@ -1163,14 +1207,15 @@ class Lexer
 		// 1. Keywords
 		if (keywords.count(word))
 		{
-			if (word == "class" || word == "interface" || word == "enum" || word == "type" ||
-				word == "namespace")
+			if (word == "class" || word == "interface" || word == "enum" ||
+				word == "type" || word == "namespace")
 			{
 				size_t namePos = pos;
 				while (namePos < code.length() && isWhitespace(code[namePos]))
 					namePos++;
 				if (namePos < code.length() &&
-					(isAlpha(code[namePos]) || code[namePos] == '_' || code[namePos] == '$'))
+					(isAlpha(code[namePos]) || code[namePos] == '_' ||
+					 code[namePos] == '$'))
 					return {TokenType::Keyword, start, pos - start};
 			} else
 				return {TokenType::Keyword, start, pos - start};
@@ -1194,8 +1239,8 @@ class Lexer
 				prevWord = code.substr(prevToken.start, prevToken.length);
 			if (prevToken.type == TokenType::Keyword)
 			{
-				if (prevWord == "class" || prevWord == "interface" || prevWord == "enum" ||
-					prevWord == "namespace")
+				if (prevWord == "class" || prevWord == "interface" ||
+					prevWord == "enum" || prevWord == "namespace")
 					inferredType = TokenType::ClassName;
 				else if (prevWord == "type")
 					inferredType = TokenType::Type;
@@ -1226,8 +1271,8 @@ class Lexer
 		}
 
 		// Final Uppercase Check
-		if (inferredType == TokenType::Identifier && word.length() > 0 && isAlpha(word[0]) &&
-			isupper(word[0]))
+		if (inferredType == TokenType::Identifier && word.length() > 0 &&
+			isAlpha(word[0]) && isupper(word[0]))
 			inferredType = TokenType::Type;
 		return {inferredType, start, pos - start};
 	}
@@ -1313,7 +1358,9 @@ class Lexer
 				onlyWhitespace = false;
 				break;
 			}
-		return {onlyWhitespace ? TokenType::Whitespace : TokenType::JsxText, start, pos - start};
+		return {onlyWhitespace ? TokenType::Whitespace : TokenType::JsxText,
+				start,
+				pos - start};
 	}
 
 	ImVec4 getColorForTokenType(TokenType type) const
