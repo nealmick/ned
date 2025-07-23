@@ -565,14 +565,40 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	int cellY =
 		static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
 
+	// Debug raw coordinates
+	std::cout << "Raw mouse: cellX=" << cellX << " cellY=" << cellY << std::endl;
+
 	cellX = std::clamp(cellX, 0, state.col - 1);
-	cellY = std::clamp(cellY, 0, state.row - 1);
+
+	// Account for scrollback offset when not in alt screen
+	if (!(state.mode & MODE_ALTSCREEN))
+	{
+		ImVec2 contentSize = ImGui::GetContentRegionAvail();
+		int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+		int totalLines = scrollbackBuffer.size() + state.row;
+		int maxScroll = std::max(0, totalLines - visibleRows);
+		scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+		int startLine = std::max(0, totalLines - visibleRows - scrollOffset);
+
+		// Convert visible Y coordinate to actual buffer coordinate
+		int actualY = startLine + cellY;
+
+		// Convert to selection coordinate system (relative to scrollback buffer)
+		cellY = actualY - scrollbackBuffer.size();
+
+	} else
+	{
+		// In alt screen, clamp to current screen
+		cellY = std::clamp(cellY, 0, state.row - 1);
+	}
 
 	static ImVec2 clickStartPos{0, 0};
 
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
 		clickStartPos = mousePos;
+		std::cout << "Selection start: cellX=" << cellX << " cellY=" << cellY
+				  << std::endl;
 		selectionStart(cellX, cellY);
 	} else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 	{
@@ -581,6 +607,12 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 
 		if (dragDistance > DRAG_THRESHOLD)
 		{
+			// Debug output for selection extension
+			if (cellY < 0)
+			{
+				std::cout << "Selection extend: cellX=" << cellX << " cellY=" << cellY
+						  << std::endl;
+			}
 			selectionExtend(cellX, cellY);
 		}
 	} else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
@@ -964,11 +996,15 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	for (int y = startY; y < endY; y++)
 	{
 		int screenY = y - screenOffset;
+		// Handle both current screen and scrollback lines
 		if (screenY >= 0 && screenY < state.row)
 		{
+			// Current screen line
 			for (int x = 0; x < state.col; x++)
 			{
-				if (selectedText(x, screenY))
+				// Convert visible coordinate to selection coordinate system
+				int selectionY = screenOffset + screenY - scrollbackBuffer.size();
+				if (selectedText(x, selectionY))
 				{
 					ImVec2 highlightPos(pos.x + x * charWidth,
 										pos.y + (y - startY) * lineHeight);
@@ -976,6 +1012,28 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 						highlightPos,
 						ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
 						ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
+				}
+			}
+		} else if (screenY < 0)
+		{
+			// Scrollback line - render it if it's visible
+			int scrollbackIndex = -screenY - 1;
+			if (scrollbackIndex >= 0 && scrollbackIndex < scrollbackBuffer.size())
+			{
+				for (int x = 0; x < state.col; x++)
+				{
+					// Convert visible coordinate to selection coordinate system
+					int selectionY = screenOffset + screenY - scrollbackBuffer.size();
+					if (selectedText(x, selectionY))
+					{
+						ImVec2 highlightPos(pos.x + x * charWidth,
+											pos.y + (y - startY) * lineHeight);
+						drawList->AddRectFilled(highlightPos,
+												ImVec2(highlightPos.x + charWidth,
+													   highlightPos.y + lineHeight),
+												ImGui::ColorConvertFloat4ToU32(
+													ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
+					}
 				}
 			}
 		}
@@ -2747,6 +2805,14 @@ void Terminal::selectionExtend(int col, int row)
 
 	sel.oe.x = col;
 	sel.oe.y = row;
+
+	// Debug output for selection extension
+	if (row < 0)
+	{
+		std::cout << "selectionExtend: col=" << col << " row=" << row
+				  << " sel.ob.y=" << sel.ob.y << " sel.oe.y=" << sel.oe.y << std::endl;
+	}
+
 	selectionNormalize();
 }
 
@@ -2765,11 +2831,12 @@ void Terminal::selectionNormalize()
 	sel.nb.y = std::min(sel.ob.y, sel.oe.y);
 	sel.ne.y = std::max(sel.ob.y, sel.oe.y);
 
-	// Clamp coordinates to terminal dimensions
-	sel.nb.y = std::clamp(sel.nb.y, 0, state.row - 1);
-	sel.ne.y = std::clamp(sel.ne.y, 0, state.row - 1);
+	// Clamp X coordinates to terminal dimensions
 	sel.nb.x = std::clamp(sel.nb.x, 0, state.col - 1);
 	sel.ne.x = std::clamp(sel.ne.x, 0, state.col - 1);
+
+	// Don't clamp Y coordinates to allow scrollback selection
+	// Y coordinates can be negative for scrollback lines
 }
 
 void Terminal::selectionClear()
@@ -2785,31 +2852,50 @@ std::string Terminal::getSelection()
 	if (sel.ob.x == -1)
 		return str;
 
-	for (int y = sel.nb.y; y <= sel.ne.y; y++)
+	// Convert selection coordinates to absolute buffer positions
+	int selStartY = scrollbackBuffer.size() + sel.nb.y;
+	int selEndY = scrollbackBuffer.size() + sel.ne.y;
+
+	for (int absY = selStartY; absY <= selEndY; absY++)
 	{
-		// Bounds check for y
-		if (y < 0 || y >= state.lines.size())
+		const std::vector<Glyph> *line = nullptr;
+
+		// Determine which buffer this line is in
+		if (absY < scrollbackBuffer.size())
+		{
+			// Line is in scrollback buffer
+			line = &scrollbackBuffer[absY];
+		} else
+		{
+			// Line is in current screen buffer
+			int screenY = absY - scrollbackBuffer.size();
+			if (screenY >= 0 && screenY < state.lines.size())
+			{
+				line = &state.lines[screenY];
+			}
+		}
+
+		if (!line)
 			continue;
 
-		const auto &line = state.lines[y];
-		int xstart = (y == sel.nb.y) ? sel.nb.x : 0;
-		int xend = (y == sel.ne.y) ? sel.ne.x : state.col - 1;
+		int xstart = (absY == selStartY) ? sel.nb.x : 0;
+		int xend = (absY == selEndY) ? sel.ne.x : state.col - 1;
 
 		// Clamp xstart and xend to line size
-		xstart = std::clamp(xstart, 0, static_cast<int>(line.size()) - 1);
-		xend = std::clamp(xend, 0, static_cast<int>(line.size()) - 1);
+		xstart = std::clamp(xstart, 0, static_cast<int>(line->size()) - 1);
+		xend = std::clamp(xend, 0, static_cast<int>(line->size()) - 1);
 
 		for (int x = xstart; x <= xend; x++)
 		{
-			if (line[x].mode & ATTR_WDUMMY)
+			if ((*line)[x].mode & ATTR_WDUMMY)
 				continue;
 
 			char buf[UTF_SIZ];
-			size_t len = utf8Encode(line[x].u, buf);
+			size_t len = utf8Encode((*line)[x].u, buf);
 			str.append(buf, len);
 		}
 
-		if (y < sel.ne.y)
+		if (absY < selEndY)
 			str += '\n';
 	}
 	return str;
@@ -2853,11 +2939,23 @@ bool Terminal::selectedText(int x, int y)
 	if (sel.mode == SEL_IDLE || sel.ob.x == -1 || sel.alt != (state.mode & MODE_ALTSCREEN))
 		return false;
 
-	if (sel.type == SEL_RECTANGULAR)
-		return BETWEEN(y, sel.nb.y, sel.ne.y) && BETWEEN(x, sel.nb.x, sel.ne.x);
+	// Convert coordinates to absolute buffer positions
+	int actualY = scrollbackBuffer.size() + y;
+	int selStartY = scrollbackBuffer.size() + sel.nb.y;
+	int selEndY = scrollbackBuffer.size() + sel.ne.y;
 
-	return BETWEEN(y, sel.nb.y, sel.ne.y) && (y != sel.nb.y || x >= sel.nb.x) &&
-		   (y != sel.ne.y || x <= sel.ne.x);
+	// Ensure start is less than or equal to end
+	if (selStartY > selEndY)
+	{
+		std::swap(selStartY, selEndY);
+	}
+
+	if (sel.type == SEL_RECTANGULAR)
+		return BETWEEN(actualY, selStartY, selEndY) && BETWEEN(x, sel.nb.x, sel.ne.x);
+
+	return BETWEEN(actualY, selStartY, selEndY) &&
+		   (actualY != selStartY || x >= sel.nb.x) &&
+		   (actualY != selEndY || x <= sel.ne.x);
 }
 
 void Terminal::strparse()
