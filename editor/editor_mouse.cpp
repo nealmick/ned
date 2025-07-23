@@ -1,8 +1,10 @@
 #include "editor_mouse.h"
 #include "../files/files.h"
+#include "../lib/utfcpp/source/utf8.h"
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
 #include "editor.h"
+#include "editor/utf8_utils.h"
 #include "editor_copy_paste.h"
 #include <algorithm>
 #include <iostream>
@@ -128,6 +130,9 @@ void EditorMouse::handleMouseClick(int char_index)
 			pref_cols.push_back(new_preferred_col);
 			editor_state.multi_selections.emplace_back(char_index, char_index);
 		}
+		// Snap all multi-cursors to UTF-8 boundary
+		for (size_t i = 0; i < cursors.size(); ++i)
+			cursors[i] = snapToUtf8CharBoundary(editor_state.fileContent, cursors[i]);
 		std::cout << "Multi-cursors: ";
 		for (int idx : cursors)
 			std::cout << idx << " ";
@@ -155,6 +160,9 @@ void EditorMouse::handleMouseClick(int char_index)
 		// Update the selection end based on the new click.
 		editor_state.selection_end = char_index;
 		editor_state.cursor_index = char_index;
+		// Snap to UTF-8 boundary
+		editor_state.cursor_index =
+			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
 	} else
 	{
 		// On a regular click (without shift), reset the selection and update
@@ -168,6 +176,9 @@ void EditorMouse::handleMouseClick(int char_index)
 		editor_state.cursor_column_prefered =
 			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
 		editor_state.ensure_cursor_visible.horizontal = true;
+		// Snap to UTF-8 boundary
+		editor_state.cursor_index =
+			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
 	}
 	is_dragging = true;
 
@@ -191,6 +202,9 @@ void EditorMouse::handleMouseDrag(int char_index)
 		}
 		editor_state.selection_end = char_index;
 		editor_state.cursor_index = char_index;
+		// Snap to UTF-8 boundary
+		editor_state.cursor_index =
+			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
 	} else
 	{
 		// Normal drag selection without shift: use the initial click as the
@@ -204,6 +218,9 @@ void EditorMouse::handleMouseDrag(int char_index)
 		editor_state.selection_start = anchor_pos;
 		editor_state.selection_end = char_index;
 		editor_state.cursor_index = char_index;
+		// Snap to UTF-8 boundary
+		editor_state.cursor_index =
+			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
 	}
 }
 

@@ -3,11 +3,13 @@
 #include "../editor/editor_git.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#include "../lib/utfcpp/source/utf8.h"
 #include "../lsp/lsp_autocomplete.h"
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
 #include "../lsp/lsp_symbol_info.h"
 #include "editor.h"
+#include "editor/utf8_utils.h"
 #include "editor_bookmarks.h"
 #include "editor_copy_paste.h"
 #include "editor_highlight.h"
@@ -27,6 +29,16 @@
 // Global instance
 EditorKeyboard gEditorKeyboard;
 
+// Helper: Convert index to iterator and back for std::string
+static inline std::string::iterator str_iter_at(std::string &str, int idx)
+{
+	return str.begin() + std::clamp(idx, 0, (int)str.size());
+}
+static inline int str_index_at(const std::string &str, std::string::const_iterator it)
+{
+	return (int)std::distance(str.begin(), it);
+}
+
 EditorKeyboard::EditorKeyboard() {}
 
 void EditorKeyboard::handleBackspaceKey()
@@ -43,8 +55,14 @@ void EditorKeyboard::handleBackspaceKey()
 	{
 		selections_were_active = true;
 		ranges_to_delete.emplace_back(
-			std::min(editor_state.selection_start, editor_state.selection_end),
-			std::max(editor_state.selection_start, editor_state.selection_end));
+			std::min(snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_start),
+					 snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_end)),
+			std::max(snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_start),
+					 snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_end)));
 	}
 
 	for (const auto &ms_range : editor_state.multi_selections)
@@ -53,8 +71,13 @@ void EditorKeyboard::handleBackspaceKey()
 		{
 			selections_were_active = true;
 			ranges_to_delete.emplace_back(
-				std::min(ms_range.start_index, ms_range.end_index),
-				std::max(ms_range.start_index, ms_range.end_index));
+				std::min(
+					snapToUtf8CharBoundary(editor_state.fileContent, ms_range.start_index),
+					snapToUtf8CharBoundary(editor_state.fileContent, ms_range.end_index)),
+				std::max(snapToUtf8CharBoundary(editor_state.fileContent,
+												ms_range.start_index),
+						 snapToUtf8CharBoundary(editor_state.fileContent,
+												ms_range.end_index)));
 		}
 	}
 
@@ -63,34 +86,29 @@ void EditorKeyboard::handleBackspaceKey()
 		std::set<int> unique_cursor_positions_for_backspace;
 		if (editor_state.cursor_index > 0)
 		{
-			unique_cursor_positions_for_backspace.insert(editor_state.cursor_index);
+			unique_cursor_positions_for_backspace.insert(snapToUtf8CharBoundary(
+				editor_state.fileContent, editor_state.cursor_index));
 		}
 		for (int mc_idx : editor_state.multi_cursor_indices)
 		{
 			if (mc_idx > 0)
 			{
-				unique_cursor_positions_for_backspace.insert(mc_idx);
+				unique_cursor_positions_for_backspace.insert(
+					snapToUtf8CharBoundary(editor_state.fileContent, mc_idx));
 			}
 		}
 		for (int pos : unique_cursor_positions_for_backspace)
 		{
 			if (pos > 0)
 			{
-				// Handle UTF-8 characters properly for backspace
-				int start_pos = pos - 1;
-
-				// If we're in the middle of a multi-byte character, find the start
-				if (start_pos < editor_state.fileContent.size() &&
-					(editor_state.fileContent[start_pos] & 0xC0) == 0x80)
+				// Use utfcpp to find the start of the previous UTF-8 character
+				std::string::iterator it = str_iter_at(editor_state.fileContent, pos);
+				std::string::iterator prev = it;
+				if (prev != editor_state.fileContent.begin())
 				{
-					// Find the start of this multi-byte character
-					while (start_pos > 0 &&
-						   (editor_state.fileContent[start_pos] & 0xC0) == 0x80)
-					{
-						start_pos--;
-					}
+					utf8::unchecked::prior(prev);
 				}
-
+				int start_pos = str_index_at(editor_state.fileContent, prev);
 				ranges_to_delete.emplace_back(start_pos, pos);
 			}
 		}
@@ -729,66 +747,66 @@ void EditorKeyboard::handleDeleteKey()
 	{
 		return;
 	}
-
 	std::vector<MultiSelectionRange> ranges_to_delete;
 	bool selections_were_active = false;
-
 	if (editor_state.selection_start != editor_state.selection_end)
 	{
 		selections_were_active = true;
 		ranges_to_delete.emplace_back(
-			std::min(editor_state.selection_start, editor_state.selection_end),
-			std::max(editor_state.selection_start, editor_state.selection_end));
+			std::min(snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_start),
+					 snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_end)),
+			std::max(snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_start),
+					 snapToUtf8CharBoundary(editor_state.fileContent,
+											editor_state.selection_end)));
 	}
-
 	for (const auto &ms_range : editor_state.multi_selections)
 	{
 		if (ms_range.start_index != ms_range.end_index)
 		{
 			selections_were_active = true;
 			ranges_to_delete.emplace_back(
-				std::min(ms_range.start_index, ms_range.end_index),
-				std::max(ms_range.start_index, ms_range.end_index));
+				std::min(
+					snapToUtf8CharBoundary(editor_state.fileContent, ms_range.start_index),
+					snapToUtf8CharBoundary(editor_state.fileContent, ms_range.end_index)),
+				std::max(snapToUtf8CharBoundary(editor_state.fileContent,
+												ms_range.start_index),
+						 snapToUtf8CharBoundary(editor_state.fileContent,
+												ms_range.end_index)));
 		}
 	}
-
 	if (!selections_were_active)
 	{
 		std::set<int> unique_cursor_positions_for_delete;
-		// Primary cursor: can delete if not at the end of the content
 		if (editor_state.cursor_index < static_cast<int>(editor_state.fileContent.size()))
 		{
-			unique_cursor_positions_for_delete.insert(editor_state.cursor_index);
+			unique_cursor_positions_for_delete.insert(snapToUtf8CharBoundary(
+				editor_state.fileContent, editor_state.cursor_index));
 		}
-		// Multi-cursors: can delete if not at the end of the content
 		for (int mc_idx : editor_state.multi_cursor_indices)
 		{
 			if (mc_idx < static_cast<int>(editor_state.fileContent.size()))
 			{
-				unique_cursor_positions_for_delete.insert(mc_idx);
+				unique_cursor_positions_for_delete.insert(
+					snapToUtf8CharBoundary(editor_state.fileContent, mc_idx));
 			}
 		}
 		for (int pos : unique_cursor_positions_for_delete)
 		{
-			// Handle UTF-8 characters properly for delete
-			int end_pos = pos + 1;
-
-			// If we're at the start of a multi-byte character, find the end
-			if (pos < editor_state.fileContent.size() &&
-				(editor_state.fileContent[pos] & 0x80))
+			std::string::iterator it = str_iter_at(editor_state.fileContent, pos);
+			if (it == editor_state.fileContent.end())
+				continue;
+			std::string::iterator next = it;
+			if (next != editor_state.fileContent.end())
 			{
-				// Find the end of this multi-byte character
-				while (end_pos < editor_state.fileContent.size() &&
-					   (editor_state.fileContent[end_pos] & 0xC0) == 0x80)
-				{
-					end_pos++;
-				}
+				utf8::unchecked::next(next);
 			}
-
+			int end_pos = str_index_at(editor_state.fileContent, next);
 			ranges_to_delete.emplace_back(pos, end_pos);
 		}
 	}
-
 	std::sort(ranges_to_delete.begin(),
 			  ranges_to_delete.end(),
 			  [](const MultiSelectionRange &a, const MultiSelectionRange &b) {
