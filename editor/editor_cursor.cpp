@@ -1,7 +1,9 @@
 #include "editor_cursor.h"
 #include "../files/files.h"
+#include "../lib/utfcpp/source/utf8.h"
 #include "../util/settings.h"
 #include "editor.h"
+#include "editor/utf8_utils.h"
 #include "editor_utils.h"
 #include <algorithm>
 #include <cctype>
@@ -223,140 +225,58 @@ void EditorCursor::cursorLeft()
 	// Main cursor
 	if (editor_state.cursor_index > 0)
 	{
-		// Handle UTF-8 characters properly
-		if (editor_state.cursor_index < editor_state.fileContent.size() &&
-			(editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
+		auto it = editor_state.fileContent.begin() + editor_state.cursor_index;
+		if (it != editor_state.fileContent.begin())
 		{
-			// We're in the middle of a multi-byte character, move to the start
-			while (editor_state.cursor_index > 0 &&
-				   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
-			{
-				editor_state.cursor_index--;
-			}
-		} else
-		{
-			// Move to the start of the previous character
-			editor_state.cursor_index--;
-			if (editor_state.cursor_index > 0 &&
-				(editor_state.fileContent[editor_state.cursor_index] & 0x80))
-			{
-				// Find the start of this multi-byte character
-				while (editor_state.cursor_index > 0 &&
-					   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) ==
-						   0x80)
-				{
-					editor_state.cursor_index--;
-				}
-			}
+			utf8::unchecked::prior(it);
 		}
-		calculateVisualColumn();
+		editor_state.cursor_index = std::distance(editor_state.fileContent.begin(), it);
 	}
-
 	// Multi-cursors
 	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
 	{
 		if (editor_state.multi_cursor_indices[i] > 0)
 		{
-			// Handle UTF-8 characters properly for multi-cursors
-			if (editor_state.multi_cursor_indices[i] < editor_state.fileContent.size() &&
-				(editor_state.fileContent[editor_state.multi_cursor_indices[i]] & 0xC0) ==
-					0x80)
+			auto it =
+				editor_state.fileContent.begin() + editor_state.multi_cursor_indices[i];
+			if (it != editor_state.fileContent.begin())
 			{
-				// We're in the middle of a multi-byte character, move to the start
-				while (editor_state.multi_cursor_indices[i] > 0 &&
-					   (editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
-						0xC0) == 0x80)
-				{
-					editor_state.multi_cursor_indices[i]--;
-				}
-			} else
-			{
-				// Move to the start of the previous character
-				editor_state.multi_cursor_indices[i]--;
-				if (editor_state.multi_cursor_indices[i] > 0 &&
-					(editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
-					 0x80))
-				{
-					// Find the start of this multi-byte character
-					while (
-						editor_state.multi_cursor_indices[i] > 0 &&
-						(editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
-						 0xC0) == 0x80)
-					{
-						editor_state.multi_cursor_indices[i]--;
-					}
-				}
+				utf8::unchecked::prior(it);
 			}
-
-			int current_multi_cursor_line =
-				EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-												 editor_state.multi_cursor_indices[i]);
-			editor_state.multi_cursor_prefered_columns[i] =
-				editor_state.multi_cursor_indices[i] -
-				editor_state.editor_content_lines[current_multi_cursor_line];
+			editor_state.multi_cursor_indices[i] =
+				std::distance(editor_state.fileContent.begin(), it);
 		}
 	}
-
-	// Update undo manager's pendingFinalCursor for first edit logic
-	if (gFileExplorer.currentUndoManager)
-	{
-		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
-			editor_state.cursor_index);
-	}
+	calculateVisualColumn();
 }
 void EditorCursor::cursorRight()
 {
 	// Main cursor
 	if (editor_state.cursor_index < editor_state.fileContent.size())
 	{
-		// Handle UTF-8 characters properly
-		if ((editor_state.fileContent[editor_state.cursor_index] & 0x80))
+		auto it = editor_state.fileContent.begin() + editor_state.cursor_index;
+		if (it != editor_state.fileContent.end())
 		{
-			// Find the end of this multi-byte character
-			while (editor_state.cursor_index < editor_state.fileContent.size() &&
-				   (editor_state.fileContent[editor_state.cursor_index] & 0xC0) == 0x80)
-			{
-				editor_state.cursor_index++;
-			}
+			utf8::unchecked::next(it);
 		}
-		editor_state.cursor_index++;
-		calculateVisualColumn();
+		editor_state.cursor_index = std::distance(editor_state.fileContent.begin(), it);
 	}
-
 	// Multi-cursors
 	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
 	{
 		if (editor_state.multi_cursor_indices[i] < editor_state.fileContent.size())
 		{
-			// Handle UTF-8 characters properly for multi-cursors
-			if ((editor_state.fileContent[editor_state.multi_cursor_indices[i]] & 0x80))
+			auto it =
+				editor_state.fileContent.begin() + editor_state.multi_cursor_indices[i];
+			if (it != editor_state.fileContent.end())
 			{
-				// Find the end of this multi-byte character
-				while (editor_state.multi_cursor_indices[i] <
-						   editor_state.fileContent.size() &&
-					   (editor_state.fileContent[editor_state.multi_cursor_indices[i]] &
-						0xC0) == 0x80)
-				{
-					editor_state.multi_cursor_indices[i]++;
-				}
+				utf8::unchecked::next(it);
 			}
-			editor_state.multi_cursor_indices[i]++;
-
-			int current_multi_cursor_line =
-				EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-												 editor_state.multi_cursor_indices[i]);
-			editor_state.multi_cursor_prefered_columns[i] =
-				editor_state.multi_cursor_indices[i] -
-				editor_state.editor_content_lines[current_multi_cursor_line];
+			editor_state.multi_cursor_indices[i] =
+				std::distance(editor_state.fileContent.begin(), it);
 		}
 	}
-
-	// Update undo manager's pendingFinalCursor for first edit logic
-	if (gFileExplorer.currentUndoManager)
-	{
-		gFileExplorer.currentUndoManager->updatePendingFinalCursor(
-			editor_state.cursor_index);
-	}
+	calculateVisualColumn();
 }
 
 void EditorCursor::cursorUp()
@@ -435,6 +355,14 @@ void EditorCursor::cursorUp()
 	editor_state.cursor_index = original_main_cursor_index;
 	editor_state.cursor_column_prefered = original_main_cursor_pref_col;
 
+	// Snap to UTF-8 boundary
+	editor_state.cursor_index =
+		snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
+	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
+		editor_state.multi_cursor_indices[i] =
+			snapToUtf8CharBoundary(editor_state.fileContent,
+								   editor_state.multi_cursor_indices[i]);
+
 	// Update undo manager's pendingFinalCursor for first edit logic
 	if (gFileExplorer.currentUndoManager)
 	{
@@ -510,6 +438,14 @@ void EditorCursor::cursorDown()
 	}
 	editor_state.cursor_index = original_main_cursor_index;
 	editor_state.cursor_column_prefered = original_main_cursor_pref_col;
+
+	// Snap to UTF-8 boundary
+	editor_state.cursor_index =
+		snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
+	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
+		editor_state.multi_cursor_indices[i] =
+			snapToUtf8CharBoundary(editor_state.fileContent,
+								   editor_state.multi_cursor_indices[i]);
 
 	// Update undo manager's pendingFinalCursor for first edit logic
 	if (gFileExplorer.currentUndoManager)
@@ -898,6 +834,14 @@ void EditorCursor::handleCursorMovement(const std::string &text,
 
 	// Use the EditorScroll class to handle scroll adjustments
 	gEditorScroll.handleCursorMovementScroll();
+
+	// At the end of all movement, snap to UTF-8 boundary
+	editor_state.cursor_index =
+		snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
+	for (size_t i = 0; i < editor_state.multi_cursor_indices.size(); ++i)
+		editor_state.multi_cursor_indices[i] =
+			snapToUtf8CharBoundary(editor_state.fileContent,
+								   editor_state.multi_cursor_indices[i]);
 }
 void EditorCursor::swapLines(int direction)
 {
