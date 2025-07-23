@@ -455,51 +455,54 @@ int EditorMouse::getCharIndexFromCoords()
 		line_end--;
 	}
 
-	int n = line_end - line_start; // number of characters in the line
-
 	// If the line is empty, return its start.
-	if (n <= 0)
+	if (line_end <= line_start)
 		return line_start;
 
 	// Compute the click's x-coordinate relative to the beginning of the text.
 	float click_x = mouse_pos.x - editor_state.text_pos.x;
 
-	// For more accuracy, calculate character widths individually to avoid
-	// accumulating errors This is especially important for longer lines where
-	// small errors add up
-	std::vector<float> charWidths(n + 1, 0.0f);
-	std::vector<float> insertionPositions(n + 1, 0.0f);
+	// UTF-8 aware: iterate by codepoints, not bytes
+	std::vector<float> charWidths;
+	std::vector<size_t> codepointIndices; // maps codepoint index to byte index
+	std::vector<float> insertionPositions;
 
-	insertionPositions[0] = 0.0f;
+	size_t char_idx = line_start;
+	float cumulative_x = 0.0f;
+	insertionPositions.push_back(0.0f);
 
-	// Calculate the width of each character individually
-	for (int i = 0; i < n; i++)
+	while (char_idx < (size_t)line_end)
 	{
-		char buf[2] = {editor_state.fileContent[line_start + i], '\0'};
-		charWidths[i] = ImGui::CalcTextSize(buf).x;
-	}
-
-	// Calculate cumulative positions
-	for (int i = 1; i <= n; i++)
-	{
-		insertionPositions[i] = insertionPositions[i - 1] + charWidths[i - 1];
-	}
-
-	// Find the insertion index (0...n) whose position is closest to click_x.
-	int bestIndex = 0;
-	float bestDist = std::abs(click_x - insertionPositions[0]);
-
-	for (int i = 1; i <= n; i++)
-	{
-		float d = std::abs(click_x - insertionPositions[i]);
-		if (d < bestDist)
+		const char *char_start = &editor_state.fileContent[char_idx];
+		const char *char_end = char_start + 1;
+		if ((*char_start & 0x80) != 0)
 		{
-			bestDist = d;
-			bestIndex = i;
+			while (char_end < &editor_state.fileContent[line_end] &&
+				   (*char_end & 0xC0) == 0x80)
+				++char_end;
+		}
+		float width = ImGui::CalcTextSize(char_start, char_end).x;
+		charWidths.push_back(width);
+		codepointIndices.push_back(char_idx);
+		cumulative_x += width;
+		insertionPositions.push_back(cumulative_x);
+		char_idx += (char_end - char_start);
+	}
+
+	// Find the codepoint whose insertion position is closest to click_x
+	size_t best_cp = 0;
+	float best_dist = std::abs(click_x - insertionPositions[0]);
+	for (size_t i = 1; i < insertionPositions.size(); ++i)
+	{
+		float dist = std::abs(click_x - insertionPositions[i]);
+		if (dist < best_dist)
+		{
+			best_cp = i;
+			best_dist = dist;
 		}
 	}
-
-	// Return the character index in the full text corresponding to that
-	// insertion point.
-	return line_start + bestIndex;
+	// Clamp to valid range
+	if (best_cp >= codepointIndices.size())
+		return line_end;
+	return static_cast<int>(codepointIndices[best_cp]);
 }
