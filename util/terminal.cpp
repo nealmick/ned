@@ -565,9 +565,6 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	int cellY =
 		static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
 
-	// Debug raw coordinates
-	std::cout << "Raw mouse: cellX=" << cellX << " cellY=" << cellY << std::endl;
-
 	cellX = std::clamp(cellX, 0, state.col - 1);
 
 	// Account for scrollback offset when not in alt screen
@@ -597,8 +594,6 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
 		clickStartPos = mousePos;
-		std::cout << "Selection start: cellX=" << cellX << " cellY=" << cellY
-				  << std::endl;
 		selectionStart(cellX, cellY);
 	} else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 	{
@@ -607,12 +602,6 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 
 		if (dragDistance > DRAG_THRESHOLD)
 		{
-			// Debug output for selection extension
-			if (cellY < 0)
-			{
-				std::cout << "Selection extend: cellX=" << cellX << " cellY=" << cellY
-						  << std::endl;
-			}
 			selectionExtend(cellX, cellY);
 		}
 	} else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
@@ -2805,14 +2794,6 @@ void Terminal::selectionExtend(int col, int row)
 
 	sel.oe.x = col;
 	sel.oe.y = row;
-
-	// Debug output for selection extension
-	if (row < 0)
-	{
-		std::cout << "selectionExtend: col=" << col << " row=" << row
-				  << " sel.ob.y=" << sel.ob.y << " sel.oe.y=" << sel.oe.y << std::endl;
-	}
-
 	selectionNormalize();
 }
 
