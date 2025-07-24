@@ -18,6 +18,7 @@
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader.h"
+#include "util/font.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -61,8 +62,7 @@ class Ned
 	// Member variables
 	GLFWwindow *window;
 	Shader crtShader;
-	ImFont *currentFont;
-	ImFont *largeFont; // Font for resolution overlay
+	Font fontManager;
 	FramebufferState fb;
 	TimingState timing;
 	ShaderQuad quad;
@@ -85,7 +85,6 @@ class Ned
 	void handleFramebuffer(int width, int height);
 	void handleWindowFocus();
 	void handleSettingsChanges();
-	void handleFontReload();
 	void handleFileDialog();
 	void handleKeyboardShortcuts();
 	void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
@@ -109,8 +108,6 @@ class Ned
 	void renderAgentPane(float agentPaneWidth);
 
 	// Utility functions
-	ImFont *loadFont(const std::string &fontName, float fontSize);
-	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
 
 	// slow scrolling momentum accumulator
