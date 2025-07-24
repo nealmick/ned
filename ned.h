@@ -17,7 +17,8 @@
 #include "editor/editor_bookmarks.h"
 #include "files/file_tree.h"
 #include "files/files.h"
-#include "shaders/shader.h"
+#include "shaders/shader_manager.h"
+#include "shaders/shader_types.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -36,13 +37,6 @@ class Ned
 
   private:
 	// Core structures
-	struct FramebufferState
-	{
-		GLuint framebuffer = 0, renderTexture = 0, rbo = 0;
-		int last_display_w = 0, last_display_h = 0;
-		bool initialized = false;
-	};
-
 	struct TimingState
 	{
 		int frameCount = 0;
@@ -51,16 +45,9 @@ class Ned
 		double lastFileTreeRefresh = 0.0;
 	};
 
-	struct ShaderQuad
-	{
-		GLuint VAO = 0, VBO = 0;
-		void initialize();
-		void cleanup();
-	};
-
 	// Member variables
 	GLFWwindow *window;
-	Shader crtShader;
+	ShaderManager shaderManager;
 	ImFont *currentFont;
 	ImFont *largeFont; // Font for resolution overlay
 	FramebufferState fb;
@@ -118,14 +105,7 @@ class Ned
 	double scrollXAccumulator = 0.0;
 	double scrollYAccumulator = 0.0;
 
-	// burn in accumlation buffer
-	struct AccumulationBuffers
-	{
-		FramebufferState accum[2];
-		bool swap = false;
-		Shader burnInShader;
-	};
-
+	// burn in accumulation buffer
 	AccumulationBuffers accum;
 
 	// custom resizing logic
@@ -156,6 +136,5 @@ class Ned
 
 // Global scope
 extern Bookmarks gBookmarks;
-extern bool shader_toggle;
 extern bool showSidebar;
 extern bool showAgentPane;

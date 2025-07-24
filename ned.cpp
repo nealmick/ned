@@ -34,7 +34,6 @@ Description: Main application class implementation for NED text editor.
 
 // global scope
 Bookmarks gBookmarks;
-bool shader_toggle = false;
 bool showSidebar = true;
 bool showAgentPane = true;
 
@@ -64,30 +63,6 @@ Ned::~Ned()
 }
 
 void ApplySettings(ImGuiStyle &style);
-
-void Ned::ShaderQuad::initialize()
-{
-	float quadVertices[] = {-1.0f, -1.0f, 0.0f, 0.0f, 1.0f,	 -1.0f, 1.0f, 0.0f,
-							1.0f,  1.0f,  1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f,
-							1.0f,  1.0f,  1.0f, 1.0f, -1.0f, 1.0f,	0.0f, 1.0f};
-
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(
-		1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-}
-
-void Ned::ShaderQuad::cleanup()
-{
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
-}
 
 bool Ned::initialize()
 {
@@ -342,11 +317,10 @@ bool Ned::initializeGraphics()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glGetError(); // Clear any GLEW startup errors
 
-	// Load both shaders
-	if (!crtShader.loadShader("shaders/vertex.glsl", "shaders/fragment.glsl") ||
-		!accum.burnInShader.loadShader("shaders/vertex.glsl", "shaders/burn_in.frag"))
+	// Initialize shader manager
+	if (!shaderManager.initializeShaders())
 	{
-		std::cerr << "🔴 Shader load failed" << std::endl;
+		std::cerr << "🔴 Shader initialization failed" << std::endl;
 		glfwTerminate();
 		return false;
 	}
@@ -438,7 +412,7 @@ void Ned::initializeResources()
 	handleFontReload(); // This will reload fonts with original size
 
 	// Continue with remaining initialization
-	shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+	shaderManager.setShaderEnabled(gSettings.getSettings()["shader_toggle"].get<bool>());
 	gFileExplorer.loadIcons();
 
 	if (!currentFont)
@@ -689,7 +663,7 @@ void Ned::run()
 		// When shaders are enabled, use settings FPS target for timeout
 		// When shaders are disabled, use normal timeout logic
 		double timeout;
-		if (shader_toggle)
+		if (shaderManager.isShaderEnabled())
 		{
 			// Use settings FPS target when shaders are enabled
 			float fpsTarget = 60.0f;
@@ -779,70 +753,9 @@ void Ned::handleBackgroundUpdates(double currentTime)
 
 void Ned::handleFramebuffer(int width, int height)
 {
-	auto initFB = [](FramebufferState &fb, int w, int h) {
-		if (fb.initialized && w == fb.last_display_w && h == fb.last_display_h)
-			return;
-
-		// Delete old resources if they exist
-		if (fb.initialized)
-		{
-			glDeleteFramebuffers(1, &fb.framebuffer);
-			glDeleteTextures(1, &fb.renderTexture);
-			glDeleteRenderbuffers(1, &fb.rbo);
-		}
-
-		// Create new framebuffer
-		glGenFramebuffers(1, &fb.framebuffer);
-		glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-
-		// Create texture
-		glGenTextures(1, &fb.renderTexture);
-		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glFramebufferTexture2D(
-			GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb.renderTexture, 0);
-
-		// Create renderbuffer
-		glGenRenderbuffers(1, &fb.rbo);
-		glBindRenderbuffer(GL_RENDERBUFFER, fb.rbo);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
-		glFramebufferRenderbuffer(
-			GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, fb.rbo);
-
-		// Check completeness
-		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cerr << "🔴 Framebuffer not complete!" << std::endl;
-		}
-
-		fb.last_display_w = w;
-		fb.last_display_h = h;
-		fb.initialized = true;
-
-		glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-		if (fb.renderTexture)
-		{
-			glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-			glTexImage2D(
-				GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		}
-	};
-
-	initFB(fb, width, height);
-	initFB(accum.accum[0], width, height);
-	initFB(accum.accum[1], width, height);
-
-	// Add debug checks after initialization
-	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[0].framebuffer);
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	{
-		std::cerr << "🔴 Accumulation buffer 0 incomplete!" << std::endl;
-	}
-};
+	// Delegate framebuffer initialization to the shader manager
+	shaderManager.initializeFramebuffers(width, height, fb, accum);
+}
 
 void Ned::setupImGuiFrame()
 {
@@ -1603,7 +1516,7 @@ void Ned::renderFrame()
 	auto &bg = gSettings.getSettings()["backgroundColor"];
 
 	// Use different alpha based on shader state
-	float alpha = shader_toggle ? bg[3].get<float>() : 1.0f;
+	float alpha = shaderManager.isShaderEnabled() ? bg[3].get<float>() : 1.0f;
 	glClearColor(bg[0], bg[1], bg[2], alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1712,85 +1625,9 @@ void Ned::handleFileDialog()
 
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-	// Only run burn-in shader if shaders are enabled
-	if (shader_toggle)
-	{
-		// Get current accumulation buffers
-		int prev = accum.swap ? 1 : 0;
-		int curr = accum.swap ? 0 : 1;
-
-		// Burn-in accumulation pass
-		glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[curr].framebuffer);
-		accum.burnInShader.useShader();
-		accum.burnInShader.setInt("currentFrame", 0);
-		accum.burnInShader.setInt("previousFrame", 1);
-		accum.burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, accum.accum[prev].renderTexture);
-
-		glClear(GL_COLOR_BUFFER_BIT);
-		glBindVertexArray(quad.VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		accum.swap = !accum.swap;
-	}
-
-	// CRT effects pass
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	crtShader.useShader();
-
-	// Set CRT shader uniforms
-	crtShader.setInt("screenTexture", 0);
-	if (shader_toggle)
-	{
-		crtShader.setFloat("u_effects_enabled", 1.0f);
-	} else
-	{
-		crtShader.setFloat("u_effects_enabled", 0.0f);
-	}
-	crtShader.setFloat("u_scanline_intensity",
-					   gSettings.getSettings()["scanline_intensity"]);
-	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
-	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
-	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
-	crtShader.setFloat("u_colorshift_intensity",
-					   gSettings.getSettings()["colorshift_intensity"]);
-	crtShader.setFloat("u_jitter_intensity",
-					   gSettings.getSettings()["jitter_intensity"].get<float>());
-	crtShader.setFloat("u_curvature_intensity",
-					   gSettings.getSettings()["curvature_intensity"].get<float>());
-	crtShader.setFloat("u_pixelation_intensity",
-					   gSettings.getSettings()["pixelation_intensity"].get<float>());
-	crtShader.setFloat("u_pixel_width",
-					   gSettings.getSettings()["pixel_width"].get<float>());
-
-	// Set time and resolution uniforms
-	GLint timeLocation = glGetUniformLocation(crtShader.shaderProgram, "time");
-	GLint resolutionLocation =
-		glGetUniformLocation(crtShader.shaderProgram, "resolution");
-	if (timeLocation != -1)
-		glUniform1f(timeLocation, currentTime);
-	if (resolutionLocation != -1)
-		glUniform2f(resolutionLocation, display_w, display_h);
-
-	// Bind appropriate texture based on shader toggle
-	glActiveTexture(GL_TEXTURE0);
-	if (shader_toggle)
-	{
-		int curr = accum.swap ? 0 : 1; // Get current accumulation buffer
-		glBindTexture(GL_TEXTURE_2D, accum.accum[curr].renderTexture);
-	} else
-	{
-		glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
-	}
-
-	// Draw final quad
-	glBindVertexArray(quad.VAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	// Delegate to the shader manager for rendering
+	shaderManager.renderWithEffects(
+		display_w, display_h, currentTime, fb, accum, quad, gSettings);
 }
 
 void Ned::renderFPSCounter()
@@ -1837,7 +1674,7 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 
 	float fpsTarget = 60.0f;
 
-	if (shader_toggle)
+	if (shaderManager.isShaderEnabled())
 	{
 		// When shaders are enabled, use settings FPS target but don't sleep
 		if (gSettings.getSettings().contains("fps_target") &&
@@ -1888,7 +1725,8 @@ void Ned::handleSettingsChanges()
 				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 				   0.0f);
 
-		shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+		shaderManager.setShaderEnabled(
+			gSettings.getSettings()["shader_toggle"].get<bool>());
 
 		// Update sidebar visibility from settings
 		showSidebar = gSettings.getSettings().value("sidebar_visible", true);
@@ -1949,12 +1787,9 @@ void Ned::handleFontReload()
 void Ned::cleanup()
 {
 	quad.cleanup();
-	if (fb.initialized)
-	{
-		glDeleteFramebuffers(1, &fb.framebuffer);
-		glDeleteTextures(1, &fb.renderTexture);
-		glDeleteRenderbuffers(1, &fb.rbo);
-	}
+
+	// Delegate framebuffer cleanup to the shader manager
+	shaderManager.cleanupFramebuffers(fb, accum);
 
 	gSettings.saveSettings();
 	gFileExplorer.saveCurrentFile();
@@ -1965,16 +1800,6 @@ void Ned::cleanup()
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
-	if (accum.accum[0].initialized)
-	{
-		glDeleteFramebuffers(1, &accum.accum[0].framebuffer);
-		glDeleteTextures(1, &accum.accum[0].renderTexture);
-	}
-	if (accum.accum[1].initialized)
-	{
-		glDeleteFramebuffers(1, &accum.accum[1].framebuffer);
-		glDeleteTextures(1, &accum.accum[1].renderTexture);
-	}
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -1986,7 +1811,7 @@ void ApplySettings(ImGuiStyle &style)
 			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
 			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
 			   gSettings.getSettings()["backgroundColor"][3].get<float>());
-	shader_toggle = gSettings.getSettings()["shader_toggle"].get<bool>();
+	// Note: shader state is now managed by the ShaderManager class
 
 	// Set text colors from the current theme.
 	std::string currentTheme = gSettings.getCurrentTheme();
