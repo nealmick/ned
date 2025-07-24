@@ -993,7 +993,6 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 	{
 		return fullPath;
 	}
-
 	// Try removing directories from the front
 	for (size_t start = 0; start < components.size(); ++start)
 	{

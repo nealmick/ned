@@ -194,7 +194,16 @@ class LineJump
 
 	inline bool isWindowOpen() const { return showLineJumpWindow; }
 
-	inline bool hasJustJumped() const { return justJumped; }
+	inline bool hasJustJumped() const
+	{
+		if (justJumped)
+		{
+			// Reset the flag when checked
+			const_cast<LineJump *>(this)->justJumped = false;
+			return true;
+		}
+		return false;
+	}
 };
 
 extern LineJump gLineJump;
