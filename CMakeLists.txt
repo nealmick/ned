@@ -194,7 +194,6 @@ add_library(util STATIC
   util/close_popper.cpp
   util/welcome.cpp
   util/debug_console.cpp
-  util/font.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
