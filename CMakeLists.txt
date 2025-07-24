@@ -161,6 +161,8 @@ set(APP_SOURCES
   main.cpp
   ned.cpp
   shaders/shader.cpp
+  shaders/shader_types.cpp
+  shaders/shader_manager.cpp
 )
 
 # Component groups
