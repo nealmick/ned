@@ -21,6 +21,7 @@
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/font.h"
+#include "util/frame.h"
 #include "util/splitter.h"
 #include "util/window_resize.h"
 
@@ -40,20 +41,10 @@ class Ned
 	void cleanup();
 
   private:
-	// Core structures
-	struct TimingState
-	{
-		int frameCount = 0;
-		double lastFPSTime = 0.0;
-		double lastSettingsCheck = 0.0;
-		double lastFileTreeRefresh = 0.0;
-	};
-
 	// Member variables
 	GLFWwindow *window;
 	ShaderManager shaderManager;
 	FramebufferState fb;
-	TimingState timing;
 	ShaderQuad quad;
 	EditorHeader editorHeader;
 	Splitter splitter;
@@ -62,24 +53,16 @@ class Ned
 	float explorerWidth;
 	float editorWidth;
 	bool initialized;
-	// Constants
-	static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
-	static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
-	static constexpr double TARGET_FPS =
-		120.0; // Fallback value, actual FPS target comes from settings
 
 	// Core functions
 	bool initializeGraphics();
 	void initializeImGui();
 	void initializeResources();
 	void handleBackgroundUpdates(double currentTime);
-	void handleFramebuffer(int width, int height);
 	void handleWindowFocus();
 	void handleFontReload();
 	void handleFileDialog();
 	void handleKeyboardShortcuts();
-	void handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start);
-	void setupImGuiFrame();
 	void checkForActivity(); // Check for immediate user input
 
 	// Render functions
@@ -88,7 +71,6 @@ class Ned
 	void renderFileExplorer(float explorerWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
-	void renderFPSCounter();
 
 	// Add these declarations for the agent pane
 	void renderAgentPane(float agentPaneWidth);
@@ -111,11 +93,6 @@ class Ned
 	bool lastBlurEnabled = false;
 
 	// Removed gAIAgent member variable - using global instance instead
-
-	// On-demand rendering flags
-	bool m_needsRedraw = true;		 // Start true to draw the first frame
-	int m_framesToRender = 0;		 // Number of frames to render for smooth interactions
-	double m_lastActivityTime = 0.0; // Track when we last had activity
 };
 
 // Global scope
