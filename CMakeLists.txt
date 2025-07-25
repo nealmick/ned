@@ -197,6 +197,7 @@ add_library(util STATIC
   util/welcome.cpp
   util/debug_console.cpp
   util/font.cpp
+  util/frame.cpp
   util/window_resize.cpp
   util/splitter.cpp
 )

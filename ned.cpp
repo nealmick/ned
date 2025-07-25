@@ -39,11 +39,6 @@ Bookmarks gBookmarks;
 bool showSidebar = true;
 bool showAgentPane = true;
 
-// FPS counter variables
-static double fps_lastTime = 0.0;
-static int fps_frames = 0;
-static double fps_currentFPS = 0.0;
-
 float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
 
 constexpr float kAgentSplitterWidth = 6.0f;
@@ -119,6 +114,9 @@ bool Ned::initialize()
 
 	// Initialize window resize handler
 	windowResize.initialize(window);
+
+	// Initialize frame management
+	gFrame.initialize();
 
 	initialized = true;
 	return true;
@@ -246,7 +244,7 @@ void Ned::checkForActivity()
 	// If we have any input, update activity time
 	if (hasInput)
 	{
-		m_lastActivityTime = glfwGetTime();
+		gFrame.setLastActivityTime(glfwGetTime());
 	}
 }
 // In Ned::initializeResources()
@@ -308,7 +306,8 @@ void Ned::run()
 			// interaction) Also respect minimum FPS: 25 FPS normally
 			double minFPS = 25.0;
 			double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
-			timeout = (currentTime - m_lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
+			timeout =
+				(currentTime - gFrame.lastActivityTime()) < 0.5 ? 0.016 : maxTimeout;
 		}
 		glfwWaitEventsTimeout(timeout);
 
@@ -331,7 +330,7 @@ void Ned::run()
 
 		// Check for activity and decide if we should keep rendering
 		checkForActivity();
-		bool shouldKeepRendering = (currentTime - m_lastActivityTime) < 0.5 ||
+		bool shouldKeepRendering = (currentTime - gFrame.lastActivityTime()) < 0.5 ||
 								   gEditorScroll.isScrollAnimationActive();
 
 		// Always render a frame after polling events
@@ -340,28 +339,31 @@ void Ned::run()
 		handleBackgroundUpdates(currentTime);
 		gSettings.handleSettingsChanges(
 			needFontReload,
-			m_needsRedraw,
-			m_framesToRender,
+			gFrame.needsRedrawRef(),
+			gFrame.framesToRenderRef(),
 			[this](bool enabled) { shaderManager.setShaderEnabled(enabled); },
 			lastOpacity,
 			lastBlurEnabled);
 
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
-		handleFramebuffer(display_w, display_h);
+		// Delegate framebuffer initialization to the shader manager
+		shaderManager.initializeFramebuffers(display_w, display_h, fb, accum);
 
-		setupImGuiFrame();
+		gFrame.setupImGuiFrame();
 		handleWindowFocus();
 		handleFileDialog();
 		renderFrame();
 		handleFontReload();
-		handleFrameTiming(frame_start);
+		gFrame.handleFrameTiming(
+			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}
 }
 
 void Ned::handleBackgroundUpdates(double currentTime)
 {
-	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
+	if (currentTime - gFrame.getTiming().lastSettingsCheck >=
+		gFrame.SETTINGS_CHECK_INTERVAL)
 	{
 		// Store previous state to detect changes
 		bool hadSettingsChanged = gSettings.hasSettingsChanged();
@@ -377,35 +379,24 @@ void Ned::handleBackgroundUpdates(double currentTime)
 			gSettings.hasFontSizeChanged() != hadFontSizeChanged ||
 			gSettings.hasThemeChanged() != hadThemeChanged)
 		{
-			m_needsRedraw = true;
-			m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
+			gFrame.setNeedsRedraw(true);
+			gFrame.setFramesToRender(
+				std::max(gFrame.framesToRender(), 2)); // Reduced frame count
 		}
-		timing.lastSettingsCheck = currentTime;
+		gFrame.getTiming().lastSettingsCheck = currentTime;
 	}
 
-	if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL)
+	if (currentTime - gFrame.getTiming().lastFileTreeRefresh >=
+		gFrame.FILE_TREE_REFRESH_INTERVAL)
 	{
 		// File tree refresh doesn't return a value, but we can trigger redraw
 		// when it's called since it updates the UI
 		gFileTree.refreshFileTree();
-		m_needsRedraw = true; // Always redraw after file tree refresh
-		m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
-		timing.lastFileTreeRefresh = currentTime;
+		gFrame.setNeedsRedraw(true); // Always redraw after file tree refresh
+		gFrame.setFramesToRender(
+			std::max(gFrame.framesToRender(), 2)); // Reduced frame count
+		gFrame.getTiming().lastFileTreeRefresh = currentTime;
 	}
-}
-
-void Ned::handleFramebuffer(int width, int height)
-{
-	// Delegate framebuffer initialization to the shader manager
-	shaderManager.initializeFramebuffers(width, height, fb, accum);
-}
-
-void Ned::setupImGuiFrame()
-{
-	ImGui_ImplOpenGL3_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-
-	ImGui::NewFrame();
 }
 
 void Ned::handleWindowFocus()
@@ -413,8 +404,9 @@ void Ned::handleWindowFocus()
 	bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 	if (windowFocused != currentFocus)
 	{
-		m_needsRedraw = true;							  // Redraw on focus change.
-		m_framesToRender = std::max(m_framesToRender, 2); // Reduced frame count
+		gFrame.setNeedsRedraw(true); // Redraw on focus change.
+		gFrame.setFramesToRender(
+			std::max(gFrame.framesToRender(), 2)); // Reduced frame count
 		if (windowFocused && !currentFocus)
 		{
 			gFileExplorer.saveCurrentFile();
@@ -561,9 +553,9 @@ void Ned::handleKeyboardShortcuts()
 	// At the very end of the function, set the main redraw flag.
 	if (shortcutPressed)
 	{
-		m_needsRedraw = true;
-		m_framesToRender =
-			std::max(m_framesToRender, 12); // Render many frames for shortcuts
+		gFrame.setNeedsRedraw(true);
+		gFrame.setFramesToRender(
+			std::max(gFrame.framesToRender(), 12)); // Render many frames for shortcuts
 	}
 }
 
@@ -716,47 +708,25 @@ void Ned::renderMainWindow()
 
 void Ned::renderFrame()
 {
-	// Calculate FPS
 	double currentTime = glfwGetTime();
-	fps_frames++;
-	if (currentTime - fps_lastTime >= 1.0)
-	{
-		fps_currentFPS = fps_frames / (currentTime - fps_lastTime);
-		fps_frames = 0;
-		fps_lastTime = currentTime;
-	}
-
 	int display_w, display_h;
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
-	// [STEP 1] Render UI to framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
-	glViewport(0, 0, display_w, display_h);
+	// Setup frame rendering (framebuffer, background, FPS)
+	gFrame.setupFrame(
+		gSettings, shaderManager.isShaderEnabled(), fb, display_w, display_h, currentTime);
 
-	// Get background color from settings
-	auto &bg = gSettings.getSettings()["backgroundColor"];
-
-	// Use different alpha based on shader state
-	float alpha = shaderManager.isShaderEnabled() ? bg[3].get<float>() : 1.0f;
-	glClearColor(bg[0], bg[1], bg[2], alpha);
-	glClear(GL_COLOR_BUFFER_BIT);
-
+	// Render UI components
 	renderMainWindow();
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
-
 	windowResize.renderResizeOverlay(gFont.largeFont);
 
-	// Render FPS counter overlay
-	renderFPSCounter();
+	// Finish frame rendering
+	gFrame.finishFrame(fb);
 
-	ImGui::Render();
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
 	renderWithShader(display_w, display_h, glfwGetTime());
 	glfwSwapBuffers(window);
 }
@@ -767,8 +737,8 @@ void Ned::handleFileDialog()
 	if (gFileExplorer.handleFileDialogWorkflow())
 	{
 		// Trigger redraw if a folder was successfully selected
-		m_needsRedraw = true;
-		m_framesToRender = std::max(m_framesToRender, 3);
+		gFrame.setNeedsRedraw(true);
+		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
 	}
 }
 
@@ -779,90 +749,13 @@ void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 		display_w, display_h, currentTime, fb, accum, quad, gSettings);
 }
 
-void Ned::renderFPSCounter()
-{
-	// Check if FPS counter is enabled in settings
-	if (!gSettings.getSettings()["fps_toggle"].get<bool>())
-	{
-		return;
-	}
-
-	ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImVec2 viewportPos = viewport->Pos;
-	ImVec2 viewportSize = viewport->Size;
-
-	// Position in bottom right corner with some padding
-	const float padding = 10.0f;
-	const float fontSize = gSettings.getFontSize();
-
-	// Format FPS text
-	char fpsText[32];
-	snprintf(fpsText, sizeof(fpsText), "%.1f", fps_currentFPS);
-
-	// Calculate text size
-	ImVec2 textSize = ImGui::CalcTextSize(fpsText);
-
-	// Position text in bottom right
-	ImVec2 textPos = ImVec2(viewportPos.x + viewportSize.x - textSize.x - padding,
-							viewportPos.y + viewportSize.y - textSize.y - padding);
-
-	// Draw background rectangle for better visibility
-	ImDrawList *drawList = ImGui::GetForegroundDrawList();
-	ImVec2 bgMin = ImVec2(textPos.x - 5.0f, textPos.y - 2.0f);
-	ImVec2 bgMax = ImVec2(textPos.x + textSize.x + 5.0f, textPos.y + textSize.y + 2.0f);
-	drawList->AddRectFilled(bgMin, bgMax, IM_COL32(0, 0, 0, 180));
-
-	// Draw FPS text
-	drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), fpsText);
-}
-
-void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame_start)
-{
-	auto frame_end = std::chrono::high_resolution_clock::now();
-	auto frame_duration = frame_end - frame_start;
-
-	float fpsTarget = 60.0f;
-
-	if (shaderManager.isShaderEnabled())
-	{
-		// When shaders are enabled, use settings FPS target but don't sleep
-		if (gSettings.getSettings().contains("fps_target") &&
-			gSettings.getSettings()["fps_target"].is_number())
-		{
-			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
-		}
-		// Don't apply sleep delays when shaders are enabled - let GPU run naturally
-		return;
-	} else
-	{
-		// Only apply frame timing when shaders are disabled
-		if (!windowFocused)
-		{
-			fpsTarget = 15.0f;
-		} else if (gSettings.getSettings().contains("fps_target") &&
-				   gSettings.getSettings()["fps_target"].is_number())
-		{
-			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
-		}
-	}
-
-	// Only apply frame timing if FPS target is reasonable (not unlimited)
-	if (fpsTarget > 0.0f && fpsTarget < 10000.0f)
-	{
-		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
-		if (frame_duration < targetFrameTime)
-		{
-			std::this_thread::sleep_for(targetFrameTime - frame_duration);
-		}
-	}
-}
-
 void Ned::handleFontReload()
 {
 	if (needFontReload)
 	{
-		m_needsRedraw = true; // A redraw is needed after the new font is loaded.
-		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		gFrame.setNeedsRedraw(true); // A redraw is needed after the new font is loaded.
+		gFrame.setFramesToRender(
+			std::max(gFrame.framesToRender(), 3)); // Reduced frame count
 
 		gFont.handleFontReload(needFontReload);
 	}
