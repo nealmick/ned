@@ -6,7 +6,6 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-
 // Move FileNode struct from files.h
 struct FileNode
 {
