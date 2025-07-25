@@ -29,6 +29,7 @@ using json = nlohmann::json;
 
 #include "../ai/ai_agent.h"
 #include "../editor/editor_git.h"
+#include "file_tree.h"
 extern AIAgent gAIAgent;
 
 const std::string UNDO_FILE = ".undo-redo-ned.json";
@@ -216,6 +217,36 @@ void FileExplorer::openFolderDialog()
 	{
 		std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
 	}
+}
+
+bool FileExplorer::handleFileDialogWorkflow()
+{
+	if (!showFileDialog())
+	{
+		return false;
+	}
+
+	// Open the folder dialog
+	openFolderDialog();
+
+	// If a folder was selected, initialize the file tree
+	if (!selectedFolder.empty())
+	{
+		// Initialize the file tree with the selected folder
+		auto &rootNode = gFileTree.rootNode;
+		rootNode.name = fs::path(selectedFolder).filename().string();
+		rootNode.fullPath = selectedFolder;
+		rootNode.isDirectory = true;
+		rootNode.children.clear();
+		gFileTree.buildFileTree(selectedFolder, rootNode);
+
+		// Hide welcome screen since we now have a project loaded
+		showWelcomeScreen = false;
+
+		return true; // Indicate that a folder was successfully selected
+	}
+
+	return false; // No folder was selected
 }
 
 bool FileExplorer::readFileContent(const std::string &path)

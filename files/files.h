@@ -58,6 +58,9 @@ class FileExplorer
 	void openFolderDialog();
 	void renderFileContent();
 
+	// File dialog workflow
+	bool handleFileDialogWorkflow();
+
 	// Icon handling
 	// by file exntension for example .py or .cpp
 	void loadIcons();

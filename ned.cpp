@@ -19,6 +19,7 @@ Description: Main application class implementation for NED text editor.
 #include "editor/editor_bookmarks.h"
 #include "editor/editor_highlight.h"
 #include "editor/editor_scroll.h"
+#include "files/files.h"
 #include "util/debug_console.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
@@ -1368,25 +1369,12 @@ void Ned::handleUltraSimpleResizeOverlay()
 }
 void Ned::handleFileDialog()
 {
-	if (gFileExplorer.showFileDialog())
+	// Delegate file dialog handling to FileExplorer class
+	if (gFileExplorer.handleFileDialogWorkflow())
 	{
+		// Trigger redraw if a folder was successfully selected
 		m_needsRedraw = true;
-		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-		gFileExplorer.openFolderDialog();
-		if (!gFileExplorer.selectedFolder.empty())
-		{
-			// ...
-			m_needsRedraw = true; // Redraw again after a folder is selected.
-			m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-			auto &rootNode = gFileTree.rootNode;			  // Changed to use gFileTree
-			rootNode.name = fs::path(gFileExplorer.selectedFolder).filename().string();
-			rootNode.fullPath = gFileExplorer.selectedFolder;
-			rootNode.isDirectory = true;
-			rootNode.children.clear();
-			gFileTree.buildFileTree(gFileExplorer.selectedFolder,
-									rootNode); // Changed to use gFileTree
-			gFileExplorer.showWelcomeScreen = false;
-		}
+		m_framesToRender = std::max(m_framesToRender, 3);
 	}
 }
 
