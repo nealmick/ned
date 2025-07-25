@@ -1,6 +1,7 @@
 #pragma once
 #include "../lib/json.hpp"
 #include "close_popper.h"
+#include "imgui.h"
 #include "settings_file_manager.h"
 #include <filesystem>
 #include <string>
@@ -157,6 +158,9 @@ class Settings
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
 
 	void renderNotification(const std::string &message, float duration = 2.0f);
+
+	// Method to apply settings to ImGui style
+	void ApplySettings(ImGuiStyle &style);
 
   private:
 	json settings;				 // Holds the settings from the *active* file

@@ -1143,3 +1143,37 @@ void Settings::toggleSettingsWindow()
 	extern struct EditorState editor_state;
 	editor_state.block_input = showSettingsWindow;
 }
+
+void Settings::ApplySettings(ImGuiStyle &style)
+{
+	// Set the window background color from settings.
+	style.Colors[ImGuiCol_WindowBg] = ImVec4(settings["backgroundColor"][0].get<float>(),
+											 settings["backgroundColor"][1].get<float>(),
+											 settings["backgroundColor"][2].get<float>(),
+											 settings["backgroundColor"][3].get<float>());
+	// Note: shader state is now managed by the ShaderManager class
+
+	// Set text colors from the current theme.
+	std::string currentTheme = getCurrentTheme();
+	auto &textColor = settings["themes"][currentTheme]["text"];
+	ImVec4 textCol(textColor[0].get<float>(),
+				   textColor[1].get<float>(),
+				   textColor[2].get<float>(),
+				   textColor[3].get<float>());
+	style.Colors[ImGuiCol_Text] = textCol;
+	style.Colors[ImGuiCol_TextDisabled] =
+		ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
+	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);
+
+	// Hide scrollbars by setting their alpha to 0.
+	style.ScrollbarSize = 30.0f;
+	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
+	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+
+	// Set the global font scale.
+	// ImGui::GetIO().FontGlobalScale =
+	// settings["fontSize"].get<float>() / 16.0f;
+}
