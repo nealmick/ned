@@ -21,6 +21,7 @@
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/font.h"
+#include "util/window_resize.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -103,14 +104,8 @@ class Ned
 	// burn in accumulation buffer
 	AccumulationBuffers accum;
 
-	// custom resizing logic
-	void renderResizeHandles();
-	void handleManualResizing();
-	bool resizingRight = false;
-	bool resizingBottom = false;
-	bool resizingCorner = false;
-	ImVec2 dragStart;
-	ImVec2 initialWindowSize;
+	// Window resize handling
+	WindowResize windowResize;
 
 	int m_sroLastWidth;
 	int m_sroLastHeight;
