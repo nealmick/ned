@@ -11,6 +11,50 @@ static NSView* appContainerView = nil;
 static NSVisualEffectView* blurView = nil;
 static NSWindow* configuredWindow = nil;
 
+// Application delegate for proper Cmd+Q handling
+@interface NEDAppDelegate : NSObject <NSApplicationDelegate>
+@property (nonatomic, assign) BOOL shouldTerminate;
+@end
+
+@implementation NEDAppDelegate
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _shouldTerminate = NO;
+    }
+    return self;
+}
+
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+    return YES;
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    // Set flag to indicate clean termination
+    self.shouldTerminate = YES;
+    
+    // Post a custom event to trigger cleanup in the main loop
+    NSEvent* event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
+                                        location:NSZeroPoint
+                                   modifierFlags:0
+                                       timestamp:0
+                                    windowNumber:0
+                                         context:nil
+                                         subtype:0
+                                           data1:0
+                                           data2:0];
+    
+    [NSApp postEvent:event atStart:YES];
+    
+    return NSTerminateNow;
+}
+
+@end
+
+// Global app delegate instance
+static NEDAppDelegate* gAppDelegate = nil;
+
 // Custom view for draggable areas
 @interface DraggableView : NSView
 @end
@@ -435,5 +479,26 @@ void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
             [configuredWindow setHasShadow:YES];
         }
     });
+}
+
+void setupMacOSApplicationDelegate(void) {
+    // Create and set up the application delegate
+    if (!gAppDelegate) {
+        gAppDelegate = [[NEDAppDelegate alloc] init];
+        [NSApp setDelegate:gAppDelegate];
+    }
+}
+
+void cleanupMacOSApplicationDelegate(void) {
+    // Clean up the application delegate
+    if (gAppDelegate) {
+        [NSApp setDelegate:nil];
+        gAppDelegate = nil;
+    }
+}
+
+// Function to check if termination was requested
+bool shouldTerminateApplication(void) {
+    return gAppDelegate ? gAppDelegate.shouldTerminate : false;
 }
 

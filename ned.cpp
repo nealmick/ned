@@ -100,6 +100,9 @@ bool Ned::initialize()
 	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
 	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
 
+	// Set up application delegate for proper Cmd+Q handling
+	setupMacOSApplicationDelegate();
+
 	// Initial configuration
 	configureMacOSWindow(window, opacity, blurEnabled);
 
@@ -452,6 +455,14 @@ void Ned::run()
 			timeout = (currentTime - m_lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
 		}
 		glfwWaitEventsTimeout(timeout);
+
+		// Check for Cmd+Q termination on macOS
+#ifdef __APPLE__
+		if (shouldTerminateApplication())
+		{
+			glfwSetWindowShouldClose(window, 1);
+		}
+#endif
 
 		// Handle scroll accumulators (this was removed but needed for scrolling)
 		if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
@@ -1261,6 +1272,11 @@ void Ned::cleanup()
 
 	// Save AI agent conversation history
 	gAIAgent.getHistoryManager().saveConversationHistory();
+
+#ifdef __APPLE__
+	// Clean up macOS application delegate
+	cleanupMacOSApplicationDelegate();
+#endif
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
