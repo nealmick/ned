@@ -198,6 +198,7 @@ add_library(util STATIC
   util/debug_console.cpp
   util/font.cpp
   util/window_resize.cpp
+  util/splitter.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}

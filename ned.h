@@ -21,6 +21,7 @@
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/font.h"
+#include "util/splitter.h"
 #include "util/window_resize.h"
 
 // Forward declarations
@@ -55,6 +56,7 @@ class Ned
 	TimingState timing;
 	ShaderQuad quad;
 	EditorHeader editorHeader;
+	Splitter splitter;
 	bool needFontReload;
 	bool windowFocused;
 	float explorerWidth;
@@ -84,13 +86,11 @@ class Ned
 	void renderFrame();
 	void renderMainWindow();
 	void renderFileExplorer(float explorerWidth);
-	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
 	void renderFPSCounter();
 
-	// Add these declarations for the agent pane and its splitter
-	void renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible);
+	// Add these declarations for the agent pane
 	void renderAgentPane(float agentPaneWidth);
 
 	// Utility functions

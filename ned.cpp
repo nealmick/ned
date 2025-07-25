@@ -585,194 +585,6 @@ void Ned::renderFileExplorer(float explorerWidth)
 	ImGui::PopStyleVar(2);
 }
 
-void Ned::renderSplitter(float padding, float availableWidth)
-{
-	ImGui::SameLine(0, 0);
-
-	// Interaction settings
-	const float visible_width = 1.0f;	// Rendered width at rest
-	const float hover_width = 6.0f;		// Invisible hitbox size
-	const float hover_expansion = 3.0f; // Expanded visual width
-	const float hover_delay = 0.15f;	// Seconds before hover effect
-
-	ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
-
-	// Create invisible button with larger hitbox
-	ImGui::Button("##vsplitter_left", ImVec2(hover_width, -1));
-
-	// Hover delay logic
-	static float hover_start_time = -1.0f;
-	bool visual_hover = false;
-	const bool is_hovered = ImGui::IsItemHovered();
-	const bool is_active = ImGui::IsItemActive();
-
-	if (is_hovered && !is_active)
-	{
-		if (hover_start_time < 0)
-		{
-			hover_start_time = ImGui::GetTime();
-		}
-		float elapsed = ImGui::GetTime() - hover_start_time;
-		visual_hover = elapsed >= hover_delay;
-	} else
-	{
-		hover_start_time = -1.0f;
-	}
-
-	// Calculate dimensions
-	ImVec2 min = ImGui::GetItemRectMin();
-	ImVec2 max = ImGui::GetItemRectMax();
-	const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
-
-	// Center the visible splitter in the hover zone
-	min.x += (hover_width - width) * 0.5f;
-	max.x = min.x + width;
-
-	// Color setup
-	const ImU32 color_base = IM_COL32(134, 134, 134, 140);
-	const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
-	const ImU32 color_active = IM_COL32(11, 94, 215, 255);
-
-	// Determine color
-	ImU32 current_color = color_base;
-	if (is_active)
-	{
-		current_color = color_active;
-	} else if (visual_hover)
-	{
-		current_color = color_hover;
-	}
-
-	// Draw the splitter
-	ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
-
-	// Handle dragging
-	if (is_active)
-	{
-		const float mouse_x = ImGui::GetMousePos().x - ImGui::GetWindowPos().x;
-		float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
-		// Clamp so that editor is always at least 10% of availableWidth
-		float rightSplit = gSettings.getAgentSplitPos();
-		bool agentPaneVisible = showAgentPane;
-		float maxLeftSplit = agentPaneVisible ? (0.9f - rightSplit) : 0.9f;
-		new_split = clamp(new_split, 0.1f, maxLeftSplit);
-		gSettings.setSplitPos(new_split);
-	}
-
-	ImGui::PopStyleColor(3);
-}
-
-void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible)
-{
-	ImGui::SameLine(0, 0);
-
-	// Interaction settings
-	const float visible_width = 1.0f;	// Rendered width at rest
-	const float hover_width = 6.0f;		// Invisible hitbox size
-	const float hover_expansion = 3.0f; // Expanded visual width
-	const float hover_delay = 0.15f;	// Seconds before hover effect
-
-	ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(0, 0, 0, 0));
-
-	// Create invisible button with larger hitbox
-	ImGui::Button("##vsplitter_right", ImVec2(hover_width, -1));
-
-	// Hover delay logic
-	static float hover_start_time = -1.0f;
-	bool visual_hover = false;
-	const bool is_hovered = ImGui::IsItemHovered();
-	const bool is_active = ImGui::IsItemActive();
-
-	if (is_hovered && !is_active)
-	{
-		if (hover_start_time < 0)
-		{
-			hover_start_time = ImGui::GetTime();
-		}
-		float elapsed = ImGui::GetTime() - hover_start_time;
-		visual_hover = elapsed >= hover_delay;
-	} else
-	{
-		hover_start_time = -1.0f;
-	}
-
-	// Calculate dimensions
-	ImVec2 min = ImGui::GetItemRectMin();
-	ImVec2 max = ImGui::GetItemRectMax();
-	const float width = (visual_hover || is_active) ? hover_expansion : visible_width;
-
-	// Center the visible splitter in the hover zone
-	min.x += (hover_width - width) * 0.5f;
-	max.x = min.x + width;
-
-	// Color setup
-	const ImU32 color_base = IM_COL32(134, 134, 134, 140);
-	const ImU32 color_hover = IM_COL32(13, 110, 253, 255);
-	const ImU32 color_active = IM_COL32(11, 94, 215, 255);
-
-	// Determine color
-	ImU32 current_color = color_base;
-	if (is_active)
-	{
-		current_color = color_active;
-	} else if (visual_hover)
-	{
-		current_color = color_hover;
-	}
-
-	// Draw the splitter
-	ImGui::GetWindowDrawList()->AddRectFilled(min, max, current_color);
-
-	// Drag logic
-	static bool dragging = false;
-	static float dragOffset = 0.0f;
-
-	float rightSplit = gSettings.getAgentSplitPos();
-	float splitterX;
-	if (sidebarVisible)
-	{
-		splitterX = availableWidth - (availableWidth * rightSplit) - kAgentSplitterWidth;
-	} else
-	{
-		splitterX = availableWidth * rightSplit;
-	}
-
-	if (ImGui::IsItemActive() && !dragging)
-	{
-		dragging = true;
-		dragOffset = ImGui::GetMousePos().x - (ImGui::GetWindowPos().x + splitterX);
-	}
-	if (!ImGui::IsItemActive() && dragging)
-	{
-		dragging = false;
-		gSettings.saveSettings();
-	}
-	if (dragging)
-	{
-		float mouseX = ImGui::GetMousePos().x - ImGui::GetWindowPos().x - dragOffset;
-		float new_split;
-		float leftSplit = gSettings.getSplitPos();
-		float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
-		if (sidebarVisible)
-		{
-			new_split =
-				clamp((availableWidth - mouseX - kAgentSplitterWidth) / availableWidth,
-					  0.15f,
-					  maxRightSplit);
-		} else
-		{
-			new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
-		}
-		gSettings.setAgentSplitPos(new_split);
-	}
-
-	ImGui::PopStyleColor(3);
-}
-
 void Ned::renderEditor(ImFont *font, float editorWidth)
 {
 	ImGui::SameLine(0, 0);
@@ -863,7 +675,7 @@ void Ned::renderMainWindow()
 		ImGui::SameLine(0, 0);
 
 		// Render left splitter
-		renderSplitter(padding, availableWidth);
+		splitter.renderSplitter(padding, availableWidth);
 		ImGui::SameLine(0, 0);
 
 		// Render Editor
@@ -872,7 +684,7 @@ void Ned::renderMainWindow()
 		{
 			ImGui::SameLine(0, 0);
 			// Render right splitter (new)
-			renderAgentSplitter(padding, availableWidth, showSidebar);
+			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
 			ImGui::SameLine(0, 0);
 			// Render Agent Pane (new)
 			renderAgentPane(agentPaneWidth);
@@ -892,7 +704,7 @@ void Ned::renderMainWindow()
 		if (showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
-			renderAgentSplitter(padding, availableWidth, showSidebar);
+			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
 			ImGui::SameLine(0, 0);
 			renderAgentPane(agentPaneWidth);
 		}
