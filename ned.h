@@ -107,12 +107,6 @@ class Ned
 	// Window resize handling
 	WindowResize windowResize;
 
-	int m_sroLastWidth;
-	int m_sroLastHeight;
-	double m_sroStartTime;
-
-	// Declaration for the single overlay function
-	void handleUltraSimpleResizeOverlay(); // Renamed for clarity
 	float lastOpacity = 0.5f;
 	bool lastBlurEnabled = false;
 

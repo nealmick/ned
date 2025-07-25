@@ -146,6 +146,72 @@ void WindowResize::handleManualResizing()
 	}
 }
 
+void WindowResize::resize()
+{
+	renderResizeHandles();
+	handleManualResizing();
+}
+
+void WindowResize::renderResizeOverlay(ImFont *font)
+{
+	if (!window)
+		return;
+
+	int currentWidth, currentHeight;
+	glfwGetWindowSize(window, &currentWidth, &currentHeight);
+
+	bool currentSizeIsValid = (currentWidth > 0 && currentHeight > 0);
+
+	if (lastWidth == 0 && lastHeight == 0 && currentSizeIsValid)
+	{
+		lastWidth = currentWidth;
+		lastHeight = currentHeight;
+		return;
+	}
+	if (currentWidth == 1200 && currentHeight == 750)
+	{
+		return;
+	}
+	if (currentSizeIsValid && (currentWidth != lastWidth || currentHeight != lastHeight))
+	{
+		startTime = glfwGetTime();
+		lastWidth = currentWidth;
+		lastHeight = currentHeight;
+	}
+
+	double currentTime = glfwGetTime();
+	double elapsedTime = currentTime - startTime;
+	const double displayDuration = 0.5; // Display for 0.5 seconds
+
+	if (startTime > 0.0 && elapsedTime < displayDuration)
+	{
+		ImDrawList *drawList = ImGui::GetForegroundDrawList();
+		ImGuiViewport *viewport = ImGui::GetMainViewport();
+		ImVec2 viewportPos = viewport->Pos;
+		ImVec2 viewportSize = viewport->Size;
+
+		drawList->AddRectFilled(viewportPos,
+								ImVec2(viewportPos.x + viewportSize.x,
+									   viewportPos.y + viewportSize.y),
+								IM_COL32(0, 0, 0, 128));
+
+		char buffer[64];
+		snprintf(buffer, sizeof(buffer), "%d x %d", lastWidth, lastHeight);
+
+		ImFont *displayFont = font ? font : ImGui::GetFont();
+		float targetFontSize = 52.0f;
+
+		ImVec2 textSize =
+			displayFont->CalcTextSizeA(targetFontSize, FLT_MAX, 0.0f, buffer);
+
+		ImVec2 textPos = ImVec2(viewportPos.x + (viewportSize.x - textSize.x) * 0.5f,
+								viewportPos.y + (viewportSize.y - textSize.y) * 0.5f);
+
+		drawList->AddText(
+			displayFont, targetFontSize, textPos, IM_COL32(255, 255, 255, 255), buffer);
+	}
+}
+
 float WindowResize::clamp(float value, float min, float max)
 {
 	if (value < min)
