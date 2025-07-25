@@ -10,6 +10,11 @@
 #include "imgui_internal.h"
 #include <GLFW/glfw3.h>
 
+// Add includes for macOS window functions
+#ifdef __APPLE__
+#include "../macos_window.h"
+#endif
+
 #include <algorithm> //
 #include <cstdlib>
 #include <filesystem>
@@ -1176,4 +1181,66 @@ void Settings::ApplySettings(ImGuiStyle &style)
 	// Set the global font scale.
 	// ImGui::GetIO().FontGlobalScale =
 	// settings["fontSize"].get<float>() / 16.0f;
+}
+
+void Settings::handleSettingsChanges(bool &needFontReload,
+									 bool &m_needsRedraw,
+									 int &m_framesToRender,
+									 std::function<void(bool)> setShaderEnabled,
+									 float &lastOpacity,
+									 bool &lastBlurEnabled)
+{
+	if (hasSettingsChanged())
+	{
+		m_needsRedraw = true;							  // Set the flag!
+		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+
+		ImGuiStyle &style = ImGui::GetStyle();
+
+		ApplySettings(style);
+
+		style.Colors[ImGuiCol_WindowBg] =
+			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
+				   getSettings()["backgroundColor"][1].get<float>(),
+				   getSettings()["backgroundColor"][2].get<float>(),
+				   0.0f);
+
+		// Update shader manager using function pointer
+		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());
+
+		// Update sidebar visibility from settings
+		extern bool showSidebar;
+		extern bool showAgentPane;
+		showSidebar = getSettings().value("sidebar_visible", true);
+		showAgentPane = getSettings().value("agent_pane_visible", true);
+
+		if (hasThemeChanged())
+		{
+			extern EditorHighlight gEditorHighlight;
+			gEditorHighlight.setTheme(getCurrentTheme());
+			extern FileExplorer gFileExplorer;
+			if (!gFileExplorer.currentFile.empty())
+			{
+				gEditorHighlight.highlightContent();
+			}
+			resetThemeChanged();
+		}
+		if (hasFontChanged() || hasFontSizeChanged())
+		{
+			needFontReload = true;
+		}
+#ifdef __APPLE__
+		// Always update with current values
+		float currentOpacity = getSettings().value("mac_background_opacity", 0.5f);
+		bool currentBlurEnabled = getSettings().value("mac_blur_enabled", true);
+
+		updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
+
+		// Update tracking variables
+		lastOpacity = currentOpacity;
+		lastBlurEnabled = currentBlurEnabled;
+#endif
+
+		resetSettingsChanged();
+	}
 }

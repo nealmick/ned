@@ -470,7 +470,13 @@ void Ned::run()
 		auto frame_start = std::chrono::high_resolution_clock::now();
 
 		handleBackgroundUpdates(currentTime);
-		handleSettingsChanges();
+		gSettings.handleSettingsChanges(
+			needFontReload,
+			m_needsRedraw,
+			m_framesToRender,
+			[this](bool enabled) { shaderManager.setShaderEnabled(enabled); },
+			lastOpacity,
+			lastBlurEnabled);
 
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -1460,60 +1466,6 @@ void Ned::handleFrameTiming(std::chrono::high_resolution_clock::time_point frame
 		{
 			std::this_thread::sleep_for(targetFrameTime - frame_duration);
 		}
-	}
-}
-
-void Ned::handleSettingsChanges()
-{
-	if (gSettings.hasSettingsChanged())
-	{
-		m_needsRedraw = true;							  // Set the flag!
-		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
-
-		ImGuiStyle &style = ImGui::GetStyle();
-
-		gSettings.ApplySettings(style);
-
-		style.Colors[ImGuiCol_WindowBg] =
-			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
-				   gSettings.getSettings()["backgroundColor"][1].get<float>(),
-				   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-				   0.0f);
-
-		shaderManager.setShaderEnabled(
-			gSettings.getSettings()["shader_toggle"].get<bool>());
-
-		// Update sidebar visibility from settings
-		showSidebar = gSettings.getSettings().value("sidebar_visible", true);
-		showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
-
-		if (gSettings.hasThemeChanged())
-		{
-			gEditorHighlight.setTheme(gSettings.getCurrentTheme());
-			if (!gFileExplorer.currentFile.empty())
-			{
-				gEditorHighlight.highlightContent();
-			}
-			gSettings.resetThemeChanged();
-		}
-		if (gSettings.hasFontChanged() || gSettings.hasFontSizeChanged())
-		{
-			needFontReload = true;
-		}
-#ifdef __APPLE__
-		// Always update with current values
-		float currentOpacity =
-			gSettings.getSettings().value("mac_background_opacity", 0.5f);
-		bool currentBlurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
-
-		updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
-
-		// Update tracking variables
-		lastOpacity = currentOpacity;
-		lastBlurEnabled = currentBlurEnabled;
-#endif
-
-		gSettings.resetSettingsChanged();
 	}
 }
 
