@@ -25,6 +25,8 @@ class WindowResize
 	// Main functions called from the main application
 	void renderResizeHandles();
 	void handleManualResizing();
+	void resize(); // Combines both resize functions
+	void renderResizeOverlay(ImFont *font = nullptr);
 
 	// Get current resize state
 	bool isResizing() const { return resizingRight || resizingBottom || resizingCorner; }
@@ -42,6 +44,11 @@ class WindowResize
 
 	// Resize border size
 	static constexpr float RESIZE_BORDER = 10.0f;
+
+	// Resize overlay state
+	int lastWidth = 0;
+	int lastHeight = 0;
+	double startTime = 0.0;
 
 	// Utility functions
 	static float clamp(float value, float min, float max);
