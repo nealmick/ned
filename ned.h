@@ -19,6 +19,7 @@
 #include "files/files.h"
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
+#include "util/font.h"
 
 // Forward declarations
 struct GLFWwindow;
@@ -48,8 +49,6 @@ class Ned
 	// Member variables
 	GLFWwindow *window;
 	ShaderManager shaderManager;
-	ImFont *currentFont;
-	ImFont *largeFont; // Font for resolution overlay
 	FramebufferState fb;
 	TimingState timing;
 	ShaderQuad quad;
@@ -96,8 +95,6 @@ class Ned
 	void renderAgentPane(float agentPaneWidth);
 
 	// Utility functions
-	ImFont *loadFont(const std::string &fontName, float fontSize);
-	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
 	static float clamp(float value, float min, float max);
 
 	// slow scrolling momentum accumulator

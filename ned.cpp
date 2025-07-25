@@ -49,8 +49,8 @@ constexpr float kAgentSplitterWidth = 6.0f;
 AIAgent gAIAgent;
 
 Ned::Ned()
-	: window(nullptr), currentFont(nullptr), needFontReload(false), windowFocused(true),
-	  explorerWidth(0.0f), editorWidth(0.0f), initialized(false)
+	: window(nullptr), needFontReload(false), windowFocused(true), explorerWidth(0.0f),
+	  editorWidth(0.0f), initialized(false)
 {
 }
 
@@ -404,30 +404,13 @@ void Ned::initializeResources()
 
 	// Apply settings with temporary font size
 	ApplySettings(ImGui::GetStyle());
-	currentFont = loadFont(gSettings.getCurrentFont(), 19.0f);
 
-	// Restore original font size
-	gSettings.getSettings()["fontSize"] = originalFontSize;
-	needFontReload = true;
-	handleFontReload(); // This will reload fonts with original size
+	// Initialize fonts using the Font class
+	gFont.initialize();
 
 	// Continue with remaining initialization
 	shaderManager.setShaderEnabled(gSettings.getSettings()["shader_toggle"].get<bool>());
 	gFileExplorer.loadIcons();
-
-	if (!currentFont)
-	{
-		std::cerr << "🔴 Failed to load font, using default font" << std::endl;
-		currentFont = ImGui::GetIO().Fonts->AddFontDefault();
-	}
-
-	// Load large font for resolution overlay
-	largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
-	if (!largeFont)
-	{
-		std::cerr << "🔴 Failed to load large font, using default font" << std::endl;
-		largeFont = ImGui::GetIO().Fonts->AddFontDefault();
-	}
 }
 
 float Ned::clamp(float value, float min, float max)
@@ -437,213 +420,6 @@ float Ned::clamp(float value, float min, float max)
 	if (value > max)
 		return max;
 	return value;
-}
-
-ImFont *Ned::loadFont(const std::string &fontName, float fontSize)
-{
-	ImGuiIO &io = ImGui::GetIO();
-
-	// Build the path from .app/Contents/Resources/fonts/
-	std::string resourcePath = Settings::getAppResourcesPath();
-	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
-	// Always print the path, before existence check
-	// std::cout << "[Ned::loadFont] Attempting to load font from: " << fontPath
-	// << " at size "
-	//		  << fontSize << std::endl;
-
-	if (!std::filesystem::exists(fontPath))
-	{
-		std::cerr << "[Ned::loadFont] Font does not exist: " << fontPath << std::endl;
-		return io.Fonts->AddFontDefault();
-	}
-
-	static const ImWchar ranges[] = {
-		0x0020,
-		0x00FF, // Basic Latin + Latin Supplement
-		0x2500,
-		0x257F, // Box Drawing Characters
-		0x2580,
-		0x259F, // Block Elements
-		0x25A0,
-		0x25FF, // Geometric Shapes
-		0x2600,
-		0x26FF, // Miscellaneous Symbols
-		0x2700,
-		0x27BF, // Dingbats
-		0x2900,
-		0x297F, // Supplemental Arrows-B
-		0x2B00,
-		0x2BFF, // Miscellaneous Symbols and Arrows
-		0x3000,
-		0x303F, // CJK Symbols and Punctuation
-		0xE000,
-		0xE0FF, // Private Use Area
-		// Add emoji ranges to main font as fallback
-		0x1F300,
-		0x1F9FF, // Miscellaneous Symbols and Pictographs
-		0x1F600,
-		0x1F64F, // Emoticons
-		0x1F680,
-		0x1F6FF, // Transport and Map Symbols
-		0x1F900,
-		0x1F9FF, // Supplemental Symbols and Pictographs
-		0xFE00,
-		0xFE0F, // Variation Selectors
-		0x1F000,
-		0x1F02F, // Mahjong Tiles
-		0x1F0A0,
-		0x1F0FF, // Playing Cards
-		0x1F100,
-		0x1F64F, // Enclosed Alphanumeric Supplement
-		0x1F650,
-		0x1F67F, // Ornamental Dingbats
-		0x1F700,
-		0x1F77F, // Alchemical Symbols
-		0x1F780,
-		0x1F7FF, // Geometric Shapes Extended
-		0x1F800,
-		0x1F8FF, // Supplemental Arrows-C
-		0x1FA00,
-		0x1FA6F, // Chess Symbols
-		0x1FA70,
-		0x1FAFF, // Symbols and Pictographs Extended-A
-		0x1FB00,
-		0x1FBFF, // Symbols for Legacy Computing
-		0,
-	};
-	ImFontConfig config_main;
-	config_main.MergeMode = false;
-	config_main.GlyphRanges = ranges;
-
-	// Clear existing fonts if you want a single font each time, or
-	// if you want to stack multiple fonts, you might skip clearing.
-	io.Fonts->Clear();
-
-	ImFont *font =
-		io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config_main, ranges);
-
-	// Merge DejaVu Sans for Braille, etc. if you want
-	ImFontConfig config_braille;
-	config_braille.MergeMode = true;
-	static const ImWchar braille_ranges[] = {0x2800, 0x28FF, 0};
-	std::string dejaVuPath = resourcePath + "/fonts/DejaVuSans.ttf";
-	if (std::filesystem::exists(dejaVuPath))
-	{
-		io.Fonts->AddFontFromFileTTF(
-			dejaVuPath.c_str(), fontSize, &config_braille, braille_ranges);
-	}
-
-	// Merge emoji font for emoji support
-	ImFontConfig config_emoji;
-	config_emoji.MergeMode = true;
-
-	// Enable color support for emojis (requires FreeType)
-#ifdef IMGUI_ENABLE_FREETYPE
-	config_emoji.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
-#endif
-
-	// Try seguiemj.ttf first (more compatible), then Emoji.ttf as fallback
-	std::string emojiPath = resourcePath + "/fonts/seguiemj.ttf";
-	if (!std::filesystem::exists(emojiPath))
-	{
-		emojiPath = resourcePath + "/fonts/Emoji.ttf";
-	}
-
-	if (std::filesystem::exists(emojiPath))
-	{
-		// Emoji ranges for merging
-		static const ImWchar emoji_ranges[] = {
-			0x1F300, 0x1F9FF, // Miscellaneous Symbols and Pictographs
-			0x1F600, 0x1F64F, // Emoticons
-			0x1F680, 0x1F6FF, // Transport and Map Symbols
-			0x1F900, 0x1F9FF, // Supplemental Symbols and Pictographs
-			0x2600,	 0x26FF,  // Miscellaneous Symbols
-			0x2700,	 0x27BF,  // Dingbats
-			0xFE00,	 0xFE0F,  // Variation Selectors
-			0x1F000, 0x1F02F, // Mahjong Tiles
-			0x1F0A0, 0x1F0FF, // Playing Cards
-			0x1F100, 0x1F64F, // Enclosed Alphanumeric Supplement
-			0x1F650, 0x1F67F, // Ornamental Dingbats
-			0x1F680, 0x1F6FF, // Transport and Map Symbols
-			0x1F700, 0x1F77F, // Alchemical Symbols
-			0x1F780, 0x1F7FF, // Geometric Shapes Extended
-			0x1F800, 0x1F8FF, // Supplemental Arrows-C
-			0x1F900, 0x1F9FF, // Supplemental Symbols and Pictographs
-			0x1FA00, 0x1FA6F, // Chess Symbols
-			0x1FA70, 0x1FAFF, // Symbols and Pictographs Extended-A
-			0x1FB00, 0x1FBFF, // Symbols for Legacy Computing
-			0,
-		};
-
-		// Use a slightly larger size for emoji font to ensure good rendering
-		float emojiFontSize = fontSize * 0.9f;
-		io.Fonts->AddFontFromFileTTF(
-			emojiPath.c_str(), emojiFontSize, &config_emoji, emoji_ranges);
-		std::cout << "[Ned::loadFont] Successfully merged emoji font: " << emojiPath
-				  << " at size " << emojiFontSize << std::endl;
-	} else
-	{
-		std::cerr << "[Ned::loadFont] No emoji font found at: " << emojiPath << std::endl;
-	}
-
-	if (!font)
-	{
-		std::cerr << "[Ned::loadFont] Failed to load font: " << fontPath << std::endl;
-		return io.Fonts->AddFontDefault();
-	}
-
-	// After adding new fonts, re-create the OpenGL font texture
-	ImGui_ImplOpenGL3_DestroyFontsTexture();
-	ImGui_ImplOpenGL3_CreateFontsTexture();
-
-	// std::cout << "[Ned::loadFont] Successfully loaded font: " << fontName <<
-	// " from " << fontPath
-	//		  << " at size " << fontSize << std::endl;
-
-	return font;
-}
-
-ImFont *Ned::loadLargeFont(const std::string &fontName, float fontSize)
-{
-	ImGuiIO &io = ImGui::GetIO();
-
-	// Build the path from .app/Contents/Resources/fonts/
-	std::string resourcePath = Settings::getAppResourcesPath();
-	std::string fontPath = resourcePath + "/fonts/" + fontName + ".ttf";
-
-	if (!std::filesystem::exists(fontPath))
-	{
-		std::cerr << "[Ned::loadLargeFont] Font does not exist: " << fontPath
-				  << std::endl;
-		return io.Fonts->AddFontDefault();
-	}
-
-	static const ImWchar ranges[] = {
-		0x0020,
-		0x00FF, // Basic Latin + Latin Supplement
-		0,
-	};
-
-	ImFontConfig config;
-	config.MergeMode = false;
-	config.GlyphRanges = ranges;
-
-	// Don't clear existing fonts - just add the new one
-	ImFont *font =
-		io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize, &config, ranges);
-
-	if (!font)
-	{
-		std::cerr << "[Ned::loadLargeFont] Failed to load font: " << fontPath
-				  << std::endl;
-		return io.Fonts->AddFontDefault();
-	}
-
-	// After adding new fonts, re-create the OpenGL font texture
-	ImGui_ImplOpenGL3_DestroyFontsTexture();
-	ImGui_ImplOpenGL3_CreateFontsTexture();
-
-	return font;
 }
 
 void Ned::run()
@@ -1045,7 +821,7 @@ std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFon
 	return root_part + "...";
 }
 
-void Ned::renderEditorHeader(ImFont *currentFont)
+void Ned::renderEditorHeader(ImFont *font)
 {
 	float windowWidth = ImGui::GetWindowWidth();
 
@@ -1053,7 +829,7 @@ void Ned::renderEditorHeader(ImFont *currentFont)
 	bool showGitChanges = windowWidth >= 250.0f;
 
 	ImGui::BeginGroup();
-	ImGui::PushFont(currentFont);
+	ImGui::PushFont(font);
 
 	// Determine the base icon size (equal to font size)
 	float iconSize = ImGui::GetFontSize() * 1.15f;
@@ -1367,14 +1143,14 @@ void Ned::renderAgentSplitter(float padding, float availableWidth, bool sidebarV
 	ImGui::PopStyleColor(3);
 }
 
-void Ned::renderEditor(ImFont *currentFont, float editorWidth)
+void Ned::renderEditor(ImFont *font, float editorWidth)
 {
 	ImGui::SameLine(0, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
 
 	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
-	renderEditorHeader(currentFont);
+	renderEditorHeader(font);
 	gFileExplorer.renderFileContent();
 	ImGui::EndChild();
 
@@ -1384,7 +1160,7 @@ void Ned::renderEditor(ImFont *currentFont, float editorWidth)
 
 void Ned::renderAgentPane(float agentPaneWidth)
 {
-	gAIAgent.render(agentPaneWidth, largeFont);
+	gAIAgent.render(agentPaneWidth, gFont.largeFont);
 }
 
 void Ned::renderMainWindow()
@@ -1408,7 +1184,7 @@ void Ned::renderMainWindow()
 		return;
 	}
 
-	ImGui::PushFont(currentFont);
+	ImGui::PushFont(gFont.currentFont);
 	ImGui::SetNextWindowPos(ImVec2(0, 0));
 	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
 #ifdef __APPLE__
@@ -1456,7 +1232,7 @@ void Ned::renderMainWindow()
 		ImGui::SameLine(0, 0);
 
 		// Render Editor
-		renderEditor(currentFont, editorWidth);
+		renderEditor(gFont.currentFont, editorWidth);
 		if (showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
@@ -1477,7 +1253,7 @@ void Ned::renderMainWindow()
 		float agentPaneWidth =
 			showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
 
-		renderEditor(currentFont, editorWidth);
+		renderEditor(gFont.currentFont, editorWidth);
 		if (showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
@@ -1586,7 +1362,7 @@ void Ned::handleUltraSimpleResizeOverlay()
 		char buffer[64];
 		snprintf(buffer, sizeof(buffer), "%d x %d", m_sroLastWidth, m_sroLastHeight);
 
-		ImFont *font = largeFont; // Use the large font instead of scaling
+		ImFont *font = gFont.largeFont; // Use the large font instead of scaling
 		float targetFontSize = 52.0f;
 
 		ImVec2 textSize = font->CalcTextSizeA(targetFontSize, FLT_MAX, 0.0f, buffer);
@@ -1760,6 +1536,7 @@ void Ned::handleSettingsChanges()
 		gSettings.resetSettingsChanged();
 	}
 }
+
 void Ned::handleFontReload()
 {
 	if (needFontReload)
@@ -1767,19 +1544,7 @@ void Ned::handleFontReload()
 		m_needsRedraw = true; // A redraw is needed after the new font is loaded.
 		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
 
-		ImGui_ImplOpenGL3_DestroyFontsTexture();
-		ImGui::GetIO().Fonts->Clear();
-		currentFont = loadFont(gSettings.getCurrentFont(),
-							   gSettings.getSettings()["fontSize"].get<float>());
-
-		// Also reload largeFont since it was cleared above
-		largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
-
-		ImGui::GetIO().Fonts->Build();
-		ImGui_ImplOpenGL3_CreateFontsTexture();
-		gSettings.resetFontChanged();
-		gSettings.resetFontSizeChanged();
-		needFontReload = false;
+		gFont.handleFontReload(needFontReload);
 	}
 }
 
