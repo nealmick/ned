@@ -4,8 +4,12 @@
 #include "imgui.h"
 #include "settings_file_manager.h"
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
+
+// Forward declaration
+class ShaderManager;
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -161,6 +165,14 @@ class Settings
 
 	// Method to apply settings to ImGui style
 	void ApplySettings(ImGuiStyle &style);
+
+	// Method to handle settings changes and update related components
+	void handleSettingsChanges(bool &needFontReload,
+							   bool &m_needsRedraw,
+							   int &m_framesToRender,
+							   std::function<void(bool)> setShaderEnabled,
+							   float &lastOpacity,
+							   bool &lastBlurEnabled);
 
   private:
 	json settings;				 // Holds the settings from the *active* file

@@ -70,7 +70,6 @@ class Ned
 	void handleBackgroundUpdates(double currentTime);
 	void handleFramebuffer(int width, int height);
 	void handleWindowFocus();
-	void handleSettingsChanges();
 	void handleFontReload();
 	void handleFileDialog();
 	void handleKeyboardShortcuts();
