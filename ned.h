@@ -15,6 +15,7 @@
 #include "ai/ai_agent.h"
 #include "editor/editor.h"
 #include "editor/editor_bookmarks.h"
+#include "editor/editor_header.h"
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader_manager.h"
@@ -52,6 +53,7 @@ class Ned
 	FramebufferState fb;
 	TimingState timing;
 	ShaderQuad quad;
+	EditorHeader editorHeader;
 	bool needFontReload;
 	bool windowFocused;
 	float explorerWidth;
@@ -81,9 +83,6 @@ class Ned
 	void renderFrame();
 	void renderMainWindow();
 	void renderFileExplorer(float explorerWidth);
-	void renderEditorHeader(ImFont *currentFont);
-	std::string truncateFilePath(const std::string &path, float maxWidth, ImFont *font);
-	void renderSettingsIcon(float iconSize);
 	void renderSplitter(float padding, float availableWidth);
 	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
