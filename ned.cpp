@@ -17,6 +17,7 @@ Description: Main application class implementation for NED text editor.
 #include "ned.h"
 
 #include "editor/editor_bookmarks.h"
+#include "editor/editor_header.h"
 #include "editor/editor_highlight.h"
 #include "editor/editor_scroll.h"
 #include "files/files.h"
@@ -717,243 +718,6 @@ void Ned::renderFileExplorer(float explorerWidth)
 	ImGui::PopStyleVar(2);
 }
 
-std::string Ned::truncateFilePath(const std::string &path, float maxWidth, ImFont *font)
-{
-	if (path.empty())
-	{
-		return "";
-	}
-
-	fs::path p(path);
-	std::string root_part;
-	std::vector<std::string> components;
-
-	// Split into root and components
-	if (p.has_root_path())
-	{
-		root_part = p.root_path().string();
-		// Iterate over components after the root
-		for (auto it = ++p.begin(); it != p.end(); ++it)
-		{
-			if (!it->empty())
-			{
-				components.push_back(it->string());
-			}
-		}
-	} else
-	{
-		for (const auto &part : p)
-		{
-			if (!part.empty())
-			{
-				components.push_back(part.string());
-			}
-		}
-	}
-
-	if (components.empty())
-	{
-		return root_part.empty() ? path : root_part;
-	}
-
-	// Check full path first
-	std::string fullPath =
-		root_part + std::accumulate(components.begin(),
-									components.end(),
-									std::string(),
-									[](const std::string &a, const std::string &b) {
-										return a.empty() ? b : a + "/" + b;
-									});
-	if (ImGui::CalcTextSize(fullPath.c_str()).x <= maxWidth)
-	{
-		return fullPath;
-	}
-	// Try removing directories from the front
-	for (size_t start = 0; start < components.size(); ++start)
-	{
-		std::string candidate;
-
-		if (start == 0)
-		{
-			candidate = fullPath;
-		} else
-		{
-			std::string middle =
-				".../" + std::accumulate(components.begin() + start,
-										 components.end(),
-										 std::string(),
-										 [](const std::string &a, const std::string &b) {
-											 return a.empty() ? b : a + "/" + b;
-										 });
-			candidate = root_part + middle;
-		}
-
-		float width = ImGui::CalcTextSize(candidate.c_str()).x;
-		if (width <= maxWidth)
-		{
-			return candidate;
-		}
-	}
-
-	// Only filename left (with root if applicable)
-	std::string filename = root_part + components.back();
-	if (ImGui::CalcTextSize(filename.c_str()).x <= maxWidth)
-	{
-		return filename;
-	}
-
-	// Truncate filename
-	std::string truncated = components.back();
-	int maxLength = truncated.length();
-	while (maxLength > 0)
-	{
-		std::string temp = truncated.substr(0, maxLength) + "...";
-		std::string candidate = root_part + temp;
-		if (ImGui::CalcTextSize(candidate.c_str()).x <= maxWidth)
-		{
-			return candidate;
-		}
-		maxLength--;
-	}
-
-	// Minimum case
-	return root_part + "...";
-}
-
-void Ned::renderEditorHeader(ImFont *font)
-{
-	float windowWidth = ImGui::GetWindowWidth();
-
-	// Disable git changes if window width is less than 250
-	bool showGitChanges = windowWidth >= 250.0f;
-
-	ImGui::BeginGroup();
-	ImGui::PushFont(font);
-
-	// Determine the base icon size (equal to font size)
-	float iconSize = ImGui::GetFontSize() * 1.15f;
-	std::string currentFile = gFileExplorer.currentFile;
-
-	// Calculate space needed for right-aligned status area
-	const float rightPadding = 25.0f;							// Space from window edge
-	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
-
-	// Calculate space needed for git changes if enabled and available
-	float gitChangesWidth = 0.0f;
-	if (showGitChanges && gSettings.getSettings()["git_changed_lines"] &&
-		!gEditorGit.currentGitChanges.empty())
-	{
-		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x +
-						  ImGui::GetStyle().ItemSpacing.x;
-	}
-
-	// Render left side (file icon and name)
-	if (currentFile.empty())
-	{
-		ImGui::Text("Editor - No file selected");
-	} else
-	{
-		ImTextureID fileIcon = gFileExplorer.getIconForFile(currentFile);
-		if (fileIcon)
-		{
-			// Vertical centering for file icon
-			float textHeight = ImGui::GetTextLineHeight();
-			float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
-			ImGui::SetCursorPosY(iconTopY);
-			ImGui::Image(fileIcon, ImVec2(iconSize, iconSize));
-			ImGui::SameLine();
-		}
-
-		// Calculate available width for the text, accounting for all elements
-		float x_cursor = ImGui::GetCursorPosX();
-		float x_right_group = ImGui::GetWindowWidth();
-		float available_width = x_right_group - x_cursor -
-								ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
-								gitChangesWidth;
-
-		// Truncate the file path to fit available space
-		std::string truncatedText =
-			truncateFilePath(currentFile, available_width, ImGui::GetFont());
-
-		ImGui::Text("%s", truncatedText.c_str());
-
-		// Add git changes info if available and window is wide enough
-		if (showGitChanges && gSettings.getSettings()["git_changed_lines"])
-		{
-			if (!gEditorGit.currentGitChanges.empty())
-			{
-				ImGui::SameLine();
-				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
-			}
-		}
-	}
-
-	// Right-aligned status area
-	// Position at far right edge
-	ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
-
-	// Status group
-	ImGui::BeginGroup();
-	{
-		// Vertical centering
-		float textHeight = ImGui::GetTextLineHeight();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f);
-
-		// Brain icon (only visible when active)
-		if (gAITab.request_active)
-		{
-			ImGui::Image(gFileExplorer.getIcon("green-dot"), ImVec2(iconSize, iconSize));
-		} else
-		{
-			// Invisible placeholder to maintain layout
-			ImGui::InvisibleButton("##brain-placeholder", ImVec2(iconSize, iconSize));
-		}
-		ImGui::SameLine();
-
-		// Settings icon (always in same position)
-		renderSettingsIcon(iconSize * 0.6f);
-	}
-	ImGui::EndGroup();
-
-	ImGui::PopFont();
-	ImGui::EndGroup();
-	ImGui::Separator();
-}
-
-void Ned::renderSettingsIcon(float iconSize)
-{
-	bool settingsOpen = gSettings.showSettingsWindow;
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-
-	// Vertical centering
-	float textHeight = ImGui::GetTextLineHeight();
-	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
-	ImGui::SetCursorPosY(iconTopY);
-
-	if (!settingsOpen)
-	{
-		ImVec2 cursor_pos = ImGui::GetCursorPos();
-		if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)))
-		{
-			gSettings.toggleSettingsWindow();
-		}
-		bool isHovered = ImGui::IsItemHovered();
-		ImGui::SetCursorPos(cursor_pos);
-		ImTextureID icon = isHovered ? gFileExplorer.getIcon("gear-hover")
-									 : gFileExplorer.getIcon("gear");
-		ImGui::Image(icon, ImVec2(iconSize, iconSize));
-	} else
-	{
-		ImGui::Image(gFileExplorer.getIcon("gear"), ImVec2(iconSize, iconSize));
-	}
-
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar();
-}
-
 void Ned::renderSplitter(float padding, float availableWidth)
 {
 	ImGui::SameLine(0, 0);
@@ -1149,7 +913,12 @@ void Ned::renderEditor(ImFont *font, float editorWidth)
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
 
 	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
-	renderEditorHeader(font);
+
+	// Calculate if git changes should be shown based on window width
+	float windowWidth = ImGui::GetWindowWidth();
+	bool showGitChanges = windowWidth >= 250.0f;
+
+	editorHeader.render(font, gFileExplorer.currentFile, showGitChanges);
 	gFileExplorer.renderFileContent();
 	ImGui::EndChild();
 
