@@ -62,8 +62,6 @@ Ned::~Ned()
 	}
 }
 
-void ApplySettings(ImGuiStyle &style);
-
 bool Ned::initialize()
 {
 	if (!initializeGraphics())
@@ -396,14 +394,8 @@ void Ned::initializeResources()
 	gDebugConsole.toggleVisibility();
 	gEditorHighlight.setTheme(gSettings.getCurrentTheme());
 
-	// Save original font size
-	float originalFontSize = gSettings.getSettings()["fontSize"].get<float>();
-
-	// Temporarily force font size to 19.0 for proper terminal initialization
-	gSettings.getSettings()["fontSize"] = 19.0f;
-
-	// Apply settings with temporary font size
-	ApplySettings(ImGui::GetStyle());
+	// Apply settings with the actual loaded font size
+	gSettings.ApplySettings(ImGui::GetStyle());
 
 	// Initialize fonts using the Font class
 	gFont.initialize();
@@ -1492,7 +1484,7 @@ void Ned::handleSettingsChanges()
 
 		ImGuiStyle &style = ImGui::GetStyle();
 
-		ApplySettings(style);
+		gSettings.ApplySettings(style);
 
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
@@ -1566,38 +1558,4 @@ void Ned::cleanup()
 	ImGui::DestroyContext();
 	glfwDestroyWindow(window);
 	glfwTerminate();
-}
-void ApplySettings(ImGuiStyle &style)
-{
-	// Set the window background color from settings.
-	style.Colors[ImGuiCol_WindowBg] =
-		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][3].get<float>());
-	// Note: shader state is now managed by the ShaderManager class
-
-	// Set text colors from the current theme.
-	std::string currentTheme = gSettings.getCurrentTheme();
-	auto &textColor = gSettings.getSettings()["themes"][currentTheme]["text"];
-	ImVec4 textCol(textColor[0].get<float>(),
-				   textColor[1].get<float>(),
-				   textColor[2].get<float>(),
-				   textColor[3].get<float>());
-	style.Colors[ImGuiCol_Text] = textCol;
-	style.Colors[ImGuiCol_TextDisabled] =
-		ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
-	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);
-
-	// Hide scrollbars by setting their alpha to 0.
-	style.ScrollbarSize = 30.0f;
-	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
-	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
-
-	// Set the global font scale.
-	// ImGui::GetIO().FontGlobalScale =
-	// gSettings.getSettings()["fontSize"].get<float>() / 16.0f;
 }
