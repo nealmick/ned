@@ -22,6 +22,7 @@ Description: Main application class implementation for NED text editor.
 #include "editor/editor_scroll.h"
 #include "files/files.h"
 #include "util/debug_console.h"
+#include "util/init.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
 #include "util/terminal.h"
@@ -107,8 +108,9 @@ bool Ned::initialize()
 
 	// Rest of initialization...
 	glfwSetWindowUserPointer(window, this);
-	initializeImGui();
-	initializeResources();
+	Init::initializeImGui(window);
+	glfwSetScrollCallback(window, Ned::scrollCallback);
+	Init::initializeResources();
 	quad.initialize();
 
 	// Initialize window resize handler
@@ -184,19 +186,6 @@ bool Ned::initializeGraphics()
 	return true;
 }
 
-void Ned::initializeImGui()
-{
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO &io = ImGui::GetIO();
-	io.IniFilename = NULL; // Disable ImGui .ini file writing
-	(void)io;
-	ImGui::StyleColorsDark();
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 330");
-	glfwSetScrollCallback(window, Ned::scrollCallback);
-}
-
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
 	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
@@ -246,23 +235,6 @@ void Ned::checkForActivity()
 		gFrame.setLastActivityTime(glfwGetTime());
 	}
 }
-// In Ned::initializeResources()
-void Ned::initializeResources()
-{
-	gDebugConsole.toggleVisibility();
-	gEditorHighlight.setTheme(gSettings.getCurrentTheme());
-
-	// Apply settings with the actual loaded font size
-	gSettings.ApplySettings(ImGui::GetStyle());
-
-	// Initialize fonts using the Font class
-	gFont.initialize();
-
-	// Continue with remaining initialization
-	shaderManager.setShaderEnabled(gSettings.getSettings()["shader_toggle"].get<bool>());
-	gFileExplorer.loadIcons();
-}
-
 
 void Ned::run()
 {
@@ -418,8 +390,6 @@ void Ned::handleWindowFocus()
 	}
 }
 
-
-
 void Ned::renderMainWindow()
 {
 
@@ -500,8 +470,8 @@ void Ned::renderMainWindow()
 			// Render right splitter (new)
 			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
 			ImGui::SameLine(0, 0);
-					// Render Agent Pane (new)
-		gAIAgent.render(agentPaneWidth, gFont.largeFont);
+			// Render Agent Pane (new)
+			gAIAgent.render(agentPaneWidth, gFont.largeFont);
 		}
 	} else
 	{
@@ -519,8 +489,8 @@ void Ned::renderMainWindow()
 		{
 			ImGui::SameLine(0, 0);
 			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
-					ImGui::SameLine(0, 0);
-		gAIAgent.render(agentPaneWidth, gFont.largeFont);
+			ImGui::SameLine(0, 0);
+			gAIAgent.render(agentPaneWidth, gFont.largeFont);
 		}
 	}
 	windowResize.resize();
@@ -549,11 +519,10 @@ void Ned::renderFrame()
 	// Finish frame rendering
 	gFrame.finishFrame(fb);
 
-	shaderManager.renderWithEffects(display_w, display_h, glfwGetTime(), fb, accum, quad, gSettings);
+	shaderManager.renderWithEffects(
+		display_w, display_h, glfwGetTime(), fb, accum, quad, gSettings);
 	glfwSwapBuffers(window);
 }
-
-
 
 void Ned::cleanup()
 {
