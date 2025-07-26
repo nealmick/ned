@@ -64,13 +64,7 @@ class Ned
 	// Render functions
 	void renderFrame();
 	void renderMainWindow();
-	void renderWithShader(int display_w, int display_h, double currentTime);
 
-	// Add these declarations for the agent pane
-	void renderAgentPane(float agentPaneWidth);
-
-	// Utility functions
-	static float clamp(float value, float min, float max);
 
 	// slow scrolling momentum accumulator
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);

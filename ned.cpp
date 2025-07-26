@@ -263,14 +263,6 @@ void Ned::initializeResources()
 	gFileExplorer.loadIcons();
 }
 
-float Ned::clamp(float value, float min, float max)
-{
-	if (value < min)
-		return min;
-	if (value > max)
-		return max;
-	return value;
-}
 
 void Ned::run()
 {
@@ -426,10 +418,7 @@ void Ned::handleWindowFocus()
 	}
 }
 
-void Ned::renderAgentPane(float agentPaneWidth)
-{
-	gAIAgent.render(agentPaneWidth, gFont.largeFont);
-}
+
 
 void Ned::renderMainWindow()
 {
@@ -511,8 +500,8 @@ void Ned::renderMainWindow()
 			// Render right splitter (new)
 			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
 			ImGui::SameLine(0, 0);
-			// Render Agent Pane (new)
-			renderAgentPane(agentPaneWidth);
+					// Render Agent Pane (new)
+		gAIAgent.render(agentPaneWidth, gFont.largeFont);
 		}
 	} else
 	{
@@ -530,8 +519,8 @@ void Ned::renderMainWindow()
 		{
 			ImGui::SameLine(0, 0);
 			splitter.renderAgentSplitter(padding, availableWidth, showSidebar);
-			ImGui::SameLine(0, 0);
-			renderAgentPane(agentPaneWidth);
+					ImGui::SameLine(0, 0);
+		gAIAgent.render(agentPaneWidth, gFont.largeFont);
 		}
 	}
 	windowResize.resize();
@@ -560,15 +549,11 @@ void Ned::renderFrame()
 	// Finish frame rendering
 	gFrame.finishFrame(fb);
 
-	renderWithShader(display_w, display_h, glfwGetTime());
+	shaderManager.renderWithEffects(display_w, display_h, glfwGetTime(), fb, accum, quad, gSettings);
 	glfwSwapBuffers(window);
 }
 
-void Ned::renderWithShader(int display_w, int display_h, double currentTime)
-{
-	shaderManager.renderWithEffects(
-		display_w, display_h, currentTime, fb, accum, quad, gSettings);
-}
+
 
 void Ned::cleanup()
 {
