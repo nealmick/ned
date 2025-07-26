@@ -60,7 +60,7 @@ class Ned
 	void handleWindowFocus();
 	void handleFontReload();
 	void handleFileDialog();
-	void handleKeyboardShortcuts();
+
 	void checkForActivity(); // Check for immediate user input
 
 	// Render functions

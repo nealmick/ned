@@ -26,6 +26,10 @@ class KeybindsManager
 	// Returns ImGuiKey_None if the actionName is not found or key is unmapped
 	ImGuiKey getActionKey(const std::string &actionName) const;
 
+	// Handle keyboard shortcuts - moved from Ned class
+	// Returns true if any shortcuts were pressed, false otherwise
+	bool handleKeyboardShortcuts();
+
   private:
 	std::string getUserKeybindsFilePath();
 	void ensureUserKeybindsFileExists();
@@ -35,12 +39,10 @@ class KeybindsManager
 	// Helper to convert string to ImGuiKey
 	static ImGuiKey stringToImGuiKey(const std::string &keyString); // <<< ADD THIS
 
-	// Helper to process raw JSON keybinds into the ImGuiKey map
-	void processKeybinds(); // <<< ADD THIS
+	void processKeybinds();
 
-	json keybinds_; // Raw JSON data from the file
-	std::map<std::string, ImGuiKey>
-		processedKeybinds_; // <<< ADD THIS (Action name -> ImGuiKey)
+	json keybinds_;
+	std::map<std::string, ImGuiKey> processedKeybinds_;
 
 	std::string keybindsFilePath_;
 	SettingsFileManager settingsFileManager_;
