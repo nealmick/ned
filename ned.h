@@ -21,6 +21,7 @@
 #include "shaders/shader_types.h"
 #include "util/font.h"
 #include "util/frame.h"
+#include "util/render.h"
 #include "util/splitter.h"
 #include "util/window_resize.h"
 
@@ -46,6 +47,7 @@ class Ned
 	FramebufferState fb;
 	ShaderQuad quad;
 	Splitter splitter;
+	Render render;
 	bool needFontReload;
 	bool windowFocused;
 	float explorerWidth;
@@ -59,9 +61,7 @@ class Ned
 
 	void checkForActivity(); // Check for immediate user input
 
-	// Render functions
-	void renderFrame();
-	void renderMainWindow();
+	// Render functions moved to Render class
 
 	// slow scrolling momentum accumulator
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
