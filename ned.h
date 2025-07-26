@@ -58,8 +58,6 @@ class Ned
 	void initializeResources();
 	void handleBackgroundUpdates(double currentTime);
 	void handleWindowFocus();
-	void handleFontReload();
-	void handleFileDialog();
 
 	void checkForActivity(); // Check for immediate user input
 

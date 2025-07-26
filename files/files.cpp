@@ -249,6 +249,8 @@ bool FileExplorer::handleFileDialogWorkflow()
 	return false; // No folder was selected
 }
 
+bool FileExplorer::handleFileDialog() { return handleFileDialogWorkflow(); }
+
 bool FileExplorer::readFileContent(const std::string &path)
 {
 	try

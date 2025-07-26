@@ -4,6 +4,7 @@ Description: Font management class implementation for NED text editor.
 */
 
 #include "font.h"
+#include "frame.h"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "settings.h"
