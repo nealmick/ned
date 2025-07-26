@@ -500,6 +500,24 @@ void FileExplorer::renderFileContent()
 	ImGui::PopStyleVar();
 }
 
+void FileExplorer::renderFileExplorer(float explorerWidth)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
+	ImGui::PushStyleColor(
+		ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
+	ImGui::BeginChild(
+		"File Explorer", ImVec2(explorerWidth, -1), true, ImGuiWindowFlags_NoScrollbar);
+
+	if (!selectedFolder.empty())
+	{
+		gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
+	}
+	ImGui::EndChild();
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar(2);
+}
+
 void FileExplorer::renderEditor(bool &text_changed)
 {
 	gEditor.textEditor();
