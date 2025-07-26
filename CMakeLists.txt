@@ -200,6 +200,7 @@ add_library(util STATIC
   util/frame.cpp
   util/window_resize.cpp
   util/splitter.cpp
+  util/init.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}

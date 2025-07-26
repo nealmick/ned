@@ -54,8 +54,6 @@ class Ned
 
 	// Core functions
 	bool initializeGraphics();
-	void initializeImGui();
-	void initializeResources();
 	void handleBackgroundUpdates(double currentTime);
 	void handleWindowFocus();
 
@@ -64,7 +62,6 @@ class Ned
 	// Render functions
 	void renderFrame();
 	void renderMainWindow();
-
 
 	// slow scrolling momentum accumulator
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
