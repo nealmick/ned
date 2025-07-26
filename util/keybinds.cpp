@@ -1,9 +1,33 @@
 #include "keybinds.h"
+#include "../editor/editor.h"
+#include "../files/files.h"
+#include "../util/close_popper.h"
 #include "../util/settings.h"
+#include "../util/terminal.h"
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+
+// Global variables needed for the function
+extern bool showSidebar;
+extern bool showAgentPane;
+extern Terminal gTerminal;
+extern FileExplorer gFileExplorer;
+extern Settings gSettings;
+extern EditorState editor_state;
+
+constexpr float kAgentSplitterWidth = 6.0f;
+
+// Helper function for clamping values
+float clamp(float value, float min, float max)
+{
+	if (value < min)
+		return min;
+	if (value > max)
+		return max;
+	return value;
+}
 
 KeybindsManager gKeybinds;
 
@@ -452,4 +476,148 @@ ImGuiKey KeybindsManager::getActionKey(const std::string &actionName) const
 	// found in processed map (map size: " << processedKeybinds_.size() << ")"
 	// << std::endl;
 	return ImGuiKey_None;
+}
+
+bool KeybindsManager::handleKeyboardShortcuts()
+{
+	// At the very top of this function, add a local flag.
+	bool shortcutPressed = false;
+
+	ImGuiIO &io = ImGui::GetIO();
+	// Accept either Ctrl or Super (Command on macOS)
+	bool modPressed = io.KeyCtrl || io.KeySuper;
+	ImGuiKey toggleSidebar = getActionKey("toggle_sidebar");
+
+	if (modPressed && ImGui::IsKeyPressed(toggleSidebar, false))
+	{
+		float windowWidth = ImGui::GetWindowWidth();
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3 -
+							   (showAgentPane ? kAgentSplitterWidth
+											  : 0.0f); // Only account for splitter width
+													   // when agent pane is visible
+
+		float agentPaneWidthPx;
+		if (showSidebar)
+		{
+			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
+		} else
+		{
+			float agentSplit = gSettings.getAgentSplitPos();
+			float editorWidth = availableWidth * agentSplit;
+			agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
+		}
+
+		// Toggle sidebar
+		showSidebar = !showSidebar;
+
+		// Save sidebar visibility setting
+		gSettings.getSettings()["sidebar_visible"] = showSidebar;
+		gSettings.saveSettings();
+
+		// Recompute availableWidth after toggling
+		windowWidth = ImGui::GetWindowWidth();
+		availableWidth =
+			windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
+
+		float newRightSplit;
+		if (showSidebar)
+		{
+			newRightSplit = agentPaneWidthPx / availableWidth;
+		} else
+		{
+			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
+			newRightSplit = editorWidth / availableWidth;
+		}
+		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
+
+		std::cout << "Toggled sidebar visibility" << std::endl;
+		shortcutPressed = true;
+	}
+
+	ImGuiKey toggleAgent = getActionKey("toggle_agent");
+	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false))
+	{
+		// Only toggle visibility, do not recalculate or set agentSplitPos
+		showAgentPane = !showAgentPane;
+
+		// Save agent pane visibility setting
+		gSettings.getSettings()["agent_pane_visible"] = showAgentPane;
+		gSettings.saveSettings();
+
+		std::cout << "Toggled agent pane visibility" << std::endl;
+		shortcutPressed = true;
+	}
+
+	ImGuiKey toggleTerminal = getActionKey("toggle_terminal");
+
+	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false))
+	{
+		gTerminal.toggleVisibility();
+		gFileExplorer.saveCurrentFile();
+		if (gTerminal.isTerminalVisible())
+		{
+			ClosePopper::closeAll();
+		}
+		shortcutPressed = true;
+	}
+	ImGuiKey togglesetings = getActionKey("toggle_settings_window");
+
+	if (modPressed && ImGui::IsKeyPressed(togglesetings, false))
+	{
+		gFileExplorer.showWelcomeScreen = false;
+		gSettings.toggleSettingsWindow();
+		shortcutPressed = true;
+	}
+
+	if (modPressed)
+	{
+		if (ImGui::IsKeyPressed(ImGuiKey_Equal))
+		{ // '+' key
+			float currentSize = gSettings.getFontSize();
+			gSettings.setFontSize(currentSize + 2.0f);
+			editor_state.ensure_cursor_visible.vertical = true;
+			editor_state.ensure_cursor_visible.horizontal = true;
+			std::cout << "Cmd++: Font size increased to " << gSettings.getFontSize()
+					  << std::endl;
+			shortcutPressed = true;
+		} else if (ImGui::IsKeyPressed(ImGuiKey_Minus))
+		{ // '-' key
+			float currentSize = gSettings.getFontSize();
+			gSettings.setFontSize(std::max(currentSize - 2.0f, 8.0f));
+			editor_state.ensure_cursor_visible.vertical = true;
+			editor_state.ensure_cursor_visible.horizontal = true;
+			std::cout << "Cmd+-: Font size decreased to " << gSettings.getFontSize()
+					  << std::endl;
+			shortcutPressed = true;
+		}
+	}
+
+	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_Slash, false))
+	{
+		ClosePopper::closeAll();
+		gFileExplorer.showWelcomeScreen = !gFileExplorer.showWelcomeScreen;
+		if (gTerminal.isTerminalVisible())
+		{
+			gTerminal.toggleVisibility();
+		}
+		gFileExplorer.saveCurrentFile();
+		shortcutPressed = true;
+	}
+	if (modPressed && ImGui::IsKeyPressed(ImGuiKey_O, false))
+	{
+		std::cout << "triggering file dialog" << std::endl;
+		ClosePopper::closeAll();
+		gFileExplorer.showWelcomeScreen = false;
+		gFileExplorer.saveCurrentFile();
+		gFileExplorer._showFileDialog = true;
+		shortcutPressed = true;
+	}
+
+	// At the very end of the function, set the main redraw flag.
+	if (shortcutPressed)
+	{
+		return true; // Indicate that shortcuts were pressed
+	}
+	return false; // Indicate that shortcuts were not pressed
 }
