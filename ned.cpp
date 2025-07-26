@@ -351,9 +351,21 @@ void Ned::run()
 
 		gFrame.setupImGuiFrame();
 		handleWindowFocus();
-		handleFileDialog();
+		if (gFileExplorer.handleFileDialog())
+		{
+			gFrame.setNeedsRedraw(true);
+			gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
+		}
 		renderFrame();
-		handleFontReload();
+
+		// Handle font reloading
+		if (needFontReload)
+		{
+			gFrame.setNeedsRedraw(true);
+			gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
+			gFont.handleFontReload(needFontReload);
+		}
+
 		gFrame.handleFrameTiming(
 			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}
@@ -552,30 +564,10 @@ void Ned::renderFrame()
 	glfwSwapBuffers(window);
 }
 
-void Ned::handleFileDialog()
-{
-	if (gFileExplorer.handleFileDialogWorkflow())
-	{
-		gFrame.setNeedsRedraw(true);
-		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
-	}
-}
-
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
 	shaderManager.renderWithEffects(
 		display_w, display_h, currentTime, fb, accum, quad, gSettings);
-}
-
-void Ned::handleFontReload()
-{
-	if (needFontReload)
-	{
-		gFrame.setNeedsRedraw(true);
-		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
-
-		gFont.handleFontReload(needFontReload);
-	}
 }
 
 void Ned::cleanup()

@@ -10,6 +10,9 @@ Description: Font management class for NED text editor.
 struct ImFont;
 struct ImGuiIO;
 
+// Forward declaration
+class Frame;
+
 class Font
 {
   public:
@@ -31,6 +34,9 @@ class Font
 
 	// Handle font reloading
 	void handleFontReload(bool &needFontReload);
+
+	// Handle font reloading with frame management
+	void handleFontReloadWithFrame(bool &needFontReload, Frame &frame);
 };
 
 // Global font instance

@@ -61,6 +61,7 @@ class FileExplorer
 
 	// File dialog workflow
 	bool handleFileDialogWorkflow();
+	bool handleFileDialog();
 
 	// Icon handling
 	// by file exntension for example .py or .cpp
