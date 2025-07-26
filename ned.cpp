@@ -559,44 +559,6 @@ void Ned::handleKeyboardShortcuts()
 	}
 }
 
-void Ned::renderFileExplorer(float explorerWidth)
-{
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
-	ImGui::PushStyleColor(
-		ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
-	ImGui::BeginChild(
-		"File Explorer", ImVec2(explorerWidth, -1), true, ImGuiWindowFlags_NoScrollbar);
-
-	if (!gFileExplorer.selectedFolder.empty())
-	{
-		gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
-	}
-	ImGui::EndChild();
-	ImGui::PopStyleColor();
-	ImGui::PopStyleVar(2);
-}
-
-void Ned::renderEditor(ImFont *font, float editorWidth)
-{
-	ImGui::SameLine(0, 0);
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
-
-	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
-
-	// Calculate if git changes should be shown based on window width
-	float windowWidth = ImGui::GetWindowWidth();
-	bool showGitChanges = windowWidth >= 250.0f;
-
-	editorHeader.render(font, gFileExplorer.currentFile, showGitChanges);
-	gFileExplorer.renderFileContent();
-	ImGui::EndChild();
-
-	ImGui::PopStyleColor();
-	ImGui::PopStyleVar();
-}
-
 void Ned::renderAgentPane(float agentPaneWidth)
 {
 	gAIAgent.render(agentPaneWidth, gFont.largeFont);
@@ -663,7 +625,7 @@ void Ned::renderMainWindow()
 							16.0f;
 
 		// Render File Explorer
-		renderFileExplorer(explorerWidth);
+		gFileExplorer.renderFileExplorer(explorerWidth);
 		ImGui::SameLine(0, 0);
 
 		// Render left splitter
@@ -671,7 +633,7 @@ void Ned::renderMainWindow()
 		ImGui::SameLine(0, 0);
 
 		// Render Editor
-		renderEditor(gFont.currentFont, editorWidth);
+		gEditor.renderEditor(gFont.currentFont, editorWidth);
 		if (showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
@@ -692,7 +654,7 @@ void Ned::renderMainWindow()
 		float agentPaneWidth =
 			showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
 
-		renderEditor(gFont.currentFont, editorWidth);
+		gEditor.renderEditor(gFont.currentFont, editorWidth);
 		if (showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
@@ -733,10 +695,8 @@ void Ned::renderFrame()
 
 void Ned::handleFileDialog()
 {
-	// Delegate file dialog handling to FileExplorer class
 	if (gFileExplorer.handleFileDialogWorkflow())
 	{
-		// Trigger redraw if a folder was successfully selected
 		gFrame.setNeedsRedraw(true);
 		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
 	}
@@ -744,7 +704,6 @@ void Ned::handleFileDialog()
 
 void Ned::renderWithShader(int display_w, int display_h, double currentTime)
 {
-	// Delegate to the shader manager for rendering
 	shaderManager.renderWithEffects(
 		display_w, display_h, currentTime, fb, accum, quad, gSettings);
 }

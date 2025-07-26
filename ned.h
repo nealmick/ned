@@ -15,7 +15,6 @@
 #include "ai/ai_agent.h"
 #include "editor/editor.h"
 #include "editor/editor_bookmarks.h"
-#include "editor/editor_header.h"
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "shaders/shader_manager.h"
@@ -46,7 +45,6 @@ class Ned
 	ShaderManager shaderManager;
 	FramebufferState fb;
 	ShaderQuad quad;
-	EditorHeader editorHeader;
 	Splitter splitter;
 	bool needFontReload;
 	bool windowFocused;
@@ -68,8 +66,6 @@ class Ned
 	// Render functions
 	void renderFrame();
 	void renderMainWindow();
-	void renderFileExplorer(float explorerWidth);
-	void renderEditor(ImFont *currentFont, float editorWidth);
 	void renderWithShader(int display_w, int display_h, double currentTime);
 
 	// Add these declarations for the agent pane

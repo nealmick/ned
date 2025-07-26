@@ -18,6 +18,7 @@
 #include "editor_bookmarks.h"
 #include "editor_copy_paste.h"
 #include "editor_cursor.h"
+#include "editor_header.h"
 #include "editor_highlight.h"
 #include "editor_keyboard.h"
 #include "editor_line_jump.h"
@@ -170,4 +171,26 @@ float Editor::calculateTextWidth()
 	// Add generous padding (15% or 150px, whichever is larger)
 	float padding = std::max(150.0f, max_width * 0.15f);
 	return max_width + padding;
+}
+
+void Editor::renderEditor(ImFont *font, float editorWidth)
+{
+	ImGui::SameLine(0, 0);
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
+
+	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
+
+	// Calculate if git changes should be shown based on window width
+	float windowWidth = ImGui::GetWindowWidth();
+	bool showGitChanges = windowWidth >= 250.0f;
+
+	// Create a temporary EditorHeader instance for rendering
+	EditorHeader editorHeader;
+	editorHeader.render(font, gFileExplorer.currentFile, showGitChanges);
+	gFileExplorer.renderFileContent();
+	ImGui::EndChild();
+
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
 }

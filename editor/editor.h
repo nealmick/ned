@@ -39,4 +39,6 @@ class Editor
 	int getLineFromPos(int pos);
 
 	float calculateTextWidth();
+
+	void renderEditor(ImFont *font, float editorWidth);
 };

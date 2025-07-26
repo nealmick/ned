@@ -57,6 +57,7 @@ class FileExplorer
 	// UI functions
 	void openFolderDialog();
 	void renderFileContent();
+	void renderFileExplorer(float explorerWidth);
 
 	// File dialog workflow
 	bool handleFileDialogWorkflow();
