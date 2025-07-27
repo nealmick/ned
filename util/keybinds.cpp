@@ -4,14 +4,13 @@
 #include "../util/close_popper.h"
 #include "../util/settings.h"
 #include "../util/terminal.h"
+#include "../util/ui_settings.h"
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 
 // Global variables needed for the function
-extern bool showSidebar;
-extern bool showAgentPane;
 extern Terminal gTerminal;
 extern FileExplorer gFileExplorer;
 extern Settings gSettings;
@@ -492,13 +491,14 @@ bool KeybindsManager::handleKeyboardShortcuts()
 	{
 		float windowWidth = ImGui::GetWindowWidth();
 		float padding = ImGui::GetStyle().WindowPadding.x;
-		float availableWidth = windowWidth - padding * 3 -
-							   (showAgentPane ? kAgentSplitterWidth
-											  : 0.0f); // Only account for splitter width
-													   // when agent pane is visible
+		float availableWidth =
+			windowWidth - padding * 3 -
+			(UISettings::showAgentPane ? kAgentSplitterWidth
+									   : 0.0f); // Only account for splitter width
+												// when agent pane is visible
 
 		float agentPaneWidthPx;
-		if (showSidebar)
+		if (UISettings::showSidebar)
 		{
 			agentPaneWidthPx = availableWidth * gSettings.getAgentSplitPos();
 		} else
@@ -509,19 +509,19 @@ bool KeybindsManager::handleKeyboardShortcuts()
 		}
 
 		// Toggle sidebar
-		showSidebar = !showSidebar;
+		UISettings::showSidebar = !UISettings::showSidebar;
 
 		// Save sidebar visibility setting
-		gSettings.getSettings()["sidebar_visible"] = showSidebar;
+		gSettings.getSettings()["sidebar_visible"] = UISettings::showSidebar;
 		gSettings.saveSettings();
 
 		// Recompute availableWidth after toggling
 		windowWidth = ImGui::GetWindowWidth();
-		availableWidth =
-			windowWidth - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
+		availableWidth = windowWidth - padding * 3 -
+						 (UISettings::showAgentPane ? kAgentSplitterWidth : 0.0f);
 
 		float newRightSplit;
-		if (showSidebar)
+		if (UISettings::showSidebar)
 		{
 			newRightSplit = agentPaneWidthPx / availableWidth;
 		} else
@@ -539,10 +539,10 @@ bool KeybindsManager::handleKeyboardShortcuts()
 	if (modPressed && ImGui::IsKeyPressed(toggleAgent, false))
 	{
 		// Only toggle visibility, do not recalculate or set agentSplitPos
-		showAgentPane = !showAgentPane;
+		UISettings::showAgentPane = !UISettings::showAgentPane;
 
 		// Save agent pane visibility setting
-		gSettings.getSettings()["agent_pane_visible"] = showAgentPane;
+		gSettings.getSettings()["agent_pane_visible"] = UISettings::showAgentPane;
 		gSettings.saveSettings();
 
 		std::cout << "Toggled agent pane visibility" << std::endl;

@@ -6,10 +6,10 @@ Description: Splitter rendering and interaction logic implementation for NED tex
 #include "splitter.h"
 #include "keybinds.h"
 #include "settings.h"
+#include "ui_settings.h"
 
 // External dependencies
 extern Settings gSettings;
-extern bool showAgentPane;
 
 Splitter::Splitter() {}
 
@@ -90,7 +90,7 @@ void Splitter::renderSplitter(float padding, float availableWidth)
 		float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
 		// Clamp so that editor is always at least 10% of availableWidth
 		float rightSplit = gSettings.getAgentSplitPos();
-		bool agentPaneVisible = showAgentPane;
+		bool agentPaneVisible = UISettings::showAgentPane;
 		float maxLeftSplit = agentPaneVisible ? (0.9f - rightSplit) : 0.9f;
 		new_split = clamp(new_split, 0.1f, maxLeftSplit);
 		gSettings.setSplitPos(new_split);

@@ -10,8 +10,13 @@ Description: Initialization class implementation moved from ned.cpp
 #include "imgui_impl_opengl3.h"
 #include "util/debug_console.h"
 #include "util/font.h"
+#include "util/keybinds.h"
 #include "util/settings.h"
 #include <imgui.h>
+
+#ifdef __APPLE__
+#include "macos_window.h"
+#endif
 
 // Global externals
 extern DebugConsole &gDebugConsole;
@@ -19,6 +24,65 @@ extern Settings gSettings;
 extern Font gFont;
 extern EditorHighlight gEditorHighlight;
 extern FileExplorer gFileExplorer;
+
+void Init::setupSignalHandlers()
+{
+	// Set up signal handlers to catch crashes and prevent crash reports
+	signal(SIGABRT, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGSEGV, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGILL, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGFPE, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+}
+
+void Init::initializeSettings()
+{
+	// Load settings and keybinds
+	gSettings.loadSettings();
+	if (gKeybinds.loadKeybinds())
+	{
+		std::cout << "Initial keybinds loaded successfully." << std::endl;
+	} else
+	{
+		std::cout << "Failed to load initial keybinds." << std::endl;
+	}
+}
+
+void Init::initializeMacOS(GLFWwindow *window)
+{
+#ifdef __APPLE__
+	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
+	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
+
+	// Set up application delegate for proper Cmd+Q handling
+	setupMacOSApplicationDelegate();
+
+	// Initial configuration
+	configureMacOSWindow(window, opacity, blurEnabled);
+#endif
+}
+
+bool Init::initializeGraphics(GLFWwindow *window)
+{
+	// Initialize ImGui
+	initializeImGui(window);
+
+	// Initialize resources
+	initializeResources();
+
+	return true;
+}
 
 void Init::initializeResources()
 {

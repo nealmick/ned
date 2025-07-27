@@ -27,6 +27,7 @@ Description: Main application class implementation for NED text editor.
 #include "util/render.h"
 #include "util/settings.h"
 #include "util/terminal.h"
+#include "util/ui_settings.h"
 #include "util/welcome.h"
 
 #include <cstdio>
@@ -38,10 +39,6 @@ Description: Main application class implementation for NED text editor.
 
 // global scope
 Bookmarks gBookmarks;
-bool showSidebar = true;
-bool showAgentPane = true;
-
-float agentSplitPos = 0.75f; // 75% editor, 25% agent pane by default
 
 constexpr float kAgentSplitterWidth = 6.0f;
 AIAgent gAIAgent;
@@ -62,23 +59,8 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-	// Set up signal handlers to catch crashes and prevent crash reports
-	signal(SIGABRT, [](int signal) {
-		std::cerr << "Crash detected! Signal: " << signal << std::endl;
-		exit(1);
-	});
-	signal(SIGSEGV, [](int signal) {
-		std::cerr << "Crash detected! Signal: " << signal << std::endl;
-		exit(1);
-	});
-	signal(SIGILL, [](int signal) {
-		std::cerr << "Crash detected! Signal: " << signal << std::endl;
-		exit(1);
-	});
-	signal(SIGFPE, [](int signal) {
-		std::cerr << "Crash detected! Signal: " << signal << std::endl;
-		exit(1);
-	});
+	// Set up signal handlers for crash detection
+	Init::setupSignalHandlers();
 
 	// Initialize graphics system
 	if (!graphicsManager.initialize(shaderManager))
@@ -92,53 +74,26 @@ bool Ned::initialize()
 	// Initialize window manager
 	windowManager.initialize(window);
 
-	// Load settings and keybinds
-	gSettings.loadSettings();
-	if (gKeybinds.loadKeybinds())
-	{
-		std::cout << "Initial keybinds loaded successfully." << std::endl;
-	} else
-	{
-		std::cout << "Failed to load initial keybinds." << std::endl;
-	}
+	// Initialize settings and configuration
+	Init::initializeSettings();
 
-	// Load sidebar visibility settings
-	showSidebar = gSettings.getSettings().value("sidebar_visible", true);
-	showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
+	// Load UI settings
+	UISettings::loadSidebarSettings();
+	UISettings::loadAgentPaneSettings();
+	UISettings::adjustAgentSplitPosition();
 
-	// Adjust agent split position if sidebar is hidden (first load only)
-	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar)
-	{
-		float currentAgentSplitPos = gSettings.getAgentSplitPos();
-		float originalValue = currentAgentSplitPos;
-		// When sidebar is hidden, the agent split position represents editor width,
-		// not agent pane width So we need to invert it: 1 - saved_agent_position
-		float newAgentSplitPos = 1.0f - currentAgentSplitPos;
-		gSettings.setAgentSplitPos(newAgentSplitPos);
-		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to "
-				  << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
-	}
+	// Initialize macOS-specific settings
+	Init::initializeMacOS(window);
 
-#ifdef __APPLE__
-	float opacity = gSettings.getSettings().value("mac_background_opacity", 0.5f);
-	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
-
-	// Set up application delegate for proper Cmd+Q handling
-	windowManager.setupMacOSApplicationDelegate();
-
-	// Initial configuration
-	windowManager.configureMacOSWindow(window, opacity, blurEnabled);
-
-	// Initialize tracking variables
-	lastOpacity = opacity;
-	lastBlurEnabled = blurEnabled;
-#endif
-
-	// Rest of initialization...
+	// Initialize graphics and rendering components
 	graphicsManager.setWindowUserPointer(this);
-	Init::initializeImGui(window);
 	graphicsManager.setScrollCallback(Ned::scrollCallback);
-	Init::initializeResources();
+
+	if (!Init::initializeGraphics(window))
+	{
+		return false;
+	}
+
 	quad.initialize();
 
 	// Initialize window resize handler

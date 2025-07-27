@@ -204,6 +204,7 @@ add_library(util STATIC
   util/render.cpp
   util/graphics_manager.cpp
   util/window_manager.cpp
+  util/ui_settings.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
