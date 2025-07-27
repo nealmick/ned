@@ -202,6 +202,8 @@ add_library(util STATIC
   util/splitter.cpp
   util/init.cpp
   util/render.cpp
+  util/graphics_manager.cpp
+  util/window_manager.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
