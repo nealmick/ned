@@ -92,3 +92,4 @@ echo "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./$BUILD_DIR/ned
 
 echo "${GREEN}✅ Process terminated!${NC}"
+echo ""
