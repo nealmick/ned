@@ -58,8 +58,6 @@ class Ned
 	bool initialized;
 
 	// Core functions
-	void handleScrollAccumulators();
-
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
 	double scrollXAccumulator = 0.0;

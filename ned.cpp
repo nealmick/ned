@@ -25,6 +25,7 @@ Description: Main application class implementation for NED text editor.
 #include "util/init.h"
 #include "util/keybinds.h"
 #include "util/render.h"
+#include "util/scroll.h"
 #include "util/settings.h"
 #include "util/splitter.h"
 #include "util/terminal.h"
@@ -100,23 +101,13 @@ bool Ned::initialize()
 	return true;
 }
 
-void Ned::handleScrollAccumulators()
-{
-	// Handle scroll accumulators (this was removed but needed for scrolling)
-	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
-	{
-		ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
-		ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
-		scrollXAccumulator = 0.0;
-		scrollYAccumulator = 0.0;
-	}
-}
-
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
-	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
-	app->scrollXAccumulator += xoffset * 0.2; // Same multiplier as vertical
-	app->scrollYAccumulator += yoffset * 0.2;
+	Scroll::scrollCallback(window, xoffset, yoffset, [window](double x, double y) {
+		Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
+		app->scrollXAccumulator += x;
+		app->scrollYAccumulator += y;
+	});
 }
 
 void Ned::run()
@@ -166,7 +157,7 @@ void Ned::run()
 		}
 
 		// Handle scroll accumulators
-		handleScrollAccumulators();
+		Scroll::handleScrollAccumulators(scrollXAccumulator, scrollYAccumulator);
 
 		// Check for activity and decide if we should keep rendering
 		gFrame.checkForActivity();
@@ -219,6 +210,7 @@ void Ned::run()
 			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}
 }
+
 void Ned::cleanup()
 {
 	quad.cleanup();

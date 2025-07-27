@@ -201,6 +201,7 @@ add_library(util STATIC
   util/window_resize.cpp
   util/splitter.cpp
   util/init.cpp
+  util/scroll.cpp
   util/render.cpp
   util/graphics_manager.cpp
   util/window_manager.cpp
