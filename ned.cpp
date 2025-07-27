@@ -47,8 +47,8 @@ constexpr float kAgentSplitterWidth = 6.0f;
 AIAgent gAIAgent;
 
 Ned::Ned()
-	: window(nullptr), needFontReload(false), windowFocused(true), explorerWidth(0.0f),
-	  editorWidth(0.0f), initialized(false)
+	: needFontReload(false), windowFocused(true), explorerWidth(0.0f), editorWidth(0.0f),
+	  initialized(false)
 {
 }
 
@@ -62,10 +62,19 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-	if (!initializeGraphics())
+	// Initialize graphics system
+	if (!graphicsManager.initialize(shaderManager))
 	{
 		return false;
 	}
+
+	// Get window from graphics manager
+	GLFWwindow *window = graphicsManager.getWindow();
+
+	// Initialize window manager
+	windowManager.initialize(window);
+
+	// Load settings and keybinds
 	gSettings.loadSettings();
 	if (gKeybinds.loadKeybinds())
 	{
@@ -97,10 +106,10 @@ bool Ned::initialize()
 	bool blurEnabled = gSettings.getSettings().value("mac_blur_enabled", true);
 
 	// Set up application delegate for proper Cmd+Q handling
-	setupMacOSApplicationDelegate();
+	windowManager.setupMacOSApplicationDelegate();
 
 	// Initial configuration
-	configureMacOSWindow(window, opacity, blurEnabled);
+	windowManager.configureMacOSWindow(window, opacity, blurEnabled);
 
 	// Initialize tracking variables
 	lastOpacity = opacity;
@@ -108,9 +117,9 @@ bool Ned::initialize()
 #endif
 
 	// Rest of initialization...
-	glfwSetWindowUserPointer(window, this);
+	graphicsManager.setWindowUserPointer(this);
 	Init::initializeImGui(window);
-	glfwSetScrollCallback(window, Ned::scrollCallback);
+	graphicsManager.setScrollCallback(Ned::scrollCallback);
 	Init::initializeResources();
 	quad.initialize();
 
@@ -131,67 +140,16 @@ bool Ned::initialize()
 	return true;
 }
 
-bool Ned::initializeGraphics()
+void Ned::handleScrollAccumulators()
 {
-	if (!glfwInit())
+	// Handle scroll accumulators (this was removed but needed for scrolling)
+	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
 	{
-		std::cerr << "Failed to initialize GLFW" << std::endl;
-		return false;
+		ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
+		ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
+		scrollXAccumulator = 0.0;
+		scrollYAccumulator = 0.0;
 	}
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-	glfwWindowHint(GLFW_DECORATED,
-				   GLFW_FALSE); // No OS decorations for macOS (custom handling)
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
-	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
-#else // For Linux/Ubuntu and other non-Apple platforms
-	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
-#endif
-	// GLFW_RESIZABLE should be TRUE for both.
-	// On Linux, the OS window manager handles resizing if DECORATED is TRUE.
-	// On macOS, your custom logic handles resizing.
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
-
-	if (!window)
-	{
-		std::cerr << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return false;
-	}
-
-	glfwMakeContextCurrent(window);
-	glfwSwapInterval(0);
-	glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
-
-	// Enable raw mouse motion for more accurate tracking
-	glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-
-	glewExperimental = GL_TRUE;
-	if (GLenum err = glewInit(); GLEW_OK != err)
-	{
-		std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err)
-				  << std::endl;
-		glfwTerminate();
-		return false;
-	}
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glGetError(); // Clear any GLEW startup errors
-
-	// Initialize shader manager
-	if (!shaderManager.initializeShaders())
-	{
-		std::cerr << "🔴 Shader initialization failed" << std::endl;
-		glfwTerminate();
-		return false;
-	}
-
-	return true;
 }
 
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
@@ -199,49 +157,6 @@ void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
 	app->scrollXAccumulator += xoffset * 0.3; // Same multiplier as vertical
 	app->scrollYAccumulator += yoffset * 0.3;
-}
-
-void Ned::checkForActivity()
-{
-	// This function will be called every loop to check for immediate input.
-	ImGuiIO &io = ImGui::GetIO();
-
-	// Check for any input activity
-	bool hasInput = false;
-
-	// Mouse activity
-	if (io.MousePos.x != io.MousePosPrev.x || io.MousePos.y != io.MousePosPrev.y ||
-		io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f || io.MouseDown[0] ||
-		io.MouseDown[1] || io.MouseDown[2])
-	{
-		hasInput = true;
-	}
-
-	// Keyboard activity
-	if (io.InputQueueCharacters.size() > 0 || io.KeysDown[0] || io.KeysDown[1] ||
-		io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
-	{
-		hasInput = true;
-	}
-
-	// ImGui widget activity
-	if (ImGui::IsAnyItemActive())
-	{
-		hasInput = true;
-	}
-
-	// Check for active scroll animation (treat as input activity for smooth
-	// rendering)
-	if (gEditorScroll.isScrollAnimationActive())
-	{
-		hasInput = true;
-	}
-
-	// If we have any input, update activity time
-	if (hasInput)
-	{
-		gFrame.setLastActivityTime(glfwGetTime());
-	}
 }
 
 void Ned::run()
@@ -252,7 +167,9 @@ void Ned::run()
 		return;
 	}
 
-	while (!glfwWindowShouldClose(window))
+	GLFWwindow *window = graphicsManager.getWindow();
+
+	while (!graphicsManager.shouldWindowClose())
 	{
 		// Get current time for activity tracking
 		double currentTime = glfwGetTime();
@@ -283,31 +200,23 @@ void Ned::run()
 		glfwWaitEventsTimeout(timeout);
 
 		// Check for Cmd+Q termination on macOS
-#ifdef __APPLE__
-		if (shouldTerminateApplication())
+		if (windowManager.shouldTerminateApplication())
 		{
 			glfwSetWindowShouldClose(window, 1);
 		}
-#endif
 
-		// Handle scroll accumulators (this was removed but needed for scrolling)
-		if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
-		{
-			ImGui::GetIO().MouseWheel += scrollYAccumulator;  // Vertical
-			ImGui::GetIO().MouseWheelH += scrollXAccumulator; // Horizontal
-			scrollXAccumulator = 0.0;
-			scrollYAccumulator = 0.0;
-		}
+		// Handle scroll accumulators
+		handleScrollAccumulators();
 
 		// Check for activity and decide if we should keep rendering
-		checkForActivity();
+		gFrame.checkForActivity();
 		bool shouldKeepRendering = (currentTime - gFrame.lastActivityTime()) < 0.5 ||
 								   gEditorScroll.isScrollAnimationActive();
 
 		// Always render a frame after polling events
 		auto frame_start = std::chrono::high_resolution_clock::now();
 
-		handleBackgroundUpdates(currentTime);
+		gFrame.handleBackgroundUpdates(currentTime);
 		gSettings.handleSettingsChanges(
 			needFontReload,
 			gFrame.needsRedrawRef(),
@@ -317,12 +226,12 @@ void Ned::run()
 			lastBlurEnabled);
 
 		int display_w, display_h;
-		glfwGetFramebufferSize(window, &display_w, &display_h);
+		graphicsManager.getFramebufferSize(&display_w, &display_h);
 		// Delegate framebuffer initialization to the shader manager
 		shaderManager.initializeFramebuffers(display_w, display_h, fb, accum);
 
 		gFrame.setupImGuiFrame();
-		handleWindowFocus();
+		windowManager.handleWindowFocus(windowFocused, gFileExplorer);
 		if (gFileExplorer.handleFileDialog())
 		{
 			gFrame.setNeedsRedraw(true);
@@ -351,62 +260,6 @@ void Ned::run()
 	}
 }
 
-void Ned::handleBackgroundUpdates(double currentTime)
-{
-	if (currentTime - gFrame.getTiming().lastSettingsCheck >=
-		gFrame.SETTINGS_CHECK_INTERVAL)
-	{
-		// Store previous state to detect changes
-		bool hadSettingsChanged = gSettings.hasSettingsChanged();
-		bool hadFontChanged = gSettings.hasFontChanged();
-		bool hadFontSizeChanged = gSettings.hasFontSizeChanged();
-		bool hadThemeChanged = gSettings.hasThemeChanged();
-
-		gSettings.checkSettingsFile();
-
-		// Check if any settings changed
-		if (gSettings.hasSettingsChanged() != hadSettingsChanged ||
-			gSettings.hasFontChanged() != hadFontChanged ||
-			gSettings.hasFontSizeChanged() != hadFontSizeChanged ||
-			gSettings.hasThemeChanged() != hadThemeChanged)
-		{
-			gFrame.setNeedsRedraw(true);
-			gFrame.setFramesToRender(
-				std::max(gFrame.framesToRender(), 2)); // Reduced frame count
-		}
-		gFrame.getTiming().lastSettingsCheck = currentTime;
-	}
-
-	if (currentTime - gFrame.getTiming().lastFileTreeRefresh >=
-		gFrame.FILE_TREE_REFRESH_INTERVAL)
-	{
-		// File tree refresh doesn't return a value, but we can trigger redraw
-		// when it's called since it updates the UI
-		gFileTree.refreshFileTree();
-		gFrame.setNeedsRedraw(true); // Always redraw after file tree refresh
-		gFrame.setFramesToRender(
-			std::max(gFrame.framesToRender(), 2)); // Reduced frame count
-		gFrame.getTiming().lastFileTreeRefresh = currentTime;
-	}
-}
-
-void Ned::handleWindowFocus()
-{
-	bool currentFocus = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-	if (windowFocused != currentFocus)
-	{
-		gFrame.setNeedsRedraw(true); // Redraw on focus change.
-		gFrame.setFramesToRender(
-			std::max(gFrame.framesToRender(), 2)); // Reduced frame count
-		if (windowFocused && !currentFocus)
-		{
-			gFileExplorer.saveCurrentFile();
-		}
-		windowFocused = currentFocus;
-	}
-}
-
-
 void Ned::cleanup()
 {
 	quad.cleanup();
@@ -420,14 +273,10 @@ void Ned::cleanup()
 	// Save AI agent conversation history
 	gAIAgent.getHistoryManager().saveConversationHistory();
 
-#ifdef __APPLE__
-	// Clean up macOS application delegate
-	cleanupMacOSApplicationDelegate();
-#endif
+	// Clean up graphics and window managers
+	graphicsManager.cleanup();
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
-	glfwDestroyWindow(window);
-	glfwTerminate();
 }

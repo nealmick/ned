@@ -4,12 +4,15 @@ Description: Frame management class implementation for NED text editor.
 */
 
 #include "frame.h"
+#include "../editor/editor_scroll.h"
+#include "../files/file_tree.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_internal.h"
 #include "settings.h"
 #include "shaders/shader_types.h"
+#include <GLFW/glfw3.h>
 
 #include <iostream>
 #include <thread>
@@ -84,6 +87,86 @@ void Frame::handleFrameTiming(std::chrono::high_resolution_clock::time_point fra
 		{
 			std::this_thread::sleep_for(targetFrameTime - frame_duration);
 		}
+	}
+}
+
+void Frame::checkForActivity()
+{
+	// This function will be called every loop to check for immediate input.
+	ImGuiIO &io = ImGui::GetIO();
+
+	// Check for any input activity
+	bool hasInput = false;
+
+	// Mouse activity
+	if (io.MousePos.x != io.MousePosPrev.x || io.MousePos.y != io.MousePosPrev.y ||
+		io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f || io.MouseDown[0] ||
+		io.MouseDown[1] || io.MouseDown[2])
+	{
+		hasInput = true;
+	}
+
+	// Keyboard activity
+	if (io.InputQueueCharacters.size() > 0 || io.KeysDown[0] || io.KeysDown[1] ||
+		io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
+	{
+		hasInput = true;
+	}
+
+	// ImGui widget activity
+	if (ImGui::IsAnyItemActive())
+	{
+		hasInput = true;
+	}
+
+	// Check for active scroll animation (treat as input activity for smooth rendering)
+	extern EditorScroll gEditorScroll;
+	if (gEditorScroll.isScrollAnimationActive())
+	{
+		hasInput = true;
+	}
+
+	// If we have any input, update activity time
+	if (hasInput)
+	{
+		setLastActivityTime(glfwGetTime());
+	}
+}
+
+void Frame::handleBackgroundUpdates(double currentTime)
+{
+	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
+	{
+		// Store previous state to detect changes
+		extern Settings gSettings;
+		bool hadSettingsChanged = gSettings.hasSettingsChanged();
+		bool hadFontChanged = gSettings.hasFontChanged();
+		bool hadFontSizeChanged = gSettings.hasFontSizeChanged();
+		bool hadThemeChanged = gSettings.hasThemeChanged();
+
+		gSettings.checkSettingsFile();
+
+		// Check if any settings changed
+		if (gSettings.hasSettingsChanged() != hadSettingsChanged ||
+			gSettings.hasFontChanged() != hadFontChanged ||
+			gSettings.hasFontSizeChanged() != hadFontSizeChanged ||
+			gSettings.hasThemeChanged() != hadThemeChanged)
+		{
+			setNeedsRedraw(true);
+			setFramesToRender(std::max(framesToRender(), 2)); // Reduced frame count
+		}
+		timing.lastSettingsCheck = currentTime;
+	}
+
+	if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL)
+	{
+		// File tree refresh doesn't return a value, but we can trigger redraw
+		// when it's called since it updates the UI
+		extern FileTree gFileTree;
+		gFileTree.refreshFileTree();
+		setNeedsRedraw(true); // Always redraw after file tree refresh
+		setFramesToRender(std::max(framesToRender(), 2)); // Reduced frame count
+		timing.lastFileTreeRefresh = currentTime;
 	}
 }
 

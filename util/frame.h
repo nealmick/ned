@@ -60,6 +60,12 @@ class Frame
 	// Render FPS counter overlay
 	void renderFPSCounter(Settings &settings);
 
+	// Check for activity and update activity time
+	void checkForActivity();
+
+	// Handle background updates (settings, file tree, etc.)
+	void handleBackgroundUpdates(double currentTime);
+
 	// Get current FPS
 	double getCurrentFPS() const { return currentFPS; }
 

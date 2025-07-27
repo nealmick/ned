@@ -21,8 +21,10 @@
 #include "shaders/shader_types.h"
 #include "util/font.h"
 #include "util/frame.h"
+#include "util/graphics_manager.h"
 #include "util/render.h"
 #include "util/splitter.h"
+#include "util/window_manager.h"
 #include "util/window_resize.h"
 
 // Forward declarations
@@ -42,7 +44,8 @@ class Ned
 
   private:
 	// Member variables
-	GLFWwindow *window;
+	GraphicsManager graphicsManager;
+	WindowManager windowManager;
 	ShaderManager shaderManager;
 	FramebufferState fb;
 	ShaderQuad quad;
@@ -55,16 +58,10 @@ class Ned
 	bool initialized;
 
 	// Core functions
-	bool initializeGraphics();
-	void handleBackgroundUpdates(double currentTime);
-	void handleWindowFocus();
+	void handleScrollAccumulators();
 
-	void checkForActivity(); // Check for immediate user input
-
-	// Render functions moved to Render class
-
-	// slow scrolling momentum accumulator
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+
 	double scrollXAccumulator = 0.0;
 	double scrollYAccumulator = 0.0;
 
