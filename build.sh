@@ -5,8 +5,6 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-
-
 BUILD_DIR=".build"
 
 # Handle clean flag
@@ -27,7 +25,6 @@ cat << "EOF"
 EOF
 echo "${NC}"
 
-
 ./format.sh
 
 # Build steps
@@ -38,7 +35,7 @@ echo "${GREEN}📦 Running cmake...${NC}"
 cmake ..
 
 echo "${GREEN}📦 Running make...${NC}"
-make
+make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Check build status
 if [ $? -ne 0 ]; then
@@ -83,7 +80,6 @@ if [ -f "$BUILD_DIR/compile_commands.json" ]; then
 else
     echo "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
 fi
-
 
 echo "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./$BUILD_DIR/ned
