@@ -87,12 +87,14 @@ bool Ned::initialize()
 
 	// Initialize graphics and rendering components
 	graphicsManager.setWindowUserPointer(this);
-	graphicsManager.setScrollCallback(Ned::scrollCallback);
 
 	if (!Init::initializeGraphics(window))
 	{
 		return false;
 	}
+
+	// Set up scroll callback AFTER ImGui is initialized
+	graphicsManager.setScrollCallback(Ned::scrollCallback);
 
 	quad.initialize();
 
