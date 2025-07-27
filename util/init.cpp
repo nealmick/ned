@@ -12,6 +12,7 @@ Description: Initialization class implementation moved from ned.cpp
 #include "util/font.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
+#include "util/splitter.h"
 #include <imgui.h>
 
 #ifdef __APPLE__
@@ -57,6 +58,14 @@ void Init::initializeSettings()
 	{
 		std::cout << "Failed to load initial keybinds." << std::endl;
 	}
+}
+
+void Init::initializeUISettings()
+{
+	// Load UI settings
+	Splitter::loadSidebarSettings();
+	Splitter::loadAgentPaneSettings();
+	Splitter::adjustAgentSplitPosition();
 }
 
 void Init::initializeMacOS(GLFWwindow *window)
@@ -109,4 +118,22 @@ void Init::initializeImGui(GLFWwindow *window)
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
+}
+
+void Init::initializeAll(GLFWwindow *window)
+{
+	// Set up signal handlers for crash detection
+	setupSignalHandlers();
+
+	// Initialize settings and configuration
+	initializeSettings();
+
+	// Load UI settings
+	initializeUISettings();
+
+	// Initialize macOS-specific settings
+	initializeMacOS(window);
+
+	// Initialize graphics and rendering components
+	initializeGraphics(window);
 }
