@@ -26,8 +26,8 @@ Description: Main application class implementation for NED text editor.
 #include "util/keybinds.h"
 #include "util/render.h"
 #include "util/settings.h"
+#include "util/splitter.h"
 #include "util/terminal.h"
-#include "util/ui_settings.h"
 #include "util/welcome.h"
 
 #include <cstdio>
@@ -78,9 +78,9 @@ bool Ned::initialize()
 	Init::initializeSettings();
 
 	// Load UI settings
-	UISettings::loadSidebarSettings();
-	UISettings::loadAgentPaneSettings();
-	UISettings::adjustAgentSplitPosition();
+	Splitter::loadSidebarSettings();
+	Splitter::loadAgentPaneSettings();
+	Splitter::adjustAgentSplitPosition();
 
 	// Initialize macOS-specific settings
 	Init::initializeMacOS(window);

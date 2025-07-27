@@ -25,7 +25,14 @@ cat << "EOF"
 EOF
 echo "${NC}"
 
+# Time the format script execution
+echo "${BLUE}🎨 Running format script...${NC}"
+start_time=$(date +%s.%N)
 ./format.sh
+format_exit_code=$?
+end_time=$(date +%s.%N)
+format_duration=$(echo "$end_time - $start_time" | bc -l)
+echo "${GREEN}✅ Format script completed in ${format_duration}s${NC}"
 
 # Build steps
 mkdir -p "$BUILD_DIR"
