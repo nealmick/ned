@@ -4,6 +4,7 @@
 */
 
 #include "ned.h"
+
 int main()
 {
 	Ned ned;

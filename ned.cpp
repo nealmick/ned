@@ -62,6 +62,24 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
+	// Set up signal handlers to catch crashes and prevent crash reports
+	signal(SIGABRT, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGSEGV, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGILL, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+	signal(SIGFPE, [](int signal) {
+		std::cerr << "Crash detected! Signal: " << signal << std::endl;
+		exit(1);
+	});
+
 	// Initialize graphics system
 	if (!graphicsManager.initialize(shaderManager))
 	{
@@ -258,6 +276,9 @@ void Ned::run()
 		gFrame.handleFrameTiming(
 			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}
+
+	// Comment out cleanup to prevent crash during Cmd+Q termination
+	// cleanup();
 }
 
 void Ned::cleanup()
