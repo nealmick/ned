@@ -6,6 +6,8 @@ Description: Frame management class implementation for NED text editor.
 #include "frame.h"
 #include "../editor/editor_scroll.h"
 #include "../files/file_tree.h"
+#include "../files/files.h"
+#include "../util/window_manager.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -19,6 +21,9 @@ Description: Frame management class implementation for NED text editor.
 
 // Global frame instance
 Frame gFrame;
+
+// External declarations for global variables used in handleFrameSetup
+extern FileExplorer gFileExplorer;
 
 Frame::Frame()
 	: lastTime(0.0), frames(0), currentFPS(0.0), m_needsRedraw(true), m_framesToRender(0),
@@ -167,6 +172,42 @@ void Frame::handleBackgroundUpdates(double currentTime)
 		setNeedsRedraw(true); // Always redraw after file tree refresh
 		setFramesToRender(std::max(framesToRender(), 2)); // Reduced frame count
 		timing.lastFileTreeRefresh = currentTime;
+	}
+}
+
+void Frame::handleFrameSetup(double currentTime,
+							 bool &needFontReload,
+							 bool &m_needsRedraw,
+							 int &m_framesToRender,
+							 std::function<void(bool)> setShaderEnabled,
+							 float &lastOpacity,
+							 bool &lastBlurEnabled,
+							 bool &windowFocused,
+							 WindowManager &windowManager)
+{
+	// Handle background updates
+	handleBackgroundUpdates(currentTime);
+
+	// Handle settings changes
+	extern Settings gSettings;
+	gSettings.handleSettingsChanges(needFontReload,
+									m_needsRedraw,
+									m_framesToRender,
+									setShaderEnabled,
+									lastOpacity,
+									lastBlurEnabled);
+
+	// Setup ImGui frame
+	setupImGuiFrame();
+
+	// Handle window focus
+	windowManager.handleWindowFocus(windowFocused, gFileExplorer);
+
+	// Handle file dialog
+	if (gFileExplorer.handleFileDialog())
+	{
+		setNeedsRedraw(true);
+		setFramesToRender(std::max(framesToRender(), 3));
 	}
 }
 

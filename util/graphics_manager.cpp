@@ -4,6 +4,7 @@ Description: Graphics initialization and management implementation for NED text 
 */
 
 #include "graphics_manager.h"
+#include "settings.h"
 #include "shaders/shader_manager.h"
 #include <iostream>
 
@@ -161,9 +162,41 @@ void GraphicsManager::setWindowRefreshCallback(GLFWwindowrefreshfun callback)
 	}
 }
 
-bool GraphicsManager::shouldWindowClose() const
+bool GraphicsManager::shouldWindowClose() const { return glfwWindowShouldClose(window); }
+
+void GraphicsManager::pollEvents(double currentTime,
+								 bool shaderEnabled,
+								 double lastActivityTime)
 {
-	return window ? glfwWindowShouldClose(window) : true;
+	double timeout = calculateEventTimeout(currentTime, shaderEnabled, lastActivityTime);
+	glfwWaitEventsTimeout(timeout);
+}
+
+double GraphicsManager::calculateEventTimeout(double currentTime,
+											  bool shaderEnabled,
+											  double lastActivityTime)
+{
+	// When shaders are enabled, use settings FPS target for timeout
+	// When shaders are disabled, use normal timeout logic
+	if (shaderEnabled)
+	{
+		// Use settings FPS target when shaders are enabled
+		float fpsTarget = 60.0f;
+		extern Settings gSettings;
+		if (gSettings.getSettings().contains("fps_target") &&
+			gSettings.getSettings()["fps_target"].is_number())
+		{
+			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+		}
+		return 1.0 / fpsTarget; // Convert FPS to timeout
+	} else
+	{
+		// Use shorter timeout if we recently had activity (for smoother
+		// interaction) Also respect minimum FPS: 25 FPS normally
+		double minFPS = 25.0;
+		double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
+		return (currentTime - lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
+	}
 }
 
 void GraphicsManager::getFramebufferSize(int *width, int *height)
