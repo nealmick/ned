@@ -130,8 +130,8 @@ void Ned::handleScrollAccumulators()
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
 	Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
-	app->scrollXAccumulator += xoffset * 0.3; // Same multiplier as vertical
-	app->scrollYAccumulator += yoffset * 0.3;
+	app->scrollXAccumulator += xoffset * 0.2; // Same multiplier as vertical
+	app->scrollYAccumulator += yoffset * 0.2;
 }
 
 void Ned::run()
