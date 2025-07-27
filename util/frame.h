@@ -15,6 +15,7 @@ struct ImDrawList;
 struct ImVec2;
 class Settings;
 struct FramebufferState;
+class WindowManager;
 
 // Timing state structure
 struct TimingState
@@ -65,6 +66,17 @@ class Frame
 
 	// Handle background updates (settings, file tree, etc.)
 	void handleBackgroundUpdates(double currentTime);
+
+	// Handle complete frame setup (background updates, settings changes, framebuffer setup)
+	void handleFrameSetup(double currentTime,
+						  bool &needFontReload,
+						  bool &m_needsRedraw,
+						  int &m_framesToRender,
+						  std::function<void(bool)> setShaderEnabled,
+						  float &lastOpacity,
+						  bool &lastBlurEnabled,
+						  bool &windowFocused,
+						  WindowManager &windowManager);
 
 	// Get current FPS
 	double getCurrentFPS() const { return currentFPS; }

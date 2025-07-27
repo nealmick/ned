@@ -265,6 +265,18 @@ void Font::initialize()
 	handleFontReload(needReload);
 }
 
+void Font::handleFontReloadWithFrameUpdates(bool &needFontReload)
+{
+	// Handle font reloading with frame updates
+	if (needFontReload)
+	{
+		extern Frame gFrame;
+		gFrame.setNeedsRedraw(true);
+		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
+		handleFontReload(needFontReload);
+	}
+}
+
 void Font::handleFontReload(bool &needFontReload)
 {
 	if (needFontReload)

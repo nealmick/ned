@@ -35,8 +35,11 @@ class Font
 	// Handle font reloading
 	void handleFontReload(bool &needFontReload);
 
-	// Handle font reloading with frame management
-	void handleFontReloadWithFrame(bool &needFontReload, Frame &frame);
+	// Handle font reloading with frame updates
+	void handleFontReloadWithFrameUpdates(bool &needFontReload);
+
+	// Get current font
+	ImFont *getCurrentFont() const { return currentFont; }
 };
 
 // Global font instance

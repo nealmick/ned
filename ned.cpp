@@ -125,32 +125,12 @@ void Ned::run()
 		// Get current time for activity tracking
 		double currentTime = glfwGetTime();
 
-		// Poll for events (this will block until something happens, or timeout)
-		// When shaders are enabled, use settings FPS target for timeout
-		// When shaders are disabled, use normal timeout logic
-		double timeout;
-		if (shaderManager.isShaderEnabled())
-		{
-			// Use settings FPS target when shaders are enabled
-			float fpsTarget = 60.0f;
-			if (gSettings.getSettings().contains("fps_target") &&
-				gSettings.getSettings()["fps_target"].is_number())
-			{
-				fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
-			}
-			timeout = 1.0 / fpsTarget; // Convert FPS to timeout
-		} else
-		{
-			// Use shorter timeout if we recently had activity (for smoother
-			// interaction) Also respect minimum FPS: 25 FPS normally
-			double minFPS = 25.0;
-			double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
-			timeout =
-				(currentTime - gFrame.lastActivityTime()) < 0.5 ? 0.016 : maxTimeout;
-		}
-		glfwWaitEventsTimeout(timeout);
+		// Handle event polling using GraphicsManager
+		graphicsManager.pollEvents(currentTime,
+								   shaderManager.isShaderEnabled(),
+								   gFrame.lastActivityTime());
 
-		// Check for Cmd+Q termination on macOS
+		// Handle window management (macOS termination, etc.)
 		if (windowManager.shouldTerminateApplication())
 		{
 			glfwSetWindowShouldClose(window, 1);
@@ -167,27 +147,24 @@ void Ned::run()
 		// Always render a frame after polling events
 		auto frame_start = std::chrono::high_resolution_clock::now();
 
-		gFrame.handleBackgroundUpdates(currentTime);
-		gSettings.handleSettingsChanges(
+		// Handle frame setup using Frame class
+		gFrame.handleFrameSetup(
+			currentTime,
 			needFontReload,
 			gFrame.needsRedrawRef(),
 			gFrame.framesToRenderRef(),
 			[this](bool enabled) { shaderManager.setShaderEnabled(enabled); },
 			lastOpacity,
-			lastBlurEnabled);
+			lastBlurEnabled,
+			windowFocused,
+			windowManager);
 
+		// Setup framebuffers
 		int display_w, display_h;
 		graphicsManager.getFramebufferSize(&display_w, &display_h);
-		// Delegate framebuffer initialization to the shader manager
 		shaderManager.initializeFramebuffers(display_w, display_h, fb, accum);
 
-		gFrame.setupImGuiFrame();
-		windowManager.handleWindowFocus(windowFocused, gFileExplorer);
-		if (gFileExplorer.handleFileDialog())
-		{
-			gFrame.setNeedsRedraw(true);
-			gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
-		}
+		// Handle main rendering
 		render.renderFrame(window,
 						   shaderManager,
 						   fb,
@@ -198,14 +175,10 @@ void Ned::run()
 						   windowResize,
 						   currentTime);
 
-		// Handle font reloading
-		if (needFontReload)
-		{
-			gFrame.setNeedsRedraw(true);
-			gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
-			gFont.handleFontReload(needFontReload);
-		}
+		// Handle font reloading using Font class
+		gFont.handleFontReloadWithFrameUpdates(needFontReload);
 
+		// Handle frame timing using Frame class
 		gFrame.handleFrameTiming(
 			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}

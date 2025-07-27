@@ -52,6 +52,12 @@ class GraphicsManager
 	// Get window focus state
 	bool isWindowFocused() const;
 
+	// Event polling methods
+	void pollEvents(double currentTime, bool shaderEnabled, double lastActivityTime);
+	double calculateEventTimeout(double currentTime,
+								 bool shaderEnabled,
+								 double lastActivityTime);
+
 	// Cleanup graphics resources
 	void cleanup();
 
