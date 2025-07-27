@@ -18,6 +18,20 @@ class Splitter
 	// Render the agent splitter (between editor and agent pane)
 	void renderAgentSplitter(float padding, float availableWidth, bool sidebarVisible);
 
+	// UI Settings methods (moved from UISettings class)
+	static void loadSidebarSettings();
+	static void loadAgentPaneSettings();
+	static void adjustAgentSplitPosition();
+	static bool isSidebarVisible();
+	static bool isAgentPaneVisible();
+	static float getAgentSplitPos();
+
+  public:
+	// Global variables (moved from UISettings)
+	static bool showSidebar;
+	static bool showAgentPane;
+	static float agentSplitPos;
+
   private:
 	// Interaction settings
 	static constexpr float VISIBLE_WIDTH = 1.0f;   // Rendered width at rest

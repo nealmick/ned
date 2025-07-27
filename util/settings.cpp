@@ -4,8 +4,8 @@
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
 #include "../util/keybinds.h"
+#include "../util/splitter.h"
 #include "../util/terminal.h"
-#include "../util/ui_settings.h"
 #include "config.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -1086,7 +1086,7 @@ void Settings::toggleSidebar()
 	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float agentPaneWidthPx;
-	if (UISettings::showSidebar)
+	if (Splitter::showSidebar)
 	{
 		agentPaneWidthPx = availableWidth * getAgentSplitPos();
 	} else
@@ -1097,17 +1097,17 @@ void Settings::toggleSidebar()
 	}
 
 	// Toggle sidebar
-	UISettings::showSidebar = !UISettings::showSidebar;
+	Splitter::showSidebar = !Splitter::showSidebar;
 
 	// Save sidebar visibility setting
-	settings["sidebar_visible"] = UISettings::showSidebar;
+	settings["sidebar_visible"] = Splitter::showSidebar;
 	saveSettings();
 
 	// Recompute availableWidth after toggling
 	availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float newRightSplit;
-	if (UISettings::showSidebar)
+	if (Splitter::showSidebar)
 	{
 		newRightSplit = agentPaneWidthPx / availableWidth;
 	} else
@@ -1125,10 +1125,10 @@ void Settings::toggleAgentPane()
 	// Duplicate the logic from handleKeyboardShortcuts
 
 	// Only toggle visibility, do not recalculate or set agentSplitPos
-	UISettings::showAgentPane = !UISettings::showAgentPane;
+	Splitter::showAgentPane = !Splitter::showAgentPane;
 
 	// Save agent pane visibility setting
-	settings["agent_pane_visible"] = UISettings::showAgentPane;
+	settings["agent_pane_visible"] = Splitter::showAgentPane;
 	saveSettings();
 
 	std::cout << "Toggled agent pane visibility from settings" << std::endl;
@@ -1208,8 +1208,8 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());
 
 		// Update sidebar visibility from settings
-		UISettings::showSidebar = getSettings().value("sidebar_visible", true);
-		UISettings::showAgentPane = getSettings().value("agent_pane_visible", true);
+		Splitter::showSidebar = getSettings().value("sidebar_visible", true);
+		Splitter::showAgentPane = getSettings().value("agent_pane_visible", true);
 
 		if (hasThemeChanged())
 		{

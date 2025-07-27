@@ -6,14 +6,52 @@ Description: Splitter rendering and interaction logic implementation for NED tex
 #include "splitter.h"
 #include "keybinds.h"
 #include "settings.h"
-#include "ui_settings.h"
+#include <iostream>
 
 // External dependencies
 extern Settings gSettings;
 
+// Global variables (moved from UISettings)
+bool Splitter::showSidebar = true;
+bool Splitter::showAgentPane = true;
+float Splitter::agentSplitPos = 0.75f;
+
 Splitter::Splitter() {}
 
 Splitter::~Splitter() {}
+
+// UI Settings methods (moved from UISettings class)
+void Splitter::loadSidebarSettings()
+{
+	showSidebar = gSettings.getSettings().value("sidebar_visible", true);
+}
+
+void Splitter::loadAgentPaneSettings()
+{
+	showAgentPane = gSettings.getSettings().value("agent_pane_visible", true);
+}
+
+void Splitter::adjustAgentSplitPosition()
+{
+	// Adjust agent split position if sidebar is hidden (first load only)
+	if (!gSettings.isAgentSplitPosProcessed() && !showSidebar)
+	{
+		float currentAgentSplitPos = gSettings.getAgentSplitPos();
+		float originalValue = currentAgentSplitPos;
+		// When sidebar is hidden, the agent split position represents editor width,
+		// not agent pane width. So we need to invert it: 1 - saved_agent_position
+		float newAgentSplitPos = 1.0f - currentAgentSplitPos;
+		gSettings.setAgentSplitPos(newAgentSplitPos);
+		std::cout << "[Ned] Adjusted agent_split_pos from " << originalValue << " to "
+				  << newAgentSplitPos << " (sidebar hidden) on first load" << std::endl;
+	}
+}
+
+bool Splitter::isSidebarVisible() { return showSidebar; }
+
+bool Splitter::isAgentPaneVisible() { return showAgentPane; }
+
+float Splitter::getAgentSplitPos() { return agentSplitPos; }
 
 float Splitter::clamp(float value, float min, float max)
 {
@@ -90,7 +128,7 @@ void Splitter::renderSplitter(float padding, float availableWidth)
 		float new_split = (mouse_x - padding * 2) / (availableWidth - padding * 4 - 6);
 		// Clamp so that editor is always at least 10% of availableWidth
 		float rightSplit = gSettings.getAgentSplitPos();
-		bool agentPaneVisible = UISettings::showAgentPane;
+		bool agentPaneVisible = showAgentPane;
 		float maxLeftSplit = agentPaneVisible ? (0.9f - rightSplit) : 0.9f;
 		new_split = clamp(new_split, 0.1f, maxLeftSplit);
 		gSettings.setSplitPos(new_split);

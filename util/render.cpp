@@ -15,8 +15,8 @@ Description: Render class implementation for NED text editor.
 #include "files/files.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
+#include "util/splitter.h"
 #include "util/terminal.h"
-#include "util/ui_settings.h"
 #include "util/welcome.h"
 
 // Global scope variables (these are defined in ned.cpp)
@@ -123,11 +123,11 @@ void Render::renderMainWindow(GLFWwindow *window,
 	float padding = ImGui::GetStyle().WindowPadding.x;
 	float availableWidth =
 		windowWidth - padding * 3 -
-		(UISettings::showAgentPane ? kAgentSplitterWidth
-								   : 0.0f); // Only account for splitter width
-											// when agent pane is visible
+		(Splitter::showAgentPane ? kAgentSplitterWidth
+								 : 0.0f); // Only account for splitter width
+										  // when agent pane is visible
 
-	if (UISettings::showSidebar)
+	if (Splitter::showSidebar)
 	{
 		// First split: File Explorer vs. Editor+Agent
 		float leftSplit = gSettings.getSplitPos();
@@ -136,7 +136,7 @@ void Render::renderMainWindow(GLFWwindow *window,
 		float explorerWidth = availableWidth * leftSplit;
 		float agentPaneWidth = availableWidth * rightSplit;
 		float editorWidth = availableWidth - explorerWidth -
-							(UISettings::showAgentPane ? agentPaneWidth : 0.0f) -
+							(Splitter::showAgentPane ? agentPaneWidth : 0.0f) -
 							(padding * 2) + 16.0f;
 
 		// Render File Explorer
@@ -149,11 +149,11 @@ void Render::renderMainWindow(GLFWwindow *window,
 
 		// Render Editor
 		gEditor.renderEditor(gFont.currentFont, editorWidth);
-		if (UISettings::showAgentPane)
+		if (Splitter::showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
 			// Render right splitter (new)
-			splitter.renderAgentSplitter(padding, availableWidth, UISettings::showSidebar);
+			splitter.renderAgentSplitter(padding, availableWidth, Splitter::showSidebar);
 			ImGui::SameLine(0, 0);
 			// Render Agent Pane (new)
 			gAIAgent.render(agentPaneWidth, gFont.largeFont);
@@ -163,18 +163,18 @@ void Render::renderMainWindow(GLFWwindow *window,
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
 		float editorWidth =
-			UISettings::showAgentPane
+			Splitter::showAgentPane
 				? (availableWidth * agentSplit)
 				: availableWidth + 5.0f; // Add extra width when agent pane is hidden
-		float agentPaneWidth = UISettings::showAgentPane
+		float agentPaneWidth = Splitter::showAgentPane
 								   ? (availableWidth - editorWidth - kAgentSplitterWidth)
 								   : 0.0f;
 
 		gEditor.renderEditor(gFont.currentFont, editorWidth);
-		if (UISettings::showAgentPane)
+		if (Splitter::showAgentPane)
 		{
 			ImGui::SameLine(0, 0);
-			splitter.renderAgentSplitter(padding, availableWidth, UISettings::showSidebar);
+			splitter.renderAgentSplitter(padding, availableWidth, Splitter::showSidebar);
 			ImGui::SameLine(0, 0);
 			gAIAgent.render(agentPaneWidth, gFont.largeFont);
 		}
