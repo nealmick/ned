@@ -29,4 +29,10 @@ class Init
 
 	// Graphics and rendering initialization
 	static bool initializeGraphics(GLFWwindow *window);
+
+	// UI settings initialization
+	static void initializeUISettings();
+
+	// Consolidated initialization - calls all the above methods
+	static void initializeAll(GLFWwindow *window);
 };

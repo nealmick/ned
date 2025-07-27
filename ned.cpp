@@ -59,8 +59,6 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-	// Set up signal handlers for crash detection
-	Init::setupSignalHandlers();
 
 	// Initialize graphics system
 	if (!graphicsManager.initialize(shaderManager))
@@ -74,24 +72,11 @@ bool Ned::initialize()
 	// Initialize window manager
 	windowManager.initialize(window);
 
-	// Initialize settings and configuration
-	Init::initializeSettings();
+	// Initialize all settings, UI, macOS, and graphics components
+	Init::initializeAll(window);
 
-	// Load UI settings
-	Splitter::loadSidebarSettings();
-	Splitter::loadAgentPaneSettings();
-	Splitter::adjustAgentSplitPosition();
-
-	// Initialize macOS-specific settings
-	Init::initializeMacOS(window);
-
-	// Initialize graphics and rendering components
+	// Set up window user pointer
 	graphicsManager.setWindowUserPointer(this);
-
-	if (!Init::initializeGraphics(window))
-	{
-		return false;
-	}
 
 	// Set up scroll callback AFTER ImGui is initialized
 	graphicsManager.setScrollCallback(Ned::scrollCallback);
@@ -233,27 +218,15 @@ void Ned::run()
 		gFrame.handleFrameTiming(
 			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
 	}
-
-	// Comment out cleanup to prevent crash during Cmd+Q termination
-	// cleanup();
 }
-
 void Ned::cleanup()
 {
 	quad.cleanup();
-
-	// Delegate framebuffer cleanup to the shader manager
 	shaderManager.cleanupFramebuffers(fb, accum);
-
 	gSettings.saveSettings();
 	gFileExplorer.saveCurrentFile();
-
-	// Save AI agent conversation history
 	gAIAgent.getHistoryManager().saveConversationHistory();
-
-	// Clean up graphics and window managers
 	graphicsManager.cleanup();
-
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
