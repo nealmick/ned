@@ -79,5 +79,3 @@ class Ned
 
 // Global scope
 extern Bookmarks gBookmarks;
-extern bool showSidebar;
-extern bool showAgentPane;

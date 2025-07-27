@@ -5,6 +5,7 @@
 #include "../files/files.h"
 #include "../util/keybinds.h"
 #include "../util/terminal.h"
+#include "../util/ui_settings.h"
 #include "config.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -1077,7 +1078,6 @@ void Settings::renderNotification(const std::string &message, float duration)
 void Settings::toggleSidebar()
 {
 	// Duplicate the logic from handleKeyboardShortcuts
-	extern bool showSidebar;
 
 	// Get current window dimensions (we'll need to approximate this)
 	float windowWidth = 1200.0f; // Default window width
@@ -1086,7 +1086,7 @@ void Settings::toggleSidebar()
 	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float agentPaneWidthPx;
-	if (showSidebar)
+	if (UISettings::showSidebar)
 	{
 		agentPaneWidthPx = availableWidth * getAgentSplitPos();
 	} else
@@ -1097,17 +1097,17 @@ void Settings::toggleSidebar()
 	}
 
 	// Toggle sidebar
-	showSidebar = !showSidebar;
+	UISettings::showSidebar = !UISettings::showSidebar;
 
 	// Save sidebar visibility setting
-	settings["sidebar_visible"] = showSidebar;
+	settings["sidebar_visible"] = UISettings::showSidebar;
 	saveSettings();
 
 	// Recompute availableWidth after toggling
 	availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float newRightSplit;
-	if (showSidebar)
+	if (UISettings::showSidebar)
 	{
 		newRightSplit = agentPaneWidthPx / availableWidth;
 	} else
@@ -1123,13 +1123,12 @@ void Settings::toggleSidebar()
 void Settings::toggleAgentPane()
 {
 	// Duplicate the logic from handleKeyboardShortcuts
-	extern bool showAgentPane;
 
 	// Only toggle visibility, do not recalculate or set agentSplitPos
-	showAgentPane = !showAgentPane;
+	UISettings::showAgentPane = !UISettings::showAgentPane;
 
 	// Save agent pane visibility setting
-	settings["agent_pane_visible"] = showAgentPane;
+	settings["agent_pane_visible"] = UISettings::showAgentPane;
 	saveSettings();
 
 	std::cout << "Toggled agent pane visibility from settings" << std::endl;
@@ -1209,10 +1208,8 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());
 
 		// Update sidebar visibility from settings
-		extern bool showSidebar;
-		extern bool showAgentPane;
-		showSidebar = getSettings().value("sidebar_visible", true);
-		showAgentPane = getSettings().value("agent_pane_visible", true);
+		UISettings::showSidebar = getSettings().value("sidebar_visible", true);
+		UISettings::showAgentPane = getSettings().value("agent_pane_visible", true);
 
 		if (hasThemeChanged())
 		{
