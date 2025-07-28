@@ -60,42 +60,42 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-
-	// Initialize graphics system
-	if (!graphicsManager.initialize(shaderManager))
+	// Initialize all components using InitializationManager
+	if (!initializationManager.initializeAll(graphicsManager,
+											 windowManager,
+											 shaderManager,
+											 render,
+											 gSettings,
+											 splitter,
+											 windowResize,
+											 quad,
+											 fb,
+											 accum))
 	{
 		return false;
 	}
 
-	// Get window from graphics manager
-	GLFWwindow *window = graphicsManager.getWindow();
-
-	// Initialize window manager
-	windowManager.initialize(window);
-
-	// Initialize all settings, UI, macOS, and graphics components
-	Init::initializeAll(window);
+	// Initialize application manager
+	if (!applicationManager.initialize(graphicsManager,
+									   windowManager,
+									   shaderManager,
+									   render,
+									   gSettings,
+									   splitter,
+									   windowResize,
+									   quad,
+									   fb,
+									   accum))
+	{
+		return false;
+	}
 
 	// Set up window user pointer
 	graphicsManager.setWindowUserPointer(this);
 
-	// Set up scroll callback AFTER ImGui is initialized
+	// Set up scroll callback
+	applicationManager.setScrollCallback(Ned::scrollCallback);
 	graphicsManager.setScrollCallback(Ned::scrollCallback);
-
-	quad.initialize();
-
-	// Initialize window resize handler
-	windowResize.initialize(window);
-
-	// Initialize render class
-	if (!render.initialize(window))
-	{
-		std::cerr << "Failed to initialize render class" << std::endl;
-		return false;
-	}
-
-	// Initialize frame management
-	gFrame.initialize();
 
 	initialized = true;
 	return true;
@@ -118,81 +118,26 @@ void Ned::run()
 		return;
 	}
 
-	GLFWwindow *window = graphicsManager.getWindow();
-
-	while (!graphicsManager.shouldWindowClose())
-	{
-		// Get current time for activity tracking
-		double currentTime = glfwGetTime();
-
-		// Handle event polling using GraphicsManager
-		graphicsManager.pollEvents(currentTime,
-								   shaderManager.isShaderEnabled(),
-								   gFrame.lastActivityTime());
-
-		// Handle window management (macOS termination, etc.)
-		if (windowManager.shouldTerminateApplication())
-		{
-			glfwSetWindowShouldClose(window, 1);
-		}
-
-		// Handle scroll accumulators
-		Scroll::handleScrollAccumulators(scrollXAccumulator, scrollYAccumulator);
-
-		// Check for activity and decide if we should keep rendering
-		gFrame.checkForActivity();
-		bool shouldKeepRendering = (currentTime - gFrame.lastActivityTime()) < 0.5 ||
-								   gEditorScroll.isScrollAnimationActive();
-
-		// Always render a frame after polling events
-		auto frame_start = std::chrono::high_resolution_clock::now();
-
-		// Handle frame setup using Frame class
-		gFrame.handleFrameSetup(
-			currentTime,
-			needFontReload,
-			gFrame.needsRedrawRef(),
-			gFrame.framesToRenderRef(),
-			[this](bool enabled) { shaderManager.setShaderEnabled(enabled); },
-			lastOpacity,
-			lastBlurEnabled,
-			windowFocused,
-			windowManager);
-
-		// Setup framebuffers
-		int display_w, display_h;
-		graphicsManager.getFramebufferSize(&display_w, &display_h);
-		shaderManager.initializeFramebuffers(display_w, display_h, fb, accum);
-
-		// Handle main rendering
-		render.renderFrame(window,
-						   shaderManager,
-						   fb,
-						   accum,
-						   quad,
-						   gSettings,
-						   splitter,
-						   windowResize,
-						   currentTime);
-
-		// Handle font reloading using Font class
-		gFont.handleFontReloadWithFrameUpdates(needFontReload);
-
-		// Handle frame timing using Frame class
-		gFrame.handleFrameTiming(
-			frame_start, shaderManager.isShaderEnabled(), windowFocused, gSettings);
-	}
+	// Run the main application loop using ApplicationManager
+	applicationManager.runMainLoop(graphicsManager,
+								   windowManager,
+								   shaderManager,
+								   render,
+								   gSettings,
+								   splitter,
+								   windowResize,
+								   quad,
+								   fb,
+								   accum,
+								   needFontReload,
+								   windowFocused,
+								   scrollXAccumulator,
+								   scrollYAccumulator,
+								   lastOpacity,
+								   lastBlurEnabled);
 }
 
 void Ned::cleanup()
 {
-	quad.cleanup();
-	shaderManager.cleanupFramebuffers(fb, accum);
-	gSettings.saveSettings();
-	gFileExplorer.saveCurrentFile();
-	gAIAgent.getHistoryManager().saveConversationHistory();
-	graphicsManager.cleanup();
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
+	cleanupManager.cleanupAll(quad, shaderManager, fb, accum, graphicsManager);
 }

@@ -19,9 +19,12 @@
 #include "files/files.h"
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
+#include "util/application_manager.h"
+#include "util/cleanup_manager.h"
 #include "util/font.h"
 #include "util/frame.h"
 #include "util/graphics_manager.h"
+#include "util/initialization_manager.h"
 #include "util/render.h"
 #include "util/splitter.h"
 #include "util/window_manager.h"
@@ -44,6 +47,9 @@ class Ned
 
   private:
 	// Member variables
+	ApplicationManager applicationManager;
+	CleanupManager cleanupManager;
+	InitializationManager initializationManager;
 	GraphicsManager graphicsManager;
 	WindowManager windowManager;
 	ShaderManager shaderManager;
