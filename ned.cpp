@@ -60,17 +60,17 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-	// Initialize all components using InitializationManager
-	if (!initializationManager.initializeAll(graphicsManager,
-											 windowManager,
-											 shaderManager,
-											 render,
-											 gSettings,
-											 splitter,
-											 windowResize,
-											 quad,
-											 fb,
-											 accum))
+	// Initialize all components using Init class
+	if (!Init::initializeAllComponents(graphicsManager,
+									   windowManager,
+									   shaderManager,
+									   render,
+									   gSettings,
+									   splitter,
+									   windowResize,
+									   quad,
+									   fb,
+									   accum))
 	{
 		return false;
 	}

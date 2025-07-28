@@ -1,13 +1,27 @@
 /*
 File: init.h
-Description: Initialization class moved from ned.cpp
+Description: Initialization class for handling all initialization logic.
+Consolidated from ned.cpp and initialization_manager.cpp
 */
 
 #pragma once
 
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <csignal>
 #include <iostream>
+
+// Forward declarations
+class GraphicsManager;
+class WindowManager;
+class ShaderManager;
+class Render;
+class Settings;
+class Splitter;
+class WindowResize;
+class ShaderQuad;
+struct FramebufferState;
+struct AccumulationBuffers;
 
 class Init
 {
@@ -35,4 +49,25 @@ class Init
 
 	// Consolidated initialization - calls all the above methods
 	static void initializeAll(GLFWwindow *window);
+
+	// Main initialization method for all components
+	static bool initializeAllComponents(GraphicsManager &graphicsManager,
+										WindowManager &windowManager,
+										ShaderManager &shaderManager,
+										Render &render,
+										Settings &settings,
+										Splitter &splitter,
+										WindowResize &windowResize,
+										ShaderQuad &quad,
+										FramebufferState &fb,
+										AccumulationBuffers &accum);
+
+  private:
+	// Helper initialization methods
+	static bool initializeGraphicsSystem(GraphicsManager &graphicsManager,
+										 ShaderManager &shaderManager);
+	static bool initializeWindowManager(WindowManager &windowManager,
+										GraphicsManager &graphicsManager);
+	static bool initializeComponents(GraphicsManager &graphicsManager);
+	static bool initializeQuad(ShaderQuad &quad);
 };
