@@ -1,6 +1,7 @@
 /*
 File: init.cpp
-Description: Initialization class implementation moved from ned.cpp
+Description: Initialization class implementation for handling all initialization logic.
+Consolidated from ned.cpp and initialization_manager.cpp
 */
 
 #include "init.h"
@@ -8,11 +9,14 @@ Description: Initialization class implementation moved from ned.cpp
 #include "files/files.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "shaders/shader_types.h"
 #include "util/debug_console.h"
 #include "util/font.h"
+#include "util/graphics_manager.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
 #include "util/splitter.h"
+#include "util/window_manager.h"
 #include <imgui.h>
 
 #ifdef __APPLE__
@@ -136,4 +140,83 @@ void Init::initializeAll(GLFWwindow *window)
 
 	// Initialize graphics and rendering components
 	initializeGraphics(window);
+}
+
+bool Init::initializeAllComponents(GraphicsManager &graphicsManager,
+								   WindowManager &windowManager,
+								   ShaderManager &shaderManager,
+								   Render &render,
+								   Settings &settings,
+								   Splitter &splitter,
+								   WindowResize &windowResize,
+								   ShaderQuad &quad,
+								   FramebufferState &fb,
+								   AccumulationBuffers &accum)
+{
+	// Initialize graphics system
+	if (!initializeGraphicsSystem(graphicsManager, shaderManager))
+	{
+		return false;
+	}
+
+	// Initialize window manager
+	if (!initializeWindowManager(windowManager, graphicsManager))
+	{
+		return false;
+	}
+
+	// Initialize components
+	if (!initializeComponents(graphicsManager))
+	{
+		return false;
+	}
+
+	// Initialize quad
+	if (!initializeQuad(quad))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool Init::initializeGraphicsSystem(GraphicsManager &graphicsManager,
+									ShaderManager &shaderManager)
+{
+	// Initialize graphics system
+	if (!graphicsManager.initialize(shaderManager))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool Init::initializeWindowManager(WindowManager &windowManager,
+								   GraphicsManager &graphicsManager)
+{
+	// Get window from graphics manager
+	GLFWwindow *window = graphicsManager.getWindow();
+
+	// Initialize window manager
+	windowManager.initialize(window);
+
+	return true;
+}
+
+bool Init::initializeComponents(GraphicsManager &graphicsManager)
+{
+	// Get window from graphics manager
+	GLFWwindow *window = graphicsManager.getWindow();
+
+	// Initialize all settings, UI, macOS, and graphics components
+	initializeAll(window);
+
+	return true;
+}
+
+bool Init::initializeQuad(ShaderQuad &quad)
+{
+	// Initialize quad
+	quad.initialize();
+	return true;
 }
