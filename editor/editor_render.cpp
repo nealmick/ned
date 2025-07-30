@@ -19,8 +19,8 @@
 #include "editor_line_numbers.h"
 #include "editor_scroll.h"
 #include "editor_selection.h"
-#include "editor_utils.h"
 #include "editor_tree_sitter.h"
+#include "editor_utils.h"
 
 #include <iostream>
 
@@ -28,9 +28,9 @@ EditorRender gEditorRender;
 
 void EditorRender::renderEditorFrame()
 {
-	
+
 	gEditorRender.renderEditorContent();
-	
+
 	gLineJump.renderLineJumpWindow();
 
 	gFileFinder.renderWindow();
@@ -63,7 +63,8 @@ void EditorRender::renderEditorFrame()
 
 	// Render line numbers with proper clipping
 	ImGui::PushClipRect(editor_state.line_numbers_pos,
-						ImVec2(editor_state.line_numbers_pos.x + editor_state.line_number_width,
+						ImVec2(editor_state.line_numbers_pos.x +
+								   editor_state.line_number_width,
 							   editor_state.line_numbers_pos.y + editor_state.size.y -
 								   editor_state.editor_top_margin),
 						true);
@@ -79,21 +80,21 @@ bool EditorRender::validateAndResizeColors()
 {
 	// Ensure theme colors are updated first
 	TreeSitter::updateThemeColors();
-	
+
 	if (editor_state.fileColors.size() != editor_state.fileContent.size())
 	{
 		std::cout << "Warning: colors vector size (" << editor_state.fileColors.size()
 				  << ") does not match text size (" << editor_state.fileContent.size()
 				  << "). Resizing." << std::endl;
-				  
+
 		// Use text color if available, otherwise fallback to white
 		ImVec4 defaultColor = TreeSitter::cachedColors.text;
-		if (defaultColor.x == 0 && defaultColor.y == 0 && defaultColor.z == 0) {
+		if (defaultColor.x == 0 && defaultColor.y == 0 && defaultColor.z == 0)
+		{
 			defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-
 		}
 		std::cout << "set to default color.... " << std::endl;
-		
+
 		editor_state.fileColors.resize(editor_state.fileContent.size(), defaultColor);
 		return true;
 	}
@@ -168,7 +169,8 @@ void EditorRender::renderLineBackground(int line_num,
 										const ImVec2 &line_start_draw_pos)
 {
 	if (static_cast<size_t>(line_num) != cursor_line ||
-		editor_state.selection_active && editor_state.selection_start != editor_state.selection_end)
+		editor_state.selection_active &&
+			editor_state.selection_start != editor_state.selection_end)
 	{
 		return; // Not the cursor line
 	}
@@ -177,7 +179,8 @@ void EditorRender::renderLineBackground(int line_num,
 		return; // Line is not visible
 	}
 
-	const ImU32 highlight_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.18f, 0.18f, 0.3f));
+	const ImU32 highlight_color =
+		ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.18f, 0.18f, 0.3f));
 	ImVec2 window_pos = ImGui::GetWindowPos();
 	float window_width = ImGui::GetWindowWidth();
 
@@ -205,6 +208,18 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 	const char *char_end = (char_index + 1 < editor_state.fileContent.size())
 							   ? &editor_state.fileContent[char_index + 1]
 							   : nullptr;
+
+	// For multi-byte characters (like emojis), we need to find the end of the character
+	if (char_end && (*char_start & 0x80)) // Check if it's a multi-byte character
+	{
+		// Find the end of this UTF-8 character
+		while (char_end < &editor_state.fileContent[editor_state.fileContent.size()] &&
+			   (*char_end & 0xC0) == 0x80) // Continuation byte
+		{
+			char_end++;
+		}
+	}
+
 	float char_width = ImGui::CalcTextSize(char_start, char_end).x;
 
 	int s_start = selection_start; // Or editor_state.selection_start
@@ -216,13 +231,15 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 					   (s_start > s_end && // Inverse order: start > end
 						current_char_idx >= s_end && current_char_idx < s_start);
 
-	if (!is_selected && editor_state.selection_active && !editor_state.multi_selections.empty())
+	if (!is_selected && editor_state.selection_active &&
+		!editor_state.multi_selections.empty())
 	{
 		for (const auto &multi_sel : editor_state.multi_selections)
 		{
 			if (static_cast<int>(char_index) >=
 					std::min(multi_sel.start_index, multi_sel.end_index) &&
-				static_cast<int>(char_index) < std::max(multi_sel.start_index, multi_sel.end_index))
+				static_cast<int>(char_index) <
+					std::max(multi_sel.start_index, multi_sel.end_index))
 			{
 				is_selected = true;
 				break;
@@ -232,17 +249,19 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 	if (is_selected)
 	{
 		ImVec2 sel_start_pos = current_draw_pos;
-		ImVec2 sel_end_pos =
-			ImVec2(sel_start_pos.x + char_width, sel_start_pos.y + editor_state.line_height);
+		ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + char_width,
+									sel_start_pos.y + editor_state.line_height);
 		const ImU32 selection_color =
 			ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
-		ImGui::GetWindowDrawList()->AddRectFilled(sel_start_pos, sel_end_pos, selection_color);
+		ImGui::GetWindowDrawList()->AddRectFilled(sel_start_pos,
+												  sel_end_pos,
+												  selection_color);
 	}
 
-	char current_char = editor_state.fileContent[char_index];
-	char buf[2] = {current_char, '\0'};
-	ImU32 text_color = ImGui::ColorConvertFloat4ToU32(editor_state.fileColors[char_index]);
-	ImGui::GetWindowDrawList()->AddText(current_draw_pos, text_color, buf);
+	ImU32 text_color =
+		ImGui::ColorConvertFloat4ToU32(editor_state.fileColors[char_index]);
+	ImGui::GetWindowDrawList()->AddText(
+		current_draw_pos, text_color, char_start, char_end);
 
 	current_draw_pos.x += char_width;
 }
@@ -257,7 +276,21 @@ bool EditorRender::skipLineIfAboveVisible(size_t &char_index,
 		while (char_index < editor_state.fileContent.size() &&
 			   editor_state.fileContent[char_index] != '\n')
 		{
-			char_index++;
+			// Handle multi-byte UTF-8 characters
+			if ((editor_state.fileContent[char_index] & 0x80) == 0)
+			{
+				// Single byte character
+				char_index++;
+			} else
+			{
+				// Multi-byte character, find the end
+				while (char_index < editor_state.fileContent.size() &&
+					   (editor_state.fileContent[char_index] & 0xC0) == 0x80)
+				{
+					char_index++;
+				}
+				char_index++; // Move past the last byte of the character
+			}
 		}
 		return true;
 	}
@@ -269,9 +302,10 @@ void EditorRender::renderText()
 
 	const float scroll_x = ImGui::GetScrollX(); // Current horizontal scroll
 	const float scroll_y = ImGui::GetScrollY(); // Current vertical scroll
-	// Use ImGui::GetContentRegionAvail().y for window_height if you are inside a child window
-	// or ImGui::GetWindowHeight() if 'this' is the main editor window.
-	// For a child window like "##editor", ImGui::GetWindowHeight() refers to child window height.
+	// Use ImGui::GetContentRegionAvail().y for window_height if you are inside
+	// a child window or ImGui::GetWindowHeight() if 'this' is the main editor
+	// window. For a child window like "##editor", ImGui::GetWindowHeight()
+	// refers to child window height.
 	const float window_height = ImGui::GetWindowHeight();
 	const float window_width = ImGui::GetWindowWidth();
 	const float line_height = editor_state.line_height;
@@ -288,8 +322,9 @@ void EditorRender::renderText()
 	start_line_idx = std::max(0, start_line_idx - VIRTUAL_RENDER_BUFFER_LINES);
 
 	int end_line_idx = static_cast<int>((scroll_y + window_height) / line_height);
-	end_line_idx = std::min(static_cast<int>(editor_state.editor_content_lines.size() - 1),
-							end_line_idx + VIRTUAL_RENDER_BUFFER_LINES);
+	end_line_idx =
+		std::min(static_cast<int>(editor_state.editor_content_lines.size() - 1),
+				 end_line_idx + VIRTUAL_RENDER_BUFFER_LINES);
 
 	if (start_line_idx > end_line_idx)
 	{
@@ -297,7 +332,8 @@ void EditorRender::renderText()
 	}
 
 	// Horizontal culling values (for characters on a visible line)
-	const float visible_x_start_cull = scroll_x - 100.0f; // Cull chars starting before this
+	const float visible_x_start_cull =
+		scroll_x - 100.0f; // Cull chars starting before this
 	const float visible_x_end_cull =
 		scroll_x + window_width + 100.0f; // Cull chars starting after this
 
@@ -319,15 +355,23 @@ void EditorRender::renderText()
 		}
 
 		// Set the drawing position for the start of this line.
-		// The Y position is relative to the top of the document, ImGui handles scrolling it into
-		// view.
+		// The Y position is relative to the top of the document, ImGui handles
+		// scrolling it into view.
 		current_draw_pos.x = base_text_pos.x;
-		current_draw_pos.y = base_text_pos.y + (static_cast<float>(line_num) * line_height);
+		current_draw_pos.y =
+			base_text_pos.y + (static_cast<float>(line_num) * line_height);
 
 		// 3. Iterate through characters *of this specific line*.
-		for (size_t char_idx_in_file = line_char_start_idx; char_idx_in_file < line_char_end_idx;
-			 ++char_idx_in_file)
+		for (size_t char_idx_in_file = line_char_start_idx;
+			 char_idx_in_file < line_char_end_idx;)
 		{
+			// Skip continuation bytes of multi-byte characters
+			if (char_idx_in_file < editor_state.fileContent.size() &&
+				(editor_state.fileContent[char_idx_in_file] & 0xC0) == 0x80)
+			{
+				char_idx_in_file++;
+				continue;
+			}
 
 			// This character is (at least partially) horizontally visible.
 			renderCharacterAndSelection(
@@ -338,8 +382,32 @@ void EditorRender::renderText()
 
 			if (editor_state.fileContent[char_idx_in_file] == '\n')
 			{
-				break; // Reached end of current line's content (before line_char_end_idx if
-					   // line_char_end_idx pointed to newline itself)
+				break; // Reached end of current line's content (before
+					   // line_char_end_idx if line_char_end_idx pointed to
+					   // newline itself)
+			}
+
+			// Advance to next character, handling multi-byte UTF-8 characters
+			if (char_idx_in_file < editor_state.fileContent.size())
+			{
+				const char *current_char = &editor_state.fileContent[char_idx_in_file];
+				if ((*current_char & 0x80) == 0)
+				{
+					// Single byte character
+					char_idx_in_file++;
+				} else
+				{
+					// Multi-byte character, find the end
+					while (char_idx_in_file < editor_state.fileContent.size() &&
+						   (editor_state.fileContent[char_idx_in_file] & 0xC0) == 0x80)
+					{
+						char_idx_in_file++;
+					}
+					char_idx_in_file++; // Move past the last byte of the character
+				}
+			} else
+			{
+				char_idx_in_file++;
 			}
 		}
 		// If the line ended without a newline char (e.g., last line of file),

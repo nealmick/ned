@@ -70,7 +70,8 @@ std::string FileTree::findReadmeInRoot()
 		if (!child.isDirectory)
 		{
 			std::string lowerName = child.name;
-			std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+			std::transform(
+				lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
 
 			if (lowerName == "readme.md" || lowerName == "readme")
 			{
@@ -92,10 +93,11 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 
 	ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
 
-	float requiredWidth =
-		(depth * metrics.indentWidth) + TreeStyleSettings::HORIZONTAL_PADDING + iconDimensions.x +
-		TreeStyleSettings::TEXT_PADDING // Spacing between icon and text (matches SameLine offset)
-		+ textSize.x;
+	float requiredWidth = (depth * metrics.indentWidth) +
+						  TreeStyleSettings::HORIZONTAL_PADDING + iconDimensions.x +
+						  TreeStyleSettings::TEXT_PADDING // Spacing between icon and text
+														  // (matches SameLine offset)
+						  + textSize.x;
 
 	float availableWidth = ImGui::GetContentRegionAvail().x;
 
@@ -105,8 +107,8 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, TreeStyleSettings::HOVER_COLOR);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
-	bool isOpen =
-		ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(buttonWidth, metrics.itemHeight));
+	bool isOpen = ImGui::Button(("##" + node.fullPath).c_str(),
+								ImVec2(buttonWidth, metrics.itemHeight));
 
 	ImGui::PopStyleVar();
 	ImGui::PopStyleColor(2);
@@ -123,7 +125,8 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 	float textTopY = lineCenterY - (textHeight / 2.0f);
 
 	ImGui::SameLine(metrics.cursorPos.x + depth * metrics.indentWidth + iconDimensions.x +
-					TreeStyleSettings::HORIZONTAL_PADDING + TreeStyleSettings::TEXT_PADDING);
+					TreeStyleSettings::HORIZONTAL_PADDING +
+					TreeStyleSettings::TEXT_PADDING);
 	ImGui::SetCursorPosY(textTopY);
 	ImGui::Text("%s", node.name.c_str());
 
@@ -147,7 +150,9 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 	}
 }
 
-void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth)
+void FileTree::displayFileNode(const FileNode &node,
+							   const TreeDisplayMetrics &metrics,
+							   int depth)
 {
 	float multiplier = 1.1f;
 	float iconSize = metrics.fileIconSize * multiplier;
@@ -174,8 +179,8 @@ void FileTree::displayFileNode(const FileNode &node, const TreeDisplayMetrics &m
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
 	// Create button with calculated width to cover full content
-	bool clicked =
-		ImGui::Button(("##" + node.fullPath).c_str(), ImVec2(buttonWidth, metrics.itemHeight));
+	bool clicked = ImGui::Button(("##" + node.fullPath).c_str(),
+								 ImVec2(buttonWidth, metrics.itemHeight));
 
 	ImGui::PopStyleVar();
 	ImGui::PopStyleColor(2);
@@ -302,11 +307,12 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 			child.isDirectory = entry.is_directory();
 
 			// Find existing child to preserve its state
-			auto existingChild = std::find_if(node.children.begin(),
-											  node.children.end(),
-											  [&child](const FileNode &existing) {
-												  return existing.fullPath == child.fullPath;
-											  });
+			auto existingChild =
+				std::find_if(node.children.begin(),
+							 node.children.end(),
+							 [&child](const FileNode &existing) {
+								 return existing.fullPath == child.fullPath;
+							 });
 
 			if (existingChild != node.children.end())
 			{
@@ -325,17 +331,20 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 		}
 	} catch (const fs::filesystem_error &e)
 	{
-		std::cerr << "Error accessing directory " << path << ": " << e.what() << std::endl;
+		std::cerr << "Error accessing directory " << path << ": " << e.what()
+				  << std::endl;
 	}
 
 	// Sort directories first, then files by name (existing code)
-	std::sort(newChildren.begin(), newChildren.end(), [](const FileNode &a, const FileNode &b) {
-		if (a.isDirectory != b.isDirectory)
-		{
-			return a.isDirectory > b.isDirectory;
-		}
-		return a.name < b.name;
-	});
+	std::sort(newChildren.begin(),
+			  newChildren.end(),
+			  [](const FileNode &a, const FileNode &b) {
+				  if (a.isDirectory != b.isDirectory)
+				  {
+					  return a.isDirectory > b.isDirectory;
+				  }
+				  return a.name < b.name;
+			  });
 
 	node.children = std::move(newChildren);
 }

@@ -5,8 +5,6 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-
-
 BUILD_DIR=".build"
 
 # Handle clean flag
@@ -27,20 +25,14 @@ cat << "EOF"
 EOF
 echo "${NC}"
 
-echo "${BLUE}📝 Starting code formatting...${NC}"
-
-# Count and format files
-count=$(find . \
-   \( -name "*.cpp" -o -name "*.h" \) \
-   -not -path "./lib/*" \
-   -not -path "./fonts/*" \
-   -not -path "./icons/*" \
-   -not -path "./.build/*" \
-   -not -path "./build/*" \
-  xec clang-format -i {} \; \
-  xec echo "." \; | wc -l)
-    
-echo "${GREEN}✨ Formatted ${count} files ${NC}"
+# Time the format script execution
+echo "${BLUE}🎨 Running format script...${NC}"
+start_time=$(date +%s.%N)
+./format.sh
+format_exit_code=$?
+end_time=$(date +%s.%N)
+format_duration=$(echo "$end_time - $start_time" | bc -l)
+echo "${GREEN}✅ Format script completed in ${format_duration}s${NC}"
 
 # Build steps
 mkdir -p "$BUILD_DIR"
@@ -50,7 +42,7 @@ echo "${GREEN}📦 Running cmake...${NC}"
 cmake ..
 
 echo "${GREEN}📦 Running make...${NC}"
-make
+make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Check build status
 if [ $? -ne 0 ]; then
@@ -96,8 +88,8 @@ else
     echo "${YELLOW}⚠️  No compile_commands.json found in build directory.${NC}"
 fi
 
-
 echo "${GREEN}✅  Launching NED  🚀 ${NC}"
 ./$BUILD_DIR/ned
 
 echo "${GREEN}✅ Process terminated!${NC}"
+echo ""

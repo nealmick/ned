@@ -91,7 +91,8 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 		startPos = editor_state.cursor_index;
 	} else
 	{
-		startPos = (lastFoundPos == 0) ? editor_state.fileContent.length() - 1 : lastFoundPos - 1;
+		startPos = (lastFoundPos == 0) ? editor_state.fileContent.length() - 1
+									   : lastFoundPos - 1;
 	}
 
 	size_t foundPos;
@@ -105,7 +106,8 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 		foundPos = editor_state.fileContent.rfind(findText, startPos);
 	}
 
-	std::cout << "Searching backwards for '" << findText << "' starting from position " << startPos;
+	std::cout << "Searching backwards for '" << findText << "' starting from position "
+			  << startPos;
 	if (ignoreCase)
 		std::cout << " (case-insensitive)";
 	std::cout << std::endl;
@@ -132,7 +134,7 @@ void FileContentSearch::findPrevious(bool ignoreCase)
 		editor_state.selection_start = foundPos;
 		editor_state.selection_end = foundPos + findText.length();
 		editor_state.center_cursor_vertical = true;
-		
+
 		std::cout << "Found at position: " << foundPos
 				  << ", cursor now at: " << editor_state.cursor_index << std::endl;
 	} else
@@ -162,127 +164,139 @@ void FileContentSearch::handleFindBoxActivation()
 }
 void FileContentSearch::renderFindBox()
 {
-    if (needsInputUnblock)
-    {
-        if (--unblockDelayFrames <= 0)
-        {
-            editor_state.block_input = false;
-            needsInputUnblock = false;
-        }
-    }
+	if (needsInputUnblock)
+	{
+		if (--unblockDelayFrames <= 0)
+		{
+			editor_state.block_input = false;
+			needsInputUnblock = false;
+		}
+	}
 
-    // Only render if the find box is active.
-    if (!editor_state.active_find_box)
-    {
-        findBoxRectSet = false; // Reset rect tracking when inactive
-        return;
-    }
+	// Only render if the find box is active.
+	if (!editor_state.active_find_box)
+	{
+		findBoxRectSet = false; // Reset rect tracking when inactive
+		return;
+	}
 
-    // Check for mouse click outside the find box area
-    if (findBoxRectSet && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-    {
-        if (!ImGui::IsMouseHoveringRect(findBoxRectMin, findBoxRectMax, true))
-        {
-            // Click occurred outside find box - close it
-            editor_state.active_find_box = false;
-            editor_state.block_input = false;
-        }
-    }
+	// Check for mouse click outside the find box area
+	if (findBoxRectSet && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		if (!ImGui::IsMouseHoveringRect(findBoxRectMin, findBoxRectMax, true))
+		{
+			// Click occurred outside find box - close it
+			editor_state.active_find_box = false;
+			editor_state.block_input = false;
+		}
+	}
 
-    // We'll declare this static here since it's used in both the UI and keyboard shortcuts
-    static bool ignoreCaseCheckbox = false;
+	// We'll declare this static here since it's used in both the UI and
+	// keyboard shortcuts
+	static bool ignoreCaseCheckbox = false;
 
-    // Wrap entire find box in a group to get its bounding rect
-    ImGui::BeginGroup();
-    {
-        // Reserve ~50% of available width for the input field.
-        float availWidth = ImGui::GetContentRegionAvail().x;
-        float inputWidth = availWidth * 0.5f;
-        ImGui::SetNextItemWidth(inputWidth);
+	// Wrap entire find box in a group to get its bounding rect
+	ImGui::BeginGroup();
+	{
+		// Reserve ~50% of available width for the input field.
+		float availWidth = ImGui::GetContentRegionAvail().x;
+		float inputWidth = availWidth * 0.5f;
+		ImGui::SetNextItemWidth(inputWidth);
 
-        // Render the input field in its own group.
-        ImGui::BeginGroup();
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-                   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-                   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-                   1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
+		// Render the input field in its own group.
+		ImGui::BeginGroup();
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
+		ImGui::PushStyleColor(
+			ImGuiCol_FrameBg,
+			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+				   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
-        static char inputBuffer[256] = "";
-        if (findBoxShouldFocus)
-        {
-            ImGui::SetKeyboardFocusHere();
-            findBoxShouldFocus = false;
-        }
-        ImGuiInputTextFlags flags =
-            ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-        if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags))
-        {
-            findText = inputBuffer;
-            lastFoundPos = std::string::npos;
-        }
-        ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(2);
-        ImGui::EndGroup();
+		static char inputBuffer[256] = "";
+		if (findBoxShouldFocus)
+		{
+			ImGui::SetKeyboardFocusHere();
+			findBoxShouldFocus = false;
+		}
+		ImGuiInputTextFlags flags =
+			ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
+		if (ImGui::InputText("##findbox", inputBuffer, sizeof(inputBuffer), flags))
+		{
+			findText = inputBuffer;
+			lastFoundPos = std::string::npos;
+		}
+		ImGui::PopStyleColor(2);
+		ImGui::PopStyleVar(2);
+		ImGui::EndGroup();
 
-        // Show current match position and total matches if we have a search
-        if (!findText.empty()) {
-            ImGui::SameLine();
-            ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
-            ImGui::SameLine();
-            
-            // Calculate current match position
-            int currentMatch = -1;
-            int totalMatches = 0;
-            
-            if (!findText.empty()) {
-                std::vector<size_t> positions = findAllOccurrences(ignoreCaseCheckbox);
-                totalMatches = positions.size();
-                
-                if (lastFoundPos != std::string::npos) {
-                    for (int i = 0; i < totalMatches; i++) {
-                        if (positions[i] == lastFoundPos) {
-                            currentMatch = i + 1;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Display the match counter
-            if (currentMatch == -1) {
-                ImGui::Text("Not Found");
-            } else if (totalMatches > 0) {
-                ImGui::Text("%d/%d", currentMatch, totalMatches);
-            }
-        }
+		// Show current match position and total matches if we have a search
+		if (!findText.empty())
+		{
+			ImGui::SameLine();
+			ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
+			ImGui::SameLine();
 
-        ImGui::SameLine();
-        ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
-        ImGui::SameLine();
+			// Calculate current match position
+			int currentMatch = -1;
+			int totalMatches = 0;
 
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-                   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-                   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-                   1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
+			if (!findText.empty())
+			{
+				std::vector<size_t> positions = findAllOccurrences(ignoreCaseCheckbox);
+				totalMatches = positions.size();
 
-        ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
-        ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(2);
-    }
-    ImGui::EndGroup(); // End entire find box group
+				if (lastFoundPos != std::string::npos)
+				{
+					for (int i = 0; i < totalMatches; i++)
+					{
+						if (positions[i] == lastFoundPos)
+						{
+							currentMatch = i + 1;
+							break;
+						}
+					}
+				}
+			}
 
-    // Store bounding rect for click detection
-    findBoxRectMin = ImGui::GetItemRectMin();
-    findBoxRectMax = ImGui::GetItemRectMax();
-    findBoxRectSet = true;
+			// Display the match counter
+			if (currentMatch == -1)
+			{
+				ImGui::Text("Not Found");
+			} else if (totalMatches > 0)
+			{
+				ImGui::Text("%d/%d", currentMatch, totalMatches);
+			}
+		}
 
-    handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
+		ImGui::SameLine();
+		ImGui::Dummy(ImVec2(10, 0)); // 10 pixels of spacing.
+		ImGui::SameLine();
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, Style::FRAME_ROUNDING);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, Style::BORDER_SIZE);
+		ImGui::PushStyleColor(
+			ImGuiCol_FrameBg,
+			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+				   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
+
+		ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
+		ImGui::PopStyleColor(2);
+		ImGui::PopStyleVar(2);
+	}
+	ImGui::EndGroup(); // End entire find box group
+
+	// Store bounding rect for click detection
+	findBoxRectMin = ImGui::GetItemRectMin();
+	findBoxRectMax = ImGui::GetItemRectMax();
+	findBoxRectSet = true;
+
+	handleFindBoxKeyboardShortcuts(ignoreCaseCheckbox);
 }
 std::vector<size_t> FileContentSearch::findAllOccurrences(bool ignoreCase)
 {
@@ -345,11 +359,13 @@ void FileContentSearch::handleFindBoxKeyboardShortcuts(bool ignoreCaseCheckbox)
 					editor_state.multi_cursor_indices.push_back(pos);
 					editor_state.multi_cursor_prefered_columns.push_back(
 						EditorCursor::CalculateVisualColumnForPosition(
-							pos, editor_state.fileContent, editor_state.editor_content_lines));
+							pos,
+							editor_state.fileContent,
+							editor_state.editor_content_lines));
 				}
 
 				// Ensure visibility
-				//editor_state.ensure_cursor_visible = {true, true};
+				// editor_state.ensure_cursor_visible = {true, true};
 				editor_state.center_cursor_vertical = true;
 
 				std::cout << "Added " << positions.size() << " cursors\n";

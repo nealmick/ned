@@ -5,16 +5,14 @@
 
 namespace MCP {
 
-class TerminalServer {
-public:
-    TerminalServer();
-    ~TerminalServer() = default;
+class TerminalServer
+{
+  public:
+	TerminalServer();
+	~TerminalServer() = default;
 
-    // Main method to execute a terminal command and return its output
-    std::string executeCommand(const std::string& command);
-    
-
-    
+	// Main method to execute a terminal command and return its output
+	std::string executeCommand(const std::string &command);
 };
 
-} // namespace MCP 
+} // namespace MCP

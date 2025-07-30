@@ -122,7 +122,8 @@ bool LSPAdapterClangd::initialize(const std::string &workspacePath)
 
 		// Send the initialization request
 		sendRequest(initRequest);
-		std::cout << "\033[35mClangd:\033[0m Waiting for initialization response" << std::endl;
+		std::cout << "\033[35mClangd:\033[0m Waiting for initialization response"
+				  << std::endl;
 		std::string initResponse = readResponse();
 		std::cout << "\033[35mClangd:\033[0m Received initialization response: "
 				  << initResponse.substr(0, 100) << "..." << std::endl;
@@ -140,7 +141,8 @@ bool LSPAdapterClangd::initialize(const std::string &workspacePath)
 		return true;
 	} catch (const std::exception &e)
 	{
-		std::cerr << "\033[31mClangd:\033[0m Initialization failed: " << e.what() << std::endl;
+		std::cerr << "\033[31mClangd:\033[0m Initialization failed: " << e.what()
+				  << std::endl;
 		return false;
 	}
 }
@@ -155,7 +157,8 @@ bool LSPAdapterClangd::sendRequest(const std::string &request)
 		return false;
 	}
 
-	fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
+	fprintf(
+		impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
 	fflush(impl->input);
 	return true;
 }
@@ -212,7 +215,8 @@ std::string LSPAdapterClangd::getLanguageId(const std::string &filePath) const
 	std::string ext = filePath.substr(dot_pos + 1);
 
 	// Map C/C++ extensions to language IDs
-	if (ext == "cpp" || ext == "c" || ext == "cc" || ext == "cxx" || ext == "hpp" || ext == "h")
+	if (ext == "cpp" || ext == "c" || ext == "cc" || ext == "cxx" || ext == "hpp" ||
+		ext == "h")
 	{
 		return "cpp";
 	}

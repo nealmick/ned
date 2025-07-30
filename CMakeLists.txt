@@ -26,6 +26,23 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(CURL REQUIRED)
 
+# FreeType for better font rendering and emoji support
+if(APPLE)
+  # On macOS, use Homebrew's FreeType
+  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(ARCH STREQUAL "arm64")
+    set(FREETYPE_INCLUDE_DIRS "/opt/homebrew/include/freetype2")
+    set(FREETYPE_LIBRARIES "/opt/homebrew/lib/libfreetype.dylib")
+  else()
+    set(FREETYPE_INCLUDE_DIRS "/usr/local/include/freetype2")
+    set(FREETYPE_LIBRARIES "/usr/local/lib/libfreetype.dylib")
+  endif()
+else()
+  find_package(Freetype REQUIRED)
+  set(FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIRS})
+  set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARIES})
+endif()
+
 # GLEW Configuration
 if(APPLE)
   execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -144,6 +161,8 @@ set(APP_SOURCES
   main.cpp
   ned.cpp
   shaders/shader.cpp
+  shaders/shader_types.cpp
+  shaders/shader_manager.cpp
 )
 
 # Component groups
@@ -162,7 +181,11 @@ set(IMGUI_SOURCES
   lib/imgui/imgui_widgets.cpp
   lib/imgui/backends/imgui_impl_glfw.cpp
   lib/imgui/backends/imgui_impl_opengl3.cpp
+  lib/imgui/misc/freetype/imgui_freetype.cpp
 )
+
+# Custom ImGui configuration to avoid modifying the submodule
+add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
 
 # Utility library
 add_library(util STATIC
@@ -172,7 +195,14 @@ add_library(util STATIC
   util/terminal.cpp
   util/close_popper.cpp
   util/welcome.cpp
+  util/app.cpp
   util/debug_console.cpp
+  util/font.cpp
+  util/window_resize.cpp
+  util/splitter.cpp
+  util/init.cpp
+  util/scroll.cpp
+  util/render.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -238,6 +268,7 @@ target_include_directories(ned PRIVATE
   ai/mcp
   ${CMAKE_BINARY_DIR}
   ${GLEW_INCLUDE_DIRS}
+  ${FREETYPE_INCLUDE_DIRS}
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
   lib/utfcpp/source
@@ -252,6 +283,7 @@ target_link_libraries(ned PRIVATE
   nfd
   util
   ${GLEW_LIBRARIES}
+  ${FREETYPE_LIBRARIES}
   CURL::libcurl 
   tree-sitter-lib
   ${TS_GRAMMAR_LIBS}

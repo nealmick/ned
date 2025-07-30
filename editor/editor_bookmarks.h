@@ -35,14 +35,16 @@ class Bookmarks
 
 		// Default constructor
 		Bookmark()
-			: filePath(""), cursorPosition(0), lineNumber(0), scrollX(0), scrollY(0), isSet(false)
+			: filePath(""), cursorPosition(0), lineNumber(0), scrollX(0), scrollY(0),
+			  isSet(false)
 		{
 		}
 
 		// Main constructor - updated to include scroll positions
-		Bookmark(const std::string &path, int cursor, int line, float sx, float sy, bool set)
-			: filePath(path), cursorPosition(cursor), lineNumber(line), scrollX(sx), scrollY(sy),
-			  isSet(set)
+		Bookmark(
+			const std::string &path, int cursor, int line, float sx, float sy, bool set)
+			: filePath(path), cursorPosition(cursor), lineNumber(line), scrollX(sx),
+			  scrollY(sy), isSet(set)
 		{
 		}
 	};
@@ -53,8 +55,10 @@ class Bookmarks
   public:
 	bool showBookmarksWindow = false;
 
-	inline void
-	setBookmark(size_t slot, const std::string &filePath, int cursorPosition, int lineNumber)
+	inline void setBookmark(size_t slot,
+							const std::string &filePath,
+							int cursorPosition,
+							int lineNumber)
 	{
 		if (slot < NUM_BOOKMARKS)
 		{
@@ -64,11 +68,13 @@ class Bookmarks
 				Bookmark(filePath, cursorPosition, lineNumber, scrollX, scrollY, true);
 
 			// Debug print
-			std::cout << "Set bookmark " << slot << " with scroll positions - X: " << scrollX
-					  << ", Y: " << scrollY << std::endl;
+			std::cout << "Set bookmark " << slot
+					  << " with scroll positions - X: " << scrollX << ", Y: " << scrollY
+					  << std::endl;
 		}
 	}
-	inline bool jumpToBookmark(size_t slot, FileExplorer &fileExplorer, EditorState &editorState)
+	inline bool
+	jumpToBookmark(size_t slot, FileExplorer &fileExplorer, EditorState &editorState)
 	{
 		if (slot < NUM_BOOKMARKS && bookmarks[slot].isSet)
 		{
@@ -76,20 +82,23 @@ class Bookmarks
 			{
 				// Create callback to set scroll after file loads
 				auto setScroll = [this, slot]() {
-					gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+					gEditorScroll.requestScroll(bookmarks[slot].scrollX,
+												bookmarks[slot].scrollY);
 				};
 
 				fileExplorer.loadFileContent(bookmarks[slot].filePath, setScroll);
 			} else
 			{
 				// Same file, request scroll immediately
-				gEditorScroll.requestScroll(bookmarks[slot].scrollX, bookmarks[slot].scrollY);
+				gEditorScroll.requestScroll(bookmarks[slot].scrollX,
+											bookmarks[slot].scrollY);
 			}
 
 			editorState.cursor_index =
 				bookmarks[slot].cursorPosition; // use content string index...
 			// editorState.cursor_row = bookmarks[slot].lineNumber;
-			gEditorScroll.setEnsureCursorVisibleFrames(-1); // Use EditorScroll method instead
+			gEditorScroll.setEnsureCursorVisibleFrames(
+				-1); // Use EditorScroll method instead
 			return true;
 		}
 		return false;
@@ -102,7 +111,7 @@ class Bookmarks
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 
 		ImGuiKey toggleBookmarksKey = gKeybinds.getActionKey("toggle_bookmarks_menu");
-		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false))
+		if (main_key && ImGui::IsKeyPressed(toggleBookmarksKey, false))
 		{
 			ClosePopper::closeAllExcept(ClosePopper::Type::Bookmarks); // RIGHT
 			return;
@@ -123,10 +132,12 @@ class Bookmarks
 			{
 				if (shift_pressed || alt_pressed)
 				{
-					int lineNumber =
-						EditorUtils::GetLineFromPosition(editor_state.editor_content_lines,
-														 editor_state.cursor_index);
-					setBookmark(i, fileExplorer.currentFile, editor_state.cursor_index, lineNumber);
+					int lineNumber = EditorUtils::GetLineFromPosition(
+						editor_state.editor_content_lines, editor_state.cursor_index);
+					setBookmark(i,
+								fileExplorer.currentFile,
+								editor_state.cursor_index,
+								lineNumber);
 					std::cout << "Bookmark " << (i + 1) << " set at line " << lineNumber
 							  << std::endl;
 				} else
@@ -164,15 +175,16 @@ class Bookmarks
 		{
 			showBookmarksWindow = false;
 			editor_state.block_input = false;
-
 		}
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
-		
+
 		ImGuiKey toggleBookmarksKey = gKeybinds.getActionKey("toggle_bookmarks_menu");
-		if (main_key &&ImGui::IsKeyPressed(toggleBookmarksKey, false) && !gTerminal.isTerminalVisible())
+		if (main_key && ImGui::IsKeyPressed(toggleBookmarksKey, false) &&
+			!gTerminal.isTerminalVisible())
 		{
 			showBookmarksWindow = !showBookmarksWindow;
-			if(!showBookmarksWindow){
+			if (!showBookmarksWindow)
+			{
 				editor_state.block_input = false;
 			}
 		}
@@ -180,7 +192,6 @@ class Bookmarks
 		if (showBookmarksWindow)
 		{
 
-			
 			editor_state.block_input = true;
 
 			ImGui::SetNextWindowSize(ImVec2(500, 300), ImGuiCond_Always);
@@ -189,9 +200,10 @@ class Bookmarks
 									ImGuiCond_Always,
 									ImVec2(0.5f, 0.5f));
 
-			ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-										   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-										   ImGuiWindowFlags_NoScrollWithMouse;
+			ImGuiWindowFlags windowFlags =
+				ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+				ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+				ImGuiWindowFlags_NoScrollWithMouse;
 
 			// Push custom styles for the window
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,
@@ -199,14 +211,17 @@ class Bookmarks
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize,
 								1.0f); // Add border
 
-
-			ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			ImGui::PushStyleColor(
+				ImGuiCol_FrameBg,
+				ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+					   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+					   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 					   1.0f));
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+			ImGui::PushStyleColor(
+				ImGuiCol_WindowBg,
+				ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+					   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+					   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 					   1.0f));
 			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 
@@ -223,7 +238,7 @@ class Bookmarks
 			{
 				if (bookmarks[i].isSet)
 				{
-					ImGui::Text( "%zu:", i + 1);
+					ImGui::Text("%zu:", i + 1);
 					ImGui::SameLine();
 					ImGui::TextWrapped("%s Line %d",
 									   bookmarks[i].filePath.c_str(),

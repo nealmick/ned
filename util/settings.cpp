@@ -1,26 +1,32 @@
 #include "settings.h"
-#include "../editor/editor.h"
-#include "../editor/editor_highlight.h" 
-#include "../files/files.h"				
-#include "../util/terminal.h"				
-#include "../util/keybinds.h"
 #include "../ai/ai_tab.h"
+#include "../editor/editor.h"
+#include "../editor/editor_highlight.h"
+#include "../files/files.h"
+#include "../util/keybinds.h"
+#include "../util/splitter.h"
+#include "../util/terminal.h"
 #include "config.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include <GLFW/glfw3.h>
 
+// Add includes for macOS window functions
+#ifdef __APPLE__
+#include "../macos_window.h"
+#endif
+
 #include <algorithm> //
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iomanip> 
+#include <iomanip>
 #include <iostream>
-#include <libgen.h> 
+#include <libgen.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
-#include <sys/param.h>	 
+#include <sys/param.h>
 #endif
 #ifdef __linux__
 #include <linux/limits.h>
@@ -30,39 +36,45 @@
 #include <unistd.h>
 
 namespace fs = std::filesystem;
-Settings gSettings; 
+Settings gSettings;
 
-Settings::Settings() : splitPos(0.3f) {
-    // Initialize with default values that will be overwritten by loadSettings
-    currentFontSize = 0.0f;
-    loadSettings(); // Load settings immediately to set proper values
+Settings::Settings() : splitPos(0.3f)
+{
+	// Initialize with default values that will be overwritten by loadSettings
+	currentFontSize = 0.0f;
+	loadSettings(); // Load settings immediately to set proper values
 }
 
 void Settings::loadSettings()
 {
 	// Store the previous settings path to detect if we're loading a different file
 	std::string previousSettingsPath = settingsPath;
-	
+
 	settingsFileManager.loadSettings(settings, settingsPath);
 	currentFontName = getCurrentFont();
-	currentFontSize = settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
+	currentFontSize =
+		settings.value("fontSize", 20.0f); // Use 20.0f as fallback if not found
 	splitPos = settings.value("splitPos", 0.2142857164144516f);
 	agentSplitPos = settings.value("agent_split_pos", 0.75f);
-	
-	// On first load of this specific settings file, always reset agent split pos to 0.3
-	if (previousSettingsPath != settingsPath) {
+
+	// On first load of this specific settings file, always reset agent split
+	// pos to 0.3
+	if (previousSettingsPath != settingsPath)
+	{
 		agentSplitPosProcessed = false;
 	}
-	if (!agentSplitPosProcessed && !settings.value("sidebar_visible", true)) {
+	if (!agentSplitPosProcessed && !settings.value("sidebar_visible", true))
+	{
 		float originalValue = agentSplitPos;
 		agentSplitPos = 0.7f;
 		settings["agent_split_pos"] = agentSplitPos;
 		settingsChanged = true;
-		std::cout << "[Settings] Reset agent_split_pos from " << originalValue << " to 0.3 on first load of " << settingsPath << std::endl;
+		std::cout << "[Settings] Reset agent_split_pos from " << originalValue
+				  << " to 0.3 on first load of " << settingsPath << std::endl;
 		settingsFileManager.saveSettings(settings, settingsPath);
 	}
 	agentSplitPosProcessed = true;
-	
+
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -74,12 +86,16 @@ void Settings::saveSettings()
 {
 	settingsFileManager.saveSettings(settings, settingsPath);
 	gTerminal.UpdateTerminalColors();
-	
 }
 
 void Settings::checkSettingsFile()
 {
-	settingsFileManager.checkSettingsFile(settingsPath, settings, settingsChanged, fontChanged, fontSizeChanged, themeChanged);
+	settingsFileManager.checkSettingsFile(settingsPath,
+										  settings,
+										  settingsChanged,
+										  fontChanged,
+										  fontSizeChanged,
+										  themeChanged);
 	if (settingsChanged || fontChanged || fontSizeChanged || themeChanged)
 	{
 		profileJustSwitched = true;
@@ -97,10 +113,12 @@ void Settings::renderSettingsWindow()
 	float current_font_size = settings.value("fontSize", 20.0f);
 
 	// Dynamic sizing based on viewport width and font size
-	if (main_viewport_size.x < 1100.0f || current_font_size > 40) {
+	if (main_viewport_size.x < 1100.0f || current_font_size > 40)
+	{
 		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
 		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
-	} else {
+	} else
+	{
 		settings_window_width = main_viewport_size.x * 0.75f;  // 75% of viewport width
 		settings_window_height = main_viewport_size.y * 0.85f; // 85% of viewport height
 	}
@@ -113,9 +131,9 @@ void Settings::renderSettingsWindow()
 								   ImGui::GetIO().DisplaySize.y * 0.5f),
 							ImGuiCond_Always,
 							ImVec2(0.5f, 0.5f));
-	ImGuiWindowFlags windowFlags =
-		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
+	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
+								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+								   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
 
 	applyImGuiStyles();
 	ImGui::Begin("Settings", nullptr, windowFlags);
@@ -124,16 +142,18 @@ void Settings::renderSettingsWindow()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 	renderWindowHeader();
 	ImGui::PopStyleVar();
-	
+
 	// Calculate remaining space for scrollable content
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
-	float contentHeight = contentSize.y; // Use full available height instead of subtracting header height
-	
+	float contentHeight = contentSize.y; // Use full available height instead of
+										 // subtracting header height
+
 	// Create a child window for scrollable content with padding
 	ImGuiWindowFlags childFlags = ImGuiWindowFlags_AlwaysVerticalScrollbar;
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 5.0f)); // Reduced bottom padding from 15.0f to 5.0f
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+						ImVec2(15.0f, 5.0f)); // Reduced bottom padding from 15.0f to 5.0f
 	ImGui::BeginChild("SettingsContent", ImVec2(0, contentHeight), false, childFlags);
-	
+
 	renderProfileSelector();
 	renderMainSettings();
 	renderMacSettings();
@@ -143,10 +163,10 @@ void Settings::renderSettingsWindow()
 	renderToggleSettings();
 	renderShaderSettings();
 	renderKeybindsSettings();
-	
+
 	ImGui::EndChild();
 	ImGui::PopStyleVar();
-	
+
 	handleWindowInput();
 
 	ImGui::End();
@@ -168,7 +188,7 @@ void Settings::applyImGuiStyles()
 	const float SCROLLBAR_GRAB_HOVER_COLOR = 0.4f;
 
 	// Get background color from settings
-	auto& bgColor = settings["backgroundColor"];
+	auto &bgColor = settings["backgroundColor"];
 	float bgR = bgColor[0].get<float>();
 	float bgG = bgColor[1].get<float>();
 	float bgB = bgColor[2].get<float>();
@@ -178,41 +198,48 @@ void Settings::applyImGuiStyles()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 15.0f)); // Left/top/bottom padding, no right padding
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+						ImVec2(15.0f,
+							   15.0f)); // Left/top/bottom padding, no right padding
 
 	// Apply colors
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(
-		bgR * WINDOW_BG_MULTIPLIER,
-		bgG * WINDOW_BG_MULTIPLIER,
-		bgB * WINDOW_BG_MULTIPLIER,
-		1.0f
-	));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg,
+						  ImVec4(bgR * WINDOW_BG_MULTIPLIER,
+								 bgG * WINDOW_BG_MULTIPLIER,
+								 bgB * WINDOW_BG_MULTIPLIER,
+								 1.0f));
 
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
-		bgR * FRAME_BG_MULTIPLIER,
-		bgG * FRAME_BG_MULTIPLIER,
-		bgB * FRAME_BG_MULTIPLIER,
-		1.0f
-	));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg,
+						  ImVec4(bgR * FRAME_BG_MULTIPLIER,
+								 bgG * FRAME_BG_MULTIPLIER,
+								 bgB * FRAME_BG_MULTIPLIER,
+								 1.0f));
 
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(
-		bgR * FRAME_BG_MULTIPLIER,
-		bgG * FRAME_BG_MULTIPLIER,
-		bgB * FRAME_BG_MULTIPLIER,
-		0.0f  // Make scrollbar track transparent
-	));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg,
+						  ImVec4(bgR * FRAME_BG_MULTIPLIER,
+								 bgG * FRAME_BG_MULTIPLIER,
+								 bgB * FRAME_BG_MULTIPLIER,
+								 0.0f // Make scrollbar track transparent
+								 ));
 
-	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(
-		bgR * FRAME_BG_MULTIPLIER,
-		bgG * FRAME_BG_MULTIPLIER,
-		bgB * FRAME_BG_MULTIPLIER,
-		1.0f
-	));
+	ImGui::PushStyleColor(ImGuiCol_PopupBg,
+						  ImVec4(bgR * FRAME_BG_MULTIPLIER,
+								 bgG * FRAME_BG_MULTIPLIER,
+								 bgB * FRAME_BG_MULTIPLIER,
+								 1.0f));
 
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(BORDER_COLOR, BORDER_COLOR, BORDER_COLOR, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(BORDER_COLOR, BORDER_COLOR, BORDER_COLOR, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(SCROLLBAR_GRAB_HOVER_COLOR, SCROLLBAR_GRAB_HOVER_COLOR, SCROLLBAR_GRAB_HOVER_COLOR, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(FRAME_BG_MULTIPLIER, FRAME_BG_MULTIPLIER, FRAME_BG_MULTIPLIER, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_Border,
+						  ImVec4(BORDER_COLOR, BORDER_COLOR, BORDER_COLOR, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab,
+						  ImVec4(BORDER_COLOR, BORDER_COLOR, BORDER_COLOR, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered,
+						  ImVec4(SCROLLBAR_GRAB_HOVER_COLOR,
+								 SCROLLBAR_GRAB_HOVER_COLOR,
+								 SCROLLBAR_GRAB_HOVER_COLOR,
+								 1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_ScrollbarGrabActive,
+		ImVec4(FRAME_BG_MULTIPLIER, FRAME_BG_MULTIPLIER, FRAME_BG_MULTIPLIER, 1.0f));
 }
 
 void Settings::renderWindowHeader()
@@ -234,7 +261,8 @@ void Settings::renderWindowHeader()
 	ImGui::TextUnformatted("Settings");
 	float closeIconSize = ImGui::GetFrameHeight() - 10;
 	ImVec2 contentAvail = ImGui::GetContentRegionAvail();
-	float buttonPosX = contentAvail.x - closeIconSize - ImGui::GetStyle().FramePadding.x * 2;
+	float buttonPosX =
+		contentAvail.x - closeIconSize - ImGui::GetStyle().FramePadding.x * 2;
 	ImGui::SameLine(buttonPosX > 0 ? buttonPosX : ImGui::GetCursorPosX() + 100);
 
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
@@ -256,7 +284,7 @@ void Settings::renderWindowHeader()
 				 ImVec2(1, 1),
 				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
 	ImGui::EndGroup();
-	
+
 	// Add horizontal line to separate header from content
 	ImGui::Separator();
 }
@@ -272,50 +300,59 @@ void Settings::renderOpenRouterKeyInput()
 	static bool agentModelChanged = false;
 	static bool completionModelChanged = false;
 	static bool wasInputActive = false;
-	
+
 	// Reset initialization when profile changes
-	if (profileJustSwitched) {
+	if (profileJustSwitched)
+	{
 		initialized = false;
 	}
-	
-	if (!initialized) {
+
+	if (!initialized)
+	{
 		std::string currentKey = settingsFileManager.getOpenRouterKey();
 		strncpy(openRouterKeyBuffer, currentKey.c_str(), sizeof(openRouterKeyBuffer) - 1);
 		openRouterKeyBuffer[sizeof(openRouterKeyBuffer) - 1] = '\0';
-		
+
 		std::string currentAgentModel = getAgentModel();
 		strncpy(agentModelBuffer, currentAgentModel.c_str(), sizeof(agentModelBuffer) - 1);
 		agentModelBuffer[sizeof(agentModelBuffer) - 1] = '\0';
-		
+
 		std::string currentCompletionModel = getCompletionModel();
-		strncpy(completionModelBuffer, currentCompletionModel.c_str(), sizeof(completionModelBuffer) - 1);
+		strncpy(completionModelBuffer,
+				currentCompletionModel.c_str(),
+				sizeof(completionModelBuffer) - 1);
 		completionModelBuffer[sizeof(completionModelBuffer) - 1] = '\0';
-		
+
 		initialized = true;
 	}
 	ImGui::Spacing();
 	ImGui::TextUnformatted("AI Settings");
 	ImGui::Separator();
 	ImGui::Spacing();
-	
+
 	// Set a consistent width for all inputs
 	const float inputWidth = 400.0f;
-	const float openRouterInputWidth = 340.0f; // Smaller width to account for extra Show/Hide button
-	
+	const float openRouterInputWidth =
+		340.0f; // Smaller width to account for extra Show/Hide button
+
 	// OpenRouter Key Input
 	ImGui::SetNextItemWidth(openRouterInputWidth);
 	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
-	bool inputChanged = ImGui::InputText("##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
+	bool inputChanged = ImGui::InputText(
+		"##openrouterkey", openRouterKeyBuffer, sizeof(openRouterKeyBuffer), flags);
 	bool isInputActive = ImGui::IsItemActive();
-	if (inputChanged) {
+	if (inputChanged)
+	{
 		keyChanged = true;
 	}
 	ImGui::SameLine();
-	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0))) {
+	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", ImVec2(0, 0)))
+	{
 		showOpenRouterKey = !showOpenRouterKey;
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("Save") && keyChanged) {
+	if (ImGui::Button("Save") && keyChanged)
+	{
 		settingsFileManager.setOpenRouterKey(std::string(openRouterKeyBuffer));
 		gAITab.load_key();
 		renderNotification("OpenRouter key saved!", 2.0f);
@@ -324,16 +361,19 @@ void Settings::renderOpenRouterKeyInput()
 	ImGui::SameLine();
 	ImGui::TextUnformatted("OpenRouter Key");
 	ImGui::Spacing();
-	
+
 	// Agent Model Input
 	ImGui::SetNextItemWidth(inputWidth);
-	bool agentModelInputChanged = ImGui::InputText("##agentmodel", agentModelBuffer, sizeof(agentModelBuffer));
+	bool agentModelInputChanged =
+		ImGui::InputText("##agentmodel", agentModelBuffer, sizeof(agentModelBuffer));
 	bool isAgentModelActive = ImGui::IsItemActive();
-	if (agentModelInputChanged) {
+	if (agentModelInputChanged)
+	{
 		agentModelChanged = true;
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("Save##agent") && agentModelChanged) {
+	if (ImGui::Button("Save##agent") && agentModelChanged)
+	{
 		settings["agent_model"] = std::string(agentModelBuffer);
 		settingsChanged = true;
 		saveSettings();
@@ -343,16 +383,20 @@ void Settings::renderOpenRouterKeyInput()
 	ImGui::SameLine();
 	ImGui::TextUnformatted("Agent Model");
 	ImGui::Spacing();
-	
+
 	// Completion Model Input
 	ImGui::SetNextItemWidth(inputWidth);
-	bool completionModelInputChanged = ImGui::InputText("##completionmodel", completionModelBuffer, sizeof(completionModelBuffer));
+	bool completionModelInputChanged = ImGui::InputText("##completionmodel",
+														completionModelBuffer,
+														sizeof(completionModelBuffer));
 	bool isCompletionModelActive = ImGui::IsItemActive();
-	if (completionModelInputChanged) {
+	if (completionModelInputChanged)
+	{
 		completionModelChanged = true;
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("Save##completion") && completionModelChanged) {
+	if (ImGui::Button("Save##completion") && completionModelChanged)
+	{
 		settings["completion_model"] = std::string(completionModelBuffer);
 		settingsChanged = true;
 		saveSettings();
@@ -362,29 +406,33 @@ void Settings::renderOpenRouterKeyInput()
 	ImGui::SameLine();
 	ImGui::TextUnformatted("Completion Model");
 	ImGui::Spacing();
-	
+
 	// Handle block_input logic for all inputs
 	bool anyInputActive = isInputActive || isAgentModelActive || isCompletionModelActive;
-	
-	if (anyInputActive && !wasInputActive) {
+
+	if (anyInputActive && !wasInputActive)
+	{
 		editor_state.block_input = true;
-	} else if (!anyInputActive && wasInputActive) {
+	} else if (!anyInputActive && wasInputActive)
+	{
 		editor_state.block_input = false;
 	}
-	
+
 	// Also ensure block_input is set if any input is currently active
-	if (anyInputActive && !editor_state.block_input) {
+	if (anyInputActive && !editor_state.block_input)
+	{
 		editor_state.block_input = true;
 	}
-	
+
 	wasInputActive = anyInputActive;
 }
 
 void Settings::renderProfileSelector()
 {
 	ImGui::Spacing();
-	
-	std::vector<std::string> availableProfileFiles = settingsFileManager.getAvailableProfileFiles();
+
+	std::vector<std::string> availableProfileFiles =
+		settingsFileManager.getAvailableProfileFiles();
 	std::string currentActiveFilename = "ned.json";
 
 	if (!settingsPath.empty())
@@ -415,8 +463,14 @@ void Settings::renderProfileSelector()
 			{
 				if (currentActiveFilename != filename)
 				{
-					std::cout << "[Settings] User selected new profile: " << filename << std::endl;
-					settingsFileManager.switchProfile(filename, settings, settingsPath, settingsChanged, fontChanged, themeChanged);
+					std::cout << "[Settings] User selected new profile: " << filename
+							  << std::endl;
+					settingsFileManager.switchProfile(filename,
+													  settings,
+													  settingsPath,
+													  settingsChanged,
+													  fontChanged,
+													  themeChanged);
 					profileJustSwitched = true;
 					settingsChanged = true;
 					fontChanged = true;
@@ -444,9 +498,11 @@ void Settings::renderMainSettings()
 		currentFontName = getCurrentFont();
 	}
 
-	if (displayPreviewName != "System Default" && displayPreviewName.find('.') != std::string::npos)
+	if (displayPreviewName != "System Default" &&
+		displayPreviewName.find('.') != std::string::npos)
 	{
-		displayPreviewName = displayPreviewName.substr(0, displayPreviewName.find_last_of("."));
+		displayPreviewName =
+			displayPreviewName.substr(0, displayPreviewName.find_last_of("."));
 		std::replace(displayPreviewName.begin(), displayPreviewName.end(), '-', ' ');
 	}
 
@@ -482,7 +538,8 @@ void Settings::renderMainSettings()
 	static float tempFontSize;
 	if (ImGui::IsWindowAppearing() || fontSizeChanged || profileJustSwitched)
 	{
-		tempFontSize = settings.value("fontSize", 20.0f); // Get the value directly from settings
+		tempFontSize = settings.value("fontSize",
+									  20.0f); // Get the value directly from settings
 	}
 	if (ImGui::SliderFloat("Font Size", &tempFontSize, 4.0f, 32.0f, "%.0f"))
 	{
@@ -527,7 +584,8 @@ void Settings::renderMainSettings()
 			settings["backgroundColor"][3].get<float>() != bgColor.w)
 		{
 			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged) settingsChanged = true;
+			if (!settingsChanged)
+				settingsChanged = true;
 		}
 	}
 
@@ -539,12 +597,14 @@ void Settings::renderMainSettings()
 			settings["backgroundColor"][3].get<float>() != bgColor.w)
 		{
 			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged) settingsChanged = true;
+			if (!settingsChanged)
+				settingsChanged = true;
 		}
-		
+
 		if (settingsChanged)
 		{
-			std::cout << "[Settings] Background Color edit finished. Saving." << std::endl;
+			std::cout << "[Settings] Background Color edit finished. Saving."
+					  << std::endl;
 			saveSettings();
 		}
 	}
@@ -561,13 +621,15 @@ void Settings::renderMacSettings()
 	float currentOpacity = settings.value("mac_background_opacity", 0.5f);
 	bool currentBlurEnabled = settings.value("mac_blur_enabled", true);
 
-	if (ImGui::SliderFloat("Background Opacity", &currentOpacity, 0.0f, 1.0f, "%.2f")) {
+	if (ImGui::SliderFloat("Background Opacity", &currentOpacity, 0.0f, 1.0f, "%.2f"))
+	{
 		settings["mac_background_opacity"] = currentOpacity;
 		settingsChanged = true;
 		saveSettings();
 	}
 
-	if (ImGui::Checkbox("Enable Background Blur", &currentBlurEnabled)) {
+	if (ImGui::Checkbox("Enable Background Blur", &currentBlurEnabled))
+	{
 		settings["mac_blur_enabled"] = currentBlurEnabled;
 		settingsChanged = true;
 		saveSettings();
@@ -586,9 +648,10 @@ void Settings::renderSyntaxColors()
 		settings["themes"].contains(currentThemeName))
 	{
 		auto &themeColorsJson = settings["themes"][currentThemeName];
-				
+
 		auto editThemeColor = [&](const char *label, const char *colorKey) {
-			if (!themeColorsJson.contains(colorKey) || !themeColorsJson[colorKey].is_array() ||
+			if (!themeColorsJson.contains(colorKey) ||
+				!themeColorsJson[colorKey].is_array() ||
 				themeColorsJson[colorKey].size() != 4)
 			{
 				return;
@@ -605,8 +668,10 @@ void Settings::renderSyntaxColors()
 			if (ImGui::ColorEdit4(("##" + std::string(colorKey)).c_str(), (float *)&color))
 			{
 				themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
-				if (!settingsChanged) settingsChanged = true;
-				if (!themeChanged) themeChanged = true;
+				if (!settingsChanged)
+					settingsChanged = true;
+				if (!themeChanged)
+					themeChanged = true;
 			}
 
 			if (ImGui::IsItemDeactivatedAfterEdit())
@@ -617,11 +682,14 @@ void Settings::renderSyntaxColors()
 					themeColorsJson[colorKey][3].get<float>() != color.w)
 				{
 					themeColorsJson[colorKey] = {color.x, color.y, color.z, color.w};
-					if (!settingsChanged) settingsChanged = true;
-					if (!themeChanged) themeChanged = true;
+					if (!settingsChanged)
+						settingsChanged = true;
+					if (!themeChanged)
+						themeChanged = true;
 				}
-				
-				std::cout << "[Settings] Color " << colorKey << " edit finished. Forcing update and saving." << std::endl;
+
+				std::cout << "[Settings] Color " << colorKey
+						  << " edit finished. Forcing update and saving." << std::endl;
 				gEditorHighlight.forceColorUpdate();
 				saveSettings();
 			}
@@ -707,7 +775,8 @@ void Settings::renderToggleSettings()
 	if (ImGui::Checkbox("LSP Completion", &lspAutocomplete))
 	{
 		// If LSP is being toggled ON, turn off AI completion
-		if (lspAutocomplete) {
+		if (lspAutocomplete)
+		{
 			aiAutocomplete = false;
 			settings["ai_autocomplete"] = false;
 		}
@@ -721,7 +790,8 @@ void Settings::renderToggleSettings()
 	if (ImGui::Checkbox("AI Completion", &aiAutocomplete))
 	{
 		// If AI is being toggled ON, turn off LSP completion
-		if (aiAutocomplete) {
+		if (aiAutocomplete)
+		{
 			lspAutocomplete = false;
 			settings["lsp_autocomplete"] = false;
 		}
@@ -765,18 +835,23 @@ void Settings::renderShaderSettings()
 	renderShaderSlider("Bloom", "bloom_intensity", 0.00f, 1.00f, "%.02f", 0.75f);
 	renderShaderSlider("Static", "static_intensity", 0.00f, 0.5f, "%.03f", 0.208f);
 	renderShaderSlider("RGB Shift", "colorshift_intensity", 0.0f, 10.0f, "%.02f", 0.90f);
-	renderShaderSlider("Curvature(bugged)", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
+	renderShaderSlider(
+		"Curvature(bugged)", "curvature_intensity", 0.0f, 0.5f, "%.02f", 0.0f);
 	renderShaderSlider("Burn-in", "burnin_intensity", 0.9f, 0.999f, "%.03f", 0.9525f);
 	renderShaderSlider("Jitter", "jitter_intensity", 0.0f, 10.0f, "%.02f", 2.81f);
-	renderShaderSlider("Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
-	
-	
+	renderShaderSlider(
+		"Pixel lines", "pixelation_intensity", -1.00f, 1.00f, "%.03f", -0.11f);
+
 	renderShaderSlider("FPS Target", "fps_target", 20.0f, 1000.0f, "%.0f", 120.0f);
 	ImGui::SameLine();
 }
 
-void Settings::renderShaderSlider(const char* label, const char* key, float min_val, float max_val, 
-	const char* format, float default_val)
+void Settings::renderShaderSlider(const char *label,
+								  const char *key,
+								  float min_val,
+								  float max_val,
+								  const char *format,
+								  float default_val)
 {
 	static std::map<std::string, float> temp_shader_values;
 
@@ -823,33 +898,46 @@ void Settings::renderKeybindsSettings()
 
 	if (ImGui::Button("Open Keybinds File"))
 	{
-		std::string keybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "keybinds.json";
+		std::string keybindsPath =
+			fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+			"keybinds.json";
 		if (fs::exists(keybindsPath))
 		{
 			gFileExplorer.loadFileContent(keybindsPath);
 			showSettingsWindow = false; // Close settings window after opening keybinds
-		}
-		else
+		} else
 		{
-			std::cerr << "[Settings] Keybinds file not found at: " << keybindsPath << std::endl;
+			std::cerr << "[Settings] Keybinds file not found at: " << keybindsPath
+					  << std::endl;
 		}
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Edit keyboard shortcuts)");
 
 	// Check if we're using default keybinds
-	std::string keybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "keybinds.json";
-	std::string defaultKeybindsPath = fs::path(settingsFileManager.getUserSettingsPath()).parent_path() / "default-keybinds.json";
-	
-	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath)) {
+	std::string keybindsPath =
+		fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+		"keybinds.json";
+	std::string defaultKeybindsPath =
+		fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+		"default-keybinds.json";
+
+	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath))
+	{
 		ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Using default keybinds");
-		if (ImGui::Button("Restore Default Keybinds")) {
-			try {
-				fs::copy_file(defaultKeybindsPath, keybindsPath, fs::copy_options::overwrite_existing);
+		if (ImGui::Button("Restore Default Keybinds"))
+		{
+			try
+			{
+				fs::copy_file(defaultKeybindsPath,
+							  keybindsPath,
+							  fs::copy_options::overwrite_existing);
 				std::cout << "[Settings] Restored default keybinds" << std::endl;
 				gKeybinds.loadKeybinds(); // Reload keybinds
-			} catch (const fs::filesystem_error& e) {
-				std::cerr << "[Settings] Error restoring default keybinds: " << e.what() << std::endl;
+			} catch (const fs::filesystem_error &e)
+			{
+				std::cerr << "[Settings] Error restoring default keybinds: " << e.what()
+						  << std::endl;
 			}
 		}
 		ImGui::SameLine();
@@ -883,7 +971,8 @@ void Settings::handleWindowInput()
 				showSettingsWindow = false;
 				if (settingsChanged)
 					saveSettings();
-				// Set editor_state.block_input to false when window is closed via clicking outside
+				// Set editor_state.block_input to false when window is closed
+				// via clicking outside
 				extern struct EditorState editor_state;
 				editor_state.block_input = false;
 			}
@@ -891,130 +980,138 @@ void Settings::handleWindowInput()
 	}
 }
 
-void Settings::renderNotification(const std::string& message, float duration)
+void Settings::renderNotification(const std::string &message, float duration)
 {
-    static float notificationTimer = 0.0f;
-    static std::string currentMessage;
-    static bool showNotification = false;
+	static float notificationTimer = 0.0f;
+	static std::string currentMessage;
+	static bool showNotification = false;
 
-    // Update notification state
-    if (!message.empty()) {
-        currentMessage = message;
-        showNotification = true;
-        notificationTimer = duration;
-    }
+	// Update notification state
+	if (!message.empty())
+	{
+		currentMessage = message;
+		showNotification = true;
+		notificationTimer = duration;
+	}
 
-    if (showNotification) {
-        // Get viewport and calculate position
-        ImGuiViewport* viewport = ImGui::GetMainViewport();
-        ImVec2 screenPos = viewport->Pos;
-        ImVec2 screenSize = viewport->Size;
+	if (showNotification)
+	{
+		// Get viewport and calculate position
+		ImGuiViewport *viewport = ImGui::GetMainViewport();
+		ImVec2 screenPos = viewport->Pos;
+		ImVec2 screenSize = viewport->Size;
 
-        // Calculate base dimensions
-        const float padding = 20.0f;
-        const float minWidth = 200.0f;
-        const float maxWidth = screenSize.x * 0.8f; // Allow up to 80% of screen width
-        const float minHeight = 50.0f;
-        const float maxHeight = screenSize.y * 0.4f; // Allow up to 40% of screen height
-        const float textPadding = 15.0f; // Padding inside the notification box
+		// Calculate base dimensions
+		const float padding = 20.0f;
+		const float minWidth = 200.0f;
+		const float maxWidth = screenSize.x * 0.8f; // Allow up to 80% of screen width
+		const float minHeight = 50.0f;
+		const float maxHeight = screenSize.y * 0.4f; // Allow up to 40% of screen height
+		const float textPadding = 15.0f; // Padding inside the notification box
 
-        // Calculate available width for text (accounting for padding)
-        float availableTextWidth = maxWidth - (textPadding * 2);
-        
-        // Calculate text size with proper wrapping
-        ImVec2 textSize = ImGui::CalcTextSize(currentMessage.c_str(), nullptr, false, availableTextWidth);
-        
-        // Calculate content dimensions
-        float contentWidth = textSize.x + (textPadding * 2);
-        float contentHeight = textSize.y + (textPadding * 2);
+		// Calculate available width for text (accounting for padding)
+		float availableTextWidth = maxWidth - (textPadding * 2);
 
-        // Clamp dimensions to reasonable bounds
-        float width = ImClamp(contentWidth, minWidth, maxWidth);
-        float height = ImClamp(contentHeight, minHeight, maxHeight);
+		// Calculate text size with proper wrapping
+		ImVec2 textSize = ImGui::CalcTextSize(
+			currentMessage.c_str(), nullptr, false, availableTextWidth);
 
-        // Ensure the notification doesn't go off-screen
-        if (width > screenSize.x - (padding * 2)) {
-            width = screenSize.x - (padding * 2);
-        }
-        if (height > screenSize.y - (padding * 2)) {
-            height = screenSize.y - (padding * 2);
-        }
+		// Calculate content dimensions
+		float contentWidth = textSize.x + (textPadding * 2);
+		float contentHeight = textSize.y + (textPadding * 2);
 
-        // Calculate notification position (bottom left)
-        ImVec2 notificationPos = ImVec2(
-            screenPos.x + padding,
-            screenPos.y + screenSize.y - height - padding
-        );
+		// Clamp dimensions to reasonable bounds
+		float width = ImClamp(contentWidth, minWidth, maxWidth);
+		float height = ImClamp(contentHeight, minHeight, maxHeight);
 
-        // Use foreground draw list to ensure it's always on top
-        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-        
-        // Get background color from settings and adjust opacity
-        auto& bg = getSettings()["backgroundColor"];
-        ImU32 bgColor = IM_COL32(
-            static_cast<int>(bg[0].get<float>() * 255),
-            static_cast<int>(bg[1].get<float>() * 255),
-            static_cast<int>(bg[2].get<float>() * 255),
-            230  // Increased opacity for better visibility
-        );
+		// Ensure the notification doesn't go off-screen
+		if (width > screenSize.x - (padding * 2))
+		{
+			width = screenSize.x - (padding * 2);
+		}
+		if (height > screenSize.y - (padding * 2))
+		{
+			height = screenSize.y - (padding * 2);
+		}
 
-        // Draw background with rounded corners
-        ImVec2 p_min = notificationPos;
-        ImVec2 p_max = ImVec2(notificationPos.x + width, notificationPos.y + height);
-        
-        // Draw main background
-        draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
-        
-        // Draw a subtle border
-        ImU32 borderColor = IM_COL32(255, 255, 255, 255);  // White border to match text color
-        draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
+		// Calculate notification position (bottom left)
+		ImVec2 notificationPos =
+			ImVec2(screenPos.x + padding, screenPos.y + screenSize.y - height - padding);
 
-        // Draw text with proper wrapping and positioning
-        ImVec2 textPos = ImVec2(notificationPos.x + textPadding, notificationPos.y + textPadding);
-        draw_list->AddText(textPos, IM_COL32(255, 255, 255, 255), currentMessage.c_str());
+		// Use foreground draw list to ensure it's always on top
+		ImDrawList *draw_list = ImGui::GetForegroundDrawList();
 
-        // Update timer
-        notificationTimer -= ImGui::GetIO().DeltaTime;
-        if (notificationTimer <= 0.0f) {
-            showNotification = false;
-        }
-    }
+		// Get background color from settings and adjust opacity
+		auto &bg = getSettings()["backgroundColor"];
+		ImU32 bgColor = IM_COL32(static_cast<int>(bg[0].get<float>() * 255),
+								 static_cast<int>(bg[1].get<float>() * 255),
+								 static_cast<int>(bg[2].get<float>() * 255),
+								 230 // Increased opacity for better visibility
+		);
+
+		// Draw background with rounded corners
+		ImVec2 p_min = notificationPos;
+		ImVec2 p_max = ImVec2(notificationPos.x + width, notificationPos.y + height);
+
+		// Draw main background
+		draw_list->AddRectFilled(p_min, p_max, bgColor, 8.0f);
+
+		// Draw a subtle border
+		ImU32 borderColor =
+			IM_COL32(255, 255, 255, 255); // White border to match text color
+		draw_list->AddRect(p_min, p_max, borderColor, 8.0f, 0, 1.0f);
+
+		// Draw text with proper wrapping and positioning
+		ImVec2 textPos =
+			ImVec2(notificationPos.x + textPadding, notificationPos.y + textPadding);
+		draw_list->AddText(textPos, IM_COL32(255, 255, 255, 255), currentMessage.c_str());
+
+		// Update timer
+		notificationTimer -= ImGui::GetIO().DeltaTime;
+		if (notificationTimer <= 0.0f)
+		{
+			showNotification = false;
+		}
+	}
 }
 
 void Settings::toggleSidebar()
 {
 	// Duplicate the logic from handleKeyboardShortcuts
-	extern bool showSidebar;
-	
+
 	// Get current window dimensions (we'll need to approximate this)
 	float windowWidth = 1200.0f; // Default window width
-	float padding = 8.0f; // Default padding
+	float padding = 8.0f;		 // Default padding
 	float kAgentSplitterWidth = 6.0f;
 	float availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float agentPaneWidthPx;
-	if (showSidebar) {
+	if (Splitter::showSidebar)
+	{
 		agentPaneWidthPx = availableWidth * getAgentSplitPos();
-	} else {
+	} else
+	{
 		float agentSplit = getAgentSplitPos();
 		float editorWidth = availableWidth * agentSplit;
 		agentPaneWidthPx = availableWidth - editorWidth - kAgentSplitterWidth;
 	}
 
 	// Toggle sidebar
-	showSidebar = !showSidebar;
+	Splitter::showSidebar = !Splitter::showSidebar;
 
 	// Save sidebar visibility setting
-	settings["sidebar_visible"] = showSidebar;
+	settings["sidebar_visible"] = Splitter::showSidebar;
 	saveSettings();
 
 	// Recompute availableWidth after toggling
 	availableWidth = windowWidth - padding * 3 - kAgentSplitterWidth;
 
 	float newRightSplit;
-	if (showSidebar) {
+	if (Splitter::showSidebar)
+	{
 		newRightSplit = agentPaneWidthPx / availableWidth;
-	} else {
+	} else
+	{
 		float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
 		newRightSplit = editorWidth / availableWidth;
 	}
@@ -1026,15 +1123,14 @@ void Settings::toggleSidebar()
 void Settings::toggleAgentPane()
 {
 	// Duplicate the logic from handleKeyboardShortcuts
-	extern bool showAgentPane;
-	
+
 	// Only toggle visibility, do not recalculate or set agentSplitPos
-	showAgentPane = !showAgentPane;
-	
+	Splitter::showAgentPane = !Splitter::showAgentPane;
+
 	// Save agent pane visibility setting
-	settings["agent_pane_visible"] = showAgentPane;
+	settings["agent_pane_visible"] = Splitter::showAgentPane;
 	saveSettings();
-	
+
 	std::cout << "Toggled agent pane visibility from settings" << std::endl;
 }
 
@@ -1046,8 +1142,102 @@ void Settings::toggleSettingsWindow()
 		ClosePopper::closeAllExcept(ClosePopper::Type::Settings);
 	}
 	blockInput = showSettingsWindow;
-	
+
 	// Set editor_state.block_input to match the settings window state
 	extern struct EditorState editor_state;
 	editor_state.block_input = showSettingsWindow;
+}
+
+void Settings::ApplySettings(ImGuiStyle &style)
+{
+	// Set the window background color from settings.
+	style.Colors[ImGuiCol_WindowBg] = ImVec4(settings["backgroundColor"][0].get<float>(),
+											 settings["backgroundColor"][1].get<float>(),
+											 settings["backgroundColor"][2].get<float>(),
+											 settings["backgroundColor"][3].get<float>());
+	// Note: shader state is now managed by the ShaderManager class
+
+	// Set text colors from the current theme.
+	std::string currentTheme = getCurrentTheme();
+	auto &textColor = settings["themes"][currentTheme]["text"];
+	ImVec4 textCol(textColor[0].get<float>(),
+				   textColor[1].get<float>(),
+				   textColor[2].get<float>(),
+				   textColor[3].get<float>());
+	style.Colors[ImGuiCol_Text] = textCol;
+	style.Colors[ImGuiCol_TextDisabled] =
+		ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
+	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);
+
+	// Hide scrollbars by setting their alpha to 0.
+	style.ScrollbarSize = 30.0f;
+	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
+	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
+	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+
+	// Set the global font scale.
+	// ImGui::GetIO().FontGlobalScale =
+	// settings["fontSize"].get<float>() / 16.0f;
+}
+
+void Settings::handleSettingsChanges(bool &needFontReload,
+									 bool &m_needsRedraw,
+									 int &m_framesToRender,
+									 std::function<void(bool)> setShaderEnabled,
+									 float &lastOpacity,
+									 bool &lastBlurEnabled)
+{
+	if (hasSettingsChanged())
+	{
+		m_needsRedraw = true;							  // Set the flag!
+		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+
+		ImGuiStyle &style = ImGui::GetStyle();
+
+		ApplySettings(style);
+
+		style.Colors[ImGuiCol_WindowBg] =
+			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
+				   getSettings()["backgroundColor"][1].get<float>(),
+				   getSettings()["backgroundColor"][2].get<float>(),
+				   0.0f);
+
+		// Update shader manager using function pointer
+		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());
+
+		// Update sidebar visibility from settings
+		Splitter::showSidebar = getSettings().value("sidebar_visible", true);
+		Splitter::showAgentPane = getSettings().value("agent_pane_visible", true);
+
+		if (hasThemeChanged())
+		{
+			extern EditorHighlight gEditorHighlight;
+			gEditorHighlight.setTheme(getCurrentTheme());
+			extern FileExplorer gFileExplorer;
+			if (!gFileExplorer.currentFile.empty())
+			{
+				gEditorHighlight.highlightContent();
+			}
+			resetThemeChanged();
+		}
+		if (hasFontChanged() || hasFontSizeChanged())
+		{
+			needFontReload = true;
+		}
+#ifdef __APPLE__
+		// Always update with current values
+		float currentOpacity = getSettings().value("mac_background_opacity", 0.5f);
+		bool currentBlurEnabled = getSettings().value("mac_blur_enabled", true);
+
+		updateMacOSWindowProperties(currentOpacity, currentBlurEnabled);
+
+		// Update tracking variables
+		lastOpacity = currentOpacity;
+		lastBlurEnabled = currentBlurEnabled;
+#endif
+
+		resetSettingsChanged();
+	}
 }

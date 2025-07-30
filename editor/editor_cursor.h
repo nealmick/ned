@@ -11,7 +11,7 @@
 */
 
 #pragma once
-#include "editor_scroll.h"	
+#include "editor_scroll.h"
 #include "editor_types.h"
 #include "imgui.h"
 #include <string>
@@ -52,7 +52,8 @@ class EditorCursor
 
 	float getCursorYPosition(float line_height);
 
-	float getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
+	float
+	getCursorXPosition(const ImVec2 &text_pos, const std::string &text, int cursor_pos);
 
 	void updateBlinkTime();
 

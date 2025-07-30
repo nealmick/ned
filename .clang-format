@@ -2,7 +2,7 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
 UseTab: Always
-ColumnLimit: 100
+ColumnLimit: 90
 
 BreakBeforeBraces: Custom
 BraceWrapping:
@@ -22,8 +22,8 @@ BinPackParameters: false
 BinPackArguments: false
 
 # Encourage fewer line breaks for function parameters
-PenaltyBreakBeforeFirstCallParameter: 100
-PenaltyExcessCharacter: 100
+PenaltyBreakBeforeFirstCallParameter: 50
+PenaltyExcessCharacter: 50
 
 # Let short functions stay on one line if they fit
 AllowShortFunctionsOnASingleLine: All

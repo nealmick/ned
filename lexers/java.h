@@ -162,7 +162,8 @@ class Lexer
 			}
 			if (iterations >= maxIterations)
 			{
-				std::cerr << "🔴 Java Tokenizer exceeded maximum iterations." << std::endl;
+				std::cerr << "🔴 Java Tokenizer exceeded maximum iterations."
+						  << std::endl;
 			}
 		} catch (const std::exception &e)
 		{
@@ -174,7 +175,8 @@ class Lexer
 		return tokens;
 	}
 
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		try
 		{
@@ -208,18 +210,23 @@ class Lexer
 			}
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Exception in Java applyHighlighting: " << e.what() << std::endl;
+			std::cerr << "🔴 Exception in Java applyHighlighting: " << e.what()
+					  << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		} catch (...)
 		{
 			std::cerr << "🔴 Unknown exception in Java applyHighlighting" << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 	}
 
@@ -265,7 +272,8 @@ class Lexer
 				} catch (const nlohmann::json::exception &e)
 				{
 					std::cerr << "Error loading theme color '" << key
-							  << "' (JSON error): " << e.what() << ". Using default." << std::endl;
+							  << "' (JSON error): " << e.what() << ". Using default."
+							  << std::endl;
 				} catch (const std::exception &e)
 				{
 					std::cerr << "Error loading theme color '" << key << "': " << e.what()
@@ -275,13 +283,15 @@ class Lexer
 			};
 			cachedColors.text = loadColor("text");
 			cachedColors.keyword = loadColor("keyword", cachedColors.text);
-			cachedColors.primitiveType = loadColor("primitive_type", cachedColors.keyword);
+			cachedColors.primitiveType =
+				loadColor("primitive_type", cachedColors.keyword);
 			cachedColors.string = loadColor("string", cachedColors.text);
 			cachedColors.number = loadColor("number", cachedColors.text);
 			cachedColors.comment = loadColor("comment", ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
 			cachedColors.methodName = loadColor("function", cachedColors.text);
-			cachedColors.className = loadColor("class_name",
-											   cachedColors.primitiveType); // <<< CORRECTED DEFAULT
+			cachedColors.className =
+				loadColor("class_name",
+						  cachedColors.primitiveType); // <<< CORRECTED DEFAULT
 			cachedColors.annotation = loadColor("decorator", cachedColors.keyword);
 			cachedColors.operatorColor = loadColor("operator", cachedColors.text);
 			colorsNeedUpdate = false;
@@ -296,9 +306,15 @@ class Lexer
 	{
 		return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
 	}
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
-	bool isJavaIdentifierStart(char c) const { return isAlpha(c) || c == '_' || c == '$'; }
+	bool isJavaIdentifierStart(char c) const
+	{
+		return isAlpha(c) || c == '_' || c == '$';
+	}
 	bool isJavaIdentifierPart(char c) const
 	{
 		return (isAlpha(c) || isDigit(c)) || c == '_' || c == '$';
@@ -451,7 +467,8 @@ class Lexer
 		}
 
 		// Check for Long suffix (only if no float chars seen)
-		if (!potentialFloatChars && pos < code.length() && (code[pos] == 'l' || code[pos] == 'L'))
+		if (!potentialFloatChars && pos < code.length() &&
+			(code[pos] == 'l' || code[pos] == 'L'))
 		{
 			if (isHex || isBinary)
 				pos++; // Hex/Binary can have L
@@ -533,7 +550,8 @@ class Lexer
 		if (pos < code.length() && isJavaIdentifierStart(code[pos]))
 		{
 			pos++;
-			while (pos < code.length() && (isJavaIdentifierPart(code[pos]) || code[pos] == '.'))
+			while (pos < code.length() &&
+				   (isJavaIdentifierPart(code[pos]) || code[pos] == '.'))
 				pos++;
 		}
 		return {TokenType::Annotation, start, pos - start};

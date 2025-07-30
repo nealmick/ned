@@ -1,11 +1,12 @@
 /*
 	File: shader.h
-	Description: Apply shaders to IMGUI output for visual effects
+	Description: Individual shader management for loading and using GLSL shaders
 */
 
 #ifndef SHADER_H
 #define SHADER_H
 #include <string>
+
 class Shader
 {
   public:
@@ -14,17 +15,19 @@ class Shader
 	~Shader();
 
 	// Load and compile shader functions
-	bool loadShader(const std::string &vertexShaderPath, const std::string &fragmentShaderPath);
+	bool loadShader(const std::string &vertexShaderPath,
+					const std::string &fragmentShaderPath);
 	void useShader();
 
 	// Utility functions
 	void setFloat(const std::string &name, float value);
 	void setInt(const std::string &name, int value);
-	void setMatrix4fv(const std::string &name,
-					  const float *matrix); // Add this line
+	void setMatrix4fv(const std::string &name, const float *matrix);
 
-	unsigned int shaderProgram;
+	// Access to shader program (for ShaderManager)
+	unsigned int getShaderProgram() const { return shaderProgram; }
 
   private:
+	unsigned int shaderProgram;
 };
 #endif

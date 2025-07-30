@@ -27,8 +27,9 @@ using json = nlohmann::json;
 #define NANOSVGRAST_IMPLEMENTATION
 #include "lib/nanosvgrast.h"
 
-#include "../editor/editor_git.h"
 #include "../ai/ai_agent.h"
+#include "../editor/editor_git.h"
+#include "file_tree.h"
 extern AIAgent gAIAgent;
 
 const std::string UNDO_FILE = ".undo-redo-ned.json";
@@ -55,7 +56,8 @@ GLuint FileExplorer::createTexture(const unsigned char *pixels, int width, int h
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	glTexImage2D(
+		GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	return texture;
 }
 
@@ -68,7 +70,8 @@ bool FileExplorer::loadSingleIcon(
 	if (std::filesystem::exists(primaryPath))
 	{
 		finalPathToLoad = primaryPath;
-		// std::cout << "[IconLoader] Found icon at primary path: " << finalPathToLoad << std::endl;
+		// std::cout << "[IconLoader] Found icon at primary path: " <<
+		// finalPathToLoad << std::endl;
 	} else
 	{
 #ifndef __APPLE__ // Only try the Debian package path if NOT on macOS
@@ -78,35 +81,39 @@ bool FileExplorer::loadSingleIcon(
 		if (std::filesystem::exists(packagedPath))
 		{
 			finalPathToLoad = packagedPath;
-			// std::cout << "[IconLoader] Found icon at Debian package path: " << finalPathToLoad <<
-			// std::endl;
+			// std::cout << "[IconLoader] Found icon at Debian package path: "
+			// << finalPathToLoad << std::endl;
 		} else
 		{
 			// std::cerr << "[IconLoader] Icon not found. Tried:\n"
 			//           << "  1. Relative/Dev path: " << primaryPath << "\n"
-			//           << "  2. Debian package path: " << packagedPath << std::endl;
+			//           << "  2. Debian package path: " << packagedPath <<
+			//           std::endl;
 			return false; // Icon not found at either location on Linux
 		}
 #else
-		// On macOS, if not found at primaryPath, it's just not found for this simple logic.
-		// std::cerr << "[IconLoader] Icon not found at primary path (macOS): " << primaryPath <<
-		// std::endl;
+		// On macOS, if not found at primaryPath, it's just not found for this
+		// simple logic. std::cerr << "[IconLoader] Icon not found at primary
+		// path (macOS): " << primaryPath << std::endl;
 		return false; // Icon not found at primary path on macOS
 #endif
 	}
 
-	// If finalPathToLoad is empty here, it means it wasn't found (should be caught by returns above)
+	// If finalPathToLoad is empty here, it means it wasn't found (should be
+	// caught by returns above)
 	if (finalPathToLoad.empty())
 	{
-		// This case should ideally not be reached if the logic above is correct.
-		// std::cerr << "[IconLoader] Critical error: finalPathToLoad is empty for icon: " <<
-		// iconFile << std::endl;
+		// This case should ideally not be reached if the logic above is
+		// correct. std::cerr << "[IconLoader] Critical error: finalPathToLoad
+		// is empty for icon: " << iconFile << std::endl;
 		return false;
 	}
 
 	// Load SVG (or other image type if you adapt this part)
-	// Assuming nsvgParseFromFile, IconDimensions, nsvgCreateRasterizer, etc. are available.
-	NSVGimage *image = nsvgParseFromFile(finalPathToLoad.c_str(), "px", IconDimensions::SVG_DPI);
+	// Assuming nsvgParseFromFile, IconDimensions, nsvgCreateRasterizer, etc.
+	// are available.
+	NSVGimage *image =
+		nsvgParseFromFile(finalPathToLoad.c_str(), "px", IconDimensions::SVG_DPI);
 	if (!image)
 	{
 		std::cerr << "Error loading SVG file: " << finalPathToLoad << std::endl;
@@ -124,8 +131,8 @@ bool FileExplorer::loadSingleIcon(
 
 	// Allocate pixel buffer
 	// Ensure IconDimensions::WIDTH and IconDimensions::HEIGHT are correctly defined.
-	auto pixels =
-		std::make_unique<unsigned char[]>(IconDimensions::WIDTH * IconDimensions::HEIGHT * 4);
+	auto pixels = std::make_unique<unsigned char[]>(IconDimensions::WIDTH *
+													IconDimensions::HEIGHT * 4);
 
 	// Rasterize SVG
 	nsvgRasterize(rast,
@@ -140,18 +147,22 @@ bool FileExplorer::loadSingleIcon(
 
 	// Create OpenGL texture
 	// Ensure createTexture is correctly defined and returns a GLuint.
-	GLuint texture = createTexture(pixels.get(), IconDimensions::WIDTH, IconDimensions::HEIGHT);
+	GLuint texture =
+		createTexture(pixels.get(), IconDimensions::WIDTH, IconDimensions::HEIGHT);
 	if (texture == 0)
 	{ // Assuming 0 indicates failure in createTexture
-		std::cerr << "Error creating OpenGL texture for icon: " << finalPathToLoad << std::endl;
+		std::cerr << "Error creating OpenGL texture for icon: " << finalPathToLoad
+				  << std::endl;
 		nsvgDeleteRasterizer(rast);
 		nsvgDelete(image);
 		return false;
 	}
 
 	// Store in icon map
-	std::string iconName = iconFile.substr(0, iconFile.find('.')); // Gets "file" from "file.svg"
-	fileTypeIcons[iconName] = reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
+	std::string iconName =
+		iconFile.substr(0, iconFile.find('.')); // Gets "file" from "file.svg"
+	fileTypeIcons[iconName] =
+		reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
 
 	// Cleanup
 	nsvgDeleteRasterizer(rast);
@@ -174,7 +185,8 @@ void FileExplorer::createDefaultIcon()
 	};
 
 	GLuint texture = createTexture(defaultIcon, 2, 1);
-	fileTypeIcons["default"] = reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
+	fileTypeIcons["default"] =
+		reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
 }
 
 void FileExplorer::openFolderDialog()
@@ -191,10 +203,10 @@ void FileExplorer::openFolderDialog()
 		_showFileDialog = false;
 		showWelcomeScreen = false;
 		loadUndoRedoState();
-		
+
 		// Load AI agent conversation history
 		gAIAgent.getHistoryManager().loadConversationHistory();
-		
+
 		// Initialize git tracking for the project
 		gEditorGit.init();
 	} else if (result == NFD_CANCEL)
@@ -206,6 +218,38 @@ void FileExplorer::openFolderDialog()
 		std::cout << "\033[35mFiles:\033[0m Error: " << NFD_GetError() << std::endl;
 	}
 }
+
+bool FileExplorer::handleFileDialogWorkflow()
+{
+	if (!showFileDialog())
+	{
+		return false;
+	}
+
+	// Open the folder dialog
+	openFolderDialog();
+
+	// If a folder was selected, initialize the file tree
+	if (!selectedFolder.empty())
+	{
+		// Initialize the file tree with the selected folder
+		auto &rootNode = gFileTree.rootNode;
+		rootNode.name = fs::path(selectedFolder).filename().string();
+		rootNode.fullPath = selectedFolder;
+		rootNode.isDirectory = true;
+		rootNode.children.clear();
+		gFileTree.buildFileTree(selectedFolder, rootNode);
+
+		// Hide welcome screen since we now have a project loaded
+		showWelcomeScreen = false;
+
+		return true; // Indicate that a folder was successfully selected
+	}
+
+	return false; // No folder was selected
+}
+
+bool FileExplorer::handleFileDialog() { return handleFileDialogWorkflow(); }
 
 bool FileExplorer::readFileContent(const std::string &path)
 {
@@ -262,8 +306,9 @@ bool FileExplorer::readFileContent(const std::string &path)
 
 		for (size_t i = 0; i < checkSize; i++)
 		{
-			if (content[i] == 0 || (static_cast<unsigned char>(content[i]) < 32 &&
-									content[i] != '\n' && content[i] != '\r' && content[i] != '\t'))
+			if (content[i] == 0 ||
+				(static_cast<unsigned char>(content[i]) < 32 && content[i] != '\n' &&
+				 content[i] != '\r' && content[i] != '\t'))
 			{
 				nullCount++;
 			}
@@ -281,8 +326,9 @@ bool FileExplorer::readFileContent(const std::string &path)
 		if (isTruncated)
 		{
 			std::string notice = "\n\n[File truncated - No Edits - showing first " +
-								 std::to_string(MAX_FILE_SIZE / (1024 * 1024)) + "MB of " +
-								 std::to_string(fileSize / (1024 * 1024)) + "MB]\n";
+								 std::to_string(MAX_FILE_SIZE / (1024 * 1024)) +
+								 "MB of " + std::to_string(fileSize / (1024 * 1024)) +
+								 "MB]\n";
 			content = notice + content;
 		}
 
@@ -299,7 +345,8 @@ bool FileExplorer::readFileContent(const std::string &path)
 void FileExplorer::updateFileColorBuffer()
 {
 	editor_state.fileColors.clear();
-	editor_state.fileColors.resize(editor_state.fileContent.size(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	editor_state.fileColors.resize(editor_state.fileContent.size(),
+								   ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	if (editor_state.fileContent.size() != editor_state.fileColors.size())
 	{
@@ -318,14 +365,16 @@ void FileExplorer::updateFilePathStates(const std::string &path)
 	_unsavedChanges = false;
 }
 
-void FileExplorer::setupUndoManager(const std::string& path) {
-    auto it = fileUndoManagers.find(path);
-    if (it == fileUndoManagers.end()) {
-        it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
-        // Initialize with current state
-        it->second.initialize(editor_state.fileContent, editor_state.cursor_index);
-    }
-    currentUndoManager = &(it->second);
+void FileExplorer::setupUndoManager(const std::string &path)
+{
+	auto it = fileUndoManagers.find(path);
+	if (it == fileUndoManagers.end())
+	{
+		it = fileUndoManagers.emplace(path, UndoRedoManager()).first;
+		// Initialize with current state
+		it->second.initialize(editor_state.fileContent, editor_state.cursor_index);
+	}
+	currentUndoManager = &(it->second);
 }
 
 void FileExplorer::handleLoadError()
@@ -336,7 +385,8 @@ void FileExplorer::handleLoadError()
 	currentUndoManager = nullptr;
 }
 
-void FileExplorer::loadFileContent(const std::string &path, std::function<void()> afterLoadCallback)
+void FileExplorer::loadFileContent(const std::string &path,
+								   std::function<void()> afterLoadCallback)
 {
 	saveCurrentFile(); // Save current before loading new
 	editor_state.cursor_index = 0;
@@ -385,30 +435,37 @@ void FileExplorer::loadFileContent(const std::string &path, std::function<void()
 	}
 }
 
-void FileExplorer::addUndoState() {
-    if (currentUndoManager) {
-        currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
-        
-        // Mark that we have unsaved undo state
-        _undoStateDirty = true;
-        
-        // Update file content hash for external change detection
-        if (!currentFile.empty()) {
-            _fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
-        }
-        
-        // Use a more efficient approach - let the existing debouncing in UndoRedoManager handle it
-        // The save will happen periodically through the existing update() calls
-    }
+void FileExplorer::addUndoState()
+{
+	if (currentUndoManager)
+	{
+		// Print the cursor index before saving the undo state
+		printf("[addUndoState] Saving undo state. Cursor index: %d\n",
+			   editor_state.cursor_index);
+		currentUndoManager->addState(editor_state.fileContent, editor_state.cursor_index);
+
+		// Mark that we have unsaved undo state
+		_undoStateDirty = true;
+
+		// Update file content hash for external change detection
+		if (!currentFile.empty())
+		{
+			_fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
+		}
+
+		// Use a more efficient approach - let the existing debouncing in
+		// UndoRedoManager handle it The save will happen periodically through
+		// the existing update() calls
+	}
 }
 
-void FileExplorer::forceCommitUndoState() {
-    if (currentUndoManager) {
-        currentUndoManager->forceCommitPending();
-    }
+void FileExplorer::forceCommitUndoState()
+{
+	if (currentUndoManager)
+	{
+		currentUndoManager->forceCommitPending();
+	}
 }
-
-
 
 void FileExplorer::renderFileContent()
 {
@@ -433,14 +490,34 @@ void FileExplorer::renderFileContent()
 	// Periodic save of undo state (every 3 seconds)
 	static auto lastSaveTime = std::chrono::steady_clock::now();
 	auto now = std::chrono::steady_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSaveTime).count();
-	
-	if (elapsed >= 3000 && _undoStateDirty) {
+	auto elapsed =
+		std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSaveTime).count();
+
+	if (elapsed >= 3000 && _undoStateDirty)
+	{
 		saveUndoRedoState();
 		lastSaveTime = now;
 	}
 
 	ImGui::PopStyleVar();
+}
+
+void FileExplorer::renderFileExplorer(float explorerWidth)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
+	ImGui::PushStyleColor(
+		ImGuiCol_Border, ImVec4(1.0f, 0.0f, 0.0f, 0.0f)); // Red border to make it visible
+	ImGui::BeginChild(
+		"File Explorer", ImVec2(explorerWidth, -1), true, ImGuiWindowFlags_NoScrollbar);
+
+	if (!selectedFolder.empty())
+	{
+		gFileTree.displayFileTree(gFileTree.rootNode); // Changed to use gFileTree
+	}
+	ImGui::EndChild();
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar(2);
 }
 
 void FileExplorer::renderEditor(bool &text_changed)
@@ -470,126 +547,137 @@ void FileExplorer::resetColorBuffer()
 }
 
 // Updated Undo/Redo helpers
-void FileExplorer::applyOperation(const UndoRedoManager::Operation& op, bool isUndo) {
-    gEditorHighlight.cancelHighlighting();
-    
-    // Apply the operation to get new content
-    std::string newContent = isUndo ? op.apply(editor_state.fileContent)
-                                    : op.applyInverse(editor_state.fileContent);
-    
-    // Synchronize colors vector with content changes
-    // This prevents the visual glitch where colors vector doesn't match content vector
-    if (isUndo) {
-        // For undo: we need to reverse the original operation
-        // If original operation inserted text, we need to remove colors
-        // If original operation removed text, we need to add colors back
-        if (op.inserted.length() > 0) {
-            // Original operation inserted text, so we need to remove colors
-            if (op.position >= 0 && op.position + op.inserted.length() <= editor_state.fileColors.size()) {
-                editor_state.fileColors.erase(
-                    editor_state.fileColors.begin() + op.position,
-                    editor_state.fileColors.begin() + op.position + op.inserted.length()
-                );
-            }
-        }
-        if (op.removed.length() > 0) {
-            // Original operation removed text, so we need to add colors back
-            // Get the proper default text color from the theme
-            ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
-            if (op.position >= 0 && op.position <= editor_state.fileColors.size()) {
-                editor_state.fileColors.insert(
-                    editor_state.fileColors.begin() + op.position,
-                    op.removed.length(),
-                    defaultColor
-                );
-            }
-        }
-    } else {
-        // For redo: we need to apply the original operation
-        // If original operation inserted text, we need to add colors
-        // If original operation removed text, we need to remove colors
-        if (op.inserted.length() > 0) {
-            // Original operation inserted text, so we need to add colors
-            // Get the proper default text color from the theme
-            ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
-            if (op.position >= 0 && op.position <= editor_state.fileColors.size()) {
-                editor_state.fileColors.insert(
-                    editor_state.fileColors.begin() + op.position,
-                    op.inserted.length(),
-                    defaultColor
-                );
-            }
-        }
-        if (op.removed.length() > 0) {
-            // Original operation removed text, so we need to remove colors
-            if (op.position >= 0 && op.position + op.removed.length() <= editor_state.fileColors.size()) {
-                editor_state.fileColors.erase(
-                    editor_state.fileColors.begin() + op.position,
-                    editor_state.fileColors.begin() + op.position + op.removed.length()
-                );
-            }
-        }
-    }
-    
-    // Update editor state
-    editor_state.fileContent = newContent;
-    
-    // Set appropriate cursor position based on the operation
-    int cursor_pos;
-    if (isUndo) {
-        // For undo: calculate where cursor should be after removing inserted text
-        if (op.inserted.length() > op.removed.length()) {
-            // We inserted more text than we removed, so when undoing we need to move cursor back
-            cursor_pos = op.cursor_after - (op.inserted.length() - op.removed.length());
-        } else if (op.removed.length() > op.inserted.length()) {
-            // We removed more text than we inserted, so when undoing we need to move cursor forward
-            cursor_pos = op.cursor_after + (op.removed.length() - op.inserted.length());
-        } else {
-            // Equal lengths, cursor stays the same
-            cursor_pos = op.cursor_after;
-        }
-    } else {
-        // For redo: use the cursor position that was recorded after the original operation
-        cursor_pos = op.cursor_after;
-    }
-    
-    if (cursor_pos < 0) cursor_pos = 0;
-    if (cursor_pos > static_cast<int>(newContent.length())) {
-        cursor_pos = newContent.length();
-    }
-    editor_state.cursor_index = cursor_pos;
-    
-    // Reset selection state
-    editor_state.selection_start = editor_state.selection_end = cursor_pos;
-    editor_state.selection_active = false;
-    editor_state.multi_selections.clear();
-    
-    // Trigger highlighting to apply proper colors
-    gEditorHighlight.highlightContent(true);
+void FileExplorer::applyOperation(const UndoRedoManager::Operation &op, bool isUndo)
+{
+	gEditorHighlight.cancelHighlighting();
 
-    _unsavedChanges = true;
+	// Apply the operation to get new content
+	std::string newContent = isUndo ? op.apply(editor_state.fileContent)
+									: op.applyInverse(editor_state.fileContent);
+
+	// Synchronize colors vector with content changes
+	// This prevents the visual glitch where colors vector doesn't match content
+	// vector
+	if (isUndo)
+	{
+		// For undo: we need to reverse the original operation
+		// If original operation inserted text, we need to remove colors
+		// If original operation removed text, we need to add colors back
+		if (op.inserted.length() > 0)
+		{
+			// Original operation inserted text, so we need to remove colors
+			if (op.position >= 0 &&
+				op.position + op.inserted.length() <= editor_state.fileColors.size())
+			{
+				editor_state.fileColors.erase(
+					editor_state.fileColors.begin() + op.position,
+					editor_state.fileColors.begin() + op.position + op.inserted.length());
+			}
+		}
+		if (op.removed.length() > 0)
+		{
+			// Original operation removed text, so we need to add colors back
+			// Get the proper default text color from the theme
+			ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
+			if (op.position >= 0 && op.position <= editor_state.fileColors.size())
+			{
+				editor_state.fileColors.insert(editor_state.fileColors.begin() +
+												   op.position,
+											   op.removed.length(),
+											   defaultColor);
+			}
+		}
+	} else
+	{
+		// For redo: we need to apply the original operation
+		// If original operation inserted text, we need to add colors
+		// If original operation removed text, we need to remove colors
+		if (op.inserted.length() > 0)
+		{
+			// Original operation inserted text, so we need to add colors
+			// Get the proper default text color from the theme
+			ImVec4 defaultColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
+			if (op.position >= 0 && op.position <= editor_state.fileColors.size())
+			{
+				editor_state.fileColors.insert(editor_state.fileColors.begin() +
+												   op.position,
+											   op.inserted.length(),
+											   defaultColor);
+			}
+		}
+		if (op.removed.length() > 0)
+		{
+			// Original operation removed text, so we need to remove colors
+			if (op.position >= 0 &&
+				op.position + op.removed.length() <= editor_state.fileColors.size())
+			{
+				editor_state.fileColors.erase(
+					editor_state.fileColors.begin() + op.position,
+					editor_state.fileColors.begin() + op.position + op.removed.length());
+			}
+		}
+	}
+
+	// Update editor state
+	editor_state.fileContent = newContent;
+
+	// Set appropriate cursor position based on the operation
+	int cursor_pos = isUndo ? op.cursor_before : op.cursor_after;
+
+	if (cursor_pos < 0)
+		cursor_pos = 0;
+	if (cursor_pos > static_cast<int>(newContent.length()))
+	{
+		cursor_pos = newContent.length();
+	}
+	editor_state.cursor_index = cursor_pos;
+
+	// Print the cursor index after applying the operation (undo/redo)
+	printf("[applyOperation] Cursor index after %s: %d\n",
+		   isUndo ? "undo" : "redo",
+		   editor_state.cursor_index);
+
+	// Reset selection state
+	editor_state.selection_start = editor_state.selection_end = cursor_pos;
+	editor_state.selection_active = false;
+	editor_state.multi_selections.clear();
+
+	// Trigger highlighting to apply proper colors
+	gEditorHighlight.highlightContent(true);
+
+	_unsavedChanges = true;
 }
 
-void FileExplorer::handleUndo() {
-    if (currentUndoManager) {
-        auto [op, valid] = currentUndoManager->undo();
-        if (valid) {
-            applyOperation(op, true);
-            _undoStateDirty = true;  // Mark as dirty instead of immediate save
-            saveCurrentFile();  // Save file after undo operation
-        }
-    }
+void FileExplorer::handleUndo()
+{
+	if (currentUndoManager)
+	{
+		auto [op, valid] = currentUndoManager->undo();
+		if (valid)
+		{
+			applyOperation(op, true);
+			_undoStateDirty = true; // Mark as dirty instead of immediate save
+			saveCurrentFile();		// Save file after undo operation
+
+			// Update pendingFinalCursor after undo so cursor movements are tracked for
+			// next "first edit"
+			currentUndoManager->updatePendingFinalCursor(editor_state.cursor_index);
+		}
+	}
 }
 
-void FileExplorer::handleRedo() {
-    if (currentUndoManager) {
-        auto [op, valid] = currentUndoManager->redo();
-        if (valid) {
-            applyOperation(op, false);
-            _undoStateDirty = true;  // Mark as dirty instead of immediate save
-            saveCurrentFile();  // Save file after redo operation
-        }
-    }
+void FileExplorer::handleRedo()
+{
+	if (currentUndoManager)
+	{
+		auto [op, valid] = currentUndoManager->redo();
+		if (valid)
+		{
+			applyOperation(op, false);
+			_undoStateDirty = true; // Mark as dirty instead of immediate save
+			saveCurrentFile();
+		}
+	}
 }
 
 // In files.cpp
@@ -602,26 +690,32 @@ void FileExplorer::saveUndoRedoState()
 
 	fs::path undoPath = fs::path(selectedFolder) / ".undo-redo-ned.json";
 
-	try {
+	try
+	{
 		json root;
 		bool hasChanges = false;
-		
+
 		for (const auto &[path, manager] : fileUndoManagers)
 		{
 			// Only serialize if the manager has operations
-			if (manager.hasOperations()) {
-				try {
+			if (manager.hasOperations())
+			{
+				try
+				{
 					root["files"][path] = manager.toJson();
 					hasChanges = true;
-				} catch (const std::exception& e) {
-					std::cerr << "Error serializing undo state for " << path << ": " << e.what() << "\n";
+				} catch (const std::exception &e)
+				{
+					std::cerr << "Error serializing undo state for " << path << ": "
+							  << e.what() << "\n";
 					// Continue with other files
 				}
 			}
 		}
 
 		// Only write to disk if there are actual changes
-		if (hasChanges) {
+		if (hasChanges)
+		{
 			std::ofstream file(undoPath);
 			if (file)
 			{
@@ -631,10 +725,12 @@ void FileExplorer::saveUndoRedoState()
 			{
 				std::cerr << "Failed to save undo/redo state to " << undoPath << "\n";
 			}
-		} else {
+		} else
+		{
 			_undoStateDirty = false; // No changes to save
 		}
-	} catch (const std::exception& e) {
+	} catch (const std::exception &e)
+	{
 		std::cerr << "Error saving undo/redo state: " << e.what() << "\n";
 		// Don't mark as saved if there was an error
 	}
@@ -654,14 +750,18 @@ void FileExplorer::loadUndoRedoState()
 	{
 		json root;
 		file >> root;
-		
-		if (root.contains("files") && root["files"].is_object()) {
+
+		if (root.contains("files") && root["files"].is_object())
+		{
 			for (auto &[key, value] : root["files"].items())
 			{
-				try {
+				try
+				{
 					fileUndoManagers[key].fromJson(value);
-				} catch (const std::exception& e) {
-					std::cerr << "Error loading undo state for file " << key << ": " << e.what() << "\n";
+				} catch (const std::exception &e)
+				{
+					std::cerr << "Error loading undo state for file " << key << ": "
+							  << e.what() << "\n";
 					// Continue loading other files even if one fails
 				}
 			}
@@ -670,10 +770,12 @@ void FileExplorer::loadUndoRedoState()
 	{
 		std::cerr << "Error loading undo/redo state: " << e.what() << "\n";
 		// If the file is corrupted, delete it to prevent future crashes
-		try {
+		try
+		{
 			fs::remove(undoPath);
 			std::cerr << "Removed corrupted undo/redo state file\n";
-		} catch (...) {
+		} catch (...)
+		{
 			// Ignore errors when trying to delete the file
 		}
 	}
@@ -684,7 +786,8 @@ void FileExplorer::saveCurrentFile()
 	if (!currentFile.empty() && _unsavedChanges)
 	{
 		// Check if we're dealing with a truncated file
-		if (editor_state.fileContent.find("[File truncated - showing first") != std::string::npos)
+		if (editor_state.fileContent.find("[File truncated - showing first") !=
+			std::string::npos)
 		{
 			std::cerr << "Cannot save truncated file content" << std::endl;
 			// TODO: Show warning to user that they can't save changes to
@@ -722,181 +825,224 @@ void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
 	gEditorLSP.didOpen(filePath, editor_state.fileContent);
 }
 
-void FileExplorer::forceSaveUndoState() {
-    if (_undoStateDirty) {
-        saveUndoRedoState();
-    }
+void FileExplorer::forceSaveUndoState()
+{
+	if (_undoStateDirty)
+	{
+		saveUndoRedoState();
+	}
 }
 
 // External file change detection implementation
-void FileExplorer::checkForExternalFileChanges() {
-    if (currentFile.empty()) {
-        return;
-    }
+void FileExplorer::checkForExternalFileChanges()
+{
+	if (currentFile.empty())
+	{
+		return;
+	}
 
-    double currentTime = glfwGetTime();
-    if (currentTime - _lastChangeCheckTime < FILE_CHANGE_CHECK_INTERVAL) {
-        return;
-    }
-    _lastChangeCheckTime = currentTime;
+	double currentTime = glfwGetTime();
+	if (currentTime - _lastChangeCheckTime < FILE_CHANGE_CHECK_INTERVAL)
+	{
+		return;
+	}
+	_lastChangeCheckTime = currentTime;
 
-    try {
-        if (!fs::exists(currentFile)) {
-            // File was deleted externally
-            if (!_externalFileChangeDetected) {
-                _externalFileChangeDetected = true;
-                _lastChangedFile = currentFile;
-                gSettings.renderNotification("File was deleted externally: " + fs::path(currentFile).filename().string() + "\nFile content preserved in editor", 5.0f);
-            }
-            return;
-        }
+	try
+	{
+		if (!fs::exists(currentFile))
+		{
+			// File was deleted externally
+			if (!_externalFileChangeDetected)
+			{
+				_externalFileChangeDetected = true;
+				_lastChangedFile = currentFile;
+				gSettings.renderNotification("File was deleted externally: " +
+												 fs::path(currentFile).filename().string() +
+												 "\nFile content preserved in editor",
+											 5.0f);
+			}
+			return;
+		}
 
-        // Check modification time
-        auto currentModTime = fs::last_write_time(currentFile);
-        auto it = _fileModificationTimes.find(currentFile);
-        
-        if (it != _fileModificationTimes.end() && currentModTime > it->second) {
-            // File modification time changed, check if content actually changed
-            if (shouldReloadFile(currentFile)) {
-                handleExternalFileChange(currentFile);
-            }
-        }
-        
-        // Update the modification time
-        updateFileModificationTime(currentFile);
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error checking for external file changes: " << e.what() << std::endl;
-    }
+		// Check modification time
+		auto currentModTime = fs::last_write_time(currentFile);
+		auto it = _fileModificationTimes.find(currentFile);
+
+		if (it != _fileModificationTimes.end() && currentModTime > it->second)
+		{
+			// File modification time changed, check if content actually changed
+			if (shouldReloadFile(currentFile))
+			{
+				handleExternalFileChange(currentFile);
+			}
+		}
+
+		// Update the modification time
+		updateFileModificationTime(currentFile);
+
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error checking for external file changes: " << e.what()
+				  << std::endl;
+	}
 }
 
-void FileExplorer::updateFileModificationTime(const std::string& filePath) {
-    try {
-        if (fs::exists(filePath)) {
-            _fileModificationTimes[filePath] = fs::last_write_time(filePath);
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error updating file modification time: " << e.what() << std::endl;
-    }
+void FileExplorer::updateFileModificationTime(const std::string &filePath)
+{
+	try
+	{
+		if (fs::exists(filePath))
+		{
+			_fileModificationTimes[filePath] = fs::last_write_time(filePath);
+		}
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error updating file modification time: " << e.what() << std::endl;
+	}
 }
 
-std::string FileExplorer::calculateFileHash(const std::string& content) {
-    // Simple hash function - in a production environment, you might want to use a more robust hash
-    std::hash<std::string> hasher;
-    std::stringstream ss;
-    ss << std::hex << hasher(content);
-    return ss.str();
+std::string FileExplorer::calculateFileHash(const std::string &content)
+{
+	// Simple hash function - in a production environment, you might want to use
+	// a more robust hash
+	std::hash<std::string> hasher;
+	std::stringstream ss;
+	ss << std::hex << hasher(content);
+	return ss.str();
 }
 
-bool FileExplorer::shouldReloadFile(const std::string& filePath) {
-    try {
-        // Read the current file content
-        std::ifstream file(filePath, std::ios::binary);
-        if (!file) {
-            return false;
-        }
+bool FileExplorer::shouldReloadFile(const std::string &filePath)
+{
+	try
+	{
+		// Read the current file content
+		std::ifstream file(filePath, std::ios::binary);
+		if (!file)
+		{
+			return false;
+		}
 
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string currentContent = buffer.str();
+		std::stringstream buffer;
+		buffer << file.rdbuf();
+		std::string currentContent = buffer.str();
 
-        // Calculate hash of current content
-        std::string currentHash = calculateFileHash(currentContent);
-        
-        // Compare with stored hash
-        auto it = _fileContentHashes.find(filePath);
-        if (it != _fileContentHashes.end() && it->second != currentHash) {
-            return true;
-        }
-        
-        return false;
-    } catch (const std::exception& e) {
-        std::cerr << "Error checking if file should be reloaded: " << e.what() << std::endl;
-        return false;
-    }
+		// Calculate hash of current content
+		std::string currentHash = calculateFileHash(currentContent);
+
+		// Compare with stored hash
+		auto it = _fileContentHashes.find(filePath);
+		if (it != _fileContentHashes.end() && it->second != currentHash)
+		{
+			return true;
+		}
+
+		return false;
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error checking if file should be reloaded: " << e.what()
+				  << std::endl;
+		return false;
+	}
 }
 
-void FileExplorer::handleExternalFileChange(const std::string& filePath) {
-    if (_externalFileChangeDetected) {
-        return; // Already handling a change
-    }
+void FileExplorer::handleExternalFileChange(const std::string &filePath)
+{
+	if (_externalFileChangeDetected)
+	{
+		return; // Already handling a change
+	}
 
-    _externalFileChangeDetected = true;
-    _lastChangedFile = filePath;
+	_externalFileChangeDetected = true;
+	_lastChangedFile = filePath;
 
-    // Check if we have unsaved changes
-    if (_unsavedChanges) {
-        // Show notification that we can't reload due to unsaved changes
-        std::string filename = fs::path(filePath).filename().string();
-        gSettings.renderNotification("File changed externally: " + filename + "\nCannot reload: You have unsaved changes", 5.0f);
-        return;
-    }
+	// Check if we have unsaved changes
+	if (_unsavedChanges)
+	{
+		// Show notification that we can't reload due to unsaved changes
+		std::string filename = fs::path(filePath).filename().string();
+		gSettings.renderNotification("File changed externally: " + filename +
+										 "\nCannot reload: You have unsaved changes",
+									 5.0f);
+		return;
+	}
 
-    // Store current cursor position
-    int currentCursorPos = editor_state.cursor_index;
-    
-    // Automatically reload the file content
-    if (readFileContent(filePath)) {
-        updateFileColorBuffer();
-        gEditorHighlight.highlightContent();
-        
-        // Try to restore cursor position (clamp to new content size)
-        if (currentCursorPos < static_cast<int>(editor_state.fileContent.length())) {
-            editor_state.cursor_index = currentCursorPos;
-        } else {
-            editor_state.cursor_index = editor_state.fileContent.length();
-        }
-        
-        // Update tracking
-        updateFileModificationTime(filePath);
-        _fileContentHashes[filePath] = calculateFileHash(editor_state.fileContent);
-        _externalFileChangeDetected = false;
-        _lastChangedFile.clear();
-        
-        // Show success notification
-        std::string filename = fs::path(filePath).filename().string();
-        gSettings.renderNotification("File Updated ", 2.0f);
-    } else {
-        // Show error notification
-        std::string filename = fs::path(filePath).filename().string();
-        gSettings.renderNotification("File Update\nFailed" , 2.0f);
-    }
+	// Store current cursor position
+	int currentCursorPos = editor_state.cursor_index;
+
+	// Automatically reload the file content
+	if (readFileContent(filePath))
+	{
+		updateFileColorBuffer();
+		gEditorHighlight.highlightContent();
+
+		// Try to restore cursor position (clamp to new content size)
+		if (currentCursorPos < static_cast<int>(editor_state.fileContent.length()))
+		{
+			editor_state.cursor_index = currentCursorPos;
+		} else
+		{
+			editor_state.cursor_index = editor_state.fileContent.length();
+		}
+
+		// Update tracking
+		updateFileModificationTime(filePath);
+		_fileContentHashes[filePath] = calculateFileHash(editor_state.fileContent);
+		_externalFileChangeDetected = false;
+		_lastChangedFile.clear();
+
+		// Show success notification
+		std::string filename = fs::path(filePath).filename().string();
+		gSettings.renderNotification("File Updated ", 2.0f);
+	} else
+	{
+		// Show error notification
+		std::string filename = fs::path(filePath).filename().string();
+		gSettings.renderNotification("File Update\nFailed", 2.0f);
+	}
 }
 
-void FileExplorer::reloadCurrentFile() {
-    if (currentFile.empty() || !_externalFileChangeDetected) {
-        return;
-    }
+void FileExplorer::reloadCurrentFile()
+{
+	if (currentFile.empty() || !_externalFileChangeDetected)
+	{
+		return;
+	}
 
-    // Check if we have unsaved changes
-    if (_unsavedChanges) {
-        gSettings.renderNotification("Cannot reload: You have unsaved changes", 3.0f);
-        return;
-    }
+	// Check if we have unsaved changes
+	if (_unsavedChanges)
+	{
+		gSettings.renderNotification("Cannot reload: You have unsaved changes", 3.0f);
+		return;
+	}
 
-    // Store current cursor position
-    int currentCursorPos = editor_state.cursor_index;
-    
-    // Reload the file content
-    if (readFileContent(currentFile)) {
-        updateFileColorBuffer();
-        gEditorHighlight.highlightContent();
-        
-        // Try to restore cursor position (clamp to new content size)
-        if (currentCursorPos < static_cast<int>(editor_state.fileContent.length())) {
-            editor_state.cursor_index = currentCursorPos;
-        } else {
-            editor_state.cursor_index = editor_state.fileContent.length();
-        }
-        
-        // Update tracking
-        updateFileModificationTime(currentFile);
-        _fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
-        _externalFileChangeDetected = false;
-        _lastChangedFile.clear();
-        
-        gSettings.renderNotification("File reloaded successfully", 2.0f);
-    } else {
-        gSettings.renderNotification("Failed to reload file", 3.0f);
-    }
+	// Store current cursor position
+	int currentCursorPos = editor_state.cursor_index;
+
+	// Reload the file content
+	if (readFileContent(currentFile))
+	{
+		updateFileColorBuffer();
+		gEditorHighlight.highlightContent();
+
+		// Try to restore cursor position (clamp to new content size)
+		if (currentCursorPos < static_cast<int>(editor_state.fileContent.length()))
+		{
+			editor_state.cursor_index = currentCursorPos;
+		} else
+		{
+			editor_state.cursor_index = editor_state.fileContent.length();
+		}
+
+		// Update tracking
+		updateFileModificationTime(currentFile);
+		_fileContentHashes[currentFile] = calculateFileHash(editor_state.fileContent);
+		_externalFileChangeDetected = false;
+		_lastChangedFile.clear();
+
+		gSettings.renderNotification("File reloaded successfully", 2.0f);
+	} else
+	{
+		gSettings.renderNotification("Failed to reload file", 3.0f);
+	}
 }

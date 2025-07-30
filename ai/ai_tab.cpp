@@ -3,27 +3,21 @@
 #include "../files/files.h"
 #include "ai_open_router.h"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <iostream>
-#include <chrono>
-#include <atomic>
 #include <mutex>
-#include <condition_variable>
 
 AITab gAITab;
 std::atomic<bool> g_should_cancel{false};
 
-AITab::AITab() : 
-	key_loaded(load_key()),
-	request_active(false),
-	request_done(false),
-	has_ghost_text(false),
-	ghost_text_start(0),
-	ghost_text_end(0),
-	should_cancel(false),
-	last_request_time(std::chrono::steady_clock::now()),
-	pending_request(false),
-	active_thread_count(0)
+AITab::AITab()
+	: key_loaded(load_key()), request_active(false), request_done(false),
+	  has_ghost_text(false), ghost_text_start(0), ghost_text_end(0), should_cancel(false),
+	  last_request_time(std::chrono::steady_clock::now()), pending_request(false),
+	  active_thread_count(0)
 {
 }
 
@@ -31,14 +25,14 @@ AITab::~AITab()
 {
 	should_cancel = true;
 	g_should_cancel = true;
-	
+
 	{
 		std::lock_guard<std::mutex> lock(thread_mutex);
 		if (debounce_thread.joinable())
 		{
 			debounce_thread.detach();
 		}
-		
+
 		if (worker.joinable())
 		{
 			worker.detach();
@@ -50,8 +44,9 @@ bool AITab::load_key()
 {
 	std::string key = gSettingsFileManager.getOpenRouterKey();
 	api_key = key;
-	//std::cout << "API Key: " << api_key << std::endl;
-	if (api_key.empty()) {
+	// std::cout << "API Key: " << api_key << std::endl;
+	if (api_key.empty())
+	{
 		return false;
 	}
 	return true;
@@ -78,20 +73,23 @@ void AITab::tab_complete()
 
 	cleanup_old_threads();
 
-	if (!can_start_new_thread()) {
+	if (!can_start_new_thread())
+	{
 		return;
 	}
 
 	should_cancel = false;
 	g_should_cancel = false;
 	increment_thread_count();
-	
+
 	debounce_thread = std::thread([this]() {
 		while (true)
 		{
 			auto now = std::chrono::steady_clock::now();
-			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_request_time).count();
-			
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+							   now - last_request_time)
+							   .count();
+
 			if (elapsed >= 500)
 			{
 				break;
@@ -122,7 +120,7 @@ void AITab::tab_complete()
 
 				std::cout << "Requesting AI completion...\n";
 				std::string new_response = OpenRouter::request(prompt, api_key);
-				
+
 				if (should_cancel)
 				{
 					request_active = false;
@@ -134,7 +132,8 @@ void AITab::tab_complete()
 				if (!new_response.empty() && new_response.find("error") != 0)
 				{
 					std::lock_guard<std::mutex> lock(thread_mutex);
-					if (!should_cancel) {
+					if (!should_cancel)
+					{
 						response = std::move(new_response);
 						request_done = true;
 					}
@@ -142,7 +141,8 @@ void AITab::tab_complete()
 				request_active = false;
 				decrement_thread_count();
 			});
-		} else {
+		} else
+		{
 			decrement_thread_count();
 		}
 	});
@@ -153,7 +153,8 @@ std::string AITab::collect_context() const
 	const int cursor_pos = editor_state.cursor_index;
 
 	// Safety check for cursor position
-	if (cursor_pos < 0 || cursor_pos > editor_state.fileContent.size()) {
+	if (cursor_pos < 0 || cursor_pos > editor_state.fileContent.size())
+	{
 		return "";
 	}
 
@@ -172,30 +173,37 @@ std::string AITab::collect_context() const
 	const int end_line = std::min(total_lines - 1, current_line + 5);
 
 	// Safety check for line indices
-	if (start_line >= total_lines || end_line < 0 || start_line > end_line) {
+	if (start_line >= total_lines || end_line < 0 || start_line > end_line)
+	{
 		return "";
 	}
 
 	const int context_start = editor_state.editor_content_lines[start_line];
 	int context_end;
-	
+
 	// Handle the case where we're at the end of the file
-	if (end_line + 1 < editor_state.editor_content_lines.size()) {
+	if (end_line + 1 < editor_state.editor_content_lines.size())
+	{
 		context_end = editor_state.editor_content_lines[end_line + 1];
-	} else {
+	} else
+	{
 		context_end = editor_state.fileContent.size();
 	}
 
 	// Safety check for context bounds
-	if (context_start < 0 || context_end > editor_state.fileContent.size() || context_start >= context_end) {
+	if (context_start < 0 || context_end > editor_state.fileContent.size() ||
+		context_start >= context_end)
+	{
 		return "";
 	}
 
-	std::string context = editor_state.fileContent.substr(context_start, context_end - context_start);
+	std::string context =
+		editor_state.fileContent.substr(context_start, context_end - context_start);
 	const size_t cursor_pos_in_context = cursor_pos - context_start;
-	
+
 	// Safety check for cursor position in context
-	if (cursor_pos_in_context > context.size()) {
+	if (cursor_pos_in_context > context.size())
+	{
 		return "";
 	}
 
@@ -250,17 +258,20 @@ void AITab::update()
 
 void AITab::insert(const std::string &code)
 {
-	if (code.empty()) return;
+	if (code.empty())
+		return;
 
 	std::lock_guard<std::mutex> lock(thread_mutex);
-	
+
 	if (has_ghost_text)
 	{
 		dismiss_completion();
 	}
 
 	// Ensure cursor index is within bounds
-	if (editor_state.cursor_index < 0 || editor_state.cursor_index > editor_state.fileContent.size()) {
+	if (editor_state.cursor_index < 0 ||
+		editor_state.cursor_index > editor_state.fileContent.size())
+	{
 		return;
 	}
 
@@ -271,18 +282,21 @@ void AITab::insert(const std::string &code)
 
 	// Insert the code into the file content
 	editor_state.fileContent.insert(editor_state.cursor_index, code);
-	
+
 	ImVec4 ghost_color = ImVec4(0.5f, 0.5f, 0.5f, 0.5f);
-	
+
 	// Ensure fileColors is properly sized and matches fileContent
 	size_t new_size = editor_state.fileContent.size();
-	if (editor_state.fileColors.size() != new_size) {
+	if (editor_state.fileColors.size() != new_size)
+	{
 		editor_state.fileColors.resize(new_size, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 	}
-	
+
 	// Insert ghost colors at the cursor position
-	editor_state.fileColors.insert(editor_state.fileColors.begin() + editor_state.cursor_index,
-								 code.size(), ghost_color);
+	editor_state.fileColors.insert(editor_state.fileColors.begin() +
+									   editor_state.cursor_index,
+								   code.size(),
+								   ghost_color);
 
 	editor_state.ghost_text_changed = true;
 	gEditor.updateLineStarts();
@@ -290,10 +304,13 @@ void AITab::insert(const std::string &code)
 
 void AITab::accept_completion()
 {
-	if (!has_ghost_text) return;
+	if (!has_ghost_text)
+		return;
 
-	for (int i = ghost_text_start; i < ghost_text_end; i++) {
-		if (i < editor_state.fileColors.size()) {
+	for (int i = ghost_text_start; i < ghost_text_end; i++)
+	{
+		if (i < editor_state.fileColors.size())
+		{
 			editor_state.fileColors[i] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 		}
 	}
@@ -311,15 +328,16 @@ void AITab::accept_completion()
 
 void AITab::dismiss_completion()
 {
-	if (!has_ghost_text) return;
+	if (!has_ghost_text)
+		return;
 
 	std::lock_guard<std::mutex> lock(thread_mutex);
 
 	// Validate indices before accessing
-	if (ghost_text_start < 0 || 
-		ghost_text_end > editor_state.fileContent.size() ||
+	if (ghost_text_start < 0 || ghost_text_end > editor_state.fileContent.size() ||
 		ghost_text_start >= editor_state.fileColors.size() ||
-		ghost_text_end > editor_state.fileColors.size()) {
+		ghost_text_end > editor_state.fileColors.size())
+	{
 		has_ghost_text = false;
 		ghost_text.clear();
 		ghost_text_start = 0;
@@ -329,7 +347,7 @@ void AITab::dismiss_completion()
 
 	editor_state.fileContent.erase(ghost_text_start, ghost_text_end - ghost_text_start);
 	editor_state.fileColors.erase(editor_state.fileColors.begin() + ghost_text_start,
-								 editor_state.fileColors.begin() + ghost_text_end);
+								  editor_state.fileColors.begin() + ghost_text_end);
 
 	has_ghost_text = false;
 	ghost_text.clear();
@@ -345,25 +363,26 @@ void AITab::handle_editor_operation()
 	if (has_ghost_text)
 	{
 		std::lock_guard<std::mutex> lock(thread_mutex);
-		
+
 		bool should_dismiss = false;
-		
+
 		// Validate cursor index
-		if (editor_state.cursor_index < 0 || editor_state.cursor_index > editor_state.fileContent.size()) {
+		if (editor_state.cursor_index < 0 ||
+			editor_state.cursor_index > editor_state.fileContent.size())
+		{
 			should_dismiss = true;
-		}
-		else if (editor_state.cursor_index < ghost_text_start || 
-			editor_state.cursor_index > ghost_text_end)
+		} else if (editor_state.cursor_index < ghost_text_start ||
+				   editor_state.cursor_index > ghost_text_end)
 		{
 			should_dismiss = true;
 		}
-		
+
 		if (editor_state.fileContent.size() < ghost_text_end ||
 			editor_state.fileColors.size() < ghost_text_end)
 		{
 			should_dismiss = true;
 		}
-		
+
 		if (should_dismiss)
 		{
 			dismiss_completion();
@@ -371,29 +390,35 @@ void AITab::handle_editor_operation()
 	}
 }
 
-void AITab::cleanup_old_threads() {
+void AITab::cleanup_old_threads()
+{
 	std::lock_guard<std::mutex> lock(thread_mutex);
-	
+
 	// Wait for threads to finish before detaching
-	if (debounce_thread.joinable()) {
+	if (debounce_thread.joinable())
+	{
 		debounce_thread.detach();
 	}
-	if (worker.joinable()) {
+	if (worker.joinable())
+	{
 		worker.detach();
 	}
 }
 
-bool AITab::can_start_new_thread() {
+bool AITab::can_start_new_thread()
+{
 	std::lock_guard<std::mutex> lock(thread_mutex);
 	return active_thread_count < MAX_CONCURRENT_THREADS;
 }
 
-void AITab::increment_thread_count() {
+void AITab::increment_thread_count()
+{
 	std::lock_guard<std::mutex> lock(thread_mutex);
 	active_thread_count++;
 }
 
-void AITab::decrement_thread_count() {
+void AITab::decrement_thread_count()
+{
 	std::lock_guard<std::mutex> lock(thread_mutex);
 	active_thread_count--;
 	thread_cv.notify_one();
@@ -401,7 +426,8 @@ void AITab::decrement_thread_count() {
 
 void AITab::cancel_request()
 {
-	if (!request_active) return;
+	if (!request_active)
+		return;
 
 	std::lock_guard<std::mutex> lock(thread_mutex);
 	should_cancel = true;

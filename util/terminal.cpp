@@ -21,30 +21,31 @@
 #include <string.h>	   // For strrchr, strcpy, strncpy, strerror
 #include <sys/types.h> // For getpwuid, uid_t
 
-#ifndef PATH_MAX // Define a fallback if PATH_MAX is not found (e.g., on some systems)
+#ifndef PATH_MAX // Define a fallback if PATH_MAX is not found (e.g., on some
+				 // systems)
 #define PATH_MAX 1024
 #endif
 
 ImVec4 Terminal::defaultColorMap[16] = {
-    // Standard colors
-    ImVec4(0.0f, 0.0f, 0.0f, 1.0f), // Black
-    ImVec4(0.8f, 0.2f, 0.2f, 1.0f), // Rich Red
-    ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // Vibrant Green
-    ImVec4(0.9f, 0.9f, 0.3f, 1.0f), // Sunny Yellow
-    ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // Sky Blue (brighter blue)
-    ImVec4(0.8f, 0.3f, 0.8f, 1.0f), // Electric Purple
-    ImVec4(0.3f, 0.8f, 0.8f, 1.0f), // Aqua Cyan
-    ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // Off-White
+	// Standard colors
+	ImVec4(0.0f, 0.0f, 0.0f, 1.0f), // Black
+	ImVec4(0.8f, 0.2f, 0.2f, 1.0f), // Rich Red
+	ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // Vibrant Green
+	ImVec4(0.9f, 0.9f, 0.3f, 1.0f), // Sunny Yellow
+	ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // Sky Blue (brighter blue)
+	ImVec4(0.8f, 0.3f, 0.8f, 1.0f), // Electric Purple
+	ImVec4(0.3f, 0.8f, 0.8f, 1.0f), // Aqua Cyan
+	ImVec4(0.9f, 0.9f, 0.9f, 1.0f), // Off-White
 
-    // Bright colors (pastel-like but still vibrant)
-    ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Medium Gray
-    ImVec4(1.0f, 0.4f, 0.4f, 1.0f), // Coral Red
-    ImVec4(0.4f, 1.0f, 0.4f, 1.0f), // Lime Green
-    ImVec4(1.0f, 1.0f, 0.6f, 1.0f), // Lemon Yellow
-    ImVec4(0.4f, 0.6f, 1.0f, 1.0f), // Bright Sky Blue
-    ImVec4(1.0f, 0.5f, 1.0f, 1.0f), // Pink Purple
-    ImVec4(0.5f, 1.0f, 1.0f, 1.0f), // Ice Blue
-    ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
+	// Bright colors (pastel-like but still vibrant)
+	ImVec4(0.5f, 0.5f, 0.5f, 1.0f), // Medium Gray
+	ImVec4(1.0f, 0.4f, 0.4f, 1.0f), // Coral Red
+	ImVec4(0.4f, 1.0f, 0.4f, 1.0f), // Lime Green
+	ImVec4(1.0f, 1.0f, 0.6f, 1.0f), // Lemon Yellow
+	ImVec4(0.4f, 0.6f, 1.0f, 1.0f), // Bright Sky Blue
+	ImVec4(1.0f, 0.5f, 1.0f, 1.0f), // Pink Purple
+	ImVec4(0.5f, 1.0f, 1.0f, 1.0f), // Ice Blue
+	ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
 };
 
 Terminal gTerminal;
@@ -78,46 +79,46 @@ Terminal::Terminal()
 		state.tabs[i] = true;
 	}
 }
-void Terminal::UpdateTerminalColors() {
-    // Get the current theme from settings.
-    const auto& themeJson = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]; // Renamed to avoid conflict
+void Terminal::UpdateTerminalColors()
+{
+	// Get the current theme from settings.
+	const auto &themeJson =
+		gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]; // Renamed to
+																		// avoid conflict
 
-    // A simple lambda to load a color array from the theme.
-    auto loadThemeColor = [&](const char* key) -> ImVec4 {
-        const auto& colorJson = themeJson[key]; // Use the renamed 'themeJson'
-        return ImVec4(
-            colorJson[0].get<float>(),
-            colorJson[1].get<float>(),
-            colorJson[2].get<float>(),
-            colorJson[3].get<float>()
-        );
-    };
+	// A simple lambda to load a color array from the theme.
+	auto loadThemeColor = [&](const char *key) -> ImVec4 {
+		const auto &colorJson = themeJson[key]; // Use the renamed 'themeJson'
+		return ImVec4(colorJson[0].get<float>(),
+					  colorJson[1].get<float>(),
+					  colorJson[2].get<float>(),
+					  colorJson[3].get<float>());
+	};
 
-    // --- Map your 7 theme colors to ANSI colors 1-7 ---
-    // defaultColorMap[0] is handled specially for default background transparency.
-    defaultColorMap[1] = loadThemeColor("type");     // ANSI Red
-    defaultColorMap[2] = loadThemeColor("string");   // ANSI Green
-    defaultColorMap[3] = loadThemeColor("function"); // ANSI Yellow
-    defaultColorMap[4] = loadThemeColor("keyword");  // ANSI Blue
-    defaultColorMap[5] = loadThemeColor("number");   // ANSI Magenta
-    defaultColorMap[6] = loadThemeColor("variable"); // ANSI Cyan
-    defaultColorMap[7] = loadThemeColor("text");     // ANSI White
+	// --- Map your 7 theme colors to ANSI colors 1-7 ---
+	// defaultColorMap[0] is handled specially for default background transparency.
+	defaultColorMap[1] = loadThemeColor("type");	 // ANSI Red
+	defaultColorMap[2] = loadThemeColor("string");	 // ANSI Green
+	defaultColorMap[3] = loadThemeColor("function"); // ANSI Yellow
+	defaultColorMap[4] = loadThemeColor("keyword");	 // ANSI Blue
+	defaultColorMap[5] = loadThemeColor("number");	 // ANSI Magenta
+	defaultColorMap[6] = loadThemeColor("variable"); // ANSI Cyan
+	defaultColorMap[7] = loadThemeColor("text");	 // ANSI White
 
-    ImVec4 commentColor = loadThemeColor("comment");
-    defaultColorMap[0] = ImVec4(0.0f, 0.0f, 0.0f, commentColor.w); 
+	ImVec4 commentColor = loadThemeColor("comment");
+	defaultColorMap[0] = ImVec4(0.0f, 0.0f, 0.0f, commentColor.w);
 
-    float brightnessFactor = 1.25f;
+	float brightnessFactor = 1.25f;
 
-    for (int i = 0; i < 8; ++i) { // This will also process index 0
-        ImVec4 baseColor = defaultColorMap[i];
-        defaultColorMap[i + 8] = ImVec4(
-            std::min(1.0f, baseColor.x * brightnessFactor),
-            std::min(1.0f, baseColor.y * brightnessFactor),
-            std::min(1.0f, baseColor.z * brightnessFactor),
-            baseColor.w // Keep original alpha
-        );
-    }
-
+	for (int i = 0; i < 8; ++i)
+	{ // This will also process index 0
+		ImVec4 baseColor = defaultColorMap[i];
+		defaultColorMap[i + 8] = ImVec4(std::min(1.0f, baseColor.x * brightnessFactor),
+										std::min(1.0f, baseColor.y * brightnessFactor),
+										std::min(1.0f, baseColor.z * brightnessFactor),
+										baseColor.w // Keep original alpha
+		);
+	}
 }
 
 Terminal::~Terminal()
@@ -139,272 +140,321 @@ Terminal::~Terminal()
 
 void Terminal::startShell()
 {
-    // Open PTY master
-    ptyFd = posix_openpt(O_RDWR | O_NOCTTY);
-    if (ptyFd < 0)
-    {
-        perror("posix_openpt failed");
-        return;
-    }
+	// Open PTY master
+	ptyFd = posix_openpt(O_RDWR | O_NOCTTY);
+	if (ptyFd < 0)
+	{
+		perror("posix_openpt failed");
+		return;
+	}
 
-    if (grantpt(ptyFd) < 0)
-    {
-        perror("grantpt failed");
-        close(ptyFd);
-        ptyFd = -1;
-        return;
-    }
+	if (grantpt(ptyFd) < 0)
+	{
+		perror("grantpt failed");
+		close(ptyFd);
+		ptyFd = -1;
+		return;
+	}
 
-    if (unlockpt(ptyFd) < 0)
-    {
-        perror("unlockpt failed");
-        close(ptyFd);
-        ptyFd = -1;
-        return;
-    }
+	if (unlockpt(ptyFd) < 0)
+	{
+		perror("unlockpt failed");
+		close(ptyFd);
+		ptyFd = -1;
+		return;
+	}
 
-    char *slaveName = ptsname(ptyFd);
-    if (!slaveName)
-    {
-        perror("ptsname failed");
-        close(ptyFd);
-        ptyFd = -1;
-        return;
-    }
+	char *slaveName = ptsname(ptyFd);
+	if (!slaveName)
+	{
+		perror("ptsname failed");
+		close(ptyFd);
+		ptyFd = -1;
+		return;
+	}
 
-    childPid = fork();
+	childPid = fork();
 
-    if (childPid < 0)
-    { // Fork failed
-        perror("fork failed");
-        close(ptyFd);
-        ptyFd = -1;
-        return;
-    }
+	if (childPid < 0)
+	{ // Fork failed
+		perror("fork failed");
+		close(ptyFd);
+		ptyFd = -1;
+		return;
+	}
 
-    if (childPid == 0)
-    {                 // Child process
-        close(ptyFd); // Close master PTY in child
+	if (childPid == 0)
+	{				  // Child process
+		close(ptyFd); // Close master PTY in child
 
-        if (setsid() < 0)
-        { // Create new session, detach from parent's controlling TTY
-            perror("setsid failed");
-            exit(EXIT_FAILURE);
-        }
+		if (setsid() < 0)
+		{ // Create new session, detach from parent's controlling TTY
+			perror("setsid failed");
+			exit(EXIT_FAILURE);
+		}
 
-        // Open slave PTY
-        int slaveFd = open(slaveName, O_RDWR);
-        if (slaveFd < 0)
-        {
-            perror("open slave PTY failed");
-            exit(EXIT_FAILURE);
-        }
+		// Open slave PTY
+		int slaveFd = open(slaveName, O_RDWR);
+		if (slaveFd < 0)
+		{
+			perror("open slave PTY failed");
+			exit(EXIT_FAILURE);
+		}
 
-        // Make the slave PTY the controlling terminal for this new session
-        if (ioctl(slaveFd, TIOCSCTTY, 0) < 0)
-        {
-            // This can fail if the process is not a session leader and already has a controlling TTY.
-            // setsid() should make us a session leader.
-            perror("ioctl TIOCSCTTY failed (can be non-fatal depending on context)");
-        }
+		// Make the slave PTY the controlling terminal for this new session
+		if (ioctl(slaveFd, TIOCSCTTY, 0) < 0)
+		{
+			// This can fail if the process is not a session leader and already
+			// has a controlling TTY. setsid() should make us a session leader.
+			perror("ioctl TIOCSCTTY failed (can be non-fatal depending on "
+				   "context)");
+		}
 
-        dup2(slaveFd, STDIN_FILENO);
-        dup2(slaveFd, STDOUT_FILENO);
-        dup2(slaveFd, STDERR_FILENO);
+		dup2(slaveFd, STDIN_FILENO);
+		dup2(slaveFd, STDOUT_FILENO);
+		dup2(slaveFd, STDERR_FILENO);
 
-        if (slaveFd > STDERR_FILENO)
-        {
-            close(slaveFd);
-        }
+		if (slaveFd > STDERR_FILENO)
+		{
+			close(slaveFd);
+		}
 
-        // Configure terminal modes for the slave PTY
-        struct termios tios;
-        if (tcgetattr(STDIN_FILENO, &tios) < 0)
-        { 
-            perror("tcgetattr failed on slave pty");
-            exit(EXIT_FAILURE);
-        }
+		// Configure terminal modes for the slave PTY
+		struct termios tios;
+		if (tcgetattr(STDIN_FILENO, &tios) < 0)
+		{
+			perror("tcgetattr failed on slave pty");
+			exit(EXIT_FAILURE);
+		}
 
-        // Set reasonable default modes (from st/typical terminal settings)
-        tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
+		// Set reasonable default modes (from st/typical terminal settings)
+		tios.c_iflag = ICRNL | IXON | IXANY | IMAXBEL | BRKINT;
 #ifdef IUTF8 // Common on Linux, good to enable if available
-        tios.c_iflag |= IUTF8;
+		tios.c_iflag |= IUTF8;
 #endif
-        tios.c_oflag = OPOST | ONLCR; // OPOST: enable output processing, ONLCR: map NL to CR-NL
+		tios.c_oflag =
+			OPOST | ONLCR; // OPOST: enable output processing, ONLCR: map NL to CR-NL
 
-        tios.c_cflag &= ~(CSIZE | PARENB); // Clear size and parity bits
-        tios.c_cflag |= CS8;               // 8 bits per character
-        tios.c_cflag |= CREAD;             // Enable receiver
-        tios.c_cflag |= HUPCL;             // Hang up on last close (sends SIGHUP to foreground process group)
+		tios.c_cflag &= ~(CSIZE | PARENB); // Clear size and parity bits
+		tios.c_cflag |= CS8;			   // 8 bits per character
+		tios.c_cflag |= CREAD;			   // Enable receiver
+		tios.c_cflag |= HUPCL;			   // Hang up on last close (sends SIGHUP to
+										   // foreground process group)
 
-        // Standard local modes for interactive shells
-        tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
-        
-        if (tcsetattr(STDIN_FILENO, TCSANOW, &tios) < 0)
-        {
-            perror("tcsetattr failed on slave pty");
-            exit(EXIT_FAILURE);
-        }
+		// Standard local modes for interactive shells
+		tios.c_lflag = ICANON | ISIG | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 
-        // Set window size
-        struct winsize ws = {};
-        ws.ws_row = state.row; // Use initial rows/cols from Terminal state object
-        ws.ws_col = state.col;
-        if (ioctl(STDIN_FILENO, TIOCSWINSZ, &ws) < 0)
-        {
-            perror("ioctl TIOCSWINSZ failed on slave pty (non-fatal, shell might misbehave)");
-        }
+		if (tcsetattr(STDIN_FILENO, TCSANOW, &tios) < 0)
+		{
+			perror("tcsetattr failed on slave pty");
+			exit(EXIT_FAILURE);
+		}
 
-        // Prepare environment for the shell
-        setenv("TERM", "xterm-256color", 1);
-        // Unsetting these is often good as the login shell will set them appropriately
-        unsetenv("COLUMNS"); 
-        unsetenv("LINES");
-        // Optionally, clear other inherited variables that might cause issues, e.g.,
-        // unsetenv("TERMCAP");
-        // unsetenv("WINDOWID"); // Common in some terminal emulators
+		// Set window size
+		struct winsize ws = {};
+		ws.ws_row = state.row; // Use initial rows/cols from Terminal state object
+		ws.ws_col = state.col;
+		if (ioctl(STDIN_FILENO, TIOCSWINSZ, &ws) < 0)
+		{
+			perror("ioctl TIOCSWINSZ failed on slave pty (non-fatal, shell "
+				   "might misbehave)");
+		}
+
+		// Prepare environment for the shell
+		setenv("TERM", "xterm-256color", 1);
+		// Unsetting these is often good as the login shell will set them
+		// appropriately
+		unsetenv("COLUMNS");
+		unsetenv("LINES");
+		// Optionally, clear other inherited variables that might cause issues,
+		// e.g., unsetenv("TERMCAP"); unsetenv("WINDOWID"); // Common in some
+		// terminal emulators
 
 #ifdef __APPLE__
-        // Revised logic for macOS: Launch as a login shell
-        const char *user_shell_from_passwd = nullptr;
-        struct passwd *pw = getpwuid(getuid());
-        if (pw && pw->pw_shell && pw->pw_shell[0] != '\0') {
-            user_shell_from_passwd = pw->pw_shell;
-        }
+		// Revised logic for macOS: Launch as a login shell
+		const char *user_shell_from_passwd = nullptr;
+		struct passwd *pw = getpwuid(getuid());
+		if (pw && pw->pw_shell && pw->pw_shell[0] != '\0')
+		{
+			user_shell_from_passwd = pw->pw_shell;
+		}
 
-        const char *shell_to_launch_path_str = user_shell_from_passwd;
+		const char *shell_to_launch_path_str = user_shell_from_passwd;
 
-        // Fallback 1: getenv("SHELL")
-        if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0') {
-            shell_to_launch_path_str = getenv("SHELL");
-        }
+		// Fallback 1: getenv("SHELL")
+		if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0')
+		{
+			shell_to_launch_path_str = getenv("SHELL");
+		}
 
-        // Fallback 2: Default to /bin/zsh (modern macOS default)
-        // If on an older Mac where /bin/bash is default, this might still be better.
-        if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0') {
-            shell_to_launch_path_str = "/bin/zsh"; 
-        }
-        
-        char shell_exec_path_buf[PATH_MAX]; // Full path to the executable
-        strncpy(shell_exec_path_buf, shell_to_launch_path_str, sizeof(shell_exec_path_buf));
-        shell_exec_path_buf[sizeof(shell_exec_path_buf) - 1] = '\0'; // Ensure null termination
+		// Fallback 2: Default to /bin/zsh (modern macOS default)
+		// If on an older Mac where /bin/bash is default, this might still be better.
+		if (!shell_to_launch_path_str || shell_to_launch_path_str[0] == '\0')
+		{
+			shell_to_launch_path_str = "/bin/zsh";
+		}
 
-        // Prepare argv[0] for the child shell: "-basename"
-        char shell_argv0_login[PATH_MAX + 1]; // +1 for the leading hyphen
-        shell_argv0_login[0] = '-'; // Signal to the shell to act as a login shell
+		char shell_exec_path_buf[PATH_MAX]; // Full path to the executable
+		strncpy(shell_exec_path_buf,
+				shell_to_launch_path_str,
+				sizeof(shell_exec_path_buf));
+		shell_exec_path_buf[sizeof(shell_exec_path_buf) - 1] =
+			'\0'; // Ensure null termination
 
-        const char *shell_basename_ptr = strrchr(shell_exec_path_buf, '/');
-        if (shell_basename_ptr) {
-            // Found a '/', so use the part after it
-            strncpy(shell_argv0_login + 1, shell_basename_ptr + 1, sizeof(shell_argv0_login) - 2); 
-        } else {
-            // No '/', so use the whole path string (it's already a basename or relative)
-            strncpy(shell_argv0_login + 1, shell_exec_path_buf, sizeof(shell_argv0_login) - 2);
-        }
-        shell_argv0_login[sizeof(shell_argv0_login) - 1] = '\0'; // Ensure null termination
+		// Prepare argv[0] for the child shell: "-basename"
+		char shell_argv0_login[PATH_MAX + 1]; // +1 for the leading hyphen
+		shell_argv0_login[0] = '-'; // Signal to the shell to act as a login shell
 
-        // Arguments for a login shell.
-        char *const args[] = {shell_argv0_login, NULL};
+		const char *shell_basename_ptr = strrchr(shell_exec_path_buf, '/');
+		if (shell_basename_ptr)
+		{
+			// Found a '/', so use the part after it
+			strncpy(shell_argv0_login + 1,
+					shell_basename_ptr + 1,
+					sizeof(shell_argv0_login) - 2);
+		} else
+		{
+			// No '/', so use the whole path string (it's already a basename or
+			// relative)
+			strncpy(shell_argv0_login + 1,
+					shell_exec_path_buf,
+					sizeof(shell_argv0_login) - 2);
+		}
+		shell_argv0_login[sizeof(shell_argv0_login) - 1] =
+			'\0'; // Ensure null termination
 
-        // --- Debugging Output ---
-        fprintf(stderr, "[TERMINAL DEBUG] macOS Shell Launch Information:\n");
-        fprintf(stderr, "  User's pw_shell (from getpwuid): '%s'\n", (pw && pw->pw_shell) ? pw->pw_shell : "(not found or empty)");
-        const char* env_shell_in_child = getenv("SHELL");
-        fprintf(stderr, "  getenv(\"SHELL\") in child process: '%s'\n", env_shell_in_child ? env_shell_in_child : "(not set or empty)");
-        fprintf(stderr, "  Path to be executed (shell_exec_path_buf): '%s'\n", shell_exec_path_buf);
-        fprintf(stderr, "  argv[0] for child shell (shell_argv0_login): '%s'\n", args[0] ? args[0] : "(NULL)");
-        // --- End Debugging Output ---
+		// Arguments for a login shell.
+		char *const args[] = {shell_argv0_login, NULL};
 
-        execv(shell_exec_path_buf, args);
-        
-        // If execv returns, an error occurred.
-        fprintf(stderr, "FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
-                shell_exec_path_buf, args[0] ? args[0] : "(null)", strerror(errno));
-        exit(EXIT_FAILURE); // Or exit(127) for command not found / exec failure
-        // Removed unreachable: std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		// --- Debugging Output ---
+		fprintf(stderr, "[TERMINAL DEBUG] macOS Shell Launch Information:\n");
+		fprintf(stderr,
+				"  User's pw_shell (from getpwuid): '%s'\n",
+				(pw && pw->pw_shell) ? pw->pw_shell : "(not found or empty)");
+		const char *env_shell_in_child = getenv("SHELL");
+		fprintf(stderr,
+				"  getenv(\"SHELL\") in child process: '%s'\n",
+				env_shell_in_child ? env_shell_in_child : "(not set or empty)");
+		fprintf(stderr,
+				"  Path to be executed (shell_exec_path_buf): '%s'\n",
+				shell_exec_path_buf);
+		fprintf(stderr,
+				"  argv[0] for child shell (shell_argv0_login): '%s'\n",
+				args[0] ? args[0] : "(NULL)");
+		// --- End Debugging Output ---
+
+		execv(shell_exec_path_buf, args);
+
+		// If execv returns, an error occurred.
+		fprintf(stderr,
+				"FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
+				shell_exec_path_buf,
+				args[0] ? args[0] : "(null)",
+				strerror(errno));
+		exit(EXIT_FAILURE); // Or exit(127) for command not found / exec failure
+							// Removed unreachable:
+		// std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #else
-        // Logic for Linux and other Unix-like systems (also launch as login shell)
-        char shell_path_buf[PATH_MAX];
-        const char *shell_env_val = getenv("SHELL"); // SHELL env var is primary on Linux
+		// Logic for Linux and other Unix-like systems (also launch as login shell)
+		char shell_path_buf[PATH_MAX];
+		const char *shell_env_val = getenv("SHELL"); // SHELL env var is primary on Linux
 
-        if (shell_env_val && shell_env_val[0] != '\0')
-        {
-            strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf));
-            shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-        } else
-        {
-            struct passwd *pw_linux = getpwuid(getuid()); // Fallback to passwd entry
-            if (pw_linux && pw_linux->pw_shell && pw_linux->pw_shell[0] != '\0')
-            {
-                strncpy(shell_path_buf, pw_linux->pw_shell, sizeof(shell_path_buf));
-                shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-            } else
-            {
-                strncpy(shell_path_buf, "/bin/bash", sizeof(shell_path_buf)); // Absolute fallback for Linux
-                shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
-            }
-        }
+		if (shell_env_val && shell_env_val[0] != '\0')
+		{
+			strncpy(shell_path_buf, shell_env_val, sizeof(shell_path_buf));
+			shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+		} else
+		{
+			struct passwd *pw_linux = getpwuid(getuid()); // Fallback to passwd entry
+			if (pw_linux && pw_linux->pw_shell && pw_linux->pw_shell[0] != '\0')
+			{
+				strncpy(shell_path_buf, pw_linux->pw_shell, sizeof(shell_path_buf));
+				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+			} else
+			{
+				strncpy(shell_path_buf,
+						"/bin/bash",
+						sizeof(shell_path_buf)); // Absolute fallback for Linux
+				shell_path_buf[sizeof(shell_path_buf) - 1] = '\0';
+			}
+		}
 
-        char shell_argv0_login_linux[PATH_MAX + 1];
-        shell_argv0_login_linux[0] = '-';
-        const char *shell_basename_linux = strrchr(shell_path_buf, '/');
-        if (shell_basename_linux) {
-            strncpy(shell_argv0_login_linux + 1, shell_basename_linux + 1, sizeof(shell_argv0_login_linux) - 2);
-        } else {
-            strncpy(shell_argv0_login_linux + 1, shell_path_buf, sizeof(shell_argv0_login_linux) - 2);
-        }
-        shell_argv0_login_linux[sizeof(shell_argv0_login_linux) - 1] = '\0';
+		char shell_argv0_login_linux[PATH_MAX + 1];
+		shell_argv0_login_linux[0] = '-';
+		const char *shell_basename_linux = strrchr(shell_path_buf, '/');
+		if (shell_basename_linux)
+		{
+			strncpy(shell_argv0_login_linux + 1,
+					shell_basename_linux + 1,
+					sizeof(shell_argv0_login_linux) - 2);
+		} else
+		{
+			strncpy(shell_argv0_login_linux + 1,
+					shell_path_buf,
+					sizeof(shell_argv0_login_linux) - 2);
+		}
+		shell_argv0_login_linux[sizeof(shell_argv0_login_linux) - 1] = '\0';
 
-        char *const new_argv_linux[] = {shell_argv0_login_linux, NULL};
-        
-        // --- Debugging Output for Linux ---
-        fprintf(stderr, "[TERMINAL DEBUG] Linux/Other Shell Launch Information:\n");
-        struct passwd *pw_linux_debug = getpwuid(getuid());
-        fprintf(stderr, "  User's pw_shell (from getpwuid): '%s'\n", (pw_linux_debug && pw_linux_debug->pw_shell) ? pw_linux_debug->pw_shell : "(not found or empty)");
-        const char* env_shell_child_linux = getenv("SHELL");
-        fprintf(stderr, "  getenv(\"SHELL\") in child process: '%s'\n", env_shell_child_linux ? env_shell_child_linux : "(not set or empty)");
-        fprintf(stderr, "  Path to be executed (shell_path_buf): '%s'\n", shell_path_buf);
-        fprintf(stderr, "  argv[0] for child shell (new_argv_linux[0]): '%s'\n", new_argv_linux[0] ? new_argv_linux[0] : "(NULL)");
-        // --- End Debugging Output for Linux ---
+		char *const new_argv_linux[] = {shell_argv0_login_linux, NULL};
 
-        execv(shell_path_buf, new_argv_linux);
+		// --- Debugging Output for Linux ---
+		fprintf(stderr, "[TERMINAL DEBUG] Linux/Other Shell Launch Information:\n");
+		struct passwd *pw_linux_debug = getpwuid(getuid());
+		fprintf(stderr,
+				"  User's pw_shell (from getpwuid): '%s'\n",
+				(pw_linux_debug && pw_linux_debug->pw_shell) ? pw_linux_debug->pw_shell
+															 : "(not found or empty)");
+		const char *env_shell_child_linux = getenv("SHELL");
+		fprintf(stderr,
+				"  getenv(\"SHELL\") in child process: '%s'\n",
+				env_shell_child_linux ? env_shell_child_linux : "(not set or empty)");
+		fprintf(stderr, "  Path to be executed (shell_path_buf): '%s'\n", shell_path_buf);
+		fprintf(stderr,
+				"  argv[0] for child shell (new_argv_linux[0]): '%s'\n",
+				new_argv_linux[0] ? new_argv_linux[0] : "(NULL)");
+		// --- End Debugging Output for Linux ---
 
-        fprintf(stderr,
-                "FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
-                shell_path_buf,
-                new_argv_linux[0] ? new_argv_linux[0] : "(null)",
-                strerror(errno));
-        exit(127); // Standard exit code for command not found / exec failure
+		execv(shell_path_buf, new_argv_linux);
+
+		fprintf(stderr,
+				"FATAL: Failed to execv shell '%s' (intended argv[0]='%s'): %s\n",
+				shell_path_buf,
+				new_argv_linux[0] ? new_argv_linux[0] : "(null)",
+				strerror(errno));
+		exit(127); // Standard exit code for command not found / exec failure
 #endif
-    }
+	}
 
-    // Parent process
-    // Make sure ptyFd is non-blocking for the read thread if select/poll isn't used
-    // This can be optional if read() behaves well or if your readOutput uses select/poll.
-    // int flags = fcntl(ptyFd, F_GETFL, 0);
-    // if (flags != -1) fcntl(ptyFd, F_SETFL, flags | O_NONBLOCK);
+	// Parent process
+	// Make sure ptyFd is non-blocking for the read thread if select/poll isn't
+	// used This can be optional if read() behaves well or if your readOutput
+	// uses select/poll. int flags = fcntl(ptyFd, F_GETFL, 0); if (flags != -1)
+	// fcntl(ptyFd, F_SETFL, flags | O_NONBLOCK);
 
 #ifdef __APPLE__
-    // Send initial commands (cd ~ and clear) to the shell on Apple systems.
-    // A short delay helps ensure the shell has initialized before receiving commands.
-    // This is a heuristic; 100ms is a common value.
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	// Send initial commands (cd ~ and clear) to the shell on Apple systems.
+	// A short delay helps ensure the shell has initialized before receiving
+	// commands. This is a heuristic; 100ms is a common value.
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    std::string command_str = std::string("cd ") + gFileExplorer.selectedFolder + "\nclear\n";
+	std::string command_str =
+		std::string("cd ") + gFileExplorer.selectedFolder + "\nclear\n";
 
-    // 2. Now get the pointer. It's valid as long as command_str exists.
-    const char* initial_commands = command_str.c_str();
-    ssize_t bytes_written = write(ptyFd, initial_commands, strlen(initial_commands));
-    if (bytes_written == -1) {
-        perror("write to pty (initial_commands for Apple) failed in parent");
-        // This is a non-critical enhancement, so we log the error and continue.
-    } else if (static_cast<size_t>(bytes_written) < strlen(initial_commands)) {
-        // Handle partial write, though unlikely for small command strings with TTYs.
-        fprintf(stderr, "Partial write to pty (initial_commands for Apple) in parent.\n");
-    }
+	// 2. Now get the pointer. It's valid as long as command_str exists.
+	const char *initial_commands = command_str.c_str();
+	ssize_t bytes_written = write(ptyFd, initial_commands, strlen(initial_commands));
+	if (bytes_written == -1)
+	{
+		perror("write to pty (initial_commands for Apple) failed in parent");
+		// This is a non-critical enhancement, so we log the error and continue.
+	} else if (static_cast<size_t>(bytes_written) < strlen(initial_commands))
+	{
+		// Handle partial write, though unlikely for small command strings with TTYs.
+		fprintf(stderr, "Partial write to pty (initial_commands for Apple) in parent.\n");
+	}
 #endif
 
-    readThread = std::thread(&Terminal::readOutput, this);
+	readThread = std::thread(&Terminal::readOutput, this);
 }
 void Terminal::render()
 {
@@ -487,11 +537,13 @@ void Terminal::handleTerminalResize()
 
 void Terminal::handleScrollback(const ImGuiIO &io, int new_rows)
 {
-	if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() && !(state.mode & MODE_ALTSCREEN))
+	if (ImGui::IsWindowFocused() && ImGui::IsWindowHovered() &&
+		!(state.mode & MODE_ALTSCREEN))
 	{
 		if (io.MouseWheel != 0.0f)
 		{
-			int maxScroll = std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
+			int maxScroll =
+				std::max(0, (int)(scrollbackBuffer.size() + state.row) - new_rows);
 			// Reverse the scroll direction by changing subtraction to addition
 			scrollOffset += static_cast<int>(io.MouseWheel * 3);
 			scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
@@ -510,10 +562,32 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	float lineHeight = ImGui::GetTextLineHeight();
 
 	int cellX = static_cast<int>((mousePos.x - contentPos.x) / charWidth);
-	int cellY = static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
+	int cellY =
+		static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
 
 	cellX = std::clamp(cellX, 0, state.col - 1);
-	cellY = std::clamp(cellY, 0, state.row - 1);
+
+	// Account for scrollback offset when not in alt screen
+	if (!(state.mode & MODE_ALTSCREEN))
+	{
+		ImVec2 contentSize = ImGui::GetContentRegionAvail();
+		int visibleRows = std::max(1, static_cast<int>(contentSize.y / lineHeight));
+		int totalLines = scrollbackBuffer.size() + state.row;
+		int maxScroll = std::max(0, totalLines - visibleRows);
+		scrollOffset = std::clamp(scrollOffset, 0, maxScroll);
+		int startLine = std::max(0, totalLines - visibleRows - scrollOffset);
+
+		// Convert visible Y coordinate to actual buffer coordinate
+		int actualY = startLine + cellY;
+
+		// Convert to selection coordinate system (relative to scrollback buffer)
+		cellY = actualY - scrollbackBuffer.size();
+
+	} else
+	{
+		// In alt screen, clamp to current screen
+		cellY = std::clamp(cellY, 0, state.row - 1);
+	}
 
 	static ImVec2 clickStartPos{0, 0};
 
@@ -549,7 +623,8 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	// Handle clipboard shortcuts
 	if (io.KeyCtrl)
 	{
-		if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || ImGui::IsKeyPressed(ImGuiKey_C, false))
+		if (ImGui::IsKeyPressed(ImGuiKey_Y, false) ||
+			ImGui::IsKeyPressed(ImGuiKey_C, false))
 		{
 			copySelection();
 		}
@@ -632,12 +707,14 @@ void Terminal::handleControlCombos(const ImGuiIO &io)
 		return;
 
 	static const std::pair<ImGuiKey, char> controlKeys[] = {
-		{ImGuiKey_A, '\x01'}, {ImGuiKey_B, '\x02'}, {ImGuiKey_C, '\x03'}, {ImGuiKey_D, '\x04'},
-		{ImGuiKey_E, '\x05'}, {ImGuiKey_F, '\x06'}, {ImGuiKey_G, '\x07'}, {ImGuiKey_H, '\x08'},
-		{ImGuiKey_I, '\x09'}, {ImGuiKey_J, '\x0A'}, {ImGuiKey_K, '\x0B'}, {ImGuiKey_L, '\x0C'},
-		{ImGuiKey_M, '\x0D'}, {ImGuiKey_N, '\x0E'}, {ImGuiKey_O, '\x0F'}, {ImGuiKey_P, '\x10'},
-		{ImGuiKey_Q, '\x11'}, {ImGuiKey_R, '\x12'}, {ImGuiKey_S, '\x13'}, {ImGuiKey_T, '\x14'},
-		{ImGuiKey_U, '\x15'}, {ImGuiKey_W, '\x17'}, {ImGuiKey_X, '\x18'}, {ImGuiKey_Y, '\x19'},
+		{ImGuiKey_A, '\x01'}, {ImGuiKey_B, '\x02'}, {ImGuiKey_C, '\x03'},
+		{ImGuiKey_D, '\x04'}, {ImGuiKey_E, '\x05'}, {ImGuiKey_F, '\x06'},
+		{ImGuiKey_G, '\x07'}, {ImGuiKey_H, '\x08'}, {ImGuiKey_I, '\x09'},
+		{ImGuiKey_J, '\x0A'}, {ImGuiKey_K, '\x0B'}, {ImGuiKey_L, '\x0C'},
+		{ImGuiKey_M, '\x0D'}, {ImGuiKey_N, '\x0E'}, {ImGuiKey_O, '\x0F'},
+		{ImGuiKey_P, '\x10'}, {ImGuiKey_Q, '\x11'}, {ImGuiKey_R, '\x12'},
+		{ImGuiKey_S, '\x13'}, {ImGuiKey_T, '\x14'}, {ImGuiKey_U, '\x15'},
+		{ImGuiKey_W, '\x17'}, {ImGuiKey_X, '\x18'}, {ImGuiKey_Y, '\x19'},
 		{ImGuiKey_Z, '\x1A'}};
 
 	for (const auto &[key, ctrl_char] : controlKeys)
@@ -711,8 +788,12 @@ void Terminal::renderAltScreen(ImDrawList *drawList,
 	{
 		ImVec2 cursorPos(pos.x + state.c.x * charWidth, pos.y + state.c.y * lineHeight);
 		float alpha = (sin(ImGui::GetTime() * 3.14159f) * 0.3f) + 0.5f;
-		renderCursor(
-			drawList, cursorPos, state.lines[state.c.y][state.c.x], charWidth, lineHeight, alpha);
+		renderCursor(drawList,
+					 cursorPos,
+					 state.lines[state.c.y][state.c.x],
+					 charWidth,
+					 lineHeight,
+					 alpha);
 	}
 }
 
@@ -781,12 +862,16 @@ void Terminal::renderMainScreen(ImDrawList *drawList,
 	if (ImGui::IsWindowFocused() && scrollOffset == 0)
 	{
 		ImVec2 cursorPos(pos.x + state.c.x * charWidth,
-						 pos.y +
-							 (visibleRows - (totalLines - scrollbackBuffer.size()) + state.c.y) *
-								 lineHeight);
+						 pos.y + (visibleRows - (totalLines - scrollbackBuffer.size()) +
+								  state.c.y) *
+									 lineHeight);
 		float alpha = (sin(ImGui::GetTime() * 3.14159f) * 0.3f) + 0.5f;
-		renderCursor(
-			drawList, cursorPos, state.lines[state.c.y][state.c.x], charWidth, lineHeight, alpha);
+		renderCursor(drawList,
+					 cursorPos,
+					 state.lines[state.c.y][state.c.x],
+					 charWidth,
+					 lineHeight,
+					 alpha);
 	}
 }
 void Terminal::renderGlyph(ImDrawList *drawList,
@@ -863,7 +948,8 @@ void Terminal::renderCursor(ImDrawList *drawList,
 	{
 		drawList->AddRectFilled(cursorPos,
 								ImVec2(cursorPos.x + 2, cursorPos.y + lineHeight),
-								ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
+								ImGui::ColorConvertFloat4ToU32(
+									ImVec4(0.7f, 0.7f, 0.7f, alpha)));
 	} else
 	{
 		if (cursorCell.u != 0)
@@ -873,17 +959,17 @@ void Terminal::renderCursor(ImDrawList *drawList,
 			ImVec4 bg = cursorCell.fg;
 			ImVec4 fg = cursorCell.bg;
 
-			drawList->AddRectFilled(cursorPos,
-									ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-									ImGui::ColorConvertFloat4ToU32(
-										ImVec4(bg.x, bg.y, bg.z, alpha)));
+			drawList->AddRectFilled(
+				cursorPos,
+				ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+				ImGui::ColorConvertFloat4ToU32(ImVec4(bg.x, bg.y, bg.z, alpha)));
 			drawList->AddText(cursorPos, ImGui::ColorConvertFloat4ToU32(fg), text);
 		} else
 		{
-			drawList->AddRectFilled(cursorPos,
-									ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
-									ImGui::ColorConvertFloat4ToU32(
-										ImVec4(0.7f, 0.7f, 0.7f, alpha)));
+			drawList->AddRectFilled(
+				cursorPos,
+				ImVec2(cursorPos.x + charWidth, cursorPos.y + lineHeight),
+				ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, alpha)));
 		}
 	}
 }
@@ -899,24 +985,51 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	for (int y = startY; y < endY; y++)
 	{
 		int screenY = y - screenOffset;
+		// Handle both current screen and scrollback lines
 		if (screenY >= 0 && screenY < state.row)
 		{
+			// Current screen line
 			for (int x = 0; x < state.col; x++)
 			{
-				if (selectedText(x, screenY))
+				// Convert visible coordinate to selection coordinate system
+				int selectionY = screenOffset + screenY - scrollbackBuffer.size();
+				if (selectedText(x, selectionY))
 				{
-					ImVec2 highlightPos(pos.x + x * charWidth, pos.y + (y - startY) * lineHeight);
+					ImVec2 highlightPos(pos.x + x * charWidth,
+										pos.y + (y - startY) * lineHeight);
 					drawList->AddRectFilled(
 						highlightPos,
 						ImVec2(highlightPos.x + charWidth, highlightPos.y + lineHeight),
 						ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
 				}
 			}
+		} else if (screenY < 0)
+		{
+			// Scrollback line - render it if it's visible
+			int scrollbackIndex = -screenY - 1;
+			if (scrollbackIndex >= 0 && scrollbackIndex < scrollbackBuffer.size())
+			{
+				for (int x = 0; x < state.col; x++)
+				{
+					// Convert visible coordinate to selection coordinate system
+					int selectionY = screenOffset + screenY - scrollbackBuffer.size();
+					if (selectedText(x, selectionY))
+					{
+						ImVec2 highlightPos(pos.x + x * charWidth,
+											pos.y + (y - startY) * lineHeight);
+						drawList->AddRectFilled(highlightPos,
+												ImVec2(highlightPos.x + charWidth,
+													   highlightPos.y + lineHeight),
+												ImGui::ColorConvertFloat4ToU32(
+													ImVec4(1.0f, 0.1f, 0.7f, 0.3f)));
+					}
+				}
+			}
 		}
 	}
 }
 
-void Terminal::toggleVisibility() { isVisible = !isVisible;}
+void Terminal::toggleVisibility() { isVisible = !isVisible; }
 
 void Terminal::writeToBuffer(const char *data, size_t length)
 {
@@ -1063,8 +1176,8 @@ void Terminal::writeToBuffer(const char *data, size_t length)
 					}
 				} else
 				{
-					std::cerr << "Invalid continuation byte: 0x" << std::hex << (int)c << std::dec
-							  << std::endl;
+					std::cerr << "Invalid continuation byte: 0x" << std::hex << (int)c
+							  << std::dec << std::endl;
 					utf8len = 0;
 				}
 			}
@@ -1574,7 +1687,8 @@ void Terminal::handleCSI(const CSIEscape &csi)
 			int top = csi.args[0] - 1;
 			int bot = csi.args[1] - 1;
 
-			if (BETWEEN(top, 0, state.row - 1) && BETWEEN(bot, 0, state.row - 1) && top < bot)
+			if (BETWEEN(top, 0, state.row - 1) && BETWEEN(bot, 0, state.row - 1) &&
+				top < bot)
 			{
 				state.top = top;
 				state.bot = bot;
@@ -1835,11 +1949,13 @@ void Terminal::writeGlyph(const Glyph &g, int x, int y)
 	// Ensure we properly handle attribute clearing
 	if (!(g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)))
 	{
-		cell.mode &= ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
+		cell.mode &=
+			~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
 	}
 
 	cell.mode =
-		(cell.mode & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)) |
+		(cell.mode &
+		 ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE)) |
 		(g.mode & (ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE));
 
 	cell.colorMode = g.colorMode;
@@ -2037,8 +2153,8 @@ void Terminal::clearRegion(int x1, int y1, int x2, int y2)
 		{
 			Glyph &g = state.lines[y][x];
 			g.u = ' ';
-			g.mode = state.c.attrs &
-					 ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC | ATTR_BLINK | ATTR_UNDERLINE);
+			g.mode = state.c.attrs & ~(ATTR_REVERSE | ATTR_BOLD | ATTR_ITALIC |
+									   ATTR_BLINK | ATTR_UNDERLINE);
 			g.fg = state.c.fg;
 			g.bg = state.c.bg;
 			g.colorMode = state.c.colorMode;
@@ -2202,8 +2318,8 @@ size_t Terminal::utf8Decode(const char *c, Rune *u, size_t clen)
 	// Validate sequence length
 	if (clen < len)
 	{
-		std::cerr << "Incomplete UTF-8 sequence. Expected " << len << " bytes, got " << clen
-				  << std::endl;
+		std::cerr << "Incomplete UTF-8 sequence. Expected " << len << " bytes, got "
+				  << clen << std::endl;
 		return 0;
 	}
 
@@ -2213,8 +2329,8 @@ size_t Terminal::utf8Decode(const char *c, Rune *u, size_t clen)
 		// Validate continuation byte
 		if ((c[i] & 0xC0) != 0x80)
 		{
-			std::cerr << "Invalid continuation byte at position " << i << ": 0x" << std::hex
-					  << static_cast<int>(c[i]) << std::dec << std::endl;
+			std::cerr << "Invalid continuation byte at position " << i << ": 0x"
+					  << std::hex << static_cast<int>(c[i]) << std::dec << std::endl;
 			return 0;
 		}
 
@@ -2223,8 +2339,8 @@ size_t Terminal::utf8Decode(const char *c, Rune *u, size_t clen)
 	}
 
 	// Additional validation for decoded Unicode point
-	if (!BETWEEN(udecoded, utfmin[len], utfmax[len]) || BETWEEN(udecoded, 0xD800, 0xDFFF) ||
-		udecoded > 0x10FFFF)
+	if (!BETWEEN(udecoded, utfmin[len], utfmax[len]) ||
+		BETWEEN(udecoded, 0xD800, 0xDFFF) || udecoded > 0x10FFFF)
 	{
 		std::cerr << "Invalid Unicode code point: U+" << std::hex << udecoded << std::dec
 				  << std::endl;
@@ -2560,21 +2676,21 @@ void Terminal::processInput(const std::string &input)
 
 void Terminal::readOutput()
 {
-    char buffer[4096];
-    while (!shouldTerminate)
-    {
-        ssize_t bytesRead = read(ptyFd, buffer, sizeof(buffer) - 1);
-        if (bytesRead > 0)
-        {
-            std::lock_guard<std::mutex> lock(bufferMutex);
-            writeToBuffer(buffer, bytesRead);
-        } else if (bytesRead < 0 && errno != EINTR)
-        {
-            break;
-        }
-        // Add this line:
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+	char buffer[4096];
+	while (!shouldTerminate)
+	{
+		ssize_t bytesRead = read(ptyFd, buffer, sizeof(buffer) - 1);
+		if (bytesRead > 0)
+		{
+			std::lock_guard<std::mutex> lock(bufferMutex);
+			writeToBuffer(buffer, bytesRead);
+		} else if (bytesRead < 0 && errno != EINTR)
+		{
+			break;
+		}
+		// Add this line:
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
 }
 void Terminal::tputtab(int n)
 {
@@ -2696,11 +2812,12 @@ void Terminal::selectionNormalize()
 	sel.nb.y = std::min(sel.ob.y, sel.oe.y);
 	sel.ne.y = std::max(sel.ob.y, sel.oe.y);
 
-	// Clamp coordinates to terminal dimensions
-	sel.nb.y = std::clamp(sel.nb.y, 0, state.row - 1);
-	sel.ne.y = std::clamp(sel.ne.y, 0, state.row - 1);
+	// Clamp X coordinates to terminal dimensions
 	sel.nb.x = std::clamp(sel.nb.x, 0, state.col - 1);
 	sel.ne.x = std::clamp(sel.ne.x, 0, state.col - 1);
+
+	// Don't clamp Y coordinates to allow scrollback selection
+	// Y coordinates can be negative for scrollback lines
 }
 
 void Terminal::selectionClear()
@@ -2716,31 +2833,50 @@ std::string Terminal::getSelection()
 	if (sel.ob.x == -1)
 		return str;
 
-	for (int y = sel.nb.y; y <= sel.ne.y; y++)
+	// Convert selection coordinates to absolute buffer positions
+	int selStartY = scrollbackBuffer.size() + sel.nb.y;
+	int selEndY = scrollbackBuffer.size() + sel.ne.y;
+
+	for (int absY = selStartY; absY <= selEndY; absY++)
 	{
-		// Bounds check for y
-		if (y < 0 || y >= state.lines.size())
+		const std::vector<Glyph> *line = nullptr;
+
+		// Determine which buffer this line is in
+		if (absY < scrollbackBuffer.size())
+		{
+			// Line is in scrollback buffer
+			line = &scrollbackBuffer[absY];
+		} else
+		{
+			// Line is in current screen buffer
+			int screenY = absY - scrollbackBuffer.size();
+			if (screenY >= 0 && screenY < state.lines.size())
+			{
+				line = &state.lines[screenY];
+			}
+		}
+
+		if (!line)
 			continue;
 
-		const auto &line = state.lines[y];
-		int xstart = (y == sel.nb.y) ? sel.nb.x : 0;
-		int xend = (y == sel.ne.y) ? sel.ne.x : state.col - 1;
+		int xstart = (absY == selStartY) ? sel.nb.x : 0;
+		int xend = (absY == selEndY) ? sel.ne.x : state.col - 1;
 
 		// Clamp xstart and xend to line size
-		xstart = std::clamp(xstart, 0, static_cast<int>(line.size()) - 1);
-		xend = std::clamp(xend, 0, static_cast<int>(line.size()) - 1);
+		xstart = std::clamp(xstart, 0, static_cast<int>(line->size()) - 1);
+		xend = std::clamp(xend, 0, static_cast<int>(line->size()) - 1);
 
 		for (int x = xstart; x <= xend; x++)
 		{
-			if (line[x].mode & ATTR_WDUMMY)
+			if ((*line)[x].mode & ATTR_WDUMMY)
 				continue;
 
 			char buf[UTF_SIZ];
-			size_t len = utf8Encode(line[x].u, buf);
+			size_t len = utf8Encode((*line)[x].u, buf);
 			str.append(buf, len);
 		}
 
-		if (y < sel.ne.y)
+		if (absY < selEndY)
 			str += '\n';
 	}
 	return str;
@@ -2784,11 +2920,23 @@ bool Terminal::selectedText(int x, int y)
 	if (sel.mode == SEL_IDLE || sel.ob.x == -1 || sel.alt != (state.mode & MODE_ALTSCREEN))
 		return false;
 
-	if (sel.type == SEL_RECTANGULAR)
-		return BETWEEN(y, sel.nb.y, sel.ne.y) && BETWEEN(x, sel.nb.x, sel.ne.x);
+	// Convert coordinates to absolute buffer positions
+	int actualY = scrollbackBuffer.size() + y;
+	int selStartY = scrollbackBuffer.size() + sel.nb.y;
+	int selEndY = scrollbackBuffer.size() + sel.ne.y;
 
-	return BETWEEN(y, sel.nb.y, sel.ne.y) && (y != sel.nb.y || x >= sel.nb.x) &&
-		   (y != sel.ne.y || x <= sel.ne.x);
+	// Ensure start is less than or equal to end
+	if (selStartY > selEndY)
+	{
+		std::swap(selStartY, selEndY);
+	}
+
+	if (sel.type == SEL_RECTANGULAR)
+		return BETWEEN(actualY, selStartY, selEndY) && BETWEEN(x, sel.nb.x, sel.ne.x);
+
+	return BETWEEN(actualY, selStartY, selEndY) &&
+		   (actualY != selStartY || x >= sel.nb.x) &&
+		   (actualY != selEndY || x <= sel.ne.x);
 }
 
 void Terminal::strparse()
@@ -2956,8 +3104,11 @@ void Terminal::handleDCS()
 		} else if (param == "r")
 		{ // DECSTBM
 			char response[40];
-			snprintf(
-				response, sizeof(response), "\033P1$r%d;%dr\033\\", state.top + 1, state.bot + 1);
+			snprintf(response,
+					 sizeof(response),
+					 "\033P1$r%d;%dr\033\\",
+					 state.top + 1,
+					 state.bot + 1);
 			processInput(response);
 		}
 	}

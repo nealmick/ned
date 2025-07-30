@@ -1,10 +1,10 @@
 #pragma once
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <string>
 #include <thread>
-#include <chrono>
-#include <mutex>
-#include <condition_variable>
 
 class AITab
 {
@@ -13,17 +13,17 @@ class AITab
 	~AITab();
 	bool load_key();
 	void tab_complete();
-	void update(); // Call this in main loop
-	void accept_completion(); // New function to accept the completion
-	void dismiss_completion(); // New function to dismiss the completion
+	void update();					// Call this in main loop
+	void accept_completion();		// New function to accept the completion
+	void dismiss_completion();		// New function to dismiss the completion
 	void handle_editor_operation(); // New function to handle editor operations
-	void cancel_request(); // New function to cancel ongoing requests
+	void cancel_request();			// New function to cancel ongoing requests
 
 	bool request_done = false;
 	bool has_ghost_text = false; // New flag to track if we have ghost text
-	std::string ghost_text; // The ghost text to show
-	int ghost_text_start = 0; // Start position of ghost text
-	int ghost_text_end = 0; // End position of ghost text
+	std::string ghost_text;		 // The ghost text to show
+	int ghost_text_start = 0;	 // Start position of ghost text
+	int ghost_text_end = 0;		 // End position of ghost text
 
 	std::string response;
 
