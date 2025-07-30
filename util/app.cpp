@@ -262,6 +262,10 @@ double App::calculateEventTimeout(double currentTime,
 								  bool shaderEnabled,
 								  double lastActivityTime)
 {
+	// Check if scroll animation is active - if so, use shorter timeout for responsiveness
+	extern EditorScroll gEditorScroll;
+	bool scrollAnimationActive = gEditorScroll.isScrollAnimationActive();
+
 	// When shaders are enabled, use settings FPS target for timeout
 	// When shaders are disabled, use normal timeout logic
 	if (shaderEnabled)
@@ -281,6 +285,13 @@ double App::calculateEventTimeout(double currentTime,
 		// interaction) Also respect minimum FPS: 25 FPS normally
 		double minFPS = 25.0;
 		double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
+
+		// When scroll animation is active, use much shorter timeout for responsiveness
+		if (scrollAnimationActive)
+		{
+			return 0.001; // 1ms timeout for very responsive scrolling
+		}
+
 		return (currentTime - lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
 	}
 }
