@@ -78,6 +78,10 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 
 	float fpsTarget = DEFAULT_FPS_TARGET;
 
+	// Check if scroll animation is active - if so, bypass FPS restrictions like mouse wheel
+	extern EditorScroll gEditorScroll;
+	bool scrollAnimationActive = gEditorScroll.isScrollAnimationActive();
+
 	if (shaderEnabled)
 	{
 		// When shaders are enabled, use settings FPS target but don't sleep
@@ -98,6 +102,12 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 				   settings.getSettings()["fps_target"].is_number())
 		{
 			fpsTarget = settings.getSettings()["fps_target"].get<float>();
+		}
+
+		// When scroll animation is active, bypass FPS restrictions like mouse wheel
+		if (scrollAnimationActive)
+		{
+			return; // Don't apply any frame timing - let it run at full speed
 		}
 	}
 
