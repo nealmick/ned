@@ -28,13 +28,9 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 extern Font gFont;
 
 App::App()
-	: window(nullptr), lastFocusState(false), windowFocused(true)
-#ifdef __APPLE__
-	  ,
-	  lastOpacity(0.5f), lastBlurEnabled(false)
-#endif
-	  ,
-	  scrollCallback(nullptr), scrollXAccumulator(0.0), scrollYAccumulator(0.0)
+	: window(nullptr), lastFocusState(false), windowFocused(true), lastOpacity(0.5f),
+	  lastBlurEnabled(false), scrollCallback(nullptr), scrollXAccumulator(0.0),
+	  scrollYAccumulator(0.0)
 {
 }
 
