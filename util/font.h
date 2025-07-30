@@ -25,6 +25,7 @@ class Font
 	// Font instances
 	ImFont *currentFont;
 	ImFont *largeFont;
+	bool needFontReload;
 
 	Font();
 	~Font();
@@ -33,13 +34,17 @@ class Font
 	void initialize();
 
 	// Handle font reloading
-	void handleFontReload(bool &needFontReload);
+	void handleFontReload();
 
 	// Handle font reloading with frame updates
-	void handleFontReloadWithFrameUpdates(bool &needFontReload);
+	void handleFontReloadWithFrameUpdates();
 
 	// Get current font
 	ImFont *getCurrentFont() const { return currentFont; }
+
+	// Get font reload state
+	bool getNeedFontReload() const { return needFontReload; }
+	void setNeedFontReload(bool need) { needFontReload = need; }
 };
 
 // Global font instance

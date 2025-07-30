@@ -44,11 +44,7 @@ Bookmarks gBookmarks;
 constexpr float kAgentSplitterWidth = 6.0f;
 AIAgent gAIAgent;
 
-Ned::Ned()
-	: needFontReload(false), windowFocused(true), explorerWidth(0.0f), editorWidth(0.0f),
-	  initialized(false)
-{
-}
+Ned::Ned() : initialized(false) {}
 
 Ned::~Ned()
 {
@@ -93,9 +89,9 @@ bool Ned::initialize()
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
 	Scroll::scrollCallback(window, xoffset, yoffset, [window](double x, double y) {
-		Ned *app = static_cast<Ned *>(glfwGetWindowUserPointer(window));
-		app->scrollXAccumulator += x;
-		app->scrollYAccumulator += y;
+		App *app = static_cast<App *>(glfwGetWindowUserPointer(window));
+		app->setScrollXAccumulator(app->getScrollXAccumulator() + x);
+		app->setScrollYAccumulator(app->getScrollYAccumulator() + y);
 	});
 }
 
@@ -108,6 +104,9 @@ void Ned::run()
 	}
 
 	// Run the main application loop using App
+	bool needFontReload = gFont.getNeedFontReload();
+	float lastOpacity = app.getLastOpacity();
+	bool lastBlurEnabled = app.getLastBlurEnabled();
 	app.runMainLoop(shaderManager,
 					render,
 					gSettings,
@@ -117,9 +116,6 @@ void Ned::run()
 					fb,
 					accum,
 					needFontReload,
-					windowFocused,
-					scrollXAccumulator,
-					scrollYAccumulator,
 					lastOpacity,
 					lastBlurEnabled);
 }

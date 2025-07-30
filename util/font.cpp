@@ -227,7 +227,7 @@ ImFont *Font::loadLargeFont(const std::string &fontName, float fontSize)
 }
 
 // Font class member functions
-Font::Font() : currentFont(nullptr), largeFont(nullptr) {}
+Font::Font() : currentFont(nullptr), largeFont(nullptr), needFontReload(false) {}
 
 Font::~Font() {}
 
@@ -261,22 +261,22 @@ void Font::initialize()
 	}
 
 	// Now reload with the correct font size
-	bool needReload = true;
-	handleFontReload(needReload);
+	needFontReload = true;
+	handleFontReload();
 }
 
-void Font::handleFontReloadWithFrameUpdates(bool &needFontReload)
+void Font::handleFontReloadWithFrameUpdates()
 {
 	// Handle font reloading with frame updates
 	if (needFontReload)
 	{
 		// Frame management is now handled by Render class
 		// The calling code should handle frame updates
-		handleFontReload(needFontReload);
+		handleFontReload();
 	}
 }
 
-void Font::handleFontReload(bool &needFontReload)
+void Font::handleFontReload()
 {
 	if (needFontReload)
 	{
