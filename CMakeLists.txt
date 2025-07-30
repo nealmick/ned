@@ -196,7 +196,6 @@ add_library(util STATIC
   util/close_popper.cpp
   util/welcome.cpp
   util/app.cpp
-  util/cleanup_manager.cpp
   util/debug_console.cpp
   util/font.cpp
   util/window_resize.cpp

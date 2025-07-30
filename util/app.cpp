@@ -6,7 +6,11 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 
 #include "app.h"
 #include "../files/files.h"
+#include "ai/ai_agent.h"
 #include "editor/editor_scroll.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "settings.h"
 #include "shaders/shader_manager.h"
 #include "util/font.h"
@@ -502,4 +506,51 @@ void App::handleFontReload(bool &needFontReload)
 {
 	// Handle font reloading using Font class
 	gFont.handleFontReloadWithFrameUpdates(needFontReload);
+}
+
+// Cleanup methods
+void App::cleanupAll(ShaderQuad &quad,
+					 ShaderManager &shaderManager,
+					 FramebufferState &fb,
+					 AccumulationBuffers &accum)
+{
+	// Cleanup quad
+	cleanupQuad(quad);
+
+	// Cleanup framebuffers
+	cleanupFramebuffers(shaderManager, fb, accum);
+
+	// Save settings
+	extern Settings gSettings;
+	gSettings.saveSettings();
+
+	// Save current file
+	extern FileExplorer gFileExplorer;
+	gFileExplorer.saveCurrentFile();
+
+	// Save AI agent history
+	extern AIAgent gAIAgent;
+	gAIAgent.getHistoryManager().saveConversationHistory();
+
+	// Cleanup graphics
+	cleanup();
+
+	// Cleanup ImGui
+	cleanupImGui();
+}
+
+void App::cleanupQuad(ShaderQuad &quad) { quad.cleanup(); }
+
+void App::cleanupFramebuffers(ShaderManager &shaderManager,
+							  FramebufferState &fb,
+							  AccumulationBuffers &accum)
+{
+	shaderManager.cleanupFramebuffers(fb, accum);
+}
+
+void App::cleanupImGui()
+{
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }
