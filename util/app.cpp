@@ -28,13 +28,13 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 extern Font gFont;
 
 App::App()
-	: window(nullptr), lastFocusState(false)
+	: window(nullptr), lastFocusState(false), windowFocused(true)
 #ifdef __APPLE__
 	  ,
 	  lastOpacity(0.5f), lastBlurEnabled(false)
 #endif
 	  ,
-	  scrollCallback(nullptr)
+	  scrollCallback(nullptr), scrollXAccumulator(0.0), scrollYAccumulator(0.0)
 {
 }
 
@@ -109,9 +109,6 @@ void App::runMainLoop(ShaderManager &shaderManager,
 					  FramebufferState &fb,
 					  AccumulationBuffers &accum,
 					  bool &needFontReload,
-					  bool &windowFocused,
-					  double &scrollXAccumulator,
-					  double &scrollYAccumulator,
 					  float &lastOpacity,
 					  bool &lastBlurEnabled)
 {
@@ -129,7 +126,7 @@ void App::runMainLoop(ShaderManager &shaderManager,
 		handleWindowManagement(window);
 
 		// Handle scroll accumulators
-		handleScrollAccumulators(scrollXAccumulator, scrollYAccumulator);
+		handleScrollAccumulators(this->scrollXAccumulator, this->scrollYAccumulator);
 
 		// Check for activity and decide if we should keep rendering
 		render.checkForActivity();
@@ -148,7 +145,7 @@ void App::runMainLoop(ShaderManager &shaderManager,
 			[&shaderManager](bool enabled) { shaderManager.setShaderEnabled(enabled); },
 			lastOpacity,
 			lastBlurEnabled,
-			windowFocused,
+			this->windowFocused,
 			*this);
 
 		// Setup framebuffers
@@ -178,7 +175,7 @@ void App::runMainLoop(ShaderManager &shaderManager,
 
 		// Handle frame timing using Render class
 		render.handleFrameTiming(
-			frame_start, shaderManager.isShaderEnabled(), windowFocused, settings);
+			frame_start, shaderManager.isShaderEnabled(), this->windowFocused, settings);
 	}
 }
 
@@ -505,7 +502,8 @@ void App::handleFrameRendering(Render &render,
 void App::handleFontReload(bool &needFontReload)
 {
 	// Handle font reloading using Font class
-	gFont.handleFontReloadWithFrameUpdates(needFontReload);
+	gFont.handleFontReloadWithFrameUpdates();
+	needFontReload = gFont.getNeedFontReload();
 }
 
 // Cleanup methods

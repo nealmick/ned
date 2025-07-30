@@ -50,9 +50,6 @@ class App
 					 FramebufferState &fb,
 					 AccumulationBuffers &accum,
 					 bool &needFontReload,
-					 bool &windowFocused,
-					 double &scrollXAccumulator,
-					 double &scrollYAccumulator,
 					 float &lastOpacity,
 					 bool &lastBlurEnabled);
 
@@ -91,10 +88,21 @@ class App
 					FramebufferState &fb,
 					AccumulationBuffers &accum);
 
+	// Scroll accumulator getters
+	double getScrollXAccumulator() const { return scrollXAccumulator; }
+	double getScrollYAccumulator() const { return scrollYAccumulator; }
+	void setScrollXAccumulator(double x) { scrollXAccumulator = x; }
+	void setScrollYAccumulator(double y) { scrollYAccumulator = y; }
+
+	// macOS window management getters
+	float getLastOpacity() const { return lastOpacity; }
+	bool getLastBlurEnabled() const { return lastBlurEnabled; }
+
   private:
 	// Graphics manager members
 	GLFWwindow *window;
 	bool lastFocusState;
+	bool windowFocused;
 
 #ifdef __APPLE__
 	float lastOpacity;
@@ -103,6 +111,8 @@ class App
 
 	// Application manager members
 	GLFWscrollfun scrollCallback;
+	double scrollXAccumulator;
+	double scrollYAccumulator;
 
 	// Graphics initialization methods
 	bool initializeGLFW();
