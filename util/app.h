@@ -86,6 +86,10 @@ class App
 
 	// Cleanup resources
 	void cleanup();
+	void cleanupAll(ShaderQuad &quad,
+					ShaderManager &shaderManager,
+					FramebufferState &fb,
+					AccumulationBuffers &accum);
 
   private:
 	// Graphics manager members
@@ -125,4 +129,11 @@ class App
 							  WindowResize &windowResize,
 							  double currentTime);
 	void handleFontReload(bool &needFontReload);
+
+	// Cleanup helper methods
+	void cleanupQuad(ShaderQuad &quad);
+	void cleanupFramebuffers(ShaderManager &shaderManager,
+							 FramebufferState &fb,
+							 AccumulationBuffers &accum);
+	void cleanupImGui();
 };

@@ -20,7 +20,6 @@
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/app.h"
-#include "util/cleanup_manager.h"
 #include "util/font.h"
 #include "util/render.h"
 #include "util/splitter.h"
@@ -44,7 +43,6 @@ class Ned
   private:
 	// Member variables
 	App app;
-	CleanupManager cleanupManager;
 	ShaderManager shaderManager;
 	FramebufferState fb;
 	ShaderQuad quad;

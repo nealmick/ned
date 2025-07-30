@@ -124,4 +124,4 @@ void Ned::run()
 					lastBlurEnabled);
 }
 
-void Ned::cleanup() { cleanupManager.cleanupAll(quad, shaderManager, fb, accum, app); }
+void Ned::cleanup() { app.cleanupAll(quad, shaderManager, fb, accum); }
