@@ -12,8 +12,7 @@ Consolidated from ned.cpp and initialization_manager.cpp
 #include <iostream>
 
 // Forward declarations
-class GraphicsManager;
-class WindowManager;
+class App;
 class ShaderManager;
 class Render;
 class Settings;
@@ -51,8 +50,7 @@ class Init
 	static void initializeAll(GLFWwindow *window);
 
 	// Main initialization method for all components
-	static bool initializeAllComponents(GraphicsManager &graphicsManager,
-										WindowManager &windowManager,
+	static bool initializeAllComponents(App &app,
 										ShaderManager &shaderManager,
 										Render &render,
 										Settings &settings,
@@ -64,10 +62,8 @@ class Init
 
   private:
 	// Helper initialization methods
-	static bool initializeGraphicsSystem(GraphicsManager &graphicsManager,
-										 ShaderManager &shaderManager);
-	static bool initializeWindowManager(WindowManager &windowManager,
-										GraphicsManager &graphicsManager);
-	static bool initializeComponents(GraphicsManager &graphicsManager);
+	static bool initializeGraphicsSystem(App &app, ShaderManager &shaderManager);
+	// Window manager functionality is now part of App
+	static bool initializeComponents(App &app);
 	static bool initializeQuad(ShaderQuad &quad);
 };

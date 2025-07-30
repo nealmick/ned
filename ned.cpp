@@ -60,42 +60,31 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
+	// Initialize graphics system
+	if (!app.initialize(shaderManager))
+	{
+		return false;
+	}
+
 	// Initialize all components using Init class
-	if (!Init::initializeAllComponents(graphicsManager,
-									   windowManager,
-									   shaderManager,
-									   render,
-									   gSettings,
-									   splitter,
-									   windowResize,
-									   quad,
-									   fb,
-									   accum))
+	if (!Init::initializeAllComponents(
+			app, shaderManager, render, gSettings, splitter, windowResize, quad, fb, accum))
 	{
 		return false;
 	}
 
 	// Initialize application manager
-	if (!applicationManager.initialize(graphicsManager,
-									   windowManager,
-									   shaderManager,
-									   render,
-									   gSettings,
-									   splitter,
-									   windowResize,
-									   quad,
-									   fb,
-									   accum))
+	if (!app.initializeApp(
+			shaderManager, render, gSettings, splitter, windowResize, quad, fb, accum))
 	{
 		return false;
 	}
 
 	// Set up window user pointer
-	graphicsManager.setWindowUserPointer(this);
+	app.setWindowUserPointer(this);
 
 	// Set up scroll callback
-	applicationManager.setScrollCallback(Ned::scrollCallback);
-	graphicsManager.setScrollCallback(Ned::scrollCallback);
+	app.setAppScrollCallback(Ned::scrollCallback);
 
 	initialized = true;
 	return true;
@@ -118,26 +107,21 @@ void Ned::run()
 		return;
 	}
 
-	// Run the main application loop using ApplicationManager
-	applicationManager.runMainLoop(graphicsManager,
-								   windowManager,
-								   shaderManager,
-								   render,
-								   gSettings,
-								   splitter,
-								   windowResize,
-								   quad,
-								   fb,
-								   accum,
-								   needFontReload,
-								   windowFocused,
-								   scrollXAccumulator,
-								   scrollYAccumulator,
-								   lastOpacity,
-								   lastBlurEnabled);
+	// Run the main application loop using App
+	app.runMainLoop(shaderManager,
+					render,
+					gSettings,
+					splitter,
+					windowResize,
+					quad,
+					fb,
+					accum,
+					needFontReload,
+					windowFocused,
+					scrollXAccumulator,
+					scrollYAccumulator,
+					lastOpacity,
+					lastBlurEnabled);
 }
 
-void Ned::cleanup()
-{
-	cleanupManager.cleanupAll(quad, shaderManager, fb, accum, graphicsManager);
-}
+void Ned::cleanup() { cleanupManager.cleanupAll(quad, shaderManager, fb, accum, app); }
