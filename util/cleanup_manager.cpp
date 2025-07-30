@@ -12,7 +12,7 @@ Moved from ned.cpp to better organize the code.
 #include "imgui_impl_opengl3.h"
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
-#include "util/graphics_manager.h"
+#include "util/app.h"
 #include "util/settings.h"
 #include <iostream>
 
@@ -27,7 +27,7 @@ void CleanupManager::cleanupAll(ShaderQuad &quad,
 								ShaderManager &shaderManager,
 								FramebufferState &fb,
 								AccumulationBuffers &accum,
-								GraphicsManager &graphicsManager)
+								App &app)
 {
 	// Cleanup quad
 	cleanupQuad(quad);
@@ -45,7 +45,7 @@ void CleanupManager::cleanupAll(ShaderQuad &quad,
 	gAIAgent.getHistoryManager().saveConversationHistory();
 
 	// Cleanup graphics
-	cleanupGraphics(graphicsManager);
+	cleanupGraphics(app);
 
 	// Cleanup ImGui
 	cleanupImGui();
@@ -60,10 +60,7 @@ void CleanupManager::cleanupFramebuffers(ShaderManager &shaderManager,
 	shaderManager.cleanupFramebuffers(fb, accum);
 }
 
-void CleanupManager::cleanupGraphics(GraphicsManager &graphicsManager)
-{
-	graphicsManager.cleanup();
-}
+void CleanupManager::cleanupGraphics(App &app) { app.cleanup(); }
 
 void CleanupManager::cleanupImGui()
 {

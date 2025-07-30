@@ -195,18 +195,15 @@ add_library(util STATIC
   util/terminal.cpp
   util/close_popper.cpp
   util/welcome.cpp
-  util/application_manager.cpp
+  util/app.cpp
   util/cleanup_manager.cpp
   util/debug_console.cpp
   util/font.cpp
-  util/frame.cpp
   util/window_resize.cpp
   util/splitter.cpp
   util/init.cpp
   util/scroll.cpp
   util/render.cpp
-  util/graphics_manager.cpp
-  util/window_manager.cpp
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}

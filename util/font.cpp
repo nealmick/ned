@@ -4,7 +4,7 @@ Description: Font management class implementation for NED text editor.
 */
 
 #include "font.h"
-#include "frame.h"
+// Frame functionality moved to Render class
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "settings.h"
@@ -270,9 +270,8 @@ void Font::handleFontReloadWithFrameUpdates(bool &needFontReload)
 	// Handle font reloading with frame updates
 	if (needFontReload)
 	{
-		extern Frame gFrame;
-		gFrame.setNeedsRedraw(true);
-		gFrame.setFramesToRender(std::max(gFrame.framesToRender(), 3));
+		// Frame management is now handled by Render class
+		// The calling code should handle frame updates
 		handleFontReload(needFontReload);
 	}
 }

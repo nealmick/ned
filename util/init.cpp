@@ -10,13 +10,13 @@ Consolidated from ned.cpp and initialization_manager.cpp
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "shaders/shader_types.h"
+#include "util/app.h"
 #include "util/debug_console.h"
 #include "util/font.h"
-#include "util/graphics_manager.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
 #include "util/splitter.h"
-#include "util/window_manager.h"
+// Window manager functionality merged into GraphicsManager
 #include <imgui.h>
 
 #ifdef __APPLE__
@@ -142,8 +142,7 @@ void Init::initializeAll(GLFWwindow *window)
 	initializeGraphics(window);
 }
 
-bool Init::initializeAllComponents(GraphicsManager &graphicsManager,
-								   WindowManager &windowManager,
+bool Init::initializeAllComponents(App &app,
 								   ShaderManager &shaderManager,
 								   Render &render,
 								   Settings &settings,
@@ -154,19 +153,16 @@ bool Init::initializeAllComponents(GraphicsManager &graphicsManager,
 								   AccumulationBuffers &accum)
 {
 	// Initialize graphics system
-	if (!initializeGraphicsSystem(graphicsManager, shaderManager))
+	if (!initializeGraphicsSystem(app, shaderManager))
 	{
 		return false;
 	}
 
-	// Initialize window manager
-	if (!initializeWindowManager(windowManager, graphicsManager))
-	{
-		return false;
-	}
+	// Initialize window management in app
+	app.initializeWindowManagement(app.getWindow());
 
 	// Initialize components
-	if (!initializeComponents(graphicsManager))
+	if (!initializeComponents(app))
 	{
 		return false;
 	}
@@ -180,33 +176,22 @@ bool Init::initializeAllComponents(GraphicsManager &graphicsManager,
 	return true;
 }
 
-bool Init::initializeGraphicsSystem(GraphicsManager &graphicsManager,
-									ShaderManager &shaderManager)
+bool Init::initializeGraphicsSystem(App &app, ShaderManager &shaderManager)
 {
 	// Initialize graphics system
-	if (!graphicsManager.initialize(shaderManager))
+	if (!app.initialize(shaderManager))
 	{
 		return false;
 	}
 	return true;
 }
 
-bool Init::initializeWindowManager(WindowManager &windowManager,
-								   GraphicsManager &graphicsManager)
+// Window manager functionality is now part of App
+
+bool Init::initializeComponents(App &app)
 {
-	// Get window from graphics manager
-	GLFWwindow *window = graphicsManager.getWindow();
-
-	// Initialize window manager
-	windowManager.initialize(window);
-
-	return true;
-}
-
-bool Init::initializeComponents(GraphicsManager &graphicsManager)
-{
-	// Get window from graphics manager
-	GLFWwindow *window = graphicsManager.getWindow();
+	// Get window from app
+	GLFWwindow *window = app.getWindow();
 
 	// Initialize all settings, UI, macOS, and graphics components
 	initializeAll(window);

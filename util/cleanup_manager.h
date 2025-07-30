@@ -10,7 +10,7 @@ Moved from ned.cpp to better organize the code.
 #include <GLFW/glfw3.h>
 
 // Forward declarations
-class GraphicsManager;
+class App;
 class ShaderManager;
 class ShaderQuad;
 struct FramebufferState;
@@ -27,7 +27,7 @@ class CleanupManager
 					ShaderManager &shaderManager,
 					FramebufferState &fb,
 					AccumulationBuffers &accum,
-					GraphicsManager &graphicsManager);
+					App &app);
 
   private:
 	// Helper cleanup methods
@@ -35,6 +35,6 @@ class CleanupManager
 	void cleanupFramebuffers(ShaderManager &shaderManager,
 							 FramebufferState &fb,
 							 AccumulationBuffers &accum);
-	void cleanupGraphics(GraphicsManager &graphicsManager);
+	void cleanupGraphics(App &app);
 	void cleanupImGui();
 };
