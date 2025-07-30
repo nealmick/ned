@@ -73,23 +73,24 @@ class Lexer
 
 	Lexer()
 	{
-		keywords = {"abstract",	 "as",		  "base",		"break",	"case",		  "catch",
-					"checked",	 "class",	  "const",		"continue", "default",	  "delegate",
-					"do",		 "else",	  "enum",		"event",	"explicit",	  "extern",
-					"finally",	 "fixed",	  "for",		"foreach",	"goto",		  "if",
-					"implicit",	 "in",		  "interface",	"internal", "is",		  "lock",
-					"namespace", "new",		  "operator",	"out",		"override",	  "params",
-					"private",	 "protected", "public",		"readonly", "ref",		  "return",
-					"sealed",	 "sizeof",	  "stackalloc", "static",	"struct",	  "switch",
-					"this",		 "throw",	  "try",		"typeof",	"unchecked",  "unsafe",
-					"using",	 "virtual",	  "volatile",	"while",	"add",		  "alias",
-					"ascending", "async",	  "await",		"by",		"descending", "dynamic",
-					"equals",	 "from",	  "get",		"global",	"group",	  "into",
-					"join",		 "let",		  "nameof",		"on",		"orderby",	  "partial",
-					"remove",	 "select",	  "set",		"value",	"var",		  "when",
-					"where",	 "yield",	  "unmanaged",	"nint",		"nuint",	  "notnull",
-					"and",		 "or",		  "not",		"record",	"init",		  "with",
-					"managed"};
+		keywords = {
+			"abstract",	 "as",		  "base",		"break",	"case",		  "catch",
+			"checked",	 "class",	  "const",		"continue", "default",	  "delegate",
+			"do",		 "else",	  "enum",		"event",	"explicit",	  "extern",
+			"finally",	 "fixed",	  "for",		"foreach",	"goto",		  "if",
+			"implicit",	 "in",		  "interface",	"internal", "is",		  "lock",
+			"namespace", "new",		  "operator",	"out",		"override",	  "params",
+			"private",	 "protected", "public",		"readonly", "ref",		  "return",
+			"sealed",	 "sizeof",	  "stackalloc", "static",	"struct",	  "switch",
+			"this",		 "throw",	  "try",		"typeof",	"unchecked",  "unsafe",
+			"using",	 "virtual",	  "volatile",	"while",	"add",		  "alias",
+			"ascending", "async",	  "await",		"by",		"descending", "dynamic",
+			"equals",	 "from",	  "get",		"global",	"group",	  "into",
+			"join",		 "let",		  "nameof",		"on",		"orderby",	  "partial",
+			"remove",	 "select",	  "set",		"value",	"var",		  "when",
+			"where",	 "yield",	  "unmanaged",	"nint",		"nuint",	  "notnull",
+			"and",		 "or",		  "not",		"record",	"init",		  "with",
+			"managed"};
 		builtInTypes = {"bool",
 						"byte",
 						"sbyte",
@@ -110,20 +111,25 @@ class Lexer
 						"void",
 						"dynamic"};
 		literals = {"true", "false", "null"};
-		operators = {
-			{">>=", TokenType::Operator}, {"<<=", TokenType::Operator}, {"==", TokenType::Operator},
-			{"!=", TokenType::Operator},  {">=", TokenType::Operator},	{"<=", TokenType::Operator},
-			{"&&", TokenType::Operator},  {"||", TokenType::Operator},	{"??", TokenType::Operator},
-			{"?.", TokenType::Operator},  {"=>", TokenType::Operator},	{"++", TokenType::Operator},
-			{"--", TokenType::Operator},  {"+=", TokenType::Operator},	{"-=", TokenType::Operator},
-			{"*=", TokenType::Operator},  {"/=", TokenType::Operator},	{"%=", TokenType::Operator},
-			{"&=", TokenType::Operator},  {"|=", TokenType::Operator},	{"^=", TokenType::Operator},
-			{"::", TokenType::Operator},  {"<<", TokenType::Operator},	{">>", TokenType::Operator},
-			{"+", TokenType::Operator},	  {"-", TokenType::Operator},	{"*", TokenType::Operator},
-			{"/", TokenType::Operator},	  {"%", TokenType::Operator},	{"=", TokenType::Operator},
-			{">", TokenType::Operator},	  {"<", TokenType::Operator},	{"!", TokenType::Operator},
-			{"&", TokenType::Operator},	  {"|", TokenType::Operator},	{"^", TokenType::Operator},
-			{"~", TokenType::Operator},	  {"?", TokenType::Operator}};
+		operators = {{">>=", TokenType::Operator}, {"<<=", TokenType::Operator},
+					 {"==", TokenType::Operator},  {"!=", TokenType::Operator},
+					 {">=", TokenType::Operator},  {"<=", TokenType::Operator},
+					 {"&&", TokenType::Operator},  {"||", TokenType::Operator},
+					 {"??", TokenType::Operator},  {"?.", TokenType::Operator},
+					 {"=>", TokenType::Operator},  {"++", TokenType::Operator},
+					 {"--", TokenType::Operator},  {"+=", TokenType::Operator},
+					 {"-=", TokenType::Operator},  {"*=", TokenType::Operator},
+					 {"/=", TokenType::Operator},  {"%=", TokenType::Operator},
+					 {"&=", TokenType::Operator},  {"|=", TokenType::Operator},
+					 {"^=", TokenType::Operator},  {"::", TokenType::Operator},
+					 {"<<", TokenType::Operator},  {">>", TokenType::Operator},
+					 {"+", TokenType::Operator},   {"-", TokenType::Operator},
+					 {"*", TokenType::Operator},   {"/", TokenType::Operator},
+					 {"%", TokenType::Operator},   {"=", TokenType::Operator},
+					 {">", TokenType::Operator},   {"<", TokenType::Operator},
+					 {"!", TokenType::Operator},   {"&", TokenType::Operator},
+					 {"|", TokenType::Operator},   {"^", TokenType::Operator},
+					 {"~", TokenType::Operator},   {"?", TokenType::Operator}};
 		colorsNeedUpdate = true;
 	}
 
@@ -195,7 +201,8 @@ class Lexer
 					{
 						tokens.push_back(lexOperatorOrPunctuation(code, pos));
 					}
-				} else if (current_char == '@' && pos + 1 < code.length() && code[pos + 1] == '"')
+				} else if (current_char == '@' && pos + 1 < code.length() &&
+						   code[pos + 1] == '"')
 				{
 					tokens.push_back(lexVerbatimString(code, pos));
 				} else if (current_char == '$' && pos + 1 < code.length() &&
@@ -204,8 +211,9 @@ class Lexer
 							 code[pos + 2] == '"')))
 				{
 					tokens.push_back(lexInterpolatedString(code, pos));
-				} else if (current_char == '@' && pos + 1 < code.length() && code[pos + 1] == '$' &&
-						   pos + 2 < code.length() && code[pos + 2] == '"')
+				} else if (current_char == '@' && pos + 1 < code.length() &&
+						   code[pos + 1] == '$' && pos + 2 < code.length() &&
+						   code[pos + 2] == '"')
 				{
 					tokens.push_back(lexInterpolatedString(code, pos));
 				} else if (current_char == '"')
@@ -240,7 +248,8 @@ class Lexer
 			}
 			if (iterations >= maxIterations)
 			{
-				std::cerr << "🔴 CSharp Tokenizer exceeded maximum iterations." << std::endl;
+				std::cerr << "🔴 CSharp Tokenizer exceeded maximum iterations."
+						  << std::endl;
 			}
 		} catch (const std::exception &e)
 		{
@@ -252,7 +261,8 @@ class Lexer
 		return tokens;
 	}
 
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		try
 		{
@@ -283,18 +293,23 @@ class Lexer
 			}
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Exception in CSharp applyHighlighting: " << e.what() << std::endl;
+			std::cerr << "🔴 Exception in CSharp applyHighlighting: " << e.what()
+					  << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		} catch (...)
 		{
 			std::cerr << "🔴 Unknown exception in CSharp applyHighlighting" << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 	}
 
@@ -316,8 +331,9 @@ class Lexer
 		return -1;
 	}
 
-	bool
-	isAttributeContext(const std::string &code, size_t pos, const std::vector<Token> &tokens) const
+	bool isAttributeContext(const std::string &code,
+							size_t pos,
+							const std::vector<Token> &tokens) const
 	{
 		if (pos == 0)
 			return false;
@@ -356,7 +372,8 @@ class Lexer
 																		"void"};
 		if (prevToken.type == TokenType::Keyword && contextKeywords.count(prevWord))
 			return true;
-		if (prevToken.type == TokenType::BuiltInType || prevToken.type == TokenType::ClassName)
+		if (prevToken.type == TokenType::BuiltInType ||
+			prevToken.type == TokenType::ClassName)
 			return true;
 		if (prevToken.type == TokenType::Bracket && prevChar == ']')
 			return true; // After another attribute
@@ -371,7 +388,8 @@ class Lexer
 		{
 			auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 			auto loadColor = [&theme](const char *key,
-									  ImVec4 df = ImVec4(1.0f, 1.0f, 1.0f, 1.0f)) -> ImVec4 {
+									  ImVec4 df =
+										  ImVec4(1.0f, 1.0f, 1.0f, 1.0f)) -> ImVec4 {
 				try
 				{
 					if (theme.contains(key))
@@ -385,12 +403,12 @@ class Lexer
 					}
 				} catch (const nlohmann::json::exception &e)
 				{
-					std::cerr << "Theme Error '" << key << "': " << e.what() << ". Defaulting."
-							  << std::endl;
+					std::cerr << "Theme Error '" << key << "': " << e.what()
+							  << ". Defaulting." << std::endl;
 				} catch (const std::exception &e)
 				{
-					std::cerr << "Theme Error '" << key << "': " << e.what() << ". Defaulting."
-							  << std::endl;
+					std::cerr << "Theme Error '" << key << "': " << e.what()
+							  << ". Defaulting." << std::endl;
 				}
 				return df;
 			};
@@ -408,17 +426,24 @@ class Lexer
 			colorsNeedUpdate = false;
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Error updating CSharp theme colors: " << e.what() << std::endl;
+			std::cerr << "🔴 Error updating CSharp theme colors: " << e.what()
+					  << std::endl;
 		}
 	}
 	bool isWhitespace(char c) const
 	{
 		return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
 	}
-	bool isAlpha(char c) const { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+	bool isAlpha(char c) const
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	bool isDigit(char c) const { return c >= '0' && c <= '9'; }
 	bool isCSharpIdentifierStart(char c) const { return isAlpha(c) || c == '_'; }
-	bool isCSharpIdentifierPart(char c) const { return isAlpha(c) || isDigit(c) || c == '_'; }
+	bool isCSharpIdentifierPart(char c) const
+	{
+		return isAlpha(c) || isDigit(c) || c == '_';
+	}
 	bool isHexDigit(char c) const
 	{
 		return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -758,18 +783,21 @@ class Lexer
 				pW = code.substr(t.start, t.length);
 			if (t.type == TokenType::Keyword)
 			{
-				if (pW == "class" || pW == "interface" || pW == "struct" || pW == "enum" ||
-					pW == "delegate" || pW == "record" || pW == "namespace")
+				if (pW == "class" || pW == "interface" || pW == "struct" ||
+					pW == "enum" || pW == "delegate" || pW == "record" ||
+					pW == "namespace")
 					infT = TokenType::ClassName;
 				else if (pW == "new")
 					infT = TokenType::ClassName;
-				else if (pW == "using" && nW < code.length() && code[nW] != ';' && code[nW] != '=')
+				else if (pW == "using" && nW < code.length() && code[nW] != ';' &&
+						 code[nW] != '=')
 					infT = TokenType::NamespaceName;
 				else if (pW == "event")
 					infT = TokenType::ClassName;
 				else if (pW == "is" || pW == "as")
 					infT = TokenType::ClassName;
-			} else if (t.type == TokenType::Dot || (t.type == TokenType::Operator && pW == "::"))
+			} else if (t.type == TokenType::Dot ||
+					   (t.type == TokenType::Operator && pW == "::"))
 			{
 				if (nW < code.length() && code[nW] == '(')
 					infT = TokenType::MethodName;

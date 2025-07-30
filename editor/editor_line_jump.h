@@ -21,7 +21,7 @@ class LineJump
 {
   private:
 	char lineNumberBuffer[32] = "";
-	bool justJumped = false; // Track if we just performed a jump
+	bool justJumped = false;		  // Track if we just performed a jump
 	bool wasKeyboardFocusSet = false; // Track if keyboard focus was set
 
   public:
@@ -36,23 +36,28 @@ class LineJump
 									   ImGui::GetIO().DisplaySize.y * 0.2f),
 								ImGuiCond_Always,
 								ImVec2(0.5f, 0.5f));
-		ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-									   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-									   ImGuiWindowFlags_NoScrollWithMouse;
+		ImGuiWindowFlags windowFlags =
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoScrollWithMouse;
 		// Push window style (3 style vars, 3 style colors)
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
 		// background
-		ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-				   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+		ImGui::PushStyleColor(
+			ImGuiCol_WindowBg,
+			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 				   1.0f));
 		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-					   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-					   1.0f));
+		ImGui::PushStyleColor(
+			ImGuiCol_FrameBg,
+			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+				   1.0f));
 
 		ImGui::Begin("LineJump", nullptr, windowFlags);
 
@@ -73,33 +78,33 @@ class LineJump
 	{
 		float inputWidth = ImGui::GetContentRegionAvail().x;
 		ImGui::PushItemWidth(inputWidth);
-		
+
 		// Add border styling to match FileFinder
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
-		
+
 		// Match border and background colors from FileFinder
 		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(
-			gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
-			gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
-			gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
-			1.0f));
+		ImGui::PushStyleColor(
+			ImGuiCol_FrameBg,
+			ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
+				   gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
+				   gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
+				   1.0f));
 
 		// Force keyboard focus each frame so the input stays focused
 		ImGui::SetKeyboardFocusHere();
-		bool enterPressed = ImGui::InputText(
-			"##LineJumpInput",
-			lineNumberBuffer,
-			sizeof(lineNumberBuffer),
-			ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue
-		);
+		bool enterPressed = ImGui::InputText("##LineJumpInput",
+											 lineNumberBuffer,
+											 sizeof(lineNumberBuffer),
+											 ImGuiInputTextFlags_CharsDecimal |
+												 ImGuiInputTextFlags_EnterReturnsTrue);
 
 		// Clean up style changes
 		ImGui::PopStyleColor(2);
 		ImGui::PopStyleVar(3);
-		
+
 		ImGui::PopItemWidth();
 		return enterPressed;
 	}
@@ -111,8 +116,8 @@ class LineJump
 		bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 		bool shift_pressed = ImGui::GetIO().KeyShift;
 		ImGuiKey line_jump_key = gKeybinds.getActionKey("line_jump_key");
-		
-		if (main_key && (ImGui::IsKeyPressed(line_jump_key, false)||
+
+		if (main_key && (ImGui::IsKeyPressed(line_jump_key, false) ||
 						 (shift_pressed && ImGui::IsKeyPressed(line_jump_key, false))))
 		{
 			showLineJumpWindow = !showLineJumpWindow;
@@ -189,7 +194,16 @@ class LineJump
 
 	inline bool isWindowOpen() const { return showLineJumpWindow; }
 
-	inline bool hasJustJumped() const { return justJumped; }
+	inline bool hasJustJumped() const
+	{
+		if (justJumped)
+		{
+			// Reset the flag when checked
+			const_cast<LineJump *>(this)->justJumped = false;
+			return true;
+		}
+		return false;
+	}
 };
 
-extern LineJump gLineJump; 
+extern LineJump gLineJump;

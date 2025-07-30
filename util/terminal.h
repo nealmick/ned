@@ -17,8 +17,6 @@
 
 #include "../util/settings.h"
 
-
-      
 #ifdef MIN
 #undef MIN
 #endif
@@ -29,7 +27,6 @@
 #endif
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 
-    
 #define BETWEEN(x, a, b) ((a) <= (x) && (x) <= (b))
 #define LIMIT(x, a, b) (x) = (x)<(a) ? (a) : (x)>(b) ? (b) : (x)
 #define MODBIT(x, set, bit) ((set) ? ((x) |= (bit)) : ((x) &= ~(bit)))
@@ -168,6 +165,7 @@ class Terminal
 	bool selectedText(int x, int y);
 
 	void UpdateTerminalColors();
+
   private:
 	// Terminal state
 	struct TermState
@@ -333,12 +331,18 @@ class Terminal
 	void handleRegularTextInput(const ImGuiIO &io);
 
 	// RenderBuffer helper functions
-	void
-	setupRenderContext(ImDrawList *&drawList, ImVec2 &pos, float &charWidth, float &lineHeight);
-	void
-	renderAltScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight);
-	void
-	renderMainScreen(ImDrawList *drawList, const ImVec2 &pos, float charWidth, float lineHeight);
+	void setupRenderContext(ImDrawList *&drawList,
+							ImVec2 &pos,
+							float &charWidth,
+							float &lineHeight);
+	void renderAltScreen(ImDrawList *drawList,
+						 const ImVec2 &pos,
+						 float charWidth,
+						 float lineHeight);
+	void renderMainScreen(ImDrawList *drawList,
+						  const ImVec2 &pos,
+						  float charWidth,
+						  float lineHeight);
 
 	// Shared rendering helpers
 	void renderSelectionHighlight(ImDrawList *drawList,

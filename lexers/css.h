@@ -572,7 +572,8 @@ class Lexer
 				if (isWhitespace(current_char))
 				{
 					tokens.push_back(lexWhitespace(code, pos));
-				} else if (current_char == '/' && pos + 1 < code.length() && code[pos + 1] == '*')
+				} else if (current_char == '/' && pos + 1 < code.length() &&
+						   code[pos + 1] == '*')
 				{
 					tokens.push_back(lexComment(code, pos));
 				}
@@ -622,8 +623,9 @@ class Lexer
 							inferredType = TokenType::PropertyName;
 						} else
 						{
-							inferredType = TokenType::PropertyValueKeyword; // Assume value
-																			// otherwise
+							inferredType =
+								TokenType::PropertyValueKeyword; // Assume value
+																 // otherwise
 						}
 
 						if (inferredType == TokenType::PropertyName)
@@ -659,7 +661,8 @@ class Lexer
 		return tokens;
 	}
 
-	void applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
+	void
+	applyHighlighting(const std::string &code, std::vector<ImVec4> &colors, int start_pos)
 	{
 		try
 		{
@@ -690,18 +693,23 @@ class Lexer
 			}
 		} catch (const std::exception &e)
 		{
-			std::cerr << "🔴 Exception in CSS applyHighlighting: " << e.what() << std::endl;
+			std::cerr << "🔴 Exception in CSS applyHighlighting: " << e.what()
+					  << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		} catch (...)
 		{
 			std::cerr << "🔴 Unknown exception in CSS applyHighlighting" << std::endl;
 			if (!colorsNeedUpdate)
 				std::fill(colors.begin() + start_pos, colors.end(), cachedColors.text);
 			else
-				std::fill(colors.begin() + start_pos, colors.end(), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+				std::fill(colors.begin() + start_pos,
+						  colors.end(),
+						  ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 		}
 	}
 
@@ -738,7 +746,8 @@ class Lexer
 		{
 			auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
 			auto loadColor = [&theme](const char *key,
-									  ImVec4 df = ImVec4(1.0f, 1.0f, 1.0f, 1.0f)) -> ImVec4 {
+									  ImVec4 df =
+										  ImVec4(1.0f, 1.0f, 1.0f, 1.0f)) -> ImVec4 {
 				try
 				{
 					if (theme.contains(key))
@@ -752,12 +761,12 @@ class Lexer
 					}
 				} catch (const nlohmann::json::exception &e)
 				{
-					std::cerr << "Theme Error '" << key << "': " << e.what() << ". Defaulting."
-							  << std::endl;
+					std::cerr << "Theme Error '" << key << "': " << e.what()
+							  << ". Defaulting." << std::endl;
 				} catch (const std::exception &e)
 				{
-					std::cerr << "Theme Error '" << key << "': " << e.what() << ". Defaulting."
-							  << std::endl;
+					std::cerr << "Theme Error '" << key << "': " << e.what()
+							  << ". Defaulting." << std::endl;
 				}
 				return df;
 			};
@@ -770,8 +779,9 @@ class Lexer
 			cachedColors.function = loadColor("function");
 			cachedColors.type =
 				loadColor("type", cachedColors.keyword); // Default type to keyword color
-			cachedColors.className = loadColor("class_name",
-											   cachedColors.type); // Default class to type color
+			cachedColors.className =
+				loadColor("class_name",
+						  cachedColors.type); // Default class to type color
 
 			colorsNeedUpdate = false;
 		} catch (const std::exception &e)
@@ -939,7 +949,8 @@ class Lexer
 			else
 				return {TokenType::Unknown, s, l};
 		}
-		if (isDigit(c) || (c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1])) ||
+		if (isDigit(c) ||
+			(c == '.' && pos + 1 < code.length() && isDigit(code[pos + 1])) ||
 			(c == '-' && pos + 1 < code.length() &&
 			 (isDigit(code[pos + 1]) || code[pos + 1] == '.')))
 		{
@@ -953,7 +964,8 @@ class Lexer
 				while (pos < code.length() && isDigit(code[pos]))
 					pos++;
 			}
-			while (pos < code.length() && std::isalpha(static_cast<unsigned char>(code[pos])))
+			while (pos < code.length() &&
+				   std::isalpha(static_cast<unsigned char>(code[pos])))
 				pos++;
 			if (pos < code.length() && code[pos] == '%')
 				pos++;

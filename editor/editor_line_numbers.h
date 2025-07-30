@@ -26,7 +26,7 @@ class EditorLineNumbers
 	// Layout functions
 	ImVec2 createLineNumbersPanel();
 
-	void setCurrentFilePath(const std::string& filepath);
+	void setCurrentFilePath(const std::string &filepath);
 
   private:
 	// Color calculation helpers

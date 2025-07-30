@@ -1,15 +1,16 @@
 #include "editor_line_numbers.h"
-#include "editor_git.h"
-#include "../util/settings.h"
 #include "../files/files.h"
+#include "../util/settings.h"
 #include "editor.h"
+#include "editor_git.h"
 #include <algorithm>
 #include <cmath>
 
 // Global instance
 EditorLineNumbers gEditorLineNumbers;
 
-void EditorLineNumbers::setCurrentFilePath(const std::string& filepath) {
+void EditorLineNumbers::setCurrentFilePath(const std::string &filepath)
+{
 	current_filepath = filepath;
 }
 
@@ -21,12 +22,12 @@ void EditorLineNumbers::renderLineNumbers()
 	// Calculate visible line range
 	int start_line =
 		static_cast<int>(gEditorScroll.getScrollPosition().y / editor_state.line_height);
-	int end_line =
-		std::min(static_cast<int>(editor_state.editor_content_lines.size()),
-				 static_cast<int>((gEditorScroll.getScrollPosition().y +
-								   (editor_state.size.y - editor_state.editor_top_margin)) /
-								  editor_state.line_height) +
-					 1);
+	int end_line = std::min(static_cast<int>(editor_state.editor_content_lines.size()),
+							static_cast<int>(
+								(gEditorScroll.getScrollPosition().y +
+								 (editor_state.size.y - editor_state.editor_top_margin)) /
+								editor_state.line_height) +
+								1);
 
 	// Pre-calculate rainbow color if needed
 	bool rainbow_mode = gSettings.getRainbowMode();
@@ -47,7 +48,8 @@ void EditorLineNumbers::renderLineNumbers()
 
 	// Get text color from theme
 	auto &theme = gSettings.getSettings()["themes"][gSettings.getCurrentTheme()];
-	ImVec4 text_color = ImVec4(theme["text"][0], theme["text"][1], theme["text"][2], theme["text"][3]);
+	ImVec4 text_color =
+		ImVec4(theme["text"][0], theme["text"][1], theme["text"][2], theme["text"][3]);
 	ImU32 text_color_u32 = ImGui::ColorConvertFloat4ToU32(text_color);
 
 	// Render each visible line number
@@ -63,45 +65,47 @@ void EditorLineNumbers::renderLineNumbers()
 		// Determine color based on selection, current line, and edited status
 		ImU32 line_number_color;
 		bool is_edited = gEditorGit.isLineEdited(gFileExplorer.currentFile, i + 1);
-		
-		if (i >= selection_start_line && i < selection_end_line && editor_state.selection_active)
+
+		if (i >= selection_start_line && i < selection_end_line &&
+			editor_state.selection_active)
 		{
 			line_number_color = rainbow_color;
-		}
-		else if (i == current_line)
+		} else if (i == current_line)
 		{
 			line_number_color = rainbow_mode ? rainbow_color : CURRENT_LINE_COLOR;
-		}
-		else if (is_edited)
+		} else if (is_edited)
 		{
 			line_number_color = text_color_u32;
-		}
-		else
+		} else
 		{
 			line_number_color = DEFAULT_LINE_NUMBER_COLOR;
 		}
 
 		// Calculate position for right-aligned text
 		float text_width = ImGui::CalcTextSize(line_number_buffer).x;
-		float x_pos =
-			calculateTextRightAlignedPosition(line_number_buffer, editor_state.line_number_width);
+		float x_pos = calculateTextRightAlignedPosition(line_number_buffer,
+														editor_state.line_number_width);
 
 		// Draw the line number
 		draw_list->AddText(ImVec2(x_pos, y_pos), line_number_color, line_number_buffer);
 	}
 }
 
-float EditorLineNumbers::calculateRequiredLineNumberWidth() const {
+float EditorLineNumbers::calculateRequiredLineNumberWidth() const
+{
 	// Get the maximum line number
 	int max_line_number = static_cast<int>(editor_state.editor_content_lines.size());
-	
-	// Calculate width needed for the digits plus some padding
+
+	// Always reserve space for at least 4 digits (9999)
+	int min_digits_reference = 999;
+	int width_reference = (max_line_number + 1 > min_digits_reference)
+							  ? (max_line_number + 1)
+							  : min_digits_reference;
+
 	char test_buffer[32];
-	// Use 99 as the minimum width reference to ensure 2-digit width
-	// Add 1 to max_line_number to account for potential new lines
-	snprintf(test_buffer, sizeof(test_buffer), "%d", std::max(max_line_number + 1, 99));
+	snprintf(test_buffer, sizeof(test_buffer), "%d", width_reference);
 	float text_width = ImGui::CalcTextSize(test_buffer).x;
-	
+
 	// Add padding on both sides (2.0f on left, 10.0f on right)
 	return text_width + 2.0f + 10.0f;
 }
@@ -110,11 +114,11 @@ ImVec2 EditorLineNumbers::createLineNumbersPanel()
 {
 	ImGui::BeginGroup();
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
-	
+
 	// Calculate dynamic width based on max line number
 	float dynamic_width = calculateRequiredLineNumberWidth();
 	editor_state.line_number_width = dynamic_width;
-	
+
 	ImGui::BeginChild("LineNumbers",
 					  ImVec2(dynamic_width, ImGui::GetContentRegionAvail().y),
 					  false,
@@ -161,7 +165,8 @@ ImU32 EditorLineNumbers::determineLineNumberColor(int line_index,
 												  ImU32 rainbow_color) const
 {
 	// Selected line takes precedence
-	if (line_index >= selection_start_line && line_index < selection_end_line && is_selecting)
+	if (line_index >= selection_start_line && line_index < selection_end_line &&
+		is_selecting)
 	{
 		return rainbow_color;
 	}
@@ -177,11 +182,14 @@ ImU32 EditorLineNumbers::determineLineNumberColor(int line_index,
 	}
 }
 
-void EditorLineNumbers::calculateSelectionLines(int &selection_start_line, int &selection_end_line)
+void EditorLineNumbers::calculateSelectionLines(int &selection_start_line,
+												int &selection_end_line)
 {
 	// Get selection range accounting for selection direction
-	int selection_start = std::min(editor_state.selection_start, editor_state.selection_end);
-	int selection_end = std::max(editor_state.selection_start, editor_state.selection_end);
+	int selection_start =
+		std::min(editor_state.selection_start, editor_state.selection_end);
+	int selection_end =
+		std::max(editor_state.selection_start, editor_state.selection_end);
 
 	// Convert character positions to line indices
 	selection_start_line = std::lower_bound(editor_state.editor_content_lines.begin(),

@@ -121,7 +121,8 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 						{
 							if (item.is_object() && item.contains("value"))
 							{
-								currentSymbolInfo += item["value"].get<std::string>() + "\n";
+								currentSymbolInfo +=
+									item["value"].get<std::string>() + "\n";
 							} else if (item.is_string())
 							{
 								currentSymbolInfo += item.get<std::string>() + "\n";
@@ -141,9 +142,11 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 			{
 				// Replace Unicode right arrow (→) with text arrow
 				size_t arrow_pos = 0;
-				while ((arrow_pos = currentSymbolInfo.find("→", arrow_pos)) != std::string::npos)
+				while ((arrow_pos = currentSymbolInfo.find("→", arrow_pos)) !=
+					   std::string::npos)
 				{
-					currentSymbolInfo.replace(arrow_pos, 3,
+					currentSymbolInfo.replace(arrow_pos,
+											  3,
 											  "->"); // Unicode arrow is 3 bytes
 					arrow_pos += 2;					 // Move past the replacement
 				}
@@ -184,7 +187,8 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 		std::cout << "\033[33mNo hover information found in response\033[0m\n";
 	} catch (const json::exception &e)
 	{
-		std::cerr << "\033[31mJSON Parsing Error:\033[0m " << e.what() << "\nResponse Data:\n"
+		std::cerr << "\033[31mJSON Parsing Error:\033[0m " << e.what()
+				  << "\nResponse Data:\n"
 				  << response << "\n";
 	}
 }
@@ -227,17 +231,20 @@ void LSPSymbolInfo::renderSymbolInfo()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-		   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
-		   1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_WindowBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 
 	if (ImGui::Begin("SymbolInfoWindow",
 					 &showSymbolInfo,
 					 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-						 ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
-						 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav))
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
+						 ImGuiWindowFlags_NoNav))
 	{
 		// Get current window dimensions
 		ImVec2 window_pos = ImGui::GetWindowPos();

@@ -69,8 +69,8 @@ void Welcome::render()
 	} // End scope for title scaling
 
 	// GitHub link right under title
-	ImGui::SetCursorPosY(windowHeight * 0.27f);				  // Set Y position first
-	{														  // Scope for github link scaling
+	ImGui::SetCursorPosY(windowHeight * 0.27f); // Set Y position first
+	{											// Scope for github link scaling
 		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0]; // Get default font again
 		float baseFontSize = currentFont->FontSize;
 		float desiredFontSize = 22.0f; // <<< Github link desired size
@@ -80,10 +80,13 @@ void Welcome::render()
 		ImGui::SetWindowFontScale(scaleFactor); // Apply scaling for github link
 
 		const char *github = "github.com/nealmick/ned";
-		float githubWidth = ImGui::CalcTextSize(github).x; // Calculate width with scaled font
+		float githubWidth =
+			ImGui::CalcTextSize(github).x; // Calculate width with scaled font
 		ImGui::SetCursorPosX((windowWidth - githubWidth) *
 							 0.5f); // Set X position after calculating width
-		ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "%s", github); // Draw scaled text
+		ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f),
+						   "%s",
+						   github); // Draw scaled text
 		ImGui::SetItemAllowOverlap();
 
 		ImGui::SetWindowFontScale(1.0f); // Reset scale
@@ -96,13 +99,14 @@ void Welcome::render()
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
 			float baseFontSize = currentFont->FontSize;
 			float desiredFontSize = 24.0f; // <<< Description desired size
-			float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+			float scaleFactor =
+				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
 			ImGui::PushFont(currentFont);
 			ImGui::SetWindowFontScale(scaleFactor);
 
-			const char *description =
-				"A lightweight, feature-rich text editor built with C++ and ImGui.";
+			const char *description = "A lightweight, feature-rich text editor "
+									  "built with C++ and ImGui.";
 			float descWidth = ImGui::CalcTextSize(description).x;
 			ImGui::SetCursorPosX((windowWidth - descWidth) * 0.5f);
 			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "%s", description);
@@ -117,7 +121,8 @@ void Welcome::render()
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
 			float baseFontSize = currentFont->FontSize;
 			float desiredFontSize = 24.0f; // <<< Keybinds desired size
-			float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+			float scaleFactor =
+				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
 			ImGui::PushFont(currentFont);
 			ImGui::SetWindowFontScale(scaleFactor); // Apply scale for the whole section
@@ -173,7 +178,8 @@ void Welcome::render()
 		// Draw the button - the text inside will use the scaled font
 		if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
 		{
-			std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked" << std::endl;
+			std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
+					  << std::endl;
 			gFileExplorer._showFileDialog = true;
 		}
 
@@ -181,10 +187,10 @@ void Welcome::render()
 		ImGui::PopFont();				 // Pop font immediately after button
 	} // End scope for button text scaling
 
-	ImGui::SetCursorPosY(windowHeight * 0.71f);						   // Position below button
+	ImGui::SetCursorPosY(windowHeight * 0.71f); // Position below button
 	ImGui::SetCursorPosX((windowWidth - (windowWidth * 0.6f)) * 0.5f); // Center console
 
-	ImGui::SetCursorPosY(windowHeight * 0.71f);						   // Position below button
+	ImGui::SetCursorPosY(windowHeight * 0.71f); // Position below button
 	ImGui::SetCursorPosX((windowWidth - (windowWidth * 0.6f)) * 0.5f); // Center console
 	gDebugConsole.render();
 

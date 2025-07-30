@@ -18,6 +18,7 @@
 #include "editor_bookmarks.h"
 #include "editor_copy_paste.h"
 #include "editor_cursor.h"
+#include "editor_header.h"
 #include "editor_highlight.h"
 #include "editor_keyboard.h"
 #include "editor_line_jump.h"
@@ -51,24 +52,6 @@ void Editor::textEditor()
 	processEditorInput();
 
 	gEditorRender.renderEditorFrame();
-	/*
-	std::cout << "---- Multi-Selection Ranges (After Movement) ----" << std::endl;
-	for (size_t i = 0; i < editor_state.multi_selections.size(); ++i)
-	{
-		if (i < editor_state.multi_cursor_indices.size())
-		{
-			const auto &selection = editor_state.multi_selections[i];
-			std::cout << "  Cursor " << i << " (idx "
-					  << (i < editor_state.multi_cursor_indices.size()
-							  ? editor_state.multi_cursor_indices[i]
-							  : -1)
-					  << "): "
-					  << "Sel Start = " << selection.start_index
-					  << ", Sel End = " << selection.end_index << std::endl;
-		}
-	}
-	std::cout << "--------------------------------------------------" << std::endl;
-	*/
 }
 
 void Editor::setupEditorDisplay()
@@ -82,13 +65,16 @@ void Editor::setupEditorDisplay()
 	editor_state.line_numbers_pos = gEditorLineNumbers.createLineNumbersPanel();
 
 	updateLineStarts();
-	editor_state.total_height = editor_state.line_height * editor_state.editor_content_lines.size();
+	editor_state.total_height =
+		editor_state.line_height * editor_state.editor_content_lines.size();
 
 	float remaining_width = editor_state.size.x - editor_state.line_number_width;
 	float content_width = calculateTextWidth() + ImGui::GetFontSize() * 10.0f;
-	float content_height = editor_state.editor_content_lines.size() * editor_state.line_height;
+	float content_height =
+		editor_state.editor_content_lines.size() * editor_state.line_height;
 
-	gEditorRender.beginTextEditorChild("##editor", remaining_width, content_width, content_height);
+	gEditorRender.beginTextEditorChild(
+		"##editor", remaining_width, content_width, content_height);
 }
 
 void Editor::processEditorInput()
@@ -119,14 +105,15 @@ void Editor::updateLineStarts()
 	editor_state.line_widths.clear();
 
 	editor_state.editor_content_lines.reserve(
-		editor_state.fileContent.size() / 40); // Heuristic: assume average line length of 40 chars
+		editor_state.fileContent.size() /
+		40); // Heuristic: assume average line length of 40 chars
 	editor_state.editor_content_lines.push_back(0);
 
 	size_t pos = 0;
 	while ((pos = editor_state.fileContent.find('\n', pos)) != std::string::npos)
 	{
-		editor_state.editor_content_lines.push_back(pos +
-													1); // Position after the newline character
+		editor_state.editor_content_lines.push_back(
+			pos + 1); // Position after the newline character
 		++pos;
 	}
 
@@ -151,35 +138,59 @@ int Editor::getLineFromPos(int pos)
 	return std::distance(editor_state.editor_content_lines.begin(), it) - 1;
 }
 
-
 float Editor::calculateTextWidth()
 {
-    float max_width = 0.0f;
-    ImFont* font = ImGui::GetFont();
-    
-    for (size_t i = 0; i < editor_state.editor_content_lines.size(); ++i)
-    {
-        size_t start = editor_state.editor_content_lines[i];
-        size_t end = (i + 1 < editor_state.editor_content_lines.size()) 
-                     ? editor_state.editor_content_lines[i + 1] 
-                     : editor_state.fileContent.size();
-        
-        if (end > start) {
-            std::string line = editor_state.fileContent.substr(start, end - start);
-            float width = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, line.c_str()).x;
-            
-            // Apply compensation based on line length and font size
-            float compensation = (line.length() * 0.1f) * (24.0f / font->FontSize) *10;
-            width += compensation;
-            
-            // Add extra safety margin
-            width *= 1.01f; // 1% extra
-            
-            if (width > max_width) max_width = width;
-        }
-    }
-    
-    // Add generous padding (15% or 150px, whichever is larger)
-    float padding = std::max(150.0f, max_width * 0.15f);
-    return max_width + padding;
+	float max_width = 0.0f;
+	ImFont *font = ImGui::GetFont();
+
+	for (size_t i = 0; i < editor_state.editor_content_lines.size(); ++i)
+	{
+		size_t start = editor_state.editor_content_lines[i];
+		size_t end = (i + 1 < editor_state.editor_content_lines.size())
+						 ? editor_state.editor_content_lines[i + 1]
+						 : editor_state.fileContent.size();
+
+		if (end > start)
+		{
+			std::string line = editor_state.fileContent.substr(start, end - start);
+			float width =
+				font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, line.c_str()).x;
+
+			// Apply compensation based on line length and font size
+			float compensation = (line.length() * 0.1f) * (24.0f / font->FontSize) * 10;
+			width += compensation;
+
+			// Add extra safety margin
+			width *= 1.01f; // 1% extra
+
+			if (width > max_width)
+				max_width = width;
+		}
+	}
+
+	// Add generous padding (15% or 150px, whichever is larger)
+	float padding = std::max(150.0f, max_width * 0.15f);
+	return max_width + padding;
+}
+
+void Editor::renderEditor(ImFont *font, float editorWidth)
+{
+	ImGui::SameLine(0, 0);
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
+
+	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
+
+	// Calculate if git changes should be shown based on window width
+	float windowWidth = ImGui::GetWindowWidth();
+	bool showGitChanges = windowWidth >= 250.0f;
+
+	// Create a temporary EditorHeader instance for rendering
+	EditorHeader editorHeader;
+	editorHeader.render(font, gFileExplorer.currentFile, showGitChanges);
+	gFileExplorer.renderFileContent();
+	ImGui::EndChild();
+
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar();
 }

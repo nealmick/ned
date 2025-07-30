@@ -63,7 +63,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 
 		if (pid == 0)
 		{ // Child process
-			std::cout << "\033[35mPyright:\033[0m Starting pyright-langserver process" << std::endl;
+			std::cout << "\033[35mPyright:\033[0m Starting pyright-langserver process"
+					  << std::endl;
 
 			dup2(outPipe[0], STDIN_FILENO);
 			dup2(inPipe[1], STDOUT_FILENO);
@@ -76,7 +77,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 			// Pyright langserver needs --stdio flag
 			execl(lspPath.c_str(), "pyright-langserver", "--stdio", nullptr);
 
-			std::cerr << "\033[31mPyright:\033[0m Failed to start pyright-langserver" << std::endl;
+			std::cerr << "\033[31mPyright:\033[0m Failed to start pyright-langserver"
+					  << std::endl;
 			exit(1);
 		}
 
@@ -145,7 +147,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
         })";
 
 		sendRequest(initRequest);
-		std::cout << "\033[32mPyright:\033[0m Initialize request sent successfully" << std::endl;
+		std::cout << "\033[32mPyright:\033[0m Initialize request sent successfully"
+				  << std::endl;
 
 		// Wait for initialization response with timeout
 		const int MAX_ATTEMPTS = 10;
@@ -158,7 +161,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 			std::string response = readResponse(nullptr);
 			if (response.empty())
 			{
-				std::cout << "\033[31mPyright:\033[0m Empty response received" << std::endl;
+				std::cout << "\033[31mPyright:\033[0m Empty response received"
+						  << std::endl;
 				continue;
 			}
 
@@ -177,7 +181,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
                     "params": {}
                 })";
 				sendRequest(initializedNotification);
-				std::cout << "\033[32mPyright:\033[0m Sent initialized notification" << std::endl;
+				std::cout << "\033[32mPyright:\033[0m Sent initialized notification"
+						  << std::endl;
 
 				initialized = true;
 				return true;
@@ -196,7 +201,8 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 		return false;
 	} catch (const std::exception &e)
 	{
-		std::cerr << "\033[31mPyright:\033[0m Initialization failed: " << e.what() << std::endl;
+		std::cerr << "\033[31mPyright:\033[0m Initialization failed: " << e.what()
+				  << std::endl;
 		return false;
 	}
 }
@@ -211,7 +217,8 @@ bool LSPAdapterPyright::sendRequest(const std::string &request)
 		return false;
 	}
 
-	fprintf(impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
+	fprintf(
+		impl->input, "Content-Length: %zu\r\n\r\n%s", request.length(), request.c_str());
 	fflush(impl->input);
 	return true;
 }
@@ -232,7 +239,8 @@ std::string LSPAdapterPyright::readResponse(int *contentLength)
 		{
 			if (feof(impl->output))
 			{
-				std::cerr << "\033[33mPyright:\033[0m Server closed connection" << std::endl;
+				std::cerr << "\033[33mPyright:\033[0m Server closed connection"
+						  << std::endl;
 				return "";
 			}
 			return "";
@@ -245,7 +253,8 @@ std::string LSPAdapterPyright::readResponse(int *contentLength)
 			if (sscanf(header + 15, " %d", &length) == 1)
 			{
 				// Read the remaining header (until \r\n\r\n)
-				while (fgets(header, sizeof(header), impl->output) && strcmp(header, "\r\n") != 0)
+				while (fgets(header, sizeof(header), impl->output) &&
+					   strcmp(header, "\r\n") != 0)
 				{
 				}
 
@@ -271,7 +280,8 @@ std::string LSPAdapterPyright::readResponse(int *contentLength)
 					break;
 				notification += static_cast<char>(ch);
 			}
-			std::cout << "\033[35mPyright Notification:\033[0m " << notification << std::endl;
+			std::cout << "\033[35mPyright Notification:\033[0m " << notification
+					  << std::endl;
 		}
 	}
 }

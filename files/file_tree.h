@@ -6,7 +6,6 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-
 // Move FileNode struct from files.h
 struct FileNode
 {
@@ -64,8 +63,11 @@ class FileTree
 	// Display helper methods
 	TreeDisplayMetrics calculateDisplayMetrics();
 	void pushTreeStyles();
-	void displayDirectoryNode(const FileNode &node, const TreeDisplayMetrics &metrics, int &depth);
-	void displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth);
+	void displayDirectoryNode(const FileNode &node,
+							  const TreeDisplayMetrics &metrics,
+							  int &depth);
+	void
+	displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth);
 	ImTextureID getFolderIcon(bool isOpen);
 	void renderNodeText(const std::string &name, bool isCurrentFile);
 

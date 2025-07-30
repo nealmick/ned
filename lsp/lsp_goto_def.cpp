@@ -29,14 +29,14 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 
 	if (!gLSPManager.selectAdapterForFile(filePath))
 	{
-		std::cout << "\033[31mLSP GotoDef:\033[0m No LSP adapter available for file: " << filePath
-				  << std::endl;
+		std::cout << "\033[31mLSP GotoDef:\033[0m No LSP adapter available for file: "
+				  << filePath << std::endl;
 		return false;
 	}
 
 	int requestId = getNextRequestId();
-	std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line << ", char "
-			  << character << " (ID: " << requestId << ")" << std::endl;
+	std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line
+			  << ", char " << character << " (ID: " << requestId << ")" << std::endl;
 
 	std::string request = std::string(R"({
             "jsonrpc": "2.0",
@@ -76,7 +76,8 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 
 		if (response.empty())
 		{
-			std::cout << "\033[31mLSP GotoDef:\033[0m Empty response received" << std::endl;
+			std::cout << "\033[31mLSP GotoDef:\033[0m Empty response received"
+					  << std::endl;
 			if (attempt == MAX_ATTEMPTS - 1)
 			{
 				std::cout << "\033[31mLSP GotoDef:\033[0m Timeout waiting for "
@@ -157,7 +158,8 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m 'result' is null. "
 						 "No definition found."
 					  << std::endl;
-		} else if (result.is_object() && result.contains("uri") && result.contains("range"))
+		} else if (result.is_object() && result.contains("uri") &&
+				   result.contains("range"))
 		{
 			std::cout << "\033[32mLSP GotoDef Parse:\033[0m Found single "
 						 "'result' object (Location)."
@@ -186,14 +188,16 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 		}
 	} catch (json::parse_error &e)
 	{
-		std::cerr << "\033[31mLSP GotoDef Parse:\033[0m JSON parsing error: " << e.what() << '\n'
+		std::cerr << "\033[31mLSP GotoDef Parse:\033[0m JSON parsing error: " << e.what()
+				  << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		definitionLocations.clear(); // Ensure list is empty on error
 		showDefinitionOptions = false;
 		return; // Stop processing on parse error
 	} catch (json::exception &e)
 	{
-		std::cerr << "\033[31mLSP GotoDef Parse:\033[0m JSON exception: " << e.what() << '\n'
+		std::cerr << "\033[31mLSP GotoDef Parse:\033[0m JSON exception: " << e.what()
+				  << '\n'
 				  << "Exception id: " << e.id << std::endl;
 		definitionLocations.clear();
 		showDefinitionOptions = false;
@@ -204,7 +208,8 @@ void LSPGotoDef::parseDefinitionResponse(const std::string &response)
 	if (!definitionLocations.empty())
 	{
 		std::cout << "\033[32mLSP GotoDef Parse:\033[0m Finished Parsing. Found "
-				  << definitionLocations.size() << " definition location(s)." << std::endl;
+				  << definitionLocations.size() << " definition location(s)."
+				  << std::endl;
 		showDefinitionOptions = true; // Set flag to true ONLY if locations were added
 		selectedDefinitionIndex = 0;  // Reset selection
 	} else
@@ -263,7 +268,8 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 						endChar = range_json["end"].value("character", -1);
 					}
 					// Consider parse successful if start is valid
-					parsed_successfully = (!uri.empty() && startLine != -1 && startChar != -1);
+					parsed_successfully =
+						(!uri.empty() && startLine != -1 && startChar != -1);
 					if (parsed_successfully)
 						std::cout << "\033[35mLSP GotoDef Parse:\033[0m Parsed "
 									 "as LocationLink."
@@ -296,7 +302,8 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 						endChar = range_json["end"].value("character", -1);
 					}
 					// Consider parse successful if start is valid
-					parsed_successfully = (!uri.empty() && startLine != -1 && startChar != -1);
+					parsed_successfully =
+						(!uri.empty() && startLine != -1 && startChar != -1);
 					if (parsed_successfully)
 						std::cout << "\033[35mLSP GotoDef Parse:\033[0m Parsed "
 									 "as Location."
@@ -359,8 +366,9 @@ void LSPGotoDef::renderDefinitionOptions()
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-								   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
+								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+								   ImGuiWindowFlags_NoScrollbar |
 								   ImGuiWindowFlags_NoMouseInputs;
 	float availableContentHeight = totalHeight - titleHeight - footerHeight - padding * 2;
 	if (contentHeight > availableContentHeight)
@@ -372,9 +380,11 @@ void LSPGotoDef::renderDefinitionOptions()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>()* .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>()* .8,
+	ImGui::PushStyleColor(
+		ImGuiCol_WindowBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f)); // Unused?
@@ -398,8 +408,7 @@ void LSPGotoDef::renderDefinitionOptions()
 			{
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
-			}
-			else
+			} else
 			{
 				showDefinitionOptions = false;
 				editor_state.block_input = false;
@@ -411,9 +420,7 @@ void LSPGotoDef::renderDefinitionOptions()
 			editor_state.block_input = false;
 		}
 
-		ImGui::Text(
-						   "Go to Definition (%zu)",
-						   definitionLocations.size());
+		ImGui::Text("Go to Definition (%zu)", definitionLocations.size());
 		ImGui::Separator();
 
 		bool useChildWindow = !(windowFlags & ImGuiWindowFlags_NoScrollbar);
@@ -471,8 +478,8 @@ void LSPGotoDef::renderDefinitionOptions()
 				}
 			}
 
-			if (is_selected &&
-				(ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
+			if (is_selected && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
+								ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
 			{
 				ImGui::SetScrollHereY();
 			}
@@ -490,7 +497,8 @@ void LSPGotoDef::renderDefinitionOptions()
 		ImGui::Separator();
 		ImGui::Text("Up/Down Enter");
 
-		if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
+		if (ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+			ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
 		{
 		handle_enter_key_def: // Unique label
 			if (selectedDefinitionIndex >= 0 &&
@@ -498,8 +506,8 @@ void LSPGotoDef::renderDefinitionOptions()
 			{ // Check bounds
 				const auto &selected = definitionLocations[selectedDefinitionIndex];
 				std::cout << "Selected definition at " << selected.uri << " line "
-						  << (selected.startLine + 1) << " char " << (selected.startChar + 1)
-						  << std::endl;
+						  << (selected.startLine + 1) << " char "
+						  << (selected.startChar + 1) << std::endl;
 
 				if (selected.uri != gFileExplorer.currentFile)
 				{
@@ -508,7 +516,8 @@ void LSPGotoDef::renderDefinitionOptions()
 						gEditorScroll.pending_cursor_line = selected.startLine;
 						gEditorScroll.pending_cursor_char = selected.startChar;
 					});
-				} else {
+				} else
+				{
 					int index = 0;
 					int currentLine = 0;
 					std::cout << "Calculating cursor position..." << std::endl;
@@ -533,7 +542,7 @@ void LSPGotoDef::renderDefinitionOptions()
 				editor_state.block_input = false;
 			}
 		} else if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-		{ 
+		{
 			showDefinitionOptions = false;
 			editor_state.block_input = false;
 		}
