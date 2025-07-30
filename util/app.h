@@ -104,10 +104,9 @@ class App
 	bool lastFocusState;
 	bool windowFocused;
 
-#ifdef __APPLE__
+	// Window state tracking (used on macOS for opacity/blur)
 	float lastOpacity;
 	bool lastBlurEnabled;
-#endif
 
 	// Application manager members
 	GLFWscrollfun scrollCallback;

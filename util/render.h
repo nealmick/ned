@@ -9,6 +9,7 @@ editor.
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <chrono>
+#include <functional>
 #include <string>
 
 #include "shaders/shader_manager.h"
