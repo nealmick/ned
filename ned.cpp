@@ -56,13 +56,7 @@ Ned::~Ned()
 
 bool Ned::initialize()
 {
-	// Initialize graphics system
-	if (!app.initialize(shaderManager))
-	{
-		return false;
-	}
-
-	// Initialize all components using Init class
+	// Initialize all components using Init class (this will call app.initialize internally)
 	if (!Init::initializeAllComponents(
 			app, shaderManager, render, gSettings, splitter, windowResize, quad, fb, accum))
 	{
