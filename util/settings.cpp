@@ -1187,12 +1187,16 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 									 int &m_framesToRender,
 									 std::function<void(bool)> setShaderEnabled,
 									 float &lastOpacity,
-									 bool &lastBlurEnabled)
+									 bool &lastBlurEnabled,
+									 bool force)
 {
-	if (hasSettingsChanged())
+	if (hasSettingsChanged() || force)
 	{
-		m_needsRedraw = true;							  // Set the flag!
-		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		if (!force)
+		{
+			m_needsRedraw = true;							  // Set the flag!
+			m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		}
 
 		ImGuiStyle &style = ImGui::GetStyle();
 
@@ -1211,7 +1215,7 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		Splitter::showSidebar = getSettings().value("sidebar_visible", true);
 		Splitter::showAgentPane = getSettings().value("agent_pane_visible", true);
 
-		if (hasThemeChanged())
+		if (hasThemeChanged() || force)
 		{
 			extern EditorHighlight gEditorHighlight;
 			gEditorHighlight.setTheme(getCurrentTheme());
@@ -1238,6 +1242,9 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		lastBlurEnabled = currentBlurEnabled;
 #endif
 
-		resetSettingsChanged();
+		if (!force)
+		{
+			resetSettingsChanged();
+		}
 	}
 }
