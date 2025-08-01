@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
+#include "../util/font.h"
 #include "../util/keybinds.h"
 #include "../util/splitter.h"
 #include "../util/terminal.h"
@@ -1229,6 +1230,9 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		if (hasFontChanged() || hasFontSizeChanged())
 		{
 			needFontReload = true;
+			// Also set the global font reload flag
+			extern Font gFont;
+			gFont.setNeedFontReload(true);
 		}
 #ifdef __APPLE__
 		// Always update with current values
