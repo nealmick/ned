@@ -34,13 +34,7 @@ App::App()
 {
 }
 
-App::~App()
-{
-#ifdef __APPLE__
-	cleanupMacOSApplicationDelegate();
-#endif
-	cleanup();
-}
+App::~App() { cleanup(); }
 
 bool App::initialize(ShaderManager &shaderManager)
 {
@@ -48,12 +42,10 @@ bool App::initialize(ShaderManager &shaderManager)
 	{
 		return false;
 	}
-
 	if (!createWindow())
 	{
 		return false;
 	}
-
 	if (!initializeGLEW())
 	{
 		return false;
@@ -61,10 +53,17 @@ bool App::initialize(ShaderManager &shaderManager)
 
 	initializeOpenGLState();
 
+	// CRITICAL FIX: Configure macOS window immediately after window creation (like old
+	// version)
+#ifdef __APPLE__
+	float opacity = 0.5f; // Default values, will be updated when settings are loaded
+	bool blurEnabled = true;
+	configureMacOSWindow(window, opacity, blurEnabled);
+#endif
+
 	if (!shaderManager.initializeShaders())
 	{
 		std::cerr << "🔴 Shader initialization failed" << std::endl;
-		glfwTerminate();
 		return false;
 	}
 
@@ -313,21 +312,7 @@ void App::handleWindowFocus(bool &windowFocused, FileExplorer &fileExplorer)
 	}
 }
 
-bool App::shouldTerminateApplication() const
-{
-#ifdef __APPLE__
-	return ::shouldTerminateApplication();
-#else
-	return false;
-#endif
-}
-
-void App::setupMacOSApplicationDelegate()
-{
-#ifdef __APPLE__
-	::setupMacOSApplicationDelegate();
-#endif
-}
+bool App::shouldTerminateApplication() const { return false; }
 
 void App::configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabled)
 {
@@ -336,10 +321,10 @@ void App::configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabl
 #endif
 }
 
-void App::cleanupMacOSApplicationDelegate()
+void App::updateMacOSWindowProperties(float opacity, bool blurEnabled)
 {
 #ifdef __APPLE__
-	::cleanupMacOSApplicationDelegate();
+	::updateMacOSWindowProperties(opacity, blurEnabled);
 #endif
 }
 
@@ -358,7 +343,8 @@ void App::handleSettingsChanges(Settings &settings,
 
 	if (opacity != lastOpacity || blurEnabled != lastBlurEnabled)
 	{
-		configureMacOSWindow(window, opacity, blurEnabled);
+		// Use updateMacOSWindowProperties for settings changes (like old version)
+		updateMacOSWindowProperties(opacity, blurEnabled);
 		lastOpacity = opacity;
 		lastBlurEnabled = blurEnabled;
 	}
