@@ -92,6 +92,22 @@ bool App::initializeApp(ShaderManager &shaderManager,
 	// Initialize frame management
 	render.initializeFrameManagement();
 
+	// Apply all settings after all components are initialized
+	float lastOpacity = getLastOpacity();
+	bool lastBlurEnabled = getLastBlurEnabled();
+	bool needFontReload = false;
+	bool m_needsRedraw = false;
+	int m_framesToRender = 0;
+	settings.handleSettingsChanges(
+		needFontReload,
+		m_needsRedraw,
+		m_framesToRender,
+		[&shaderManager](bool enabled) { shaderManager.setShaderEnabled(enabled); },
+		lastOpacity,
+		lastBlurEnabled,
+		true // force = true to apply settings even if they haven't "changed"
+	);
+
 	return true;
 }
 

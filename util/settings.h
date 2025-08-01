@@ -166,13 +166,13 @@ class Settings
 	// Method to apply settings to ImGui style
 	void ApplySettings(ImGuiStyle &style);
 
-	// Method to handle settings changes and update related components
 	void handleSettingsChanges(bool &needFontReload,
 							   bool &m_needsRedraw,
 							   int &m_framesToRender,
 							   std::function<void(bool)> setShaderEnabled,
 							   float &lastOpacity,
-							   bool &lastBlurEnabled);
+							   bool &lastBlurEnabled,
+							   bool force = false);
 
   private:
 	json settings;				 // Holds the settings from the *active* file
