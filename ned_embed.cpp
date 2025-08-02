@@ -178,15 +178,8 @@ void NedEmbed::render(float width, float height)
 		// Set the terminal's embedded flag based on our embedded state
 		gTerminal.setEmbedded(isEmbedded);
 		// Don't pop the font here - let the terminal handle its own font management
-		bool terminalRendered = gTerminal.render();
-		
-		// If terminal failed to render (e.g., window collapsed), don't continue
-		if (!terminalRendered)
-		{
-			// Terminal window was collapsed or couldn't be created
-			// Don't continue with any ImGui operations
-			return;
-		}
+		gTerminal.render();
+		// Don't return early - allow settings window to render even when terminal is visible
 	}
 
 	// Always render settings and other UI components, regardless of terminal visibility
