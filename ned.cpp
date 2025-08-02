@@ -39,10 +39,9 @@ Description: Main application class implementation for NED text editor.
 #include "ai/ai_agent.h"
 
 // global scope
-Bookmarks gBookmarks;
+// Note: gBookmarks and gAIAgent are now defined in globals.cpp
 
 constexpr float kAgentSplitterWidth = 6.0f;
-AIAgent gAIAgent;
 
 Ned::Ned() : initialized(false) {}
 

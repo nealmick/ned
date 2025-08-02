@@ -28,7 +28,7 @@ float clamp(float value, float min, float max)
 	return value;
 }
 
-KeybindsManager gKeybinds;
+extern KeybindsManager gKeybinds;
 
 KeybindsManager::KeybindsManager()
 	: keybinds_(json::object()), lastKeybindsModificationTime_(fs::file_time_type::min())

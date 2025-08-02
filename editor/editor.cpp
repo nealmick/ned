@@ -38,7 +38,7 @@
 #include <cmath>
 #include <iostream>
 
-Editor gEditor;
+extern Editor gEditor;
 EditorState editor_state;
 
 void Editor::textEditor()

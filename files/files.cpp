@@ -34,7 +34,7 @@ extern AIAgent gAIAgent;
 
 const std::string UNDO_FILE = ".undo-redo-ned.json";
 
-FileExplorer gFileExplorer;
+extern FileExplorer gFileExplorer;
 
 void FileExplorer::loadIcons()
 {
