@@ -192,7 +192,7 @@ void NedEmbed::render(float width, float height)
 	gLSPGotoRef.setEmbedded(true);
 	gLSPGotoDef.setEmbedded(true);
 
-	// Set embedded flag for FileFinder to constrain popup to editor pane
+	// Set embedded flag for FileFinder to constrain it to editor pane
 	gFileFinder.setEmbedded(true);
 
 	gSettings.renderNotification("");

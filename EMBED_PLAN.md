@@ -280,4 +280,30 @@ nedEditor.render(availableWidth, availableHeight);
 ### 🔧 Next Steps:
 1. **Fix Terminal**: Make it render as a separate draggable, collapsible, and resizable ImGui window in embedded mode
 2. **Fix Font Loading**: Ensure font files are found and loaded correctly
-3. **Test Basic Editing**: Verify core editor functionality works in embedded mode 
+3. **Test Basic Editing**: Verify core editor functionality works in embedded mode
+
+### 📝 FileFinder Positioning Attempts (Failed)
+
+**Issue**: FileFinder popup window positioning was based on main window instead of editor pane, causing it to appear in wrong location in embedded mode.
+
+**Attempted Solutions**:
+1. **Added embedded flag to FileFinder class** - Added `isEmbedded` flag and `setEmbedded()` method
+2. **Tried using ImGui::GetWindowPos() and ImGui::GetContentRegionAvail()** - Got wrong bounds (21px tall editor pane instead of full editor area)
+3. **Tried using main window bounds** - Still positioned relative to main window, not editor pane
+4. **Tried setting bounds from ned_embed.cpp** - Timing issues, bounds set after FileFinder already rendered
+5. **Tried getting bounds from within FileFinder render** - Still got wrong window context (popup window bounds instead of editor pane)
+
+**Root Cause**: The FileFinder is rendered from within the editor's render function, so when it calls `ImGui::GetWindowPos()` and `ImGui::GetContentRegionAvail()`, it gets the bounds of the current ImGui window context (which is the popup itself or a child window), not the main editor pane bounds.
+
+**Current Status**: Reverted all changes back to original state. FileFinder still uses hardcoded positioning based on main window size instead of editor pane bounds.
+
+**Next Attempt**: Need to find a way to get the actual editor pane bounds from the correct ImGui context, or pass the editor pane bounds as parameters to the FileFinder render function.
+
+**Why the goto ref/def approach didn't work**:
+The LSP goto ref/def popups work differently than FileFinder because:
+1. **Different rendering context**: LSP popups are rendered from a different ImGui context than FileFinder
+2. **Different timing**: LSP popups are rendered at a different time in the frame than FileFinder
+3. **Different window hierarchy**: LSP popups are rendered as separate windows, while FileFinder is rendered from within the editor's render function
+4. **Different bounds calculation**: LSP popups can get the correct editor pane bounds because they're rendered from the correct ImGui context, while FileFinder gets the wrong bounds because it's rendered from within the editor's child window context
+
+The key difference is that LSP popups are rendered as standalone ImGui windows that can access the main window bounds, while FileFinder is rendered as part of the editor's render function, so it gets the editor child window bounds instead of the main editor pane bounds. 
