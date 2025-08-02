@@ -38,7 +38,8 @@ constexpr float kAgentSplitterWidth = 6.0f;
 
 NedEmbed::NedEmbed()
 	: settings(nullptr), splitter(nullptr), windowResize(nullptr), showSidebar(true),
-	  showAgentPane(false), showLineNumbers(true), initialized(false)
+	  showAgentPane(false), showLineNumbers(true), showWelcome(true), isEmbedded(true),
+	  initialized(false)
 {
 }
 
@@ -109,6 +110,16 @@ void NedEmbed::render(float width, float height)
 	// Handle input
 	handleInput();
 
+	// Handle file dialog (this is what was missing!)
+	if (gFileExplorer.handleFileDialog())
+	{
+		// If a folder was selected, hide the welcome screen
+		if (showWelcome)
+		{
+			showWelcome = false;
+		}
+	}
+
 	std::cout << "NedEmbed::render() - setting up editor area..." << std::endl;
 	// Set up the editor area - this is the key part where we extract from
 	// Render::renderMainWindow()
@@ -143,11 +154,11 @@ void NedEmbed::render(float width, float height)
 				  << ", editorWidth=" << editorWidth << std::endl;
 
 		std::cout << "NedEmbed::render() - rendering file explorer..." << std::endl;
-		// Render File Explorer - temporarily disabled
-		// renderFileExplorer(explorerWidth);
-		std::cout << "NedEmbed::render() - file explorer disabled for testing"
+		// Render File Explorer
+		renderFileExplorer(explorerWidth);
+		std::cout << "NedEmbed::render() - file explorer rendered successfully"
 				  << std::endl;
-		// ImGui::SameLine(0, 0); // Temporarily commented out to test
+		ImGui::SameLine(0, 0);
 
 		std::cout << "NedEmbed::render() - about to render splitter..." << std::endl;
 		// Render left splitter
@@ -192,9 +203,22 @@ void NedEmbed::render(float width, float height)
 	std::cout << "NedEmbed::render() - about to call windowResize->resize()..."
 			  << std::endl;
 	// windowResize->resize(); // Temporarily disabled to test
-	std::cout
-		<< "NedEmbed::render() - windowResize disabled for testing, about to pop font..."
-		<< std::endl;
+	std::cout << "NedEmbed::render() - windowResize disabled for testing, about to "
+				 "render additional components..."
+			  << std::endl;
+
+	// Render additional components that are called in the standalone app's renderFrame
+	// These are crucial for settings popup, notifications, and keybinds
+
+	// Set embedded flag for settings to constrain popup to editor pane
+	gSettings.setEmbedded(true);
+	gSettings.renderSettingsWindow();
+	gSettings.setEmbedded(false); // Reset for standalone app
+
+	gSettings.renderNotification("");
+	gKeybinds.checkKeybindsFile();
+	// windowResize.renderResizeOverlay(gFont.largeFont); // Temporarily disabled
+
 	ImGui::PopFont();
 	std::cout << "NedEmbed::render() - font popped successfully, render complete!"
 			  << std::endl;
@@ -202,8 +226,19 @@ void NedEmbed::render(float width, float height)
 
 void NedEmbed::renderEditor(float editorWidth)
 {
-	// Use the existing editor render function
-	gEditor.renderEditor(gFont.currentFont, editorWidth);
+	// Show welcome message if enabled (replaces editor)
+	if (showWelcome)
+	{
+		// Temporarily set the welcome screen to embedded mode
+		gWelcome.setEmbedded(true);
+		gWelcome.render();
+		// Reset it back to false for standalone app
+		gWelcome.setEmbedded(false);
+	} else
+	{
+		// Use the existing editor render function
+		gEditor.renderEditor(gFont.currentFont, editorWidth);
+	}
 }
 
 void NedEmbed::renderFileExplorer(float explorerWidth)
@@ -233,9 +268,12 @@ void NedEmbed::setShowAgentPane(bool show) { showAgentPane = show; }
 
 void NedEmbed::setShowLineNumbers(bool show) { showLineNumbers = show; }
 
+void NedEmbed::setShowWelcome(bool show) { showWelcome = show; }
+
 void NedEmbed::handleInput()
 {
-	// Handle keyboard shortcuts
+	// Handle keyboard shortcuts globally (like in standalone app)
+	// These are application-wide shortcuts that should work regardless of focus
 	if (gKeybinds.handleKeyboardShortcuts())
 	{
 		// Mark for redraw if needed

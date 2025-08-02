@@ -108,30 +108,61 @@ void Settings::renderSettingsWindow()
 	if (!showSettingsWindow)
 		return;
 
-	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
 	float settings_window_width;
 	float settings_window_height;
 	float current_font_size = settings.value("fontSize", 20.0f);
 
-	// Dynamic sizing based on viewport width and font size
-	if (main_viewport_size.x < 1100.0f || current_font_size > 40)
+	if (isEmbedded)
 	{
-		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
-		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
+		// In embedded mode, use the current window's size for better sizing
+		ImVec2 window_size = ImGui::GetWindowSize();
+		settings_window_width = window_size.x * 0.85f;	// 85% of window width
+		settings_window_height = window_size.y * 0.80f; // 80% of window height
+
+		// Ensure minimum size
+		settings_window_width = std::max(settings_window_width, 400.0f);
+		settings_window_height = std::max(settings_window_height, 400.0f);
 	} else
 	{
-		settings_window_width = main_viewport_size.x * 0.75f;  // 75% of viewport width
-		settings_window_height = main_viewport_size.y * 0.85f; // 85% of viewport height
+		// Standalone mode - use viewport size
+		ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
+
+		// Dynamic sizing based on viewport width and font size
+		if (main_viewport_size.x < 1100.0f || current_font_size > 40)
+		{
+			settings_window_width = main_viewport_size.x * 0.90f; // 90% of viewport width
+			settings_window_height =
+				main_viewport_size.y * 0.80f; // 80% of viewport height
+		} else
+		{
+			settings_window_width = main_viewport_size.x * 0.75f; // 75% of viewport width
+			settings_window_height =
+				main_viewport_size.y * 0.85f; // 85% of viewport height
+		}
 	}
 
 	ImVec2 window_size(settings_window_width, settings_window_height);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
 	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
-								   ImGui::GetIO().DisplaySize.y * 0.5f),
-							ImGuiCond_Always,
-							ImVec2(0.5f, 0.5f));
+
+	if (isEmbedded)
+	{
+		// In embedded mode, center within the current window's content area
+		// Use the current window's position and size for better positioning
+		ImVec2 window_pos = ImGui::GetWindowPos();
+		ImVec2 window_size = ImGui::GetWindowSize();
+		ImVec2 center_pos(window_pos.x + window_size.x * 0.5f,
+						  window_pos.y + window_size.y * 0.5f);
+		ImGui::SetNextWindowPos(center_pos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	} else
+	{
+		// Standalone mode - center on display
+		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
+									   ImGui::GetIO().DisplaySize.y * 0.5f),
+								ImGuiCond_Always,
+								ImVec2(0.5f, 0.5f));
+	}
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
 								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
 								   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;

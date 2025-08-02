@@ -129,6 +129,13 @@ void EditorRender::beginTextEditorChild(const char *label,
 					  false,
 					  ImGuiWindowFlags_HorizontalScrollbar);
 
+	// Check if this editor child window is focused and set block_input accordingly
+	// We need to check if the parent window (editor pane) is focused, not just this child
+	// window This prevents blocking input when clicking on file explorer within the
+	// editor pane
+	bool isEditorFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+	editor_state.block_input = !isEditorFocused;
+
 	// Set keyboard focus to this child window if appropriate.
 	if (!gBookmarks.isWindowOpen() && !editor_state.block_input)
 	{
