@@ -131,26 +131,35 @@ void NedEmbed::render(float width, float height)
 		width - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
 
 	std::cout << "NedEmbed::render() - calculating layout..." << std::endl;
-	if (showSidebar)
+	// Force agent pane to be hidden in embedded mode
+	Splitter::showAgentPane = false;
+
+	// Check if welcome screen should be shown (like in standalone app)
+	if (showWelcome)
+	{
+		// Welcome screen takes over the entire window when visible
+		// Set the welcome screen's embedded flag based on our embedded state
+		gWelcome.setEmbedded(isEmbedded);
+		gWelcome.render();
+		// Make sure we pop the font before returning to avoid font stack issues
+		ImGui::PopFont();
+		return; // Don't render editor when welcome screen is visible
+	}
+
+	if (Splitter::showSidebar)
 	{
 		std::cout << "NedEmbed::render() - rendering with sidebar..." << std::endl;
-		// Render with sidebar: File Explorer + Editor + Agent
+		// Render with sidebar: File Explorer + Editor (no agent pane)
 		float leftSplit = settings->getSplitPos();
-		float rightSplit = settings->getAgentSplitPos();
 
 		// Ensure minimum widths and prevent negative values
 		float minWidth = 50.0f; // Minimum width for any component
 		float explorerWidth = std::max(availableWidth * leftSplit, minWidth);
-		float agentPaneWidth =
-			showAgentPane ? std::max(availableWidth * rightSplit, minWidth) : 0.0f;
 		float editorWidth =
-			std::max(availableWidth - explorerWidth - agentPaneWidth - (padding * 2),
-					 minWidth);
+			std::max(availableWidth - explorerWidth - (padding * 2), minWidth);
 
 		std::cout << "NedEmbed::render() - layout: availableWidth=" << availableWidth
-				  << ", leftSplit=" << leftSplit << ", rightSplit=" << rightSplit
-				  << ", explorerWidth=" << explorerWidth
-				  << ", agentPaneWidth=" << agentPaneWidth
+				  << ", leftSplit=" << leftSplit << ", explorerWidth=" << explorerWidth
 				  << ", editorWidth=" << editorWidth << std::endl;
 
 		std::cout << "NedEmbed::render() - rendering file explorer..." << std::endl;
@@ -161,7 +170,7 @@ void NedEmbed::render(float width, float height)
 		ImGui::SameLine(0, 0);
 
 		std::cout << "NedEmbed::render() - about to render splitter..." << std::endl;
-		// Render left splitter
+		// Render left splitter (only when sidebar is visible)
 		renderSplitter(padding, availableWidth);
 		std::cout << "NedEmbed::render() - splitter rendered successfully" << std::endl;
 		ImGui::SameLine(0, 0);
@@ -170,34 +179,12 @@ void NedEmbed::render(float width, float height)
 		// Render Editor
 		renderEditor(editorWidth);
 		std::cout << "NedEmbed::render() - editor rendered successfully" << std::endl;
-
-		if (showAgentPane)
-		{
-			ImGui::SameLine(0, 0);
-			// Render right splitter
-			renderSplitter(padding, availableWidth);
-			ImGui::SameLine(0, 0);
-			// Render Agent Pane
-			renderAgentPane(agentPaneWidth);
-		}
 	} else
 	{
-		// No sidebar: just editor and agent pane
-		float agentSplit = settings->getAgentSplitPos();
-		float editorWidth =
-			showAgentPane ? (availableWidth * agentSplit) : availableWidth + 5.0f;
-		float agentPaneWidth =
-			showAgentPane ? (availableWidth - editorWidth - kAgentSplitterWidth) : 0.0f;
+		// No sidebar: just editor (no agent pane)
+		float editorWidth = availableWidth + 5.0f; // Full width for editor
 
 		renderEditor(editorWidth);
-
-		if (showAgentPane)
-		{
-			ImGui::SameLine(0, 0);
-			renderSplitter(padding, availableWidth);
-			ImGui::SameLine(0, 0);
-			renderAgentPane(agentPaneWidth);
-		}
 	}
 
 	std::cout << "NedEmbed::render() - about to call windowResize->resize()..."
@@ -209,6 +196,18 @@ void NedEmbed::render(float width, float height)
 
 	// Render additional components that are called in the standalone app's renderFrame
 	// These are crucial for settings popup, notifications, and keybinds
+
+	// Check if terminal should be rendered (like in standalone app)
+	if (gTerminal.isTerminalVisible())
+	{
+		// Terminal takes over the editor area when visible
+		// Set the terminal's embedded flag based on our embedded state
+		gTerminal.setEmbedded(isEmbedded);
+		// Make sure we pop the font before rendering terminal to avoid font stack issues
+		ImGui::PopFont();
+		gTerminal.render();
+		return; // Don't render other UI when terminal is visible
+	}
 
 	// Set embedded flag for settings to constrain popup to editor pane
 	gSettings.setEmbedded(true);
@@ -226,19 +225,8 @@ void NedEmbed::render(float width, float height)
 
 void NedEmbed::renderEditor(float editorWidth)
 {
-	// Show welcome message if enabled (replaces editor)
-	if (showWelcome)
-	{
-		// Temporarily set the welcome screen to embedded mode
-		gWelcome.setEmbedded(true);
-		gWelcome.render();
-		// Reset it back to false for standalone app
-		gWelcome.setEmbedded(false);
-	} else
-	{
-		// Use the existing editor render function
-		gEditor.renderEditor(gFont.currentFont, editorWidth);
-	}
+	// Use the existing editor render function
+	gEditor.renderEditor(gFont.currentFont, editorWidth);
 }
 
 void NedEmbed::renderFileExplorer(float explorerWidth)
