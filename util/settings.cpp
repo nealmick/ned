@@ -76,6 +76,16 @@ void Settings::loadSettings()
 	}
 	agentSplitPosProcessed = true;
 
+	// **changed**: Add initial save to ensure proper state synchronization
+	// This fixes the background color picker issue when it's the first setting changed
+	if (previousSettingsPath != settingsPath)
+	{
+		// This is a new settings file being loaded, save it to ensure proper state
+		settingsFileManager.saveSettings(settings, settingsPath);
+		std::cout << "[Settings] Initial save after loading new settings file: "
+				  << settingsPath << std::endl;
+	}
+
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -631,37 +641,13 @@ void Settings::renderMainSettings()
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
+	// **changed**: Save background color immediately when it changes, like other settings
 	if (ImGui::ColorEdit4("Background Color", (float *)&bgColor))
 	{
-		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-			settings["backgroundColor"][1].get<float>() != bgColor.y ||
-			settings["backgroundColor"][2].get<float>() != bgColor.z ||
-			settings["backgroundColor"][3].get<float>() != bgColor.w)
-		{
-			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged)
-				settingsChanged = true;
-		}
-	}
-
-	if (ImGui::IsItemDeactivatedAfterEdit())
-	{
-		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-			settings["backgroundColor"][1].get<float>() != bgColor.y ||
-			settings["backgroundColor"][2].get<float>() != bgColor.z ||
-			settings["backgroundColor"][3].get<float>() != bgColor.w)
-		{
-			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged)
-				settingsChanged = true;
-		}
-
-		if (settingsChanged)
-		{
-			std::cout << "[Settings] Background Color edit finished. Saving."
-					  << std::endl;
-			saveSettings();
-		}
+		// Update settings immediately when color changes
+		settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+		settingsChanged = true;
+		saveSettings(); // Save immediately like other settings
 	}
 }
 
