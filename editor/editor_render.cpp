@@ -134,7 +134,20 @@ void EditorRender::beginTextEditorChild(const char *label,
 	// window This prevents blocking input when clicking on file explorer within the
 	// editor pane
 	bool isEditorFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-	editor_state.block_input = !isEditorFocused;
+	
+	// Only update block_input if the focus state has changed and no other component
+	// has explicitly set block_input to true (like LSP popups)
+	static bool wasEditorFocused = true; // Track previous focus state
+	if (wasEditorFocused != isEditorFocused)
+	{
+		// Only set block_input to false if no other component has set it to true
+		// This allows LSP popups and other components to control block_input
+		if (isEditorFocused || !editor_state.block_input)
+		{
+			editor_state.block_input = !isEditorFocused;
+		}
+		wasEditorFocused = isEditorFocused;
+	}
 
 	// Set keyboard focus to this child window if appropriate.
 	if (!gBookmarks.isWindowOpen() && !editor_state.block_input)

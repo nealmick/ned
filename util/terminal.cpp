@@ -519,12 +519,12 @@ bool Terminal::setupWindow()
 		// Get the current window bounds (editor pane)
 		ImVec2 windowPos = ImGui::GetWindowPos();
 		ImVec2 windowSize = ImGui::GetWindowSize();
-		
+
 		// Add margin for menu bar (approximately 25 pixels)
 		float menuBarHeight = 25.0f;
 		ImVec2 terminalPos(windowPos.x, windowPos.y + menuBarHeight);
 		ImVec2 terminalSize(windowSize.x, windowSize.y - menuBarHeight);
-		
+
 		ImGui::SetNextWindowPos(terminalPos);
 		ImGui::SetNextWindowSize(terminalSize);
 		ImGui::Begin("Terminal",
