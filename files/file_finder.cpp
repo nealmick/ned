@@ -194,11 +194,51 @@ bool FileFinder::isWindowOpen() const { return showFFWindow; }
 void FileFinder::renderHeader()
 {
 	// Window setup (size, position, flags)
-	ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Always);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
-								   ImGui::GetIO().DisplaySize.y * 0.35f),
-							ImGuiCond_Always,
-							ImVec2(0.5f, 0.5f));
+	ImVec2 windowSize(600, 350);
+	ImVec2 windowPos;
+
+	if (isEmbedded)
+	{
+		// In embedded mode, use the main display bounds but position relative to the
+		// editor area Get the main window position and size
+		ImVec2 mainWindowPos = ImGui::GetWindowPos();
+		ImVec2 mainWindowSize = ImGui::GetIO().DisplaySize;
+
+		// Calculate the editor pane bounds (assuming it takes up most of the main window)
+		ImVec2 editorPanePos = mainWindowPos;
+		ImVec2 editorPaneSize = mainWindowSize;
+
+		// Center the popup horizontally within the editor pane
+		windowPos.x = editorPanePos.x + (editorPaneSize.x - windowSize.x) * 0.5f;
+
+		// Position the popup vertically - start 200px below the top of the editor pane
+		windowPos.y = editorPanePos.y + 200.0f;
+
+		// Debug output to see what values we're getting
+		std::cout << "FileFinder positioning: editorPanePos=(" << editorPanePos.x << ","
+				  << editorPanePos.y << ") editorPaneSize=(" << editorPaneSize.x << ","
+				  << editorPaneSize.y << ") windowSize=(" << windowSize.x << ","
+				  << windowSize.y << ") calculated windowPos=(" << windowPos.x << ","
+				  << windowPos.y << ")" << std::endl;
+
+		// Ensure the popup stays within the editor pane bounds
+		if (windowPos.x < editorPanePos.x)
+			windowPos.x = editorPanePos.x;
+		if (windowPos.x + windowSize.x > editorPanePos.x + editorPaneSize.x)
+			windowPos.x = editorPanePos.x + editorPaneSize.x - windowSize.x;
+		if (windowPos.y < editorPanePos.y)
+			windowPos.y = editorPanePos.y;
+		if (windowPos.y + windowSize.y > editorPanePos.y + editorPaneSize.y)
+			windowPos.y = editorPanePos.y + editorPaneSize.y - windowSize.y;
+	} else
+	{
+		// In standalone mode, use the original positioning
+		windowPos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
+						   ImGui::GetIO().DisplaySize.y * 0.35f);
+	}
+
+	ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+	ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
 								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
 								   ImGuiWindowFlags_NoScrollbar |
