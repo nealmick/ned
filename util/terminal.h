@@ -219,6 +219,11 @@ class Terminal
 	int ptyFd{-1};
 	pid_t childPid{-1};
 
+	// Embedded terminal window state
+	ImVec2 embeddedWindowPos{100.0f, 100.0f};
+	ImVec2 embeddedWindowSize{800.0f, 400.0f};
+	bool embeddedWindowCollapsed{false};
+
 	CSIEscape csiescseq;
 
 	float lastFontSize = 0;

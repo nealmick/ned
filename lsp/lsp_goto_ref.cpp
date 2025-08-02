@@ -317,11 +317,12 @@ void LSPGotoRef::renderReferenceOptions()
 		// Get the editor pane bounds from the current ImGui window
 		ImVec2 editorPanePos = ImGui::GetWindowPos();
 		ImVec2 editorPaneSize = ImGui::GetWindowSize();
-		
+
 		// Position the popup within the editor pane bounds
-		windowPos = ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
-						   editorPanePos.y + editorPaneSize.y * 0.35f - windowSize.y * 0.5f);
-		
+		windowPos =
+			ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
+				   editorPanePos.y + editorPaneSize.y * 0.35f - windowSize.y * 0.5f);
+
 		// Ensure the popup stays within the editor pane bounds
 		if (windowPos.x < editorPanePos.x)
 			windowPos.x = editorPanePos.x;
@@ -331,8 +332,7 @@ void LSPGotoRef::renderReferenceOptions()
 			windowPos.y = editorPanePos.y;
 		if (windowPos.y + windowSize.y > editorPanePos.y + editorPaneSize.y)
 			windowPos.y = editorPanePos.y + editorPaneSize.y - windowSize.y;
-	}
-	else
+	} else
 	{
 		// In standalone mode, use the original positioning
 		windowPos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f,

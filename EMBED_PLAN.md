@@ -262,11 +262,10 @@ nedEditor.render(availableWidth, availableHeight);
 ### ❌ Current Issues That Need Fixing:
 
 **1. TERMINAL RENDERING ISSUE:**
-- Terminal is currently rendered as a separate window that overlays the entire editor pane
-- This causes focus loss when terminal is opened (main app window loses focus)
-- **NEW APPROACH**: Terminal should render as a separate draggable, collapsible, and resizable ImGui window in embedded mode
-- Terminal should be a standalone popup window with its own position and size controls
-- This approach avoids focus loss and provides better UX for embedded usage
+- ✅ **FIXED!** Terminal now renders as a separate draggable, collapsible, and resizable ImGui window in embedded mode
+- ✅ Terminal is a standalone popup window with its own position and size controls
+- ✅ This approach avoids focus loss and provides better UX for embedded usage
+- xxxxx not fixed Fixed crash when terminal window is collapsed by properly handling ImGui::Begin/End calls
 
 **2. FONT ISSUES:**
 - Font is not working correctly and settings the font size properly

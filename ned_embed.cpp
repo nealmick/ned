@@ -14,6 +14,8 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include "editor/editor_bookmarks.h"
 #include "files/file_tree.h"
 #include "files/files.h"
+#include "lsp/lsp_goto_def.h"
+#include "lsp/lsp_goto_ref.h"
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/font.h"
@@ -25,8 +27,6 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include "util/terminal.h"
 #include "util/welcome.h"
 #include "util/window_resize.h"
-#include "lsp/lsp_goto_ref.h"
-#include "lsp/lsp_goto_def.h"
 
 // Include global variable declarations
 #include "globals.h"
@@ -97,18 +97,11 @@ bool NedEmbed::initializeComponents()
 
 void NedEmbed::render(float width, float height)
 {
-	std::cout << "NedEmbed::render() called with width=" << width << ", height=" << height
-			  << std::endl;
-
 	if (!initialized || !settings || !splitter || !windowResize)
 	{
-		std::cout << "NedEmbed::render() - early return due to uninitialized components"
-				  << std::endl;
 		return;
 	}
 
-	std::cout << "NedEmbed::render() - components initialized, handling input..."
-			  << std::endl;
 	// Handle input
 	handleInput();
 
@@ -122,17 +115,14 @@ void NedEmbed::render(float width, float height)
 		}
 	}
 
-	std::cout << "NedEmbed::render() - setting up editor area..." << std::endl;
 	// Set up the editor area - this is the key part where we extract from
 	// Render::renderMainWindow()
-	std::cout << "NedEmbed::render() - pushing font..." << std::endl;
 	ImGui::PushFont(gFont.currentFont);
 
 	float padding = ImGui::GetStyle().WindowPadding.x;
 	float availableWidth =
 		width - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
 
-	std::cout << "NedEmbed::render() - calculating layout..." << std::endl;
 	// Force agent pane to be hidden in embedded mode
 	Splitter::showAgentPane = false;
 
@@ -150,7 +140,6 @@ void NedEmbed::render(float width, float height)
 
 	if (Splitter::showSidebar)
 	{
-		std::cout << "NedEmbed::render() - rendering with sidebar..." << std::endl;
 		// Render with sidebar: File Explorer + Editor (no agent pane)
 		float leftSplit = settings->getSplitPos();
 
@@ -160,27 +149,16 @@ void NedEmbed::render(float width, float height)
 		float editorWidth =
 			std::max(availableWidth - explorerWidth - (padding * 2), minWidth);
 
-		std::cout << "NedEmbed::render() - layout: availableWidth=" << availableWidth
-				  << ", leftSplit=" << leftSplit << ", explorerWidth=" << explorerWidth
-				  << ", editorWidth=" << editorWidth << std::endl;
-
-		std::cout << "NedEmbed::render() - rendering file explorer..." << std::endl;
 		// Render File Explorer
 		renderFileExplorer(explorerWidth);
-		std::cout << "NedEmbed::render() - file explorer rendered successfully"
-				  << std::endl;
 		ImGui::SameLine(0, 0);
 
-		std::cout << "NedEmbed::render() - about to render splitter..." << std::endl;
 		// Render left splitter (only when sidebar is visible)
 		renderSplitter(padding, availableWidth);
-		std::cout << "NedEmbed::render() - splitter rendered successfully" << std::endl;
 		ImGui::SameLine(0, 0);
 
-		std::cout << "NedEmbed::render() - about to render editor..." << std::endl;
 		// Render Editor
 		renderEditor(editorWidth);
-		std::cout << "NedEmbed::render() - editor rendered successfully" << std::endl;
 	} else
 	{
 		// No sidebar: just editor (no agent pane)
@@ -188,13 +166,6 @@ void NedEmbed::render(float width, float height)
 
 		renderEditor(editorWidth);
 	}
-
-	std::cout << "NedEmbed::render() - about to call windowResize->resize()..."
-			  << std::endl;
-	// windowResize->resize(); // Temporarily disabled to test
-	std::cout << "NedEmbed::render() - windowResize disabled for testing, about to "
-				 "render additional components..."
-			  << std::endl;
 
 	// Render additional components that are called in the standalone app's renderFrame
 	// These are crucial for settings popup, notifications, and keybinds
@@ -215,18 +186,15 @@ void NedEmbed::render(float width, float height)
 	gSettings.setEmbedded(true);
 	gSettings.renderSettingsWindow();
 	gSettings.setEmbedded(false); // Reset for standalone app
-	
+
 	// Set embedded flag for LSP popups to constrain them to editor pane
 	gLSPGotoRef.setEmbedded(true);
 	gLSPGotoDef.setEmbedded(true);
 
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
-	// windowResize.renderResizeOverlay(gFont.largeFont); // Temporarily disabled
 
 	ImGui::PopFont();
-	std::cout << "NedEmbed::render() - font popped successfully, render complete!"
-			  << std::endl;
 }
 
 void NedEmbed::renderEditor(float editorWidth)
@@ -237,11 +205,8 @@ void NedEmbed::renderEditor(float editorWidth)
 
 void NedEmbed::renderFileExplorer(float explorerWidth)
 {
-	std::cout << "NedEmbed::renderFileExplorer() called with width=" << explorerWidth
-			  << std::endl;
 	// Use the existing file explorer render function
 	gFileExplorer.renderFileExplorer(explorerWidth);
-	std::cout << "NedEmbed::renderFileExplorer() completed successfully" << std::endl;
 }
 
 void NedEmbed::renderAgentPane(float agentWidth)
@@ -268,8 +233,9 @@ void NedEmbed::handleInput()
 {
 	// Check if the editor pane is focused before processing keybinds
 	// This prevents keybinds from being processed when the app pane is not focused
-	bool isEditorPaneFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-	
+	bool isEditorPaneFocused =
+		ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+
 	// Only process keybinds if the editor pane is focused
 	if (isEditorPaneFocused)
 	{

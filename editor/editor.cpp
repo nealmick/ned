@@ -47,7 +47,6 @@ void Editor::textEditor()
 	gLSPAutocomplete.renderCompletions();
 	gAITab.update();
 
-	
 	setupEditorDisplay();
 
 	processEditorInput();

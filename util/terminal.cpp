@@ -470,12 +470,18 @@ void Terminal::render()
 
 	checkFontSizeChange();
 	bool windowCreated = setupWindow();
-	handleTerminalResize();
-	renderBuffer();
-	handleScrollback(io, state.row);
-	handleMouseInput(io);
-	handleKeyboardInput(io);
+	
+	// Only render terminal content if window is open and not collapsed
+	if (windowCreated && (!isEmbedded || !embeddedWindowCollapsed))
+	{
+		handleTerminalResize();
+		renderBuffer();
+		handleScrollback(io, state.row);
+		handleMouseInput(io);
+		handleKeyboardInput(io);
+	}
 
+	// Only call End() if Begin() was actually called and succeeded
 	if (windowCreated)
 	{
 		ImGui::End();
@@ -515,33 +521,47 @@ bool Terminal::setupWindow()
 {
 	if (isEmbedded)
 	{
-		// When embedded, create a window that covers the editor area
-		// Get the current window bounds (editor pane)
-		ImVec2 windowPos = ImGui::GetWindowPos();
-		ImVec2 windowSize = ImGui::GetWindowSize();
+		// When embedded, create a draggable, resizable window with decoration
+		ImGui::SetNextWindowPos(embeddedWindowPos, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
 
-		// Add margin for menu bar (approximately 25 pixels)
-		float menuBarHeight = 25.0f;
-		ImVec2 terminalPos(windowPos.x, windowPos.y + menuBarHeight);
-		ImVec2 terminalSize(windowSize.x, windowSize.y - menuBarHeight);
+		// Create a proper window with title bar, close button, and resize handles
+		bool windowOpen = true;
+		bool windowCreated =
+			ImGui::Begin("Terminal",
+						 &windowOpen,
+						 ImGuiWindowFlags_None); // Allow all default window features
 
-		ImGui::SetNextWindowPos(terminalPos);
-		ImGui::SetNextWindowSize(terminalSize);
-		ImGui::Begin("Terminal",
-					 nullptr,
-					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-						 ImGuiWindowFlags_NoResize);
-		return true;
+		if (windowCreated)
+		{
+			// Update our stored position and size for persistence
+			embeddedWindowPos = ImGui::GetWindowPos();
+			embeddedWindowSize = ImGui::GetWindowSize();
+			embeddedWindowCollapsed = ImGui::IsWindowCollapsed();
+
+			// If window was closed, hide the terminal
+			if (!windowOpen)
+			{
+				isVisible = false;
+			}
+		} else
+		{
+			// Window was collapsed or closed
+			embeddedWindowCollapsed = true;
+		}
+
+		return windowCreated;
 	} else
 	{
 		// When standalone, use the full display size
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-		ImGui::Begin("Terminal",
-					 nullptr,
-					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-						 ImGuiWindowFlags_NoResize);
-		return true;
+		bool windowCreated =
+			ImGui::Begin("Terminal",
+						 nullptr,
+						 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+							 ImGuiWindowFlags_NoResize);
+		return windowCreated;
 	}
 }
 
