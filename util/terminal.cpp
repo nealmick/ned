@@ -469,14 +469,17 @@ void Terminal::render()
 	ImGuiIO &io = ImGui::GetIO();
 
 	checkFontSizeChange();
-	setupWindow();
+	bool windowCreated = setupWindow();
 	handleTerminalResize();
 	renderBuffer();
 	handleScrollback(io, state.row);
 	handleMouseInput(io);
 	handleKeyboardInput(io);
 
-	ImGui::End();
+	if (windowCreated)
+	{
+		ImGui::End();
+	}
 }
 
 void Terminal::renderBuffer()
@@ -508,14 +511,38 @@ void Terminal::checkFontSizeChange()
 	}
 }
 
-void Terminal::setupWindow()
+bool Terminal::setupWindow()
 {
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
-	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-	ImGui::Begin("Terminal",
-				 nullptr,
-				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-					 ImGuiWindowFlags_NoResize);
+	if (isEmbedded)
+	{
+		// When embedded, create a window that covers the editor area
+		// Get the current window bounds (editor pane)
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		
+		// Add margin for menu bar (approximately 25 pixels)
+		float menuBarHeight = 25.0f;
+		ImVec2 terminalPos(windowPos.x, windowPos.y + menuBarHeight);
+		ImVec2 terminalSize(windowSize.x, windowSize.y - menuBarHeight);
+		
+		ImGui::SetNextWindowPos(terminalPos);
+		ImGui::SetNextWindowSize(terminalSize);
+		ImGui::Begin("Terminal",
+					 nullptr,
+					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+						 ImGuiWindowFlags_NoResize);
+		return true;
+	} else
+	{
+		// When standalone, use the full display size
+		ImGui::SetNextWindowPos(ImVec2(0, 0));
+		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+		ImGui::Begin("Terminal",
+					 nullptr,
+					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+						 ImGuiWindowFlags_NoResize);
+		return true;
+	}
 }
 
 void Terminal::handleTerminalResize()

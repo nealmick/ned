@@ -162,6 +162,13 @@ nedEditor.render(availableWidth, availableHeight);
   - [x] Need to investigate why settings popup doesn't show up
   - [x] **FIXED!** Added embedded flag to Settings class and modified renderSettingsWindow() to constrain popup to editor pane bounds instead of full window
 - [x] **FIXED!** Settings window height issue - now uses window size instead of content region for better sizing in embedded mode
+- [x] **FIXED!** Keybinds now work globally (like standalone app) - Cmd+Comma for settings, Cmd+S for sidebar, etc.
+- [x] **FIXED!** Rendering now uses global Splitter flags instead of local variables - sidebar/agent pane toggles work correctly
+- [ ] **TERMINAL RENDERING ISSUE:**
+  - [ ] Terminal currently renders as overlay for the whole window instead of inside editor pane
+  - [ ] Terminal should render within editor pane bounds and use editor pane size
+  - [ ] When terminal is visible, it should replace file explorer and editor (full screen within pane)
+  - [ ] Need to fix terminal positioning and sizing for embedded mode
 - [ ] **KEYBIND ISSUES:**
   - [ ] Regular keybinds don't work for UI toggles (Cmd+S for sidebar, Cmd+T for terminal, Cmd+U for agent panel)
   - [ ] Some keybinds do work (goto def, LSP stuff) because they're contained within the LSP system
@@ -207,22 +214,49 @@ nedEditor.render(availableWidth, availableHeight);
 - Added file dialog handling to `NedEmbed::render()` method
 - Re-enabled `renderFileExplorer()` call in the render loop
 
-**📋 Current Status:**
-- ✅ Welcome screen works perfectly in embedded mode
-- ✅ "Open Folder" button triggers native file dialog
-- ✅ File explorer renders without crashes
-- ✅ Basic editor functionality working
-- ❌ File explorer tree doesn't expand first folder node properly
-- ❌ Settings popup dialog not displaying
-- ❌ UI toggle keybinds not working (Cmd+S, Cmd+T, Cmd+U)
-
-**🎯 Next Priorities:**
-1. Fix file explorer tree expansion behavior
-2. Investigate settings popup rendering issue
-3. Fix UI toggle keybinds (sidebar, terminal, agent panel)
 
 **📁 Project Structure:**
 - Main NED project: `/Users/neal/dev/ned/`
 - Demo app: `/Users/neal/dev/ImGui_Ned_Embed/`
 - Demo app includes NED as local dependency (not submodule yet)
-- Multi-threaded builds enabled for faster development 
+- Multi-threaded builds enabled for faster development
+
+---
+
+## LATEST UPDATE - Current Status & Issues
+
+### ✅ What's Working:
+- **Welcome Screen**: Properly renders within editor pane, replaces editor content instead of overlaying
+- **File Explorer**: Enabled and rendering without crashes
+- **Settings Popup**: Fixed positioning and sizing for embedded mode
+- **Keybinds**: Global keybinds working (Cmd+Comma for settings, Cmd+S for sidebar, etc.)
+- **Input Handling**: Editor focus detection working correctly
+- **Agent Pane**: Disabled as planned (not needed for embedded version)
+
+### ❌ Current Issues That Need Fixing:
+
+**1. TERMINAL RENDERING ISSUE:**
+- Terminal is being drawn as a separate window ontop of the editor/app pane when embedded
+- Terminal should render within the editor pane bounds, not as an overlay
+- Terminal should replace editor/file explorer when active (full screen within pane)
+- Currently causes focus loss and renders editor behind it
+
+**2. POPUP WINDOWS:**
+- Goto definition and goto reference popups need to be fixed for embedded mode
+- These popups likely have similar positioning/sizing issues as the settings popup had
+
+**3. FONT ISSUES:**
+- Font is not working correctly and settings the font size properly
+- Likely not finding the font file location in embedded mode
+- Need to fix font path resolution for embedded version
+
+**4. OTHER PENDING:**
+- Window sizing and splitter calculations still need work
+- Window resize functionality is disabled (causing crashes)
+- Need to test and verify basic editing functionality
+
+### 🔧 Next Steps:
+1. **Fix Terminal**: Make it render within editor pane instead of as separate window
+2. **Fix Popup Windows**: Goto def/ref popups need embedded mode support
+3. **Fix Font Loading**: Ensure font files are found and loaded correctly
+4. **Test Basic Editing**: Verify core editor functionality works in embedded mode 

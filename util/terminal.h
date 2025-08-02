@@ -159,6 +159,8 @@ class Terminal
 	void render();
 	void toggleVisibility();
 	bool isTerminalVisible() const { return isVisible; }
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+	bool getEmbedded() const { return isEmbedded; }
 	void resize(int cols, int rows);
 
 	void pasteFromClipboard();
@@ -213,6 +215,7 @@ class Terminal
 
 	// Terminal configuration
 	bool isVisible{false};
+	bool isEmbedded{false};
 	int ptyFd{-1};
 	pid_t childPid{-1};
 
@@ -321,7 +324,7 @@ class Terminal
 
 	// Render helper functions
 	void checkFontSizeChange();
-	void setupWindow();
+	bool setupWindow();
 	void handleTerminalResize();
 	void handleMouseInput(const ImGuiIO &io);
 	void handleScrollback(const ImGuiIO &io, int new_rows);
