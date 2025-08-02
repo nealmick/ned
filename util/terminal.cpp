@@ -521,46 +521,32 @@ bool Terminal::setupWindow()
 {
 	if (isEmbedded)
 	{
-		// When embedded, create a draggable, resizable window with decoration
 		ImGui::SetNextWindowPos(embeddedWindowPos, ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
 
-		// Create a proper window with title bar, close button, and resize handles
 		bool windowOpen = true;
-		bool windowCreated =
-			ImGui::Begin("Terminal",
-						 &windowOpen,
-						 ImGuiWindowFlags_None); // Allow all default window features
-
+		bool windowCreated = ImGui::Begin("Terminal", &windowOpen, ImGuiWindowFlags_NoCollapse);
 		if (windowCreated)
 		{
-			// Update our stored position and size for persistence
 			embeddedWindowPos = ImGui::GetWindowPos();
 			embeddedWindowSize = ImGui::GetWindowSize();
 			embeddedWindowCollapsed = ImGui::IsWindowCollapsed();
-
-			// If window was closed, hide the terminal
 			if (!windowOpen)
 			{
 				isVisible = false;
 			}
-		} else
+		}
+		else
 		{
-			// Window was collapsed or closed
 			embeddedWindowCollapsed = true;
 		}
-
 		return windowCreated;
-	} else
+	}
+	else
 	{
-		// When standalone, use the full display size
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-		bool windowCreated =
-			ImGui::Begin("Terminal",
-						 nullptr,
-						 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-							 ImGuiWindowFlags_NoResize);
+		bool windowCreated = ImGui::Begin("Terminal", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 		return windowCreated;
 	}
 }
@@ -882,7 +868,7 @@ void Terminal::renderMainScreen(ImDrawList *drawList,
 		} else
 		{
 			int screenY = currentLine - scrollbackBuffer.size();
-			if (screenY >= 0 && screenY < state.row)
+			if (screenY >= 0 && screenY < state.lines.size())
 			{
 				line = &state.lines[screenY];
 			}
