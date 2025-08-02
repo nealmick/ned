@@ -97,6 +97,8 @@ class Settings
 	void toggleAgentPane();
 
 	bool showSettingsWindow = false;
+	bool isEmbedded = false; // Flag to indicate if running in embedded mode
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
 	void renderSettingsWindow();
 	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }

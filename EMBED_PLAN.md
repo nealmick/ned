@@ -136,8 +136,93 @@ nedEditor.render(availableWidth, availableHeight);
 - [x] Stub or define missing globals/functions in the embeddable build so it links and runs (for dev/test).
 - [x] Fix ImGui version mismatch between demo app and NED library.
 - [x] Copy necessary resource files (fonts, settings) to demo app.
-- [ ] Debug segmentation fault in demo app during NED editor initialization.
-- [ ] Test the editor in the demo app and verify basic editing, file explorer, and settings work.
+- [x] Debug segmentation fault in demo app during NED editor initialization.
+- [x] **MAJOR MILESTONE: Demo app builds and shows main NED editor window!** ✅
+- [x] Fix window sizing issues and set reasonable default window size (1200x800).
+- [x] Enable multi-threaded builds for faster development.
+- [x] **WELCOME SCREEN FIXED!** ✅
+  - [x] Added embed flag to Welcome class to handle embedded vs standalone rendering
+  - [x] Fixed welcome screen to render within editor pane bounds instead of full window overlay
+  - [x] Welcome screen now properly replaces editor content instead of showing on top
+  - [x] Added file dialog handling to NedEmbed::render() so "Open Folder" button works
+  - [x] Welcome screen automatically hides when folder is selected
+- [ ] **CURRENT STATUS: Welcome screen working, but file explorer still disabled:**
+  - [ ] File explorer is completely disabled (causing crashes when enabled)
+  - [ ] Window sizing and splitter calculations are broken
+  - [ ] Settings window and popup windows don't work due to window size calculations
+  - [ ] Agent panel partially visible but layout is incorrect
+  - [ ] Window resize functionality is disabled (causing crashes)
+- [x] **FILE EXPLORER ENABLED!** ✅
+  - [x] File explorer is now being rendered and displayed
+  - [ ] File explorer tree doesn't expand the first folder node like it's supposed to
+  - [ ] Need to investigate why the tree expansion isn't working properly
+- [x] **SETTINGS POPUP ISSUE:**
+  - [x] Settings popup dialog for the whole app is not being displayed
+  - [x] Something is wrong with the rendering or popup system
+  - [x] Need to investigate why settings popup doesn't show up
+  - [x] **FIXED!** Added embedded flag to Settings class and modified renderSettingsWindow() to constrain popup to editor pane bounds instead of full window
+- [x] **FIXED!** Settings window height issue - now uses window size instead of content region for better sizing in embedded mode
+- [ ] **KEYBIND ISSUES:**
+  - [ ] Regular keybinds don't work for UI toggles (Cmd+S for sidebar, Cmd+T for terminal, Cmd+U for agent panel)
+  - [ ] Some keybinds do work (goto def, LSP stuff) because they're contained within the LSP system
+  - [ ] Need to investigate why UI toggle keybinds aren't working in embedded mode
+- [ ] Fix window sizing and splitter calculations
+- [ ] Re-enable window resize functionality
+- [ ] Fix settings window and popup window positioning
+- [ ] Test and verify basic editing functionality
 - [ ] Iteratively re-enable more features (AI agent, terminal, etc.) by resolving their dependencies.
 - [ ] Refactor the codebase for better modularity (reduce global state, use dependency injection/context objects).
-- [ ] Document the embedding process and any limitations for users who want to include NED in their own ImGui apps. 
+- [ ] Document the embedding process and any limitations for users who want to include NED in their own ImGui apps.
+
+## Future Improvements & Notes
+
+### Keybind Issues
+- Most keybinds don't work properly in embedded mode (e.g., Cmd+T for terminal doesn't show terminal)
+- Need to investigate input handling differences between standalone and embedded modes
+- May need to adapt keybind handling for ImGui context vs GLFW window context
+
+### Resource Dependencies
+- Currently copying fonts and settings folders to demo project for development
+- **Future goal**: Make NED submodule self-contained so users don't need to copy resources
+- **Options**: 
+  - Include fonts/settings in the NED submodule itself
+  - Fix paths to look in the NED project directory relative to the embeddable library
+  - Provide installation script that copies resources to user's project
+- **Preference**: Self-contained submodule (no manual copying required)
+
+---
+
+## Last Conversation Summary
+
+### What We Accomplished (Most Recent Session)
+
+**✅ MAJOR MILESTONES:**
+1. **Welcome Screen Fixed** - Added embed flag to Welcome class, fixed positioning to render within editor pane instead of full window overlay, made welcome screen replace editor content instead of showing on top
+2. **File Dialog Working** - Added `gFileExplorer.handleFileDialog()` to `NedEmbed::render()` so "Open Folder" button works and welcome screen auto-hides when folder is selected
+3. **File Explorer Enabled** - Re-enabled file explorer rendering (was commented out), now displays without crashes
+
+**🔧 Technical Fixes:**
+- Added `isEmbedded` flag to Welcome class to handle different rendering modes
+- Modified welcome screen to use `ImGui::GetContentRegionAvail()` instead of `ImGui::GetWindowWidth()` for embedded mode
+- Added file dialog handling to `NedEmbed::render()` method
+- Re-enabled `renderFileExplorer()` call in the render loop
+
+**📋 Current Status:**
+- ✅ Welcome screen works perfectly in embedded mode
+- ✅ "Open Folder" button triggers native file dialog
+- ✅ File explorer renders without crashes
+- ✅ Basic editor functionality working
+- ❌ File explorer tree doesn't expand first folder node properly
+- ❌ Settings popup dialog not displaying
+- ❌ UI toggle keybinds not working (Cmd+S, Cmd+T, Cmd+U)
+
+**🎯 Next Priorities:**
+1. Fix file explorer tree expansion behavior
+2. Investigate settings popup rendering issue
+3. Fix UI toggle keybinds (sidebar, terminal, agent panel)
+
+**📁 Project Structure:**
+- Main NED project: `/Users/neal/dev/ned/`
+- Demo app: `/Users/neal/dev/ImGui_Ned_Embed/`
+- Demo app includes NED as local dependency (not submodule yet)
+- Multi-threaded builds enabled for faster development 

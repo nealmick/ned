@@ -44,6 +44,7 @@ class NedEmbed
 	void setShowSidebar(bool show);
 	void setShowAgentPane(bool show);
 	void setShowLineNumbers(bool show);
+	void setShowWelcome(bool show);
 
 	bool getShowSidebar() const { return showSidebar; }
 	bool getShowAgentPane() const { return showAgentPane; }
@@ -59,6 +60,8 @@ class NedEmbed
 	bool showSidebar;
 	bool showAgentPane;
 	bool showLineNumbers;
+	bool showWelcome;
+	bool isEmbedded;
 	bool initialized;
 
 	// Internal rendering methods

@@ -14,13 +14,19 @@ class Welcome
 		return instance;
 	}
 
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+	bool getEmbedded() const { return isEmbedded; }
+
   private:
-	Welcome() : frameCount(0), lastTime(0.0), fps(0) {} // Initialize FPS members
+	Welcome()
+		: frameCount(0), lastTime(0.0), fps(0), isEmbedded(false)
+	{} // Initialize FPS members
 
 	// FPS calculation members
 	int frameCount;
 	double lastTime;
 	int fps;
+	bool isEmbedded;
 
 	void calculateFPS(); // Helper to calculate FPS
 };
