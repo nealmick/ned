@@ -31,6 +31,10 @@ class LSPGotoRef
 	void renderReferenceOptions();
 	bool hasReferenceOptions() const;
 
+	// Embedded mode methods
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+	bool getEmbedded() const { return isEmbedded; }
+
   private:
 	// Helper methods
 	void parseReferenceResponse(const std::string &response);
@@ -43,6 +47,7 @@ class LSPGotoRef
 	std::vector<ReferenceLocation> referenceLocations;
 	int selectedReferenceIndex = 0;
 	bool showReferenceOptions = false;
+	bool isEmbedded = false;
 };
 
 // Global instance

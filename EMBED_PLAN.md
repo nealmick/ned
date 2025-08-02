@@ -207,19 +207,43 @@ nedEditor.render(availableWidth, availableHeight);
 1. **Welcome Screen Fixed** - Added embed flag to Welcome class, fixed positioning to render within editor pane instead of full window overlay, made welcome screen replace editor content instead of showing on top
 2. **File Dialog Working** - Added `gFileExplorer.handleFileDialog()` to `NedEmbed::render()` so "Open Folder" button works and welcome screen auto-hides when folder is selected
 3. **File Explorer Enabled** - Re-enabled file explorer rendering (was commented out), now displays without crashes
+4. **Keybinds Focus Issue Fixed** - Fixed issue where keybinds were processed even when editor pane wasn't focused by checking `ImGui::IsWindowFocused()` before processing keybinds
+5. **Goto Definition/Reference Popups Fixed** - Added embedded flags to LSP classes and modified positioning to render within editor pane bounds instead of full window overlay
+6. **Editor Focus Blocking Fixed** - Fixed issue where `block_input` was being set every frame, now only sets when focus state changes to avoid interfering with other components like LSP popups
 
 **🔧 Technical Fixes:**
 - Added `isEmbedded` flag to Welcome class to handle different rendering modes
 - Modified welcome screen to use `ImGui::GetContentRegionAvail()` instead of `ImGui::GetWindowWidth()` for embedded mode
 - Added file dialog handling to `NedEmbed::render()` method
 - Re-enabled `renderFileExplorer()` call in the render loop
-
+- Added embedded flags to `LSPGotoRef` and `LSPGotoDef` classes
+- Modified popup positioning to use editor pane bounds instead of full display size
+- Fixed editor focus detection to only update `block_input` when focus state changes
 
 **📁 Project Structure:**
 - Main NED project: `/Users/neal/dev/ned/`
 - Demo app: `/Users/neal/dev/ImGui_Ned_Embed/`
 - Demo app includes NED as local dependency (not submodule yet)
 - Multi-threaded builds enabled for faster development
+
+### Terminal Rendering Approach
+
+**Current Issue:**
+- Terminal is rendered as a separate window that overlays the entire editor pane
+- This causes focus loss when terminal is opened (main app window loses focus)
+- Terminal appears as a pane with no controls on top of the main app pane
+
+**Attempted Solutions:**
+1. **Tried rendering within editor pane context** - Terminal wasn't visible because it was rendering underneath editor/file explorer
+2. **Tried creating window within editor bounds** - Terminal was behind editor and still caused focus loss
+3. **Reverted to original overlay approach** - Current state: terminal works but causes focus loss and renders as separate window
+
+**NEW APPROACH - Separate Draggable Window:**
+- Terminal should render as a separate draggable, collapsible, and resizable ImGui window in embedded mode
+- This provides better UX and avoids focus loss issues
+- Terminal will be a standalone popup window with its own position and size controls
+- Similar to how many IDEs handle their integrated terminals (VS Code, etc.)
+- User can position the terminal wherever they want and resize it as needed
 
 ---
 
@@ -230,33 +254,31 @@ nedEditor.render(availableWidth, availableHeight);
 - **File Explorer**: Enabled and rendering without crashes
 - **Settings Popup**: Fixed positioning and sizing for embedded mode
 - **Keybinds**: Global keybinds working (Cmd+Comma for settings, Cmd+S for sidebar, etc.)
-- **Input Handling**: Editor focus detection working correctly
+- **Input Handling**: Editor focus detection working correctly - fixed issue where keybinds were processed even when editor pane wasn't focused
 - **Agent Pane**: Disabled as planned (not needed for embedded version)
+- **Goto Definition/Reference Popups**: Fixed positioning to render within editor pane bounds instead of full window overlay
+- **Editor Focus Blocking**: Fixed issue where `block_input` was being set every frame, now only sets when focus state changes to avoid interfering with other components
 
 ### ❌ Current Issues That Need Fixing:
 
 **1. TERMINAL RENDERING ISSUE:**
-- Terminal is being drawn as a separate window ontop of the editor/app pane when embedded
-- Terminal should render within the editor pane bounds, not as an overlay
-- Terminal should replace editor/file explorer when active (full screen within pane)
-- Currently causes focus loss and renders editor behind it
+- Terminal is currently rendered as a separate window that overlays the entire editor pane
+- This causes focus loss when terminal is opened (main app window loses focus)
+- **NEW APPROACH**: Terminal should render as a separate draggable, collapsible, and resizable ImGui window in embedded mode
+- Terminal should be a standalone popup window with its own position and size controls
+- This approach avoids focus loss and provides better UX for embedded usage
 
-**2. POPUP WINDOWS:**
-- Goto definition and goto reference popups need to be fixed for embedded mode
-- These popups likely have similar positioning/sizing issues as the settings popup had
-
-**3. FONT ISSUES:**
+**2. FONT ISSUES:**
 - Font is not working correctly and settings the font size properly
 - Likely not finding the font file location in embedded mode
 - Need to fix font path resolution for embedded version
 
-**4. OTHER PENDING:**
+**3. OTHER PENDING:**
 - Window sizing and splitter calculations still need work
 - Window resize functionality is disabled (causing crashes)
 - Need to test and verify basic editing functionality
 
 ### 🔧 Next Steps:
-1. **Fix Terminal**: Make it render within editor pane instead of as separate window
-2. **Fix Popup Windows**: Goto def/ref popups need embedded mode support
-3. **Fix Font Loading**: Ensure font files are found and loaded correctly
-4. **Test Basic Editing**: Verify core editor functionality works in embedded mode 
+1. **Fix Terminal**: Make it render as a separate draggable, collapsible, and resizable ImGui window in embedded mode
+2. **Fix Font Loading**: Ensure font files are found and loaded correctly
+3. **Test Basic Editing**: Verify core editor functionality works in embedded mode 

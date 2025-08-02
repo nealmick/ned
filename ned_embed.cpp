@@ -25,6 +25,8 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include "util/terminal.h"
 #include "util/welcome.h"
 #include "util/window_resize.h"
+#include "lsp/lsp_goto_ref.h"
+#include "lsp/lsp_goto_def.h"
 
 // Include global variable declarations
 #include "globals.h"
@@ -213,6 +215,10 @@ void NedEmbed::render(float width, float height)
 	gSettings.setEmbedded(true);
 	gSettings.renderSettingsWindow();
 	gSettings.setEmbedded(false); // Reset for standalone app
+	
+	// Set embedded flag for LSP popups to constrain them to editor pane
+	gLSPGotoRef.setEmbedded(true);
+	gLSPGotoDef.setEmbedded(true);
 
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
@@ -260,11 +266,18 @@ void NedEmbed::setShowWelcome(bool show) { showWelcome = show; }
 
 void NedEmbed::handleInput()
 {
-	// Handle keyboard shortcuts globally (like in standalone app)
-	// These are application-wide shortcuts that should work regardless of focus
-	if (gKeybinds.handleKeyboardShortcuts())
+	// Check if the editor pane is focused before processing keybinds
+	// This prevents keybinds from being processed when the app pane is not focused
+	bool isEditorPaneFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+	
+	// Only process keybinds if the editor pane is focused
+	if (isEditorPaneFocused)
 	{
-		// Mark for redraw if needed
+		// Handle keyboard shortcuts (like in standalone app)
+		if (gKeybinds.handleKeyboardShortcuts())
+		{
+			// Mark for redraw if needed
+		}
 	}
 }
 

@@ -33,6 +33,10 @@ class LSPGotoDef
 	void renderDefinitionOptions();
 	bool hasDefinitionOptions() const;
 
+	// Embedded mode methods
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+	bool getEmbedded() const { return isEmbedded; }
+
   private:
 	// Helper methods
 	void parseDefinitionResponse(const std::string &response);
@@ -47,6 +51,7 @@ class LSPGotoDef
 	std::vector<DefinitionLocation> definitionLocations;
 	int selectedDefinitionIndex = 0;
 	bool showDefinitionOptions = false;
+	bool isEmbedded = false;
 };
 
 // Global instance (remains the same)
