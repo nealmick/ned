@@ -200,8 +200,9 @@ void FileFinder::renderHeader()
 	if (isEmbedded)
 	{
 		// In embedded mode, center the window within the editor pane
-		windowPos = ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
-						   editorPanePos.y + editorPaneSize.y * 0.5f - windowSize.y * 0.5f);
+		windowPos =
+			ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
+				   editorPanePos.y + editorPaneSize.y * 0.5f - windowSize.y * 0.5f);
 
 		ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);

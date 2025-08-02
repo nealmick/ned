@@ -553,11 +553,19 @@ bool KeybindsManager::handleKeyboardShortcuts()
 
 	if (modPressed && ImGui::IsKeyPressed(toggleTerminal, false))
 	{
-		gTerminal.toggleVisibility();
-		gFileExplorer.saveCurrentFile();
-		if (gTerminal.isTerminalVisible())
+		// If terminal is embedded and already visible, do nothing (prevent hiding)
+		if (gTerminal.getEmbedded() && gTerminal.isTerminalVisible())
 		{
-			ClosePopper::closeAll();
+			// Do nothing - embedded terminal should stay visible once shown
+		} else
+		{
+			// Normal toggle behavior for non-embedded or hidden terminal
+			gTerminal.toggleVisibility();
+			gFileExplorer.saveCurrentFile();
+			if (gTerminal.isTerminalVisible())
+			{
+				ClosePopper::closeAll();
+			}
 		}
 		shortcutPressed = true;
 	}
