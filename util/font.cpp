@@ -16,7 +16,7 @@ Description: Font management class implementation for NED text editor.
 #endif
 
 // Global font instance
-Font gFont;
+extern Font gFont;
 
 ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 {

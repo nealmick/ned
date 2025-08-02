@@ -48,7 +48,7 @@ ImVec4 Terminal::defaultColorMap[16] = {
 	ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
 };
 
-Terminal gTerminal;
+extern Terminal gTerminal;
 Terminal::Terminal()
 {
 	// Initialize with safe default size

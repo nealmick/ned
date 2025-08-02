@@ -37,7 +37,7 @@
 #include <unistd.h>
 
 namespace fs = std::filesystem;
-Settings gSettings;
+extern Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f)
 {
