@@ -99,7 +99,13 @@ class Settings
 	bool showSettingsWindow = false;
 	bool isEmbedded = false; // Flag to indicate if running in embedded mode
 	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+
+	// Embedded settings window state (similar to terminal)
+	ImVec2 embeddedWindowPos{200.0f, 200.0f};
+	ImVec2 embeddedWindowSize{900.0f, 600.0f};
+	bool embeddedWindowCollapsed{false};
 	void renderSettingsWindow();
+	void renderSettingsContent(); // New method for rendering settings content
 	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }
 

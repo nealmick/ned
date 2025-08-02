@@ -470,7 +470,7 @@ void Terminal::render()
 
 	checkFontSizeChange();
 	bool windowCreated = setupWindow();
-	
+
 	// Only render terminal content if window is open and not collapsed
 	if (windowCreated && (!isEmbedded || !embeddedWindowCollapsed))
 	{
