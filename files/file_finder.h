@@ -53,21 +53,26 @@ class FileFinder
 
 	void checkPendingSelection(); // Add this declaration
 
+	// Embedded mode support
+	bool isEmbedded = false;
+	ImVec2 editorPanePos;
+	ImVec2 editorPaneSize;
+
   public:
 	bool showFFWindow = false;
-	bool isEmbedded = false; // Flag to indicate if running in embedded mode
-	ImVec2 editorPanePos;	 // Store editor pane position for embedded mode
-	ImVec2 editorPaneSize;	 // Store editor pane size for embedded mode
+	// TODO: Add embedded positioning support when needed
+	void toggleWindow();
+	bool isWindowOpen() const;
+	void renderWindow();
+
+	// Embedded mode support
 	void setEmbedded(bool embedded) { isEmbedded = embedded; }
-	bool getEmbedded() const { return isEmbedded; }
 	void setEditorPaneBounds(const ImVec2 &pos, const ImVec2 &size)
 	{
 		editorPanePos = pos;
 		editorPaneSize = size;
 	}
-	void toggleWindow();
-	bool isWindowOpen() const;
-	void renderWindow();
+
 	FileFinder();
 	~FileFinder();
 };

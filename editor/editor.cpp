@@ -181,6 +181,11 @@ void Editor::renderEditor(ImFont *font, float editorWidth)
 
 	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
 
+	// Get the editor pane bounds for FileFinder positioning in embedded mode
+	ImVec2 editorPanePos = ImGui::GetWindowPos();
+	ImVec2 editorPaneSize = ImGui::GetWindowSize();
+	gFileFinder.setEditorPaneBounds(editorPanePos, editorPaneSize);
+
 	// Calculate if git changes should be shown based on window width
 	float windowWidth = ImGui::GetWindowWidth();
 	bool showGitChanges = windowWidth >= 250.0f;
