@@ -12,6 +12,7 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include "ai/ai_agent.h" // Ensure AI agent is included
 #include "editor/editor.h"
 #include "editor/editor_bookmarks.h"
+#include "files/file_finder.h"
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "lsp/lsp_goto_def.h"
@@ -190,6 +191,9 @@ void NedEmbed::render(float width, float height)
 	// Set embedded flag for LSP popups to constrain them to editor pane
 	gLSPGotoRef.setEmbedded(true);
 	gLSPGotoDef.setEmbedded(true);
+
+	// Set embedded flag for FileFinder to constrain popup to editor pane
+	gFileFinder.setEmbedded(true);
 
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
