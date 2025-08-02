@@ -176,12 +176,12 @@ void NedEmbed::render(float width, float height)
 		// Terminal takes over the editor area when visible
 		// Set the terminal's embedded flag based on our embedded state
 		gTerminal.setEmbedded(isEmbedded);
-		// Make sure we pop the font before rendering terminal to avoid font stack issues
-		ImGui::PopFont();
+		// Don't pop the font here - let the terminal handle its own font management
 		gTerminal.render();
-		return; // Don't render other UI when terminal is visible
+		// Don't return early - allow settings window to render even when terminal is visible
 	}
 
+	// Always render settings and other UI components, regardless of terminal visibility
 	// Set embedded flag for settings to constrain popup to editor pane
 	gSettings.setEmbedded(true);
 	gSettings.renderSettingsWindow();

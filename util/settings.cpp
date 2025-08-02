@@ -108,22 +108,48 @@ void Settings::renderSettingsWindow()
 	if (!showSettingsWindow)
 		return;
 
-	float settings_window_width;
-	float settings_window_height;
-	float current_font_size = settings.value("fontSize", 20.0f);
-
 	if (isEmbedded)
 	{
-		// In embedded mode, use the current window's size for better sizing
-		ImVec2 window_size = ImGui::GetWindowSize();
-		settings_window_width = window_size.x * 0.85f;	// 85% of window width
-		settings_window_height = window_size.y * 0.80f; // 80% of window height
+		// In embedded mode, create a draggable, resizable window with decoration
+		ImGui::SetNextWindowPos(embeddedWindowPos, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
 
-		// Ensure minimum size
-		settings_window_width = std::max(settings_window_width, 400.0f);
-		settings_window_height = std::max(settings_window_height, 400.0f);
+		// Create a proper window with title bar, close button, and resize handles
+		bool windowOpen = true;
+		bool windowCreated =
+			ImGui::Begin("Settings",
+						 &windowOpen,
+						 ImGuiWindowFlags_None); // Allow all default window features
+
+		if (windowCreated)
+		{
+			// Update our stored position and size for persistence
+			embeddedWindowPos = ImGui::GetWindowPos();
+			embeddedWindowSize = ImGui::GetWindowSize();
+			embeddedWindowCollapsed = ImGui::IsWindowCollapsed();
+
+			// If window was closed, hide the settings
+			if (!windowOpen)
+			{
+				showSettingsWindow = false;
+			}
+
+			// Only render settings content if window is not collapsed
+			if (!embeddedWindowCollapsed)
+			{
+				renderSettingsContent();
+			}
+
+			// Always call End() if Begin() was called
+			ImGui::End();
+		}
 	} else
 	{
+		// Standalone mode - use the original modal popup approach
+		float settings_window_width;
+		float settings_window_height;
+		float current_font_size = settings.value("fontSize", 20.0f);
+
 		// Standalone mode - use viewport size
 		ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
 
@@ -139,41 +165,47 @@ void Settings::renderSettingsWindow()
 			settings_window_height =
 				main_viewport_size.y * 0.85f; // 85% of viewport height
 		}
-	}
 
-	ImVec2 window_size(settings_window_width, settings_window_height);
+		ImVec2 window_size(settings_window_width, settings_window_height);
 
-	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
-	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
+		ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
 
-	if (isEmbedded)
-	{
-		// In embedded mode, center within the current window's content area
-		// Use the current window's position and size for better positioning
-		ImVec2 window_pos = ImGui::GetWindowPos();
-		ImVec2 window_size = ImGui::GetWindowSize();
-		ImVec2 center_pos(window_pos.x + window_size.x * 0.5f,
-						  window_pos.y + window_size.y * 0.5f);
-		ImGui::SetNextWindowPos(center_pos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-	} else
-	{
 		// Standalone mode - center on display
 		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
 									   ImGui::GetIO().DisplaySize.y * 0.5f),
 								ImGuiCond_Always,
 								ImVec2(0.5f, 0.5f));
+		ImGuiWindowFlags windowFlags =
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_Modal;
+
+		applyImGuiStyles();
+		ImGui::Begin("Settings", nullptr, windowFlags);
+
+		renderSettingsContent();
+
+		ImGui::End();
+		ImGui::PopStyleColor(8);
+		ImGui::PopStyleVar(6);
 	}
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
-								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-								   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
 
-	applyImGuiStyles();
-	ImGui::Begin("Settings", nullptr, windowFlags);
+	if (profileJustSwitched)
+	{
+		profileJustSwitched = false;
+	}
+}
 
-	// Fixed header section with padding
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-	renderWindowHeader();
-	ImGui::PopStyleVar();
+void Settings::renderSettingsContent()
+{
+	// Fixed header section with padding - only show in standalone mode
+	if (!isEmbedded)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		renderWindowHeader();
+		ImGui::PopStyleVar();
+	}
 
 	// Calculate remaining space for scrollable content
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
@@ -200,15 +232,6 @@ void Settings::renderSettingsWindow()
 	ImGui::PopStyleVar();
 
 	handleWindowInput();
-
-	ImGui::End();
-	ImGui::PopStyleColor(8);
-	ImGui::PopStyleVar(6);
-
-	if (profileJustSwitched)
-	{
-		profileJustSwitched = false;
-	}
 }
 
 void Settings::applyImGuiStyles()
