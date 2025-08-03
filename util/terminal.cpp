@@ -525,7 +525,8 @@ bool Terminal::setupWindow()
 		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
 
 		bool windowOpen = true;
-		bool windowCreated = ImGui::Begin("Terminal", &windowOpen, ImGuiWindowFlags_NoCollapse);
+		bool windowCreated =
+			ImGui::Begin("Terminal", &windowOpen, ImGuiWindowFlags_NoCollapse);
 		if (windowCreated)
 		{
 			embeddedWindowPos = ImGui::GetWindowPos();
@@ -535,18 +536,20 @@ bool Terminal::setupWindow()
 			{
 				isVisible = false;
 			}
-		}
-		else
+		} else
 		{
 			embeddedWindowCollapsed = true;
 		}
 		return windowCreated;
-	}
-	else
+	} else
 	{
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-		bool windowCreated = ImGui::Begin("Terminal", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+		bool windowCreated =
+			ImGui::Begin("Terminal",
+						 nullptr,
+						 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+							 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 		return windowCreated;
 	}
 }
