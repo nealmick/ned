@@ -28,6 +28,31 @@ SettingsFileManager::SettingsFileManager() {}
 
 std::string SettingsFileManager::getAppResourcesPath()
 {
+	// First, try to find the ned project directory relative to current working directory
+	// This is needed for embedded mode where the library is used from a different project
+	std::string currentDir = fs::current_path().string();
+	std::vector<std::string> nedPathsToCheck = {
+		currentDir + "/ned",                    // If running from ImGui_Ned_Embed/
+		currentDir + "/../ned",                 // If running from ImGui_Ned_Embed/build/
+		currentDir + "/../../ned",              // If running from deeper build dir
+		currentDir + "/../ImGui_Ned_Embed/ned", // Alternative path
+		currentDir + "/ned/ned",                // Nested ned directory
+		currentDir + "/../ned/ned",             // Nested ned directory from build
+	};
+
+	for (const auto &path : nedPathsToCheck)
+	{
+		if (fs::exists(path) && fs::is_directory(path))
+		{
+			// Check if this path contains fonts and settings
+			if (fs::exists(path + "/fonts") && fs::exists(path + "/settings"))
+			{
+				std::cout << "[Settings] Using ned resource path: " << path << std::endl;
+				return path;
+			}
+		}
+	}
+
 #ifdef __APPLE__
 	char exePath[MAXPATHLEN];
 	uint32_t size = sizeof(exePath);
@@ -96,7 +121,6 @@ std::string SettingsFileManager::getAppResourcesPath()
 				 "for Linux (readlink "
 				 "failed or no valid path found)."
 			  << std::endl;
-	return "."; // Absolute fallback
 #endif
 	return "."; // Absolute fallback
 }
