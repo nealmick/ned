@@ -173,16 +173,25 @@ file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
 # ImGui sources (explicitly listed for stability)
-set(IMGUI_SOURCES
-  lib/imgui/imgui.cpp
-  lib/imgui/imgui_demo.cpp
-  lib/imgui/imgui_draw.cpp
-  lib/imgui/imgui_tables.cpp
-  lib/imgui/imgui_widgets.cpp
-  lib/imgui/backends/imgui_impl_glfw.cpp
-  lib/imgui/backends/imgui_impl_opengl3.cpp
-  lib/imgui/misc/freetype/imgui_freetype.cpp
-)
+# Check if we're being built as a subdirectory (embedded mode)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    # Standalone build - use our own ImGui
+    set(IMGUI_SOURCES
+      lib/imgui/imgui.cpp
+      lib/imgui/imgui_demo.cpp
+      lib/imgui/imgui_draw.cpp
+      lib/imgui/imgui_tables.cpp
+      lib/imgui/imgui_widgets.cpp
+      lib/imgui/backends/imgui_impl_glfw.cpp
+      lib/imgui/backends/imgui_impl_opengl3.cpp
+      lib/imgui/misc/freetype/imgui_freetype.cpp
+    )
+    set(IMGUI_INCLUDE_DIRS lib/imgui lib/imgui/backends)
+else()
+    # Embedded build - use parent's unified ImGui
+    set(IMGUI_SOURCES)
+    set(IMGUI_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/imgui ${CMAKE_SOURCE_DIR}/imgui/backends)
+endif()
 
 # Custom ImGui configuration to avoid modifying the submodule
 add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
@@ -206,8 +215,7 @@ add_library(util STATIC
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
-  lib/imgui
-  lib/imgui/backends
+  ${IMGUI_INCLUDE_DIRS}
   editor
   files
   ${CMAKE_BINARY_DIR}
@@ -239,17 +247,7 @@ add_library(ned_embed STATIC
   ${AI_SOURCES}
   ${AI_MM_SOURCES}
   ${FILES_SOURCES}
-  # Include ImGui implementation files
-  lib/imgui/imgui.cpp
-  lib/imgui/imgui_demo.cpp
-  lib/imgui/imgui_draw.cpp
-  lib/imgui/imgui_tables.cpp
-  lib/imgui/imgui_widgets.cpp
-  # Include ImGui backend files
-  lib/imgui/backends/imgui_impl_glfw.cpp
-  lib/imgui/backends/imgui_impl_opengl3.cpp
-  # Include ImGui FreeType extension
-  lib/imgui/misc/freetype/imgui_freetype.cpp
+  ${IMGUI_SOURCES}
 )
 
 # =====================
@@ -282,8 +280,7 @@ endif()
 # Include Directories
 # =====================
 target_include_directories(ned PRIVATE
-  lib/imgui
-  lib/imgui/backends
+  ${IMGUI_INCLUDE_DIRS}
   ${NFD_DIR}/src
   ${NFD_DIR}/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -300,8 +297,7 @@ target_include_directories(ned PRIVATE
 )
 
 target_include_directories(ned_embed PUBLIC
-  lib/imgui
-  lib/imgui/backends
+  ${IMGUI_INCLUDE_DIRS}
   ${NFD_DIR}/src
   ${NFD_DIR}/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}
