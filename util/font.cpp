@@ -16,7 +16,7 @@ Description: Font management class implementation for NED text editor.
 #endif
 
 // Global font instance
-Font gFont;
+extern Font gFont;
 
 ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 {
@@ -172,9 +172,8 @@ ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 		return io.Fonts->AddFontDefault();
 	}
 
-	// After adding new fonts, re-create the OpenGL font texture
-	ImGui_ImplOpenGL3_DestroyFontsTexture();
-	ImGui_ImplOpenGL3_CreateFontsTexture();
+	// Don't recreate OpenGL texture here - that should only happen in handleFontReload()
+	// The texture will be recreated when the font atlas is rebuilt
 
 	// std::cout << "[Font::loadFont] Successfully loaded font: " << fontName <<
 	// " from " << fontPath
@@ -219,9 +218,8 @@ ImFont *Font::loadLargeFont(const std::string &fontName, float fontSize)
 		return io.Fonts->AddFontDefault();
 	}
 
-	// After adding new fonts, re-create the OpenGL font texture
-	ImGui_ImplOpenGL3_DestroyFontsTexture();
-	ImGui_ImplOpenGL3_CreateFontsTexture();
+	// Don't recreate OpenGL texture here - that should only happen in handleFontReload()
+	// The texture will be recreated when the font atlas is rebuilt
 
 	return font;
 }
@@ -280,16 +278,26 @@ void Font::handleFontReload()
 {
 	if (needFontReload)
 	{
-		ImGui_ImplOpenGL3_DestroyFontsTexture();
+		// Clear the font atlas first
 		ImGui::GetIO().Fonts->Clear();
+
+		// Load the new fonts
 		currentFont = loadFont(gSettings.getCurrentFont(),
 							   gSettings.getSettings()["fontSize"].get<float>());
 
 		// Also reload largeFont since it was cleared above
 		largeFont = loadLargeFont(gSettings.getCurrentFont(), 52.0f);
 
+		// Build the font atlas
 		ImGui::GetIO().Fonts->Build();
+
+		// For embedded mode, we need to recreate the OpenGL texture
+		// but we'll do it more carefully to avoid crashes
+		// First destroy the old texture
+		ImGui_ImplOpenGL3_DestroyFontsTexture();
+		// Then create the new texture
 		ImGui_ImplOpenGL3_CreateFontsTexture();
+
 		gSettings.resetFontChanged();
 		gSettings.resetFontSizeChanged();
 		needFontReload = false;

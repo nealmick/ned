@@ -38,7 +38,7 @@
 #include <cmath>
 #include <iostream>
 
-Editor gEditor;
+extern Editor gEditor;
 EditorState editor_state;
 
 void Editor::textEditor()
@@ -180,6 +180,11 @@ void Editor::renderEditor(ImFont *font, float editorWidth)
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
 
 	ImGui::BeginChild("Editor", ImVec2(editorWidth, -1), true);
+
+	// Get the editor pane bounds for FileFinder positioning in embedded mode
+	ImVec2 editorPanePos = ImGui::GetWindowPos();
+	ImVec2 editorPaneSize = ImGui::GetWindowSize();
+	gFileFinder.setEditorPaneBounds(editorPanePos, editorPaneSize);
 
 	// Calculate if git changes should be shown based on window width
 	float windowWidth = ImGui::GetWindowWidth();

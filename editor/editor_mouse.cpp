@@ -112,7 +112,6 @@ void EditorMouse::handleMouseInput()
 
 void EditorMouse::handleMouseClick(int char_index)
 {
-	std::cout << "got mouse click" << std::endl;
 	bool cmd_pressed = ImGui::GetIO().KeyCtrl;
 	if (cmd_pressed)
 	{

@@ -218,6 +218,7 @@ target_link_libraries(util PUBLIC ${OPENGL_LIBRARIES} glfw)
 # Main Executable
 # ================
 add_executable(ned
+  globals.cpp
   ${APP_SOURCES}
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
@@ -225,6 +226,30 @@ add_executable(ned
   ${AI_MM_SOURCES}
   ${FILES_SOURCES}
   ${IMGUI_SOURCES}
+)
+
+# ================
+# Embeddable Library
+# ================
+add_library(ned_embed STATIC
+  globals.cpp
+  ned_embed.cpp
+  ${EDITOR_SOURCES}
+  ${LSP_SOURCES}
+  ${AI_SOURCES}
+  ${AI_MM_SOURCES}
+  ${FILES_SOURCES}
+  # Include ImGui implementation files
+  lib/imgui/imgui.cpp
+  lib/imgui/imgui_demo.cpp
+  lib/imgui/imgui_draw.cpp
+  lib/imgui/imgui_tables.cpp
+  lib/imgui/imgui_widgets.cpp
+  # Include ImGui backend files
+  lib/imgui/backends/imgui_impl_glfw.cpp
+  lib/imgui/backends/imgui_impl_opengl3.cpp
+  # Include ImGui FreeType extension
+  lib/imgui/misc/freetype/imgui_freetype.cpp
 )
 
 # =====================
@@ -274,10 +299,40 @@ target_include_directories(ned PRIVATE
   lib/utfcpp/source
 )
 
+target_include_directories(ned_embed PUBLIC
+  lib/imgui
+  lib/imgui/backends
+  ${NFD_DIR}/src
+  ${NFD_DIR}/src/include
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  editor
+  files
+  ai
+  ai/mcp
+  ${CMAKE_BINARY_DIR}
+  ${GLEW_INCLUDE_DIRS}
+  ${FREETYPE_INCLUDE_DIRS}
+  lib/tree-sitter/lib/include
+  lib/tree-sitter/lib/src
+  lib/utfcpp/source
+)
+
 # ================
 # Linking
 # ================
 target_link_libraries(ned PRIVATE
+  ${OPENGL_LIBRARIES}
+  glfw
+  nfd
+  util
+  ${GLEW_LIBRARIES}
+  ${FREETYPE_LIBRARIES}
+  CURL::libcurl 
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
+)
+
+target_link_libraries(ned_embed PUBLIC
   ${OPENGL_LIBRARIES}
   glfw
   nfd
@@ -303,10 +358,10 @@ endif()
 # Resources
 # ================
 file(COPY 
-  ${CMAKE_SOURCE_DIR}/settings
-  ${CMAKE_SOURCE_DIR}/fonts
-  ${CMAKE_SOURCE_DIR}/icons
-  ${CMAKE_SOURCE_DIR}/shaders
-  ${CMAKE_SOURCE_DIR}/editor/queries 
+  ${CMAKE_CURRENT_SOURCE_DIR}/settings
+  ${CMAKE_CURRENT_SOURCE_DIR}/fonts
+  ${CMAKE_CURRENT_SOURCE_DIR}/icons
+  ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+  ${CMAKE_CURRENT_SOURCE_DIR}/editor/queries 
   DESTINATION ${CMAKE_BINARY_DIR}
 )

@@ -97,7 +97,15 @@ class Settings
 	void toggleAgentPane();
 
 	bool showSettingsWindow = false;
+	bool isEmbedded = false; // Flag to indicate if running in embedded mode
+	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+
+	// Embedded settings window state (similar to terminal)
+	ImVec2 embeddedWindowPos{200.0f, 200.0f};
+	ImVec2 embeddedWindowSize{900.0f, 600.0f};
+	bool embeddedWindowCollapsed{false};
 	void renderSettingsWindow();
+	void renderSettingsContent(); // New method for rendering settings content
 	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }
 
@@ -166,13 +174,13 @@ class Settings
 	// Method to apply settings to ImGui style
 	void ApplySettings(ImGuiStyle &style);
 
-	// Method to handle settings changes and update related components
 	void handleSettingsChanges(bool &needFontReload,
 							   bool &m_needsRedraw,
 							   int &m_framesToRender,
 							   std::function<void(bool)> setShaderEnabled,
 							   float &lastOpacity,
-							   bool &lastBlurEnabled);
+							   bool &lastBlurEnabled,
+							   bool force = false);
 
   private:
 	json settings;				 // Holds the settings from the *active* file
