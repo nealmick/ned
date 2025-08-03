@@ -48,7 +48,7 @@ ImVec4 Terminal::defaultColorMap[16] = {
 	ImVec4(1.0f, 1.0f, 1.0f, 1.0f)	// Pure White
 };
 
-Terminal gTerminal;
+extern Terminal gTerminal;
 Terminal::Terminal()
 {
 	// Initialize with safe default size
@@ -469,14 +469,23 @@ void Terminal::render()
 	ImGuiIO &io = ImGui::GetIO();
 
 	checkFontSizeChange();
-	setupWindow();
-	handleTerminalResize();
-	renderBuffer();
-	handleScrollback(io, state.row);
-	handleMouseInput(io);
-	handleKeyboardInput(io);
+	bool windowCreated = setupWindow();
 
-	ImGui::End();
+	// Only render terminal content if window is open and not collapsed
+	if (windowCreated && (!isEmbedded || !embeddedWindowCollapsed))
+	{
+		handleTerminalResize();
+		renderBuffer();
+		handleScrollback(io, state.row);
+		handleMouseInput(io);
+		handleKeyboardInput(io);
+	}
+
+	// Only call End() if Begin() was actually called and succeeded
+	if (windowCreated)
+	{
+		ImGui::End();
+	}
 }
 
 void Terminal::renderBuffer()
@@ -508,14 +517,41 @@ void Terminal::checkFontSizeChange()
 	}
 }
 
-void Terminal::setupWindow()
+bool Terminal::setupWindow()
 {
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
-	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-	ImGui::Begin("Terminal",
-				 nullptr,
-				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-					 ImGuiWindowFlags_NoResize);
+	if (isEmbedded)
+	{
+		ImGui::SetNextWindowPos(embeddedWindowPos, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
+
+		bool windowOpen = true;
+		bool windowCreated =
+			ImGui::Begin("Terminal", &windowOpen, ImGuiWindowFlags_NoCollapse);
+		if (windowCreated)
+		{
+			embeddedWindowPos = ImGui::GetWindowPos();
+			embeddedWindowSize = ImGui::GetWindowSize();
+			embeddedWindowCollapsed = ImGui::IsWindowCollapsed();
+			if (!windowOpen)
+			{
+				isVisible = false;
+			}
+		} else
+		{
+			embeddedWindowCollapsed = true;
+		}
+		return windowCreated;
+	} else
+	{
+		ImGui::SetNextWindowPos(ImVec2(0, 0));
+		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+		bool windowCreated =
+			ImGui::Begin("Terminal",
+						 nullptr,
+						 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+							 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+		return windowCreated;
+	}
 }
 
 void Terminal::handleTerminalResize()
@@ -835,7 +871,7 @@ void Terminal::renderMainScreen(ImDrawList *drawList,
 		} else
 		{
 			int screenY = currentLine - scrollbackBuffer.size();
-			if (screenY >= 0 && screenY < state.row)
+			if (screenY >= 0 && screenY < state.lines.size())
 			{
 				line = &state.lines[screenY];
 			}

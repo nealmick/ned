@@ -137,22 +137,15 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
 	ImGui::SetCursorPosY(iconTopY);
 
-	if (!settingsOpen)
+	ImVec2 cursor_pos = ImGui::GetCursorPos();
+	if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)))
 	{
-		ImVec2 cursor_pos = ImGui::GetCursorPos();
-		if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)))
-		{
-			gSettings.toggleSettingsWindow();
-		}
-		bool isHovered = ImGui::IsItemHovered();
-		ImGui::SetCursorPos(cursor_pos);
-		ImTextureID icon =
-			isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
-		ImGui::Image(icon, ImVec2(iconSize, iconSize));
-	} else
-	{
-		ImGui::Image(getStatusIcon("gear"), ImVec2(iconSize, iconSize));
+		gSettings.toggleSettingsWindow();
 	}
+	bool isHovered = ImGui::IsItemHovered();
+	ImGui::SetCursorPos(cursor_pos);
+	ImTextureID icon = isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
+	ImGui::Image(icon, ImVec2(iconSize, iconSize));
 
 	ImGui::PopStyleColor(3);
 	ImGui::PopStyleVar();

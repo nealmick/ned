@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
+#include "../util/font.h"
 #include "../util/keybinds.h"
 #include "../util/splitter.h"
 #include "../util/terminal.h"
@@ -36,7 +37,7 @@
 #include <unistd.h>
 
 namespace fs = std::filesystem;
-Settings gSettings;
+extern Settings gSettings;
 
 Settings::Settings() : splitPos(0.3f)
 {
@@ -75,6 +76,16 @@ void Settings::loadSettings()
 	}
 	agentSplitPosProcessed = true;
 
+	// **changed**: Add initial save to ensure proper state synchronization
+	// This fixes the background color picker issue when it's the first setting changed
+	if (previousSettingsPath != settingsPath)
+	{
+		// This is a new settings file being loaded, save it to ensure proper state
+		settingsFileManager.saveSettings(settings, settingsPath);
+		std::cout << "[Settings] Initial save after loading new settings file: "
+				  << settingsPath << std::endl;
+	}
+
 	settingsChanged = false;
 	themeChanged = false;
 	fontChanged = false;
@@ -107,41 +118,101 @@ void Settings::renderSettingsWindow()
 	if (!showSettingsWindow)
 		return;
 
-	ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
-	float settings_window_width;
-	float settings_window_height;
-	float current_font_size = settings.value("fontSize", 20.0f);
-
-	// Dynamic sizing based on viewport width and font size
-	if (main_viewport_size.x < 1100.0f || current_font_size > 40)
+	if (isEmbedded)
 	{
-		settings_window_width = main_viewport_size.x * 0.90f;  // 90% of viewport width
-		settings_window_height = main_viewport_size.y * 0.80f; // 80% of viewport height
+		// In embedded mode, create a draggable, resizable window with decoration
+		ImGui::SetNextWindowPos(embeddedWindowPos, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
+
+		// Create a proper window with title bar, close button, and resize handles
+		// but disable collapsible behavior in embedded mode
+		bool windowOpen = true;
+		bool windowCreated =
+			ImGui::Begin("Settings",
+						 &windowOpen,
+						 ImGuiWindowFlags_NoCollapse); // Disable collapsible behavior
+
+		if (windowCreated)
+		{
+			// Update our stored position and size for persistence
+			embeddedWindowPos = ImGui::GetWindowPos();
+			embeddedWindowSize = ImGui::GetWindowSize();
+
+			// If window was closed, hide the settings
+			if (!windowOpen)
+			{
+				showSettingsWindow = false;
+			}
+
+			// Always render settings content since window is not collapsible
+			renderSettingsContent();
+
+			// Always call End() if Begin() was called
+			ImGui::End();
+		}
 	} else
 	{
-		settings_window_width = main_viewport_size.x * 0.75f;  // 75% of viewport width
-		settings_window_height = main_viewport_size.y * 0.85f; // 85% of viewport height
+		// Standalone mode - use the original modal popup approach
+		float settings_window_width;
+		float settings_window_height;
+		float current_font_size = settings.value("fontSize", 20.0f);
+
+		// Standalone mode - use viewport size
+		ImVec2 main_viewport_size = ImGui::GetMainViewport()->Size;
+
+		// Dynamic sizing based on viewport width and font size
+		if (main_viewport_size.x < 1100.0f || current_font_size > 40)
+		{
+			settings_window_width = main_viewport_size.x * 0.90f; // 90% of viewport width
+			settings_window_height =
+				main_viewport_size.y * 0.80f; // 80% of viewport height
+		} else
+		{
+			settings_window_width = main_viewport_size.x * 0.75f; // 75% of viewport width
+			settings_window_height =
+				main_viewport_size.y * 0.85f; // 85% of viewport height
+		}
+
+		ImVec2 window_size(settings_window_width, settings_window_height);
+
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
+		ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
+		// Standalone mode - center on display
+		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
+									   ImGui::GetIO().DisplaySize.y * 0.5f),
+								ImGuiCond_Always,
+								ImVec2(0.5f, 0.5f));
+		ImGuiWindowFlags windowFlags =
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_Modal;
+
+		applyImGuiStyles();
+		ImGui::Begin("Settings", nullptr, windowFlags);
+
+		renderSettingsContent();
+
+		ImGui::End();
+		ImGui::PopStyleColor(8);
+		ImGui::PopStyleVar(6);
 	}
 
-	ImVec2 window_size(settings_window_width, settings_window_height);
+	if (profileJustSwitched)
+	{
+		profileJustSwitched = false;
+	}
+}
 
-	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.0f);
-	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
-								   ImGui::GetIO().DisplaySize.y * 0.5f),
-							ImGuiCond_Always,
-							ImVec2(0.5f, 0.5f));
-	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
-								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-								   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_Modal;
-
-	applyImGuiStyles();
-	ImGui::Begin("Settings", nullptr, windowFlags);
-
-	// Fixed header section with padding
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-	renderWindowHeader();
-	ImGui::PopStyleVar();
+void Settings::renderSettingsContent()
+{
+	// Fixed header section with padding - only show in standalone mode
+	if (!isEmbedded)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		renderWindowHeader();
+		ImGui::PopStyleVar();
+	}
 
 	// Calculate remaining space for scrollable content
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
@@ -168,15 +239,6 @@ void Settings::renderSettingsWindow()
 	ImGui::PopStyleVar();
 
 	handleWindowInput();
-
-	ImGui::End();
-	ImGui::PopStyleColor(8);
-	ImGui::PopStyleVar(6);
-
-	if (profileJustSwitched)
-	{
-		profileJustSwitched = false;
-	}
 }
 
 void Settings::applyImGuiStyles()
@@ -576,37 +638,13 @@ void Settings::renderMainSettings()
 		bgColor = ImVec4(0.058f, 0.194f, 0.158f, 1.0f);
 	}
 
+	// **changed**: Save background color immediately when it changes, like other settings
 	if (ImGui::ColorEdit4("Background Color", (float *)&bgColor))
 	{
-		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-			settings["backgroundColor"][1].get<float>() != bgColor.y ||
-			settings["backgroundColor"][2].get<float>() != bgColor.z ||
-			settings["backgroundColor"][3].get<float>() != bgColor.w)
-		{
-			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged)
-				settingsChanged = true;
-		}
-	}
-
-	if (ImGui::IsItemDeactivatedAfterEdit())
-	{
-		if (settings["backgroundColor"][0].get<float>() != bgColor.x ||
-			settings["backgroundColor"][1].get<float>() != bgColor.y ||
-			settings["backgroundColor"][2].get<float>() != bgColor.z ||
-			settings["backgroundColor"][3].get<float>() != bgColor.w)
-		{
-			settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
-			if (!settingsChanged)
-				settingsChanged = true;
-		}
-
-		if (settingsChanged)
-		{
-			std::cout << "[Settings] Background Color edit finished. Saving."
-					  << std::endl;
-			saveSettings();
-		}
+		// Update settings immediately when color changes
+		settings["backgroundColor"] = {bgColor.x, bgColor.y, bgColor.z, bgColor.w};
+		settingsChanged = true;
+		saveSettings(); // Save immediately like other settings
 	}
 }
 
@@ -1169,13 +1207,30 @@ void Settings::ApplySettings(ImGuiStyle &style)
 		ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
 	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);
 
-	// Hide scrollbars by setting their alpha to 0.
-	style.ScrollbarSize = 30.0f;
+	// Set scrollbar size only for standalone mode, leave default for embedded
+	if (!isEmbedded)
+	{
+		// Use original size for standalone mode
+		style.ScrollbarSize = 30.0f;
+	}
+	// In embedded mode, leave scrollbar size as default (don't set it)
 	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
-	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+
+	// Handle scrollbar colors based on mode
+	if (!isEmbedded)
+	{
+		// Hide all scrollbar elements in standalone mode
+		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+	} else
+	{
+		// In embedded mode, make only the scrollbar track transparent
+		// but keep the scrollbar grab (draggable part) visible
+		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0); // Transparent track
+		// Leave scrollbar grab colors as default (visible)
+	}
 
 	// Set the global font scale.
 	// ImGui::GetIO().FontGlobalScale =
@@ -1187,22 +1242,36 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 									 int &m_framesToRender,
 									 std::function<void(bool)> setShaderEnabled,
 									 float &lastOpacity,
-									 bool &lastBlurEnabled)
+									 bool &lastBlurEnabled,
+									 bool force)
 {
-	if (hasSettingsChanged())
+	if (hasSettingsChanged() || force)
 	{
-		m_needsRedraw = true;							  // Set the flag!
-		m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		if (!force)
+		{
+			m_needsRedraw = true;							  // Set the flag!
+			m_framesToRender = std::max(m_framesToRender, 3); // Reduced frame count
+		}
 
 		ImGuiStyle &style = ImGui::GetStyle();
 
 		ApplySettings(style);
 
+		// Set the child window background color (for editor panes, file explorer, etc.)
+		// Use a proper alpha value (1.0) instead of the settings alpha which might be 0
+		style.Colors[ImGuiCol_ChildBg] =
+			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
+				   getSettings()["backgroundColor"][1].get<float>(),
+				   getSettings()["backgroundColor"][2].get<float>(),
+				   1.0f); // Use full alpha for child windows
+
+		// Also set the main window background color for popups and settings windows
+		// but use a slightly different alpha to distinguish from child windows
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
 				   getSettings()["backgroundColor"][1].get<float>(),
 				   getSettings()["backgroundColor"][2].get<float>(),
-				   0.0f);
+				   0.95f); // Slightly transparent for main windows
 
 		// Update shader manager using function pointer
 		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());
@@ -1211,7 +1280,7 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		Splitter::showSidebar = getSettings().value("sidebar_visible", true);
 		Splitter::showAgentPane = getSettings().value("agent_pane_visible", true);
 
-		if (hasThemeChanged())
+		if (hasThemeChanged() || force)
 		{
 			extern EditorHighlight gEditorHighlight;
 			gEditorHighlight.setTheme(getCurrentTheme());
@@ -1225,6 +1294,9 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		if (hasFontChanged() || hasFontSizeChanged())
 		{
 			needFontReload = true;
+			// Also set the global font reload flag
+			extern Font gFont;
+			gFont.setNeedFontReload(true);
 		}
 #ifdef __APPLE__
 		// Always update with current values
@@ -1238,6 +1310,9 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		lastBlurEnabled = currentBlurEnabled;
 #endif
 
-		resetSettingsChanged();
+		if (!force)
+		{
+			resetSettingsChanged();
+		}
 	}
 }

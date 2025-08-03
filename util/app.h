@@ -76,6 +76,7 @@ class App
 	bool shouldTerminateApplication() const;
 	void setupMacOSApplicationDelegate();
 	void configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabled);
+	void updateMacOSWindowProperties(float opacity, bool blurEnabled);
 	void cleanupMacOSApplicationDelegate();
 	bool isWindowFocused(GLFWwindow *window) const;
 	void

@@ -104,10 +104,14 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 			fpsTarget = settings.getSettings()["fps_target"].get<float>();
 		}
 
-		// When scroll animation is active, bypass FPS restrictions like mouse wheel
+		// When scroll animation is active, set FPS target to settings value
 		if (scrollAnimationActive)
 		{
-			return; // Don't apply any frame timing - let it run at full speed
+			if (settings.getSettings().contains("fps_target") &&
+				settings.getSettings()["fps_target"].is_number())
+			{
+				fpsTarget = settings.getSettings()["fps_target"].get<float>();
+			}
 		}
 	}
 

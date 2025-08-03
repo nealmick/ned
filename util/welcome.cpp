@@ -22,17 +22,28 @@ void Welcome::render()
 {
 	calculateFPS(); // Update FPS count
 
-	ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(viewport->Pos);
-	ImGui::SetNextWindowSize(viewport->Size);
+	float windowWidth, windowHeight;
 
-	ImGui::Begin("##WelcomeScreen",
-				 nullptr,
-				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-					 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
+	if (isEmbedded)
+	{
+		// When embedded, use the current content area
+		windowWidth = ImGui::GetContentRegionAvail().x;
+		windowHeight = ImGui::GetContentRegionAvail().y;
+	} else
+	{
+		// When standalone, create a full window
+		ImGuiViewport *viewport = ImGui::GetMainViewport();
+		ImGui::SetNextWindowPos(viewport->Pos);
+		ImGui::SetNextWindowSize(viewport->Size);
 
-	float windowWidth = ImGui::GetWindowWidth();
-	float windowHeight = ImGui::GetWindowHeight();
+		ImGui::Begin("##WelcomeScreen",
+					 nullptr,
+					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+						 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
+
+		windowWidth = ImGui::GetWindowWidth();
+		windowHeight = ImGui::GetWindowHeight();
+	}
 
 	// FPS Counter in top right
 	ImGui::SetCursorPos(ImVec2(windowWidth - 80, 10));
@@ -196,5 +207,9 @@ void Welcome::render()
 
 	ImGui::PopStyleVar();
 	ImGui::PopStyleColor(3);
-	ImGui::End();
+
+	if (!isEmbedded)
+	{
+		ImGui::End();
+	}
 }

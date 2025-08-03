@@ -194,11 +194,26 @@ bool FileFinder::isWindowOpen() const { return showFFWindow; }
 void FileFinder::renderHeader()
 {
 	// Window setup (size, position, flags)
-	ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Always);
-	ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
-								   ImGui::GetIO().DisplaySize.y * 0.35f),
-							ImGuiCond_Always,
-							ImVec2(0.5f, 0.5f));
+	ImVec2 windowSize(600, 350);
+	ImVec2 windowPos;
+
+	if (isEmbedded)
+	{
+		// In embedded mode, center the window within the editor pane
+		windowPos =
+			ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
+				   editorPanePos.y + editorPaneSize.y * 0.5f - windowSize.y * 0.5f);
+
+		ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
+	} else
+	{
+		// In standalone mode, center the window on the display
+		windowPos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
+						   ImGui::GetIO().DisplaySize.y * 0.35f);
+		ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	}
 	ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
 								   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
 								   ImGuiWindowFlags_NoScrollbar |
