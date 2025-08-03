@@ -93,6 +93,29 @@ bool NedEmbed::initializeComponents()
 	// Initialize file explorer
 	gFileExplorer.loadIcons();
 
+	// Apply initial background color settings to ImGui style
+	// This ensures the background color is set correctly on startup
+	ImGuiStyle &style = ImGui::GetStyle();
+
+	// Set the child window background color (for editor panes, file explorer, etc.)
+	// Use a proper alpha value (1.0) instead of the settings alpha which might be 0
+	style.Colors[ImGuiCol_ChildBg] =
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
+			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
+			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
+			   1.0f); // Use full alpha for child windows
+
+	// Also set the main window background color for popups and settings windows
+	// but use a slightly different alpha to distinguish from child windows
+	style.Colors[ImGuiCol_WindowBg] =
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
+			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
+			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
+			   0.95f); // Slightly transparent for main windows
+
+	// Set scrollbar background to transparent for embedded mode on startup
+	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0); // Transparent track
+
 	return true;
 }
 
@@ -249,6 +272,29 @@ void NedEmbed::handleInput()
 			// Mark for redraw if needed
 		}
 	}
+}
+
+void NedEmbed::handleFontReload()
+{
+	// Set embedded flag for settings before calling handleSettingsChanges
+	gSettings.setEmbedded(true);
+
+	// Handle settings changes (this triggers font reloading when settings change)
+	bool needFontReload = false;
+	bool needsRedraw = false;
+	int framesToRender = 0;
+	float lastOpacity = 0.0f;
+	bool lastBlurEnabled = false;
+	gSettings.handleSettingsChanges(
+		needFontReload,
+		needsRedraw,
+		framesToRender,
+		[](bool enabled) { /* shader not used in embedded mode */ },
+		lastOpacity,
+		lastBlurEnabled);
+
+	// Handle font reloading
+	gFont.handleFontReloadWithFrameUpdates();
 }
 
 void NedEmbed::cleanup() { cleanupComponents(); }

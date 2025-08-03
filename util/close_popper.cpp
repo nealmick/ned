@@ -12,6 +12,9 @@
 
 void ClosePopper::closeAllExcept(Type keepOpen)
 {
+	// Check if we're in embedded mode
+	bool isEmbedded = gSettings.isEmbedded;
+
 	switch (keepOpen)
 	{
 	case Type::Settings:
@@ -21,19 +24,31 @@ void ClosePopper::closeAllExcept(Type keepOpen)
 		break;
 
 	case Type::Bookmarks:
-		gSettings.showSettingsWindow = false;
+		// Only close settings window if not in embedded mode
+		if (!isEmbedded)
+		{
+			gSettings.showSettingsWindow = false;
+		}
 		gLineJump.showLineJumpWindow = false;
 		gFileFinder.showFFWindow = false;
 		break;
 
 	case Type::LineJump:
-		gSettings.showSettingsWindow = false;
+		// Only close settings window if not in embedded mode
+		if (!isEmbedded)
+		{
+			gSettings.showSettingsWindow = false;
+		}
 		gBookmarks.showBookmarksWindow = false;
 		gFileFinder.showFFWindow = false;
 		break;
 
 	case Type::FileFinder:
-		gSettings.showSettingsWindow = false;
+		// Only close settings window if not in embedded mode
+		if (!isEmbedded)
+		{
+			gSettings.showSettingsWindow = false;
+		}
 		gBookmarks.showBookmarksWindow = false;
 		gLineJump.showLineJumpWindow = false;
 		break;
@@ -42,7 +57,14 @@ void ClosePopper::closeAllExcept(Type keepOpen)
 
 void ClosePopper::closeAll()
 {
-	gSettings.showSettingsWindow = false;
+	// Check if we're in embedded mode
+	bool isEmbedded = gSettings.isEmbedded;
+
+	// Only close settings window if not in embedded mode
+	if (!isEmbedded)
+	{
+		gSettings.showSettingsWindow = false;
+	}
 	gBookmarks.showBookmarksWindow = false;
 	gLineJump.showLineJumpWindow = false;
 	gFileFinder.showFFWindow = false;
