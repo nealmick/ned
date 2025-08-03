@@ -34,6 +34,13 @@ Description: Implementation of the embeddable NED editor wrapper.
 
 #include <algorithm> // for std::max
 
+// Stub for macOS-specific function that's not needed in the embedded version
+extern "C" void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
+    // This function is not needed for the embedded app
+    (void)opacity;
+    (void)blurEnabled;
+}
+
 // Global variables are now defined in globals.cpp
 
 // Constants
@@ -92,6 +99,11 @@ bool NedEmbed::initializeComponents()
 
 	// Initialize file explorer
 	gFileExplorer.loadIcons();
+
+	// Configure ImGui to only allow window movement from title bar
+	// This prevents accidental window movement when clicking/dragging in content areas
+	ImGuiIO &io = ImGui::GetIO();
+	io.ConfigWindowsMoveFromTitleBarOnly = true;
 
 	// Apply initial background color settings to ImGui style
 	// This ensures the background color is set correctly on startup
