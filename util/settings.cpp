@@ -125,18 +125,18 @@ void Settings::renderSettingsWindow()
 		ImGui::SetNextWindowSize(embeddedWindowSize, ImGuiCond_FirstUseEver);
 
 		// Create a proper window with title bar, close button, and resize handles
+		// but disable collapsible behavior in embedded mode
 		bool windowOpen = true;
 		bool windowCreated =
 			ImGui::Begin("Settings",
 						 &windowOpen,
-						 ImGuiWindowFlags_None); // Allow all default window features
+						 ImGuiWindowFlags_NoCollapse); // Disable collapsible behavior
 
 		if (windowCreated)
 		{
 			// Update our stored position and size for persistence
 			embeddedWindowPos = ImGui::GetWindowPos();
 			embeddedWindowSize = ImGui::GetWindowSize();
-			embeddedWindowCollapsed = ImGui::IsWindowCollapsed();
 
 			// If window was closed, hide the settings
 			if (!windowOpen)
@@ -144,11 +144,8 @@ void Settings::renderSettingsWindow()
 				showSettingsWindow = false;
 			}
 
-			// Only render settings content if window is not collapsed
-			if (!embeddedWindowCollapsed)
-			{
-				renderSettingsContent();
-			}
+			// Always render settings content since window is not collapsible
+			renderSettingsContent();
 
 			// Always call End() if Begin() was called
 			ImGui::End();
@@ -1210,13 +1207,30 @@ void Settings::ApplySettings(ImGuiStyle &style)
 		ImVec4(textCol.x * 0.6f, textCol.y * 0.6f, textCol.z * 0.6f, textCol.w);
 	style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(1.0f, 0.1f, 0.7f, 0.3f);
 
-	// Hide scrollbars by setting their alpha to 0.
-	style.ScrollbarSize = 30.0f;
+	// Set scrollbar size only for standalone mode, leave default for embedded
+	if (!isEmbedded)
+	{
+		// Use original size for standalone mode
+		style.ScrollbarSize = 30.0f;
+	}
+	// In embedded mode, leave scrollbar size as default (don't set it)
 	style.ScaleAllSizes(1.0f); // Keep this if you scale other UI elements
-	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
-	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+
+	// Handle scrollbar colors based on mode
+	if (!isEmbedded)
+	{
+		// Hide all scrollbar elements in standalone mode
+		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0, 0, 0, 0);
+	} else
+	{
+		// In embedded mode, make only the scrollbar track transparent
+		// but keep the scrollbar grab (draggable part) visible
+		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0); // Transparent track
+		// Leave scrollbar grab colors as default (visible)
+	}
 
 	// Set the global font scale.
 	// ImGui::GetIO().FontGlobalScale =
@@ -1243,11 +1257,21 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 
 		ApplySettings(style);
 
+		// Set the child window background color (for editor panes, file explorer, etc.)
+		// Use a proper alpha value (1.0) instead of the settings alpha which might be 0
+		style.Colors[ImGuiCol_ChildBg] =
+			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
+				   getSettings()["backgroundColor"][1].get<float>(),
+				   getSettings()["backgroundColor"][2].get<float>(),
+				   1.0f); // Use full alpha for child windows
+
+		// Also set the main window background color for popups and settings windows
+		// but use a slightly different alpha to distinguish from child windows
 		style.Colors[ImGuiCol_WindowBg] =
 			ImVec4(getSettings()["backgroundColor"][0].get<float>(),
 				   getSettings()["backgroundColor"][1].get<float>(),
 				   getSettings()["backgroundColor"][2].get<float>(),
-				   0.0f);
+				   0.95f); // Slightly transparent for main windows
 
 		// Update shader manager using function pointer
 		setShaderEnabled(getSettings()["shader_toggle"].get<bool>());

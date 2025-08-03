@@ -37,6 +37,9 @@ class NedEmbed
 	// Handle input (call this before rendering if needed)
 	void handleInput();
 
+	// Handle font reloading (call this before ImGui frame begins)
+	void handleFontReload();
+
 	// Cleanup resources
 	void cleanup();
 

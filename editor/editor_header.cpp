@@ -144,10 +144,8 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 	}
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
-	ImTextureID icon =
-		isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
+	ImTextureID icon = isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
 	ImGui::Image(icon, ImVec2(iconSize, iconSize));
-
 
 	ImGui::PopStyleColor(3);
 	ImGui::PopStyleVar();
