@@ -28,6 +28,7 @@ class NedEmbed
 	~NedEmbed();
 
 	// Initialize the embeddable editor (everything except GLFW window)
+	// Called automatically in constructor
 	bool initialize();
 
 	// Render the editor as an ImGui window/child
