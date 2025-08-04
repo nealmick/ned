@@ -63,7 +63,7 @@ void Welcome::render()
 	ImGui::SetCursorPosY(windowHeight * 0.2f);
 	{ // Scope for title scaling
 		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
-		float baseFontSize = currentFont->FontSize;
+		float baseFontSize = currentFont->LegacySize;
 		float desiredFontSize = 48.0f; // Title size
 		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
@@ -83,7 +83,7 @@ void Welcome::render()
 	ImGui::SetCursorPosY(windowHeight * 0.27f); // Set Y position first
 	{											// Scope for github link scaling
 		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0]; // Get default font again
-		float baseFontSize = currentFont->FontSize;
+		float baseFontSize = currentFont->LegacySize;
 		float desiredFontSize = 22.0f; // <<< Github link desired size
 		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
@@ -108,7 +108,7 @@ void Welcome::render()
 		ImGui::SetCursorPosY(windowHeight * 0.35f);
 		{ // Scope for description scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
-			float baseFontSize = currentFont->FontSize;
+			float baseFontSize = currentFont->LegacySize;
 			float desiredFontSize = 24.0f; // <<< Description desired size
 			float scaleFactor =
 				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
@@ -130,7 +130,7 @@ void Welcome::render()
 		ImGui::SetCursorPosY(windowHeight * 0.42f);
 		{ // Scope for keybinds scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
-			float baseFontSize = currentFont->FontSize;
+			float baseFontSize = currentFont->LegacySize;
 			float desiredFontSize = 24.0f; // <<< Keybinds desired size
 			float scaleFactor =
 				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
@@ -179,7 +179,7 @@ void Welcome::render()
 
 	{ // Scope for button text scaling
 		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
-		float baseFontSize = currentFont->FontSize;
+		float baseFontSize = currentFont->LegacySize;
 		float desiredFontSize = 32.0f; // <<< Button text desired size
 		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 

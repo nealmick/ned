@@ -340,11 +340,12 @@ void Settings::renderWindowHeader()
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
 	ImTextureID closeIcon = gFileExplorer.getIcon("close");
-	ImGui::Image(closeIcon,
+	ImGui::Image(ImTextureRef(closeIcon),
 				 ImVec2(closeIconSize, closeIconSize),
 				 ImVec2(0, 0),
 				 ImVec2(1, 1),
-				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1));
+				 isHovered ? ImVec4(1, 1, 1, 0.6f) : ImVec4(1, 1, 1, 1),
+				 ImVec4(0, 0, 0, 0));
 	ImGui::EndGroup();
 
 	// Add horizontal line to separate header from content

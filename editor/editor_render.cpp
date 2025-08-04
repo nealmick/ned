@@ -37,6 +37,7 @@ void EditorRender::renderEditorFrame()
 
 	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + editor_state.total_height +
 						 editor_state.editor_top_margin);
+	ImGui::Dummy(ImVec2(0, 0)); // Required by ImGui 1.92+ to extend parent boundaries
 
 	// Get final scroll positions from ImGui
 	float scrollY = ImGui::GetScrollY();

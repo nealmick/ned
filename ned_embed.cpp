@@ -177,6 +177,11 @@ void NedEmbed::render()
 		// Set the welcome screen's embedded flag based on our embedded state
 		gWelcome.setEmbedded(isEmbedded);
 		gWelcome.render();
+		// Add a dummy item to satisfy ImGui's boundary requirements ONLY in embedded mode
+		if (isEmbedded)
+		{
+			ImGui::Dummy(ImVec2(0, 0));
+		}
 		// Make sure we pop the font before returning to avoid font stack issues
 		ImGui::PopFont();
 		return; // Don't render editor when welcome screen is visible

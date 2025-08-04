@@ -338,6 +338,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   )
 else()
   # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
+  # Note: imgui is compiled directly into the parent executable, so we don't link against it
   target_link_libraries(ned_embed PUBLIC
     OpenGL::GL
     glfw
@@ -345,7 +346,6 @@ else()
     util
     GLEW::GLEW
     Freetype::Freetype
-    imgui
     CURL::libcurl 
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
