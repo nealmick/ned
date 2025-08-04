@@ -32,15 +32,15 @@ class LineJump
 	{
 		// Window setup (size, position, flags)
 		ImGui::SetNextWindowSize(ImVec2(400, 120), ImGuiCond_Always);
-		
+
 		// Center within the current editor window bounds (like LSP goto def)
 		ImVec2 editorPanePos = ImGui::GetWindowPos();
 		ImVec2 editorPaneSize = ImGui::GetWindowSize();
-		
+
 		// Position the popup within the editor pane bounds
 		ImVec2 windowPos = ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - 200.0f,
-								   editorPanePos.y + editorPaneSize.y * 0.35f - 60.0f);
-		
+								  editorPanePos.y + editorPaneSize.y * 0.35f - 60.0f);
+
 		// Ensure the popup stays within the editor pane bounds
 		if (windowPos.x < editorPanePos.x)
 			windowPos.x = editorPanePos.x;
@@ -50,7 +50,7 @@ class LineJump
 			windowPos.y = editorPanePos.y;
 		if (windowPos.y + 120 > editorPanePos.y + editorPaneSize.y)
 			windowPos.y = editorPanePos.y + editorPaneSize.y - 120;
-			
+
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 		ImGuiWindowFlags windowFlags =
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
