@@ -154,10 +154,10 @@ float Editor::calculateTextWidth()
 		{
 			std::string line = editor_state.fileContent.substr(start, end - start);
 			float width =
-				font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, line.c_str()).x;
+				font->CalcTextSizeA(font->LegacySize, FLT_MAX, 0.0f, line.c_str()).x;
 
 			// Apply compensation based on line length and font size
-			float compensation = (line.length() * 0.1f) * (24.0f / font->FontSize) * 10;
+			float compensation = (line.length() * 0.1f) * (24.0f / font->LegacySize) * 10;
 			width += compensation;
 
 			// Add extra safety margin

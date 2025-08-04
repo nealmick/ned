@@ -433,94 +433,12 @@ bool AIAgentTextInput::HandleWordBreakAndWrap(char *inputBuffer,
 											  float max_width,
 											  float text_box_x)
 {
-	int cursor = state->Stb.cursor;
-	// Find start of current line
-	int line_start = cursor;
-	while (line_start > 0 && inputBuffer[line_start - 1] != '\n')
-	{
-		line_start--;
-	}
-	// Find end of current line
-	int line_end = cursor;
-	while (inputBuffer[line_end] != '\0' && inputBuffer[line_end] != '\n')
-	{
-		line_end++;
-	}
-	// Extract current line
-	std::string current_line(inputBuffer + line_start, line_end - line_start);
-	// Measure width
-	float line_width = ImGui::CalcTextSize(current_line.c_str()).x;
-	// Calculate width of 3 average characters (use 'a' as a rough estimate)
-	float char_width = ImGui::CalcTextSize("aaa").x / 3.0f;
-	float wrap_trigger_width = max_width - char_width * 3.0f;
-	if (line_width <= wrap_trigger_width)
-		return false;
-	// Find start of current word
-	int word_start = cursor;
-	while (word_start > line_start && !isspace(inputBuffer[word_start - 1]))
-	{
-		word_start--;
-	}
-	// Check if there are any spaces before the start of the line
-	bool has_space = false;
-	for (int i = word_start - 1; i >= line_start; --i)
-	{
-		if (isspace(inputBuffer[i]))
-		{
-			has_space = true;
-			break;
-		}
-	}
-	bool all_spaces = true;
-	for (char c : current_line)
-	{
-		if (!isspace(c))
-		{
-			all_spaces = false;
-			break;
-		}
-	}
-	// Check if the last character before the cursor is a space
-	bool last_char_is_space = (cursor > line_start && isspace(inputBuffer[cursor - 1]));
-	int insert_pos = word_start;
-	int move_cursor_to = cursor + 1; // default: after the cursor
-	if ((!has_space && word_start == line_start) || all_spaces || last_char_is_space)
-	{
-		// No spaces before the start of the line, or line is all spaces, or
-		// last char is space: split three chars before the cursor (if possible)
-		insert_pos = (cursor - 3 > line_start) ? cursor - 3 : line_start;
-		move_cursor_to = insert_pos + 4; // after the split char and newline
-	} else
-	{
-		// Normal word wrap
-		// Find end of current word
-		int word_end = cursor;
-		while (inputBuffer[word_end] != '\0' && !isspace(inputBuffer[word_end]) &&
-			   inputBuffer[word_end] != '\n')
-		{
-			word_end++;
-		}
-		move_cursor_to = word_end + 1; // after the word
-	}
-	// Insert newline
-	if (insert_pos >= line_start && insert_pos < (int)strlen(inputBuffer))
-	{
-		std::string before(inputBuffer, insert_pos);
-		std::string after(inputBuffer + insert_pos);
-		std::string new_text = before + "\n" + after;
-		strncpy(inputBuffer, new_text.c_str(), bufferSize);
-		// Update ImGui internal state
-		state->CurLenW =
-			ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, inputBuffer, nullptr);
-		state->CurLenA = (int)strlen(inputBuffer);
-		state->TextAIsValid = true;
-		// Move cursor after the split
-		state->Stb.cursor = move_cursor_to;
-		state->Stb.select_start = move_cursor_to;
-		state->Stb.select_end = move_cursor_to;
-		state->CursorAnimReset();
-		return true;
-	}
+	// TODO: Re-implement word break and wrap functionality for new ImGui version
+	// The ImGuiInputTextState structure has changed significantly in ImGui 1.92+
+	// This functionality needs to be reworked to use the new text input system
+
+	// For now, return false to disable word wrapping
+	// This can be re-implemented later when the new text input system is understood
 	return false;
 }
 

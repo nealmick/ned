@@ -115,14 +115,14 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 
 	float lineCenterY = metrics.cursorPos.y + (metrics.itemHeight / 2.0f);
 	float iconTopY = lineCenterY - (iconDimensions.y / 2.0f);
+	float textHeight = ImGui::GetTextLineHeight();
+	float textTopY = lineCenterY - (textHeight / 2.0f);
 
+	// Position icon and text on the same line with proper alignment
 	ImGui::SetCursorPosX(metrics.cursorPos.x + depth * metrics.indentWidth +
 						 TreeStyleSettings::HORIZONTAL_PADDING);
 	ImGui::SetCursorPosY(iconTopY);
 	ImGui::Image(folderIcon, iconDimensions);
-
-	float textHeight = ImGui::GetTextLineHeight();
-	float textTopY = lineCenterY - (textHeight / 2.0f);
 
 	ImGui::SameLine(metrics.cursorPos.x + depth * metrics.indentWidth + iconDimensions.x +
 					TreeStyleSettings::HORIZONTAL_PADDING +
@@ -188,14 +188,14 @@ void FileTree::displayFileNode(const FileNode &node,
 	// Position icon and text as before...
 	float lineCenterY = metrics.cursorPos.y + (metrics.itemHeight / 2.0f);
 	float iconTopY = lineCenterY - (iconDimensions.y / 2.0f);
+	float textHeight = ImGui::GetTextLineHeight();
+	float textTopY = lineCenterY - (textHeight / 2.0f);
 
+	// Position icon and text on the same line with proper alignment
 	ImGui::SetCursorPosX(metrics.cursorPos.x + depth * metrics.indentWidth +
 						 TreeStyleSettings::LEFT_MARGIN);
 	ImGui::SetCursorPosY(iconTopY);
 	ImGui::Image(fileIcon, iconDimensions);
-
-	float textHeight = ImGui::GetTextLineHeight();
-	float textTopY = lineCenterY - (textHeight / 2.0f);
 
 	ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x +
 					TreeStyleSettings::LEFT_MARGIN + 10);

@@ -118,7 +118,7 @@ ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 
 	// Enable color support for emojis (requires FreeType)
 #ifdef IMGUI_ENABLE_FREETYPE
-	config_emoji.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
+	config_emoji.FontLoaderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor;
 #endif
 
 	// Try seguiemj.ttf first (more compatible), then Emoji.ttf as fallback
@@ -293,10 +293,7 @@ void Font::handleFontReload()
 
 		// For embedded mode, we need to recreate the OpenGL texture
 		// but we'll do it more carefully to avoid crashes
-		// First destroy the old texture
-		ImGui_ImplOpenGL3_DestroyFontsTexture();
-		// Then create the new texture
-		ImGui_ImplOpenGL3_CreateFontsTexture();
+		// The texture will be recreated automatically when the font atlas is rebuilt
 
 		gSettings.resetFontChanged();
 		gSettings.resetFontSizeChanged();
