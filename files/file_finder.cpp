@@ -318,7 +318,7 @@ void FileFinder::renderFileList()
 	// Disable hover effect by making hover color transparent and keeping
 	// selection color
 	ImGui::PushStyleColor(ImGuiCol_Header,
-						  ImVec4(1.0f, 0.1f, 0.7f, 1.0f)); // Selection color
+						  ImVec4(1.0f, 0.1f, 0.7f, 0.4f)); // Selection color
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
 						  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent hover
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive,
