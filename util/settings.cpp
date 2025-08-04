@@ -227,12 +227,21 @@ void Settings::renderSettingsContent()
 
 	renderProfileSelector();
 	renderMainSettings();
-	renderMacSettings();
+	if (!isEmbedded)
+	{
+		renderMacSettings();
+	}
 	renderOpenRouterKeyInput();
 
 	renderSyntaxColors();
+
 	renderToggleSettings();
-	renderShaderSettings();
+
+	if (!isEmbedded)
+	{
+		renderShaderSettings();
+	}
+
 	renderKeybindsSettings();
 
 	ImGui::EndChild();
@@ -766,14 +775,16 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Show/hide file explorer sidebar)");
-
-	bool agentPaneVisible = settings.value("agent_pane_visible", true);
-	if (ImGui::Checkbox("Agent Pane", &agentPaneVisible))
+	if (!isEmbedded)
 	{
-		toggleAgentPane();
+		bool agentPaneVisible = settings.value("agent_pane_visible", true);
+		if (ImGui::Checkbox("Agent Pane", &agentPaneVisible))
+		{
+			toggleAgentPane();
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("(Show/hide AI agent panel)");
 	}
-	ImGui::SameLine();
-	ImGui::TextDisabled("(Show/hide AI agent panel)");
 
 	ImGui::Spacing();
 
@@ -841,15 +852,18 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(AI-powered code completion)");
 
-	bool fpsToggle = gSettings.getSettings()["fps_toggle"].get<bool>();
-	if (ImGui::Checkbox("FPS Counter", &fpsToggle))
+	if (!isEmbedded)
 	{
-		settings["fps_toggle"] = fpsToggle;
-		settingsChanged = true;
-		saveSettings();
+		bool fpsToggle = gSettings.getSettings()["fps_toggle"].get<bool>();
+		if (ImGui::Checkbox("FPS Counter", &fpsToggle))
+		{
+			settings["fps_toggle"] = fpsToggle;
+			settingsChanged = true;
+			saveSettings();
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("(Show FPS counter overlay)");
 	}
-	ImGui::SameLine();
-	ImGui::TextDisabled("(Show FPS counter overlay)");
 }
 
 void Settings::renderShaderSettings()
