@@ -32,12 +32,12 @@ std::string SettingsFileManager::getAppResourcesPath()
 	// This is needed for embedded mode where the library is used from a different project
 	std::string currentDir = fs::current_path().string();
 	std::vector<std::string> nedPathsToCheck = {
-		currentDir + "/ned",                    // If running from ImGui_Ned_Embed/
-		currentDir + "/../ned",                 // If running from ImGui_Ned_Embed/build/
-		currentDir + "/../../ned",              // If running from deeper build dir
+		currentDir + "/ned",					// If running from ImGui_Ned_Embed/
+		currentDir + "/../ned",					// If running from ImGui_Ned_Embed/build/
+		currentDir + "/../../ned",				// If running from deeper build dir
 		currentDir + "/../ImGui_Ned_Embed/ned", // Alternative path
-		currentDir + "/ned/ned",                // Nested ned directory
-		currentDir + "/../ned/ned",             // Nested ned directory from build
+		currentDir + "/ned/ned",				// Nested ned directory
+		currentDir + "/../ned/ned",				// Nested ned directory from build
 	};
 
 	for (const auto &path : nedPathsToCheck)

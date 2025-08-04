@@ -28,17 +28,19 @@ class NedEmbed
 	~NedEmbed();
 
 	// Initialize the embeddable editor (everything except GLFW window)
+	// Called automatically in constructor
 	bool initialize();
 
 	// Render the editor as an ImGui window/child
 	// This should be called within an ImGui window or child window
-	void render(float width, float height);
+	// Automatically gets the available content region size
+	void render();
+
+	// Check for font reloading (call this BEFORE ImGui::NewFrame())
+	void checkForFontReload();
 
 	// Handle input (call this before rendering if needed)
 	void handleInput();
-
-	// Handle font reloading (call this before ImGui frame begins)
-	void handleFontReload();
 
 	// Cleanup resources
 	void cleanup();

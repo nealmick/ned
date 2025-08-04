@@ -27,35 +27,10 @@ find_package(glfw3 REQUIRED)
 find_package(CURL REQUIRED)
 
 # FreeType for better font rendering and emoji support
-if(APPLE)
-  # On macOS, use Homebrew's FreeType
-  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-  if(ARCH STREQUAL "arm64")
-    set(FREETYPE_INCLUDE_DIRS "/opt/homebrew/include/freetype2")
-    set(FREETYPE_LIBRARIES "/opt/homebrew/lib/libfreetype.dylib")
-  else()
-    set(FREETYPE_INCLUDE_DIRS "/usr/local/include/freetype2")
-    set(FREETYPE_LIBRARIES "/usr/local/lib/libfreetype.dylib")
-  endif()
-else()
-  find_package(Freetype REQUIRED)
-  set(FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIRS})
-  set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARIES})
-endif()
+find_package(Freetype REQUIRED)
 
 # GLEW Configuration
-if(APPLE)
-  execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-  if(ARCH STREQUAL "arm64")
-    set(GLEW_INCLUDE_DIRS "/opt/homebrew/Cellar/glew/2.2.0_1/include")
-    set(GLEW_LIBRARIES "/opt/homebrew/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
-  else()
-    set(GLEW_INCLUDE_DIRS "/usr/local/Cellar/glew/2.2.0_1/include")
-    set(GLEW_LIBRARIES "/usr/local/Cellar/glew/2.2.0_1/lib/libGLEW.dylib")
-  endif()
-else()
-  find_package(GLEW REQUIRED)
-endif()
+find_package(GLEW REQUIRED)
 
 if(APPLE)
   add_definitions(-DGL_SILENCE_DEPRECATION)
@@ -172,17 +147,35 @@ file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
-# ImGui sources (explicitly listed for stability)
-set(IMGUI_SOURCES
-  lib/imgui/imgui.cpp
-  lib/imgui/imgui_demo.cpp
-  lib/imgui/imgui_draw.cpp
-  lib/imgui/imgui_tables.cpp
-  lib/imgui/imgui_widgets.cpp
-  lib/imgui/backends/imgui_impl_glfw.cpp
-  lib/imgui/backends/imgui_impl_opengl3.cpp
-  lib/imgui/misc/freetype/imgui_freetype.cpp
+# Find GLFW headers
+find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h
+  PATHS
+  /usr/local/include
+  /opt/homebrew/include
+  ${GLFW3_INCLUDE_DIRS}
 )
+
+# ImGui sources (explicitly listed for stability)
+# If building as a subdirectory (embedded), do NOT add or build ImGui, FreeType, or GLEW.
+# Just expect the parent to provide those libraries and include directories.
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    # Standalone build - use our own ImGui
+    set(IMGUI_SOURCES
+      lib/imgui/imgui.cpp
+      lib/imgui/imgui_demo.cpp
+      lib/imgui/imgui_draw.cpp
+      lib/imgui/imgui_tables.cpp
+      lib/imgui/imgui_widgets.cpp
+      lib/imgui/backends/imgui_impl_glfw.cpp
+      lib/imgui/backends/imgui_impl_opengl3.cpp
+      lib/imgui/misc/freetype/imgui_freetype.cpp
+    )
+    set(IMGUI_INCLUDE_DIRS lib/imgui lib/imgui/backends)
+else()
+    # Embedded build - expect parent to provide ImGui, FreeType, GLEW, etc.
+    set(IMGUI_SOURCES)
+    set(IMGUI_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/imgui ${CMAKE_SOURCE_DIR}/imgui/backends)
+endif()
 
 # Custom ImGui configuration to avoid modifying the submodule
 add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
@@ -206,8 +199,7 @@ add_library(util STATIC
 )
 target_include_directories(util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
-  lib/imgui
-  lib/imgui/backends
+  ${IMGUI_INCLUDE_DIRS}
   editor
   files
   ${CMAKE_BINARY_DIR}
@@ -215,18 +207,20 @@ target_include_directories(util PUBLIC
 target_link_libraries(util PUBLIC ${OPENGL_LIBRARIES} glfw)
 
 # ================
-# Main Executable
+# Main Executable (only in standalone mode)
 # ================
-add_executable(ned
-  globals.cpp
-  ${APP_SOURCES}
-  ${EDITOR_SOURCES}
-  ${LSP_SOURCES}
-  ${AI_SOURCES}
-  ${AI_MM_SOURCES}
-  ${FILES_SOURCES}
-  ${IMGUI_SOURCES}
-)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  add_executable(ned
+    globals.cpp
+    ${APP_SOURCES}
+    ${EDITOR_SOURCES}
+    ${LSP_SOURCES}
+    ${AI_SOURCES}
+    ${AI_MM_SOURCES}
+    ${FILES_SOURCES}
+    ${IMGUI_SOURCES}
+  )
+endif()
 
 # ================
 # Embeddable Library
@@ -239,17 +233,7 @@ add_library(ned_embed STATIC
   ${AI_SOURCES}
   ${AI_MM_SOURCES}
   ${FILES_SOURCES}
-  # Include ImGui implementation files
-  lib/imgui/imgui.cpp
-  lib/imgui/imgui_demo.cpp
-  lib/imgui/imgui_draw.cpp
-  lib/imgui/imgui_tables.cpp
-  lib/imgui/imgui_widgets.cpp
-  # Include ImGui backend files
-  lib/imgui/backends/imgui_impl_glfw.cpp
-  lib/imgui/backends/imgui_impl_opengl3.cpp
-  # Include ImGui FreeType extension
-  lib/imgui/misc/freetype/imgui_freetype.cpp
+  ${IMGUI_SOURCES}
 )
 
 # =====================
@@ -273,7 +257,9 @@ if(APPLE)
     ${GLFW_INCLUDE_DIR}
   )
   
-  target_sources(ned PRIVATE $<TARGET_OBJECTS:macos_window>)
+  if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    target_sources(ned PRIVATE $<TARGET_OBJECTS:macos_window>)
+  endif()
   
 endif()
 
@@ -281,27 +267,28 @@ endif()
 # =====================
 # Include Directories
 # =====================
-target_include_directories(ned PRIVATE
-  lib/imgui
-  lib/imgui/backends
-  ${NFD_DIR}/src
-  ${NFD_DIR}/src/include
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  editor
-  files
-  ai
-  ai/mcp
-  ${CMAKE_BINARY_DIR}
-  ${GLEW_INCLUDE_DIRS}
-  ${FREETYPE_INCLUDE_DIRS}
-  lib/tree-sitter/lib/include
-  lib/tree-sitter/lib/src
-  lib/utfcpp/source
-)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  target_include_directories(ned PRIVATE
+    ${IMGUI_INCLUDE_DIRS}
+    ${NFD_DIR}/src
+    ${NFD_DIR}/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    editor
+    files
+    ai
+    ai/mcp
+    ${CMAKE_BINARY_DIR}
+    $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
+    lib/tree-sitter/lib/include
+    lib/tree-sitter/lib/src
+    lib/utfcpp/source
+    ${GLFW_INCLUDE_DIR}
+  )
+endif()
 
 target_include_directories(ned_embed PUBLIC
-  lib/imgui
-  lib/imgui/backends
+  ${IMGUI_INCLUDE_DIRS}
   ${NFD_DIR}/src
   ${NFD_DIR}/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -310,41 +297,62 @@ target_include_directories(ned_embed PUBLIC
   ai
   ai/mcp
   ${CMAKE_BINARY_DIR}
-  ${GLEW_INCLUDE_DIRS}
-  ${FREETYPE_INCLUDE_DIRS}
+  $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
+  $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
   lib/utfcpp/source
+  ${GLFW_INCLUDE_DIR}
 )
 
 # ================
 # Linking
 # ================
-target_link_libraries(ned PRIVATE
-  ${OPENGL_LIBRARIES}
-  glfw
-  nfd
-  util
-  ${GLEW_LIBRARIES}
-  ${FREETYPE_LIBRARIES}
-  CURL::libcurl 
-  tree-sitter-lib
-  ${TS_GRAMMAR_LIBS}
-)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  # Standalone: link to our own ImGui, FreeType, GLEW, etc.
+  target_link_libraries(ned PRIVATE
+    ${OPENGL_LIBRARIES}
+    glfw
+    nfd
+    util
+    GLEW::GLEW
+    Freetype::Freetype
+    CURL::libcurl 
+    tree-sitter-lib
+    ${TS_GRAMMAR_LIBS}
+  )
+endif()
 
-target_link_libraries(ned_embed PUBLIC
-  ${OPENGL_LIBRARIES}
-  glfw
-  nfd
-  util
-  ${GLEW_LIBRARIES}
-  ${FREETYPE_LIBRARIES}
-  CURL::libcurl 
-  tree-sitter-lib
-  ${TS_GRAMMAR_LIBS}
-)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  # Standalone: link to our own ImGui, FreeType, GLEW, etc.
+  target_link_libraries(ned_embed PUBLIC
+    ${OPENGL_LIBRARIES}
+    glfw
+    nfd
+    util
+    GLEW::GLEW
+    Freetype::Freetype
+    CURL::libcurl 
+    tree-sitter-lib
+    ${TS_GRAMMAR_LIBS}
+  )
+else()
+  # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
+  target_link_libraries(ned_embed PUBLIC
+    OpenGL::GL
+    glfw
+    nfd
+    util
+    GLEW::GLEW
+    Freetype::Freetype
+    imgui
+    CURL::libcurl 
+    tree-sitter-lib
+    ${TS_GRAMMAR_LIBS}
+  )
+endif()
 
-if(APPLE)
+if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   target_link_libraries(ned PRIVATE
     "-framework Cocoa"
     "-framework QuartzCore" 
