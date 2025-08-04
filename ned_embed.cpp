@@ -35,10 +35,11 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include <algorithm> // for std::max
 
 // Stub for macOS-specific function that's not needed in the embedded version
-extern "C" void updateMacOSWindowProperties(float opacity, bool blurEnabled) {
-    // This function is not needed for the embedded app
-    (void)opacity;
-    (void)blurEnabled;
+extern "C" void updateMacOSWindowProperties(float opacity, bool blurEnabled)
+{
+	// This function is not needed for the embedded app
+	(void)opacity;
+	(void)blurEnabled;
 }
 
 // Global variables are now defined in globals.cpp
@@ -131,12 +132,19 @@ bool NedEmbed::initializeComponents()
 	return true;
 }
 
-void NedEmbed::render(float width, float height)
+void NedEmbed::render()
 {
 	if (!initialized || !settings || !splitter || !windowResize)
 	{
 		return;
 	}
+
+
+
+	// Get the available content region size automatically
+	ImVec2 contentSize = ImGui::GetContentRegionAvail();
+	float width = contentSize.x;
+	float height = contentSize.y;
 
 	// Handle input
 	handleInput();
@@ -286,12 +294,16 @@ void NedEmbed::handleInput()
 	}
 }
 
-void NedEmbed::handleFontReload()
+void NedEmbed::checkForFontReload()
 {
-	// Set embedded flag for settings before calling handleSettingsChanges
-	gSettings.setEmbedded(true);
+	if (!initialized || !settings)
+	{
+		return;
+	}
 
-	// Handle settings changes (this triggers font reloading when settings change)
+	// Handle font reloading automatically (like in standalone app)
+	// First check for settings changes to detect font size changes
+	gSettings.setEmbedded(true);
 	bool needFontReload = false;
 	bool needsRedraw = false;
 	int framesToRender = 0;
@@ -305,8 +317,11 @@ void NedEmbed::handleFontReload()
 		lastOpacity,
 		lastBlurEnabled);
 
-	// Handle font reloading
-	gFont.handleFontReloadWithFrameUpdates();
+	// Handle font reloading BEFORE ImGui frame starts
+	if (needFontReload)
+	{
+		gFont.handleFontReloadWithFrameUpdates();
+	}
 }
 
 void NedEmbed::cleanup() { cleanupComponents(); }
