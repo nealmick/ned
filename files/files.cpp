@@ -161,8 +161,7 @@ bool FileExplorer::loadSingleIcon(
 	// Store in icon map
 	std::string iconName =
 		iconFile.substr(0, iconFile.find('.')); // Gets "file" from "file.svg"
-	fileTypeIcons[iconName] =
-		reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
+	fileTypeIcons[iconName] = static_cast<ImTextureID>(texture);
 
 	// Cleanup
 	nsvgDeleteRasterizer(rast);
@@ -185,8 +184,7 @@ void FileExplorer::createDefaultIcon()
 	};
 
 	GLuint texture = createTexture(defaultIcon, 2, 1);
-	fileTypeIcons["default"] =
-		reinterpret_cast<ImTextureID>(static_cast<intptr_t>(texture));
+	fileTypeIcons["default"] = static_cast<ImTextureID>(texture);
 }
 
 void FileExplorer::openFolderDialog()

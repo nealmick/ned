@@ -14,7 +14,7 @@ struct FileNode
 	bool isDirectory;
 	std::vector<FileNode> children;
 	bool isOpen = false;
-	ImTextureID iconTexture = nullptr;
+	ImTextureID iconTexture = 0;
 };
 
 class FileTree
