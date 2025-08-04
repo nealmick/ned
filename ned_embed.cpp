@@ -52,6 +52,8 @@ NedEmbed::NedEmbed()
 	  showAgentPane(false), showLineNumbers(true), showWelcome(true), isEmbedded(true),
 	  initialized(false)
 {
+	// Auto-initialize when constructed
+	initialize();
 }
 
 NedEmbed::~NedEmbed() { cleanup(); }
@@ -138,8 +140,6 @@ void NedEmbed::render()
 	{
 		return;
 	}
-
-
 
 	// Get the available content region size automatically
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
