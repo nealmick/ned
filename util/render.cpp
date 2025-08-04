@@ -142,9 +142,17 @@ void Render::checkForActivity()
 		hasInput = true;
 	}
 
-	// Keyboard activity
-	if (io.InputQueueCharacters.size() > 0 || io.KeysDown[0] || io.KeysDown[1] ||
-		io.KeysDown[2] || io.KeysDown[3] || io.KeysDown[4])
+	// Keyboard activity - check if any key is pressed
+	bool hasKeyActivity = false;
+	for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; key++)
+	{
+		if (ImGui::IsKeyDown((ImGuiKey)key))
+		{
+			hasKeyActivity = true;
+			break;
+		}
+	}
+	if (io.InputQueueCharacters.size() > 0 || hasKeyActivity)
 	{
 		hasInput = true;
 	}

@@ -508,7 +508,7 @@ void Terminal::renderBuffer()
 
 void Terminal::checkFontSizeChange()
 {
-	float currentFontSize = ImGui::GetFont()->FontSize;
+	float currentFontSize = ImGui::GetFont()->LegacySize;
 	if (currentFontSize != lastFontSize)
 	{
 		lastFontSize = currentFontSize;
@@ -557,7 +557,7 @@ bool Terminal::setupWindow()
 void Terminal::handleTerminalResize()
 {
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
-	float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
 	int new_cols = std::max(1, static_cast<int>(contentSize.x / charWidth));
@@ -594,7 +594,7 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 
 	ImVec2 mousePos = ImGui::GetMousePos();
 	ImVec2 contentPos = ImGui::GetCursorScreenPos();
-	float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
 	int cellX = static_cast<int>((mousePos.x - contentPos.x) / charWidth);
@@ -784,7 +784,7 @@ void Terminal::setupRenderContext(ImDrawList *&drawList,
 {
 	drawList = ImGui::GetWindowDrawList();
 	pos = ImGui::GetCursorScreenPos();
-	charWidth = ImGui::GetFont()->GetCharAdvance('M');
+	charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	lineHeight = ImGui::GetTextLineHeight();
 }
 
@@ -2492,7 +2492,7 @@ void Terminal::resize(int cols, int rows)
 	selectionClear();
 	// Get actual content area size
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
-	float charWidth = ImGui::GetFont()->GetCharAdvance('M');
+	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
 	// Calculate new dimensions based on actual font metrics
