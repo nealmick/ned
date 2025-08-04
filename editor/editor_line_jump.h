@@ -32,10 +32,26 @@ class LineJump
 	{
 		// Window setup (size, position, flags)
 		ImGui::SetNextWindowSize(ImVec2(400, 120), ImGuiCond_Always);
-		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f,
-									   ImGui::GetIO().DisplaySize.y * 0.2f),
-								ImGuiCond_Always,
-								ImVec2(0.5f, 0.5f));
+
+		// Center within the current editor window bounds (like LSP goto def)
+		ImVec2 editorPanePos = ImGui::GetWindowPos();
+		ImVec2 editorPaneSize = ImGui::GetWindowSize();
+
+		// Position the popup within the editor pane bounds
+		ImVec2 windowPos = ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - 200.0f,
+								  editorPanePos.y + editorPaneSize.y * 0.35f - 60.0f);
+
+		// Ensure the popup stays within the editor pane bounds
+		if (windowPos.x < editorPanePos.x)
+			windowPos.x = editorPanePos.x;
+		if (windowPos.x + 400 > editorPanePos.x + editorPaneSize.x)
+			windowPos.x = editorPanePos.x + editorPaneSize.x - 400;
+		if (windowPos.y < editorPanePos.y)
+			windowPos.y = editorPanePos.y;
+		if (windowPos.y + 120 > editorPanePos.y + editorPaneSize.y)
+			windowPos.y = editorPanePos.y + editorPaneSize.y - 120;
+
+		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 		ImGuiWindowFlags windowFlags =
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
 			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
