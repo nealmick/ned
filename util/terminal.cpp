@@ -3,9 +3,10 @@
 	This utility adds a terminal emulator, activate it using the keybind cmd t
 	The emulator is based suckless st.c and support most xterm ansi sequences
 */
-#include "util/terminal.h"
-
+#include "terminal.h"
 #include "files.h"
+#include "font.h"
+#include "imgui.h"
 #include "util/settings.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -468,6 +469,11 @@ void Terminal::render()
 
 	ImGuiIO &io = ImGui::GetIO();
 
+	// **changed**: Push the global font to ensure terminal uses the correct font after
+	// reloading
+	extern Font gFont;
+	ImGui::PushFont(gFont.currentFont);
+
 	checkFontSizeChange();
 	bool windowCreated = setupWindow();
 
@@ -486,6 +492,9 @@ void Terminal::render()
 	{
 		ImGui::End();
 	}
+
+	// **changed**: Pop the font we pushed
+	ImGui::PopFont();
 }
 
 void Terminal::renderBuffer()
@@ -512,8 +521,7 @@ void Terminal::checkFontSizeChange()
 	if (currentFontSize != lastFontSize)
 	{
 		lastFontSize = currentFontSize;
-		ImVec2 contentSize = ImGui::GetContentRegionAvail();
-		resize(state.col, state.row);
+		handleTerminalResize(); // Calculate new dimensions based on new font size
 	}
 }
 
@@ -3242,4 +3250,9 @@ void Terminal::addToScrollback(const std::vector<Glyph> &line)
 	{
 		scrollbackBuffer.erase(scrollbackBuffer.begin());
 	}
+}
+
+void Terminal::resetFontSizeDetection()
+{
+	lastFontSize = 0; // Force terminal to detect the change on next render
 }

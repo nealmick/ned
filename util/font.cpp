@@ -8,6 +8,7 @@ Description: Font management class implementation for NED text editor.
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "settings.h"
+#include "terminal.h"
 #include <filesystem>
 #include <iostream>
 
@@ -294,6 +295,10 @@ void Font::handleFontReload()
 		// For embedded mode, we need to recreate the OpenGL texture
 		// but we'll do it more carefully to avoid crashes
 		// The texture will be recreated automatically when the font atlas is rebuilt
+
+		// **changed**: Reset terminal font size detection so it will resize on next render
+		extern Terminal gTerminal;
+		gTerminal.resetFontSizeDetection();
 
 		gSettings.resetFontChanged();
 		gSettings.resetFontSizeChanged();
