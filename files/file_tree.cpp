@@ -92,7 +92,8 @@ void FileTree::renderNodeText(const std::string &name,
 	// Fallback for current file if not rainbow mode
 	else if (isCurrentFile)
 	{
-		textColor = TreeStyleSettings::INACTIVE_TEXT; // Or a different color for current file
+		textColor =
+			TreeStyleSettings::INACTIVE_TEXT; // Or a different color for current file
 	}
 	// Default color for other files
 	else

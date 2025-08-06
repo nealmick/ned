@@ -9,6 +9,7 @@ Description: Editor header rendering implementation for NED text editor.
 #include "files/files.h"
 #include "imgui.h"
 #include "util/settings.h"
+#include "util/terminal.h"
 
 // External dependencies
 extern class FileExplorer gFileExplorer;
@@ -134,7 +135,7 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 
 	// Vertical centering
 	float textHeight = ImGui::GetTextLineHeight();
-	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
+	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f - 2.0f;
 	ImGui::SetCursorPosY(iconTopY);
 
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
@@ -145,6 +146,33 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
 	ImTextureID icon = isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
+	ImGui::Image(icon, ImVec2(iconSize, iconSize));
+
+	ImGui::PopStyleColor(3);
+	ImGui::PopStyleVar();
+}
+
+void EditorHeader::renderTerminalIcon(float iconSize)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+
+	// Vertical centering
+	float textHeight = ImGui::GetTextLineHeight();
+	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
+	ImGui::SetCursorPosY(iconTopY);
+
+	ImVec2 cursor_pos = ImGui::GetCursorPos();
+	if (ImGui::InvisibleButton("##terminal-hitbox", ImVec2(iconSize, iconSize)))
+	{
+		gTerminal.toggleVisibility();
+	}
+	bool isHovered = ImGui::IsItemHovered();
+	ImGui::SetCursorPos(cursor_pos);
+	ImTextureID icon =
+		isHovered ? getStatusIcon("terminal-hover") : getStatusIcon("terminal");
 	ImGui::Image(icon, ImVec2(iconSize, iconSize));
 
 	ImGui::PopStyleColor(3);
@@ -174,8 +202,9 @@ void EditorHeader::render(ImFont *font,
 	float iconSize = ImGui::GetFontSize() * 1.15f;
 
 	// Calculate space needed for right-aligned status area
-	const float rightPadding = 25.0f;							// Space from window edge
-	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
+	const float rightPadding = 25.0f; // Space from window edge
+	const float totalStatusWidth =
+		iconSize * 3 + rightPadding; // Brain + Terminal + Gear icons
 
 	// Calculate space needed for git changes if enabled and available
 	float gitChangesWidth = 0.0f;
@@ -249,8 +278,12 @@ void EditorHeader::render(ImFont *font,
 		}
 		ImGui::SameLine();
 
+		// Terminal icon (newly added)
+		renderTerminalIcon(iconSize * 0.7f);
+		ImGui::SameLine();
+
 		// Settings icon (always in same position)
-		renderSettingsIcon(iconSize * 0.6f);
+		renderSettingsIcon(iconSize * 0.65f);
 	}
 	ImGui::EndGroup();
 
