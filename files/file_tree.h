@@ -69,7 +69,9 @@ class FileTree
 	void
 	displayFileNode(const FileNode &node, const TreeDisplayMetrics &metrics, int depth);
 	ImTextureID getFolderIcon(bool isOpen);
-	void renderNodeText(const std::string &name, bool isCurrentFile);
+	void renderNodeText(const std::string &name,
+						const std::string &fullPath,
+						bool isCurrentFile);
 
 	bool hasAutoOpenedReadme = false;
 	bool shouldCheckForReadme = true;
