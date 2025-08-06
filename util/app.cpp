@@ -26,6 +26,7 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 
 // Global externals
 extern Font gFont;
+extern FileExplorer gFileExplorer;
 
 App::App()
 	: window(nullptr), lastFocusState(false), windowFocused(true), lastOpacity(0.5f),
@@ -127,6 +128,9 @@ void App::runMainLoop(ShaderManager &shaderManager,
 
 	while (!shouldWindowClose())
 	{
+		// Check for external file changes
+		gFileExplorer.checkForExternalFileChanges();
+
 		// Get current time for activity tracking
 		double currentTime = glfwGetTime();
 
