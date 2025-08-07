@@ -87,9 +87,9 @@ Ned can be embedded in other ImGui applications, taking advantage of its text ed
 # About the Project
 Ned is a feature-rich text editor built with Dear ImGui that combines the power of modern development tools with a lightweight, embeddable architecture. At its core, Ned provides a sophisticated text editing experience with Tree Sitter syntax highlighting supporting over 15 programming languages including C++, Python, JavaScript, Rust, Go, and more. The editor features custom lexer modes for specialized file types and includes advanced features like multi-cursor editing, line jumping, and a built-in file tree explorer.
 
-The editor includes LSP integration with support for clangd, gopls, pyright, and TypeScript language servers, providing goto definition, find references, and symbol information. Ned also includes a terminal emulator and AI integration with OpenRouter support. The editor features emoji support with proper font rendering, custom shader effects, and a theming system. The project is designed to be embeddable in other ImGui applications through the ned_embed library, making it easy to integrate into your own projects.d
+The editor includes LSP integration with support for clangd, gopls, pyright, and TypeScript language servers, providing goto definition, find references, and symbol information. Ned also includes a terminal emulator and AI integration with OpenRouter support. The editor features emoji support with proper font rendering, custom shader effects, and a theming system. The project is designed to be embeddable in other ImGui applications through the ned_embed library, making it easy to integrate into your own projects.
 
-Current Ned is tested on MacOs both Arm and Intel, There is also a debian build availabe.  Windows is not support, but hopefully will added in future.  
+Currently Ned is tested on MacOs both Arm and Intel, There is also a debian build availabe.  Windows is not support, but hopefully will added in future.  
 
 If you have questions or issues feel free to reach out.
 

@@ -49,6 +49,13 @@ void EditorGit::gitEditedLines()
 		return;
 	}
 
+	// Check if git is busy (lock file exists)
+	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
+	if (fs::exists(gitLockFile))
+	{
+		return; // Git is busy, skip this update
+	}
+
 	// Change to the project directory before running git commands
 	std::string originalDir = fs::current_path().string();
 	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
@@ -99,6 +106,10 @@ void EditorGit::gitEditedLines()
 			fileChanges[currentFile].push_back(lineNum);
 		}
 	}
+
+	// Update animations for changed lines
+	updateLineAnimations(fileChanges);
+
 	// Update the map with the new changes
 	editedLines = fileChanges;
 }
@@ -120,6 +131,13 @@ void EditorGit::updateModifiedFiles()
 	if (gFileExplorer.selectedFolder.empty())
 	{
 		return;
+	}
+
+	// Check if git is busy (lock file exists)
+	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
+	if (fs::exists(gitLockFile))
+	{
+		return; // Git is busy, skip this update
 	}
 
 	std::string originalDir = fs::current_path().string();
@@ -169,6 +187,9 @@ void EditorGit::backgroundTask()
 		// Always update modified files, regardless of git_changed_lines setting
 		updateModifiedFiles();
 
+		// Clean up completed animations
+		cleanupCompletedAnimations();
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
@@ -215,6 +236,13 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 {
 	if (!git_enabled || gFileExplorer.selectedFolder.empty())
 		return "";
+
+	// Check if git is busy (lock file exists)
+	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
+	if (fs::exists(gitLockFile))
+	{
+		return ""; // Git is busy, skip this update
+	}
 
 	// Get relative path if needed
 	std::string relativePath = filePath;
@@ -275,6 +303,135 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	}
 
 	return "+" + std::to_string(added) + "-" + std::to_string(removed);
+}
+
+void EditorGit::updateLineAnimations(
+	const std::map<std::string, std::vector<int>> &newEditedLines)
+{
+	auto now = std::chrono::steady_clock::now();
+
+	// For each file in the new changes
+	for (const auto &filePair : newEditedLines)
+	{
+		const std::string &filePath = filePair.first;
+		const std::vector<int> &newLines = filePair.second;
+
+		// Get current edited lines for this file
+		std::set<int> oldLines;
+		auto oldIt = editedLines.find(filePath);
+		if (oldIt != editedLines.end())
+		{
+			oldLines.insert(oldIt->second.begin(), oldIt->second.end());
+		}
+
+		std::set<int> newLinesSet(newLines.begin(), newLines.end());
+
+		// Start fade-in animation for newly added lines
+		for (int line : newLines)
+		{
+			if (oldLines.find(line) == oldLines.end())
+			{
+				// New line - start fade in
+				lineAnimations[filePath][line] = {now, true};
+			}
+		}
+
+		// Start fade-out animation for removed lines
+		for (int line : oldLines)
+		{
+			if (newLinesSet.find(line) == newLinesSet.end())
+			{
+				// Line removed - start fade out
+				lineAnimations[filePath][line] = {now, false};
+			}
+		}
+	}
+}
+
+float EditorGit::getLineAnimationAlpha(const std::string &filePath, int lineNumber) const
+{
+	// Get relative path for consistency
+	std::string relativePath = filePath;
+	if (filePath.find(gFileExplorer.selectedFolder) == 0)
+	{
+		size_t folderLength = gFileExplorer.selectedFolder.length();
+		if (folderLength < filePath.length())
+		{
+			relativePath = filePath.substr(folderLength + 1);
+		}
+	}
+
+	auto fileIt = lineAnimations.find(relativePath);
+	if (fileIt == lineAnimations.end())
+	{
+		// No animation data, check if line is edited
+		return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
+	}
+
+	auto lineIt = fileIt->second.find(lineNumber);
+	if (lineIt == fileIt->second.end())
+	{
+		// No animation for this line, check if it's edited
+		return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
+	}
+
+	const LineAnimation &anim = lineIt->second;
+	auto now = std::chrono::steady_clock::now();
+	auto elapsed =
+		std::chrono::duration_cast<std::chrono::milliseconds>(now - anim.startTime).count();
+
+	const float animationDurationMs = 250.0f; // 0.25 seconds
+	float progress = std::min(elapsed / animationDurationMs, 1.0f);
+
+	if (anim.fadingIn)
+	{
+		return progress; // 0 to 1
+	} else
+	{
+		return 1.0f - progress; // 1 to 0
+	}
+}
+
+void EditorGit::cleanupCompletedAnimations()
+{
+	auto now = std::chrono::steady_clock::now();
+	const float animationDurationMs = 250.0f;
+
+	for (auto fileIt = lineAnimations.begin(); fileIt != lineAnimations.end();)
+	{
+		for (auto lineIt = fileIt->second.begin(); lineIt != fileIt->second.end();)
+		{
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+							   now - lineIt->second.startTime)
+							   .count();
+
+			if (elapsed > animationDurationMs)
+			{
+				// Animation completed
+				if (!lineIt->second.fadingIn)
+				{
+					// Fade out completed - remove the animation
+					lineIt = fileIt->second.erase(lineIt);
+				} else
+				{
+					// Fade in completed - keep the line but remove animation tracking
+					lineIt = fileIt->second.erase(lineIt);
+				}
+			} else
+			{
+				++lineIt;
+			}
+		}
+
+		// Remove empty file entries
+		if (fileIt->second.empty())
+		{
+			fileIt = lineAnimations.erase(fileIt);
+		} else
+		{
+			++fileIt;
+		}
+	}
 }
 
 EditorGit gEditorGit;
