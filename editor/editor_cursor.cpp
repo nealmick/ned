@@ -1,4 +1,4 @@
-#include "editor_cursor.h"
+	#include "editor_cursor.h"
 #include "../files/files.h"
 #include "../lib/utfcpp/source/utf8.h"
 #include "../util/settings.h"
