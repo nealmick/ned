@@ -207,6 +207,9 @@ void FileExplorer::openFolderDialog()
 
 		// Initialize git tracking for the project
 		gEditorGit.init();
+
+		// Scan project files for external change monitoring
+		scanProjectFilesForMonitoring();
 	} else if (result == NFD_CANCEL)
 	{
 		std::cout << "\033[35mFiles:\033[0m User canceled folder selection." << std::endl;
@@ -834,11 +837,6 @@ void FileExplorer::forceSaveUndoState()
 // External file change detection implementation
 void FileExplorer::checkForExternalFileChanges()
 {
-	if (currentFile.empty())
-	{
-		return;
-	}
-
 	double currentTime = glfwGetTime();
 	if (currentTime - _lastChangeCheckTime < FILE_CHANGE_CHECK_INTERVAL)
 	{
@@ -846,43 +844,69 @@ void FileExplorer::checkForExternalFileChanges()
 	}
 	_lastChangeCheckTime = currentTime;
 
-	try
+	// Periodically rescan for new files
+	if (currentTime - _lastScanTime > FILE_SCAN_INTERVAL)
 	{
-		if (!fs::exists(currentFile))
+		scanProjectFilesForMonitoring();
+		_lastScanTime = currentTime;
+	}
+
+	// Check all monitored files for external changes
+	for (auto it = _monitoredFiles.begin(); it != _monitoredFiles.end();)
+	{
+		const std::string &filePath = *it;
+
+		try
 		{
-			// File was deleted externally
-			if (!_externalFileChangeDetected)
+			if (!fs::exists(filePath))
 			{
-				_externalFileChangeDetected = true;
-				_lastChangedFile = currentFile;
-				gSettings.renderNotification("File was deleted externally: " +
-												 fs::path(currentFile).filename().string() +
+				// File was deleted externally
+				std::string filename = fs::path(filePath).filename().string();
+				gSettings.renderNotification("File was deleted externally: " + filename +
 												 "\nFile content preserved in editor",
 											 5.0f);
+				// Remove from monitoring since it no longer exists
+				it = _monitoredFiles.erase(it);
+				continue;
 			}
-			return;
-		}
 
-		// Check modification time
-		auto currentModTime = fs::last_write_time(currentFile);
-		auto it = _fileModificationTimes.find(currentFile);
+			// Check modification time
+			auto currentModTime = fs::last_write_time(filePath);
+			auto modTimeIt = _fileModificationTimes.find(filePath);
 
-		if (it != _fileModificationTimes.end() && currentModTime > it->second)
-		{
-			// File modification time changed, check if content actually changed
-			if (shouldReloadFile(currentFile))
+			if (modTimeIt != _fileModificationTimes.end() &&
+				currentModTime > modTimeIt->second)
 			{
-				handleExternalFileChange(currentFile);
+				// File modification time changed, check if content actually changed
+				if (shouldReloadFile(filePath))
+				{
+					// Show notification for any changed file, not just current file
+					std::string filename = fs::path(filePath).filename().string();
+					std::cout << "[FileMonitor] File changed externally: " << filename
+							  << std::endl;
+
+					if (filePath == currentFile)
+					{
+						// Handle current file change as before
+						handleExternalFileChange(filePath);
+					} else
+					{
+						// Show notification for non-current file changes
+						gSettings.renderNotification("Modified: " + filename, 3.0f);
+					}
+				}
 			}
+
+			// Update the modification time
+			updateFileModificationTime(filePath);
+			++it;
+
+		} catch (const std::exception &e)
+		{
+			std::cerr << "Error checking external file changes for " << filePath << ": "
+					  << e.what() << std::endl;
+			++it;
 		}
-
-		// Update the modification time
-		updateFileModificationTime(currentFile);
-
-	} catch (const std::exception &e)
-	{
-		std::cerr << "Error checking for external file changes: " << e.what()
-				  << std::endl;
 	}
 }
 
@@ -893,10 +917,91 @@ void FileExplorer::updateFileModificationTime(const std::string &filePath)
 		if (fs::exists(filePath))
 		{
 			_fileModificationTimes[filePath] = fs::last_write_time(filePath);
+			// Add file to monitored set for external change detection
+			_monitoredFiles.insert(filePath);
 		}
 	} catch (const std::exception &e)
 	{
 		std::cerr << "Error updating file modification time: " << e.what() << std::endl;
+	}
+}
+
+void FileExplorer::scanProjectFilesForMonitoring()
+{
+	if (selectedFolder.empty())
+	{
+		return;
+	}
+
+	std::cout << "[FileMonitor] Scanning project files in: " << selectedFolder
+			  << std::endl;
+
+	try
+	{
+		// Common file extensions that should be monitored
+		std::set<std::string> monitoredExtensions = {
+			".cpp",	 ".c",	  ".h",	   ".hpp",	".cc",	".cxx", ".py",	".js",
+			".ts",	 ".tsx",  ".jsx",  ".java", ".go",	".rs",	".rb",	".php",
+			".html", ".css",  ".scss", ".json", ".xml", ".md",	".txt", ".yml",
+			".yaml", ".toml", ".sh",   ".bat",	".ps1", ".sql"};
+
+		// Recursively scan the project directory
+		for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
+		{
+			if (entry.is_regular_file())
+			{
+				std::string filePath = entry.path().string();
+				std::string filename = entry.path().filename().string();
+
+				if (filename == ".undo-redo-ned.json" ||
+					filename == ".ned-agent-history.json")
+				{
+					continue;
+				}
+				std::string extension = entry.path().extension().string();
+
+				// Only monitor files with relevant extensions
+				if (monitoredExtensions.find(extension) != monitoredExtensions.end())
+				{
+					// Add to monitoring if not already present
+					if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
+					{
+						_monitoredFiles.insert(filePath);
+						// Initialize modification time
+						if (fs::exists(filePath))
+						{
+							_fileModificationTimes[filePath] =
+								fs::last_write_time(filePath);
+
+							// Also initialize content hash for change detection
+							try
+							{
+								std::ifstream file(filePath, std::ios::binary);
+								if (file)
+								{
+									std::stringstream buffer;
+									buffer << file.rdbuf();
+									_fileContentHashes[filePath] =
+										calculateFileHash(buffer.str());
+								}
+							} catch (...)
+							{
+								// Ignore errors for individual files
+							}
+						}
+						std::cout << "[FileMonitor] Added to monitoring: " << filePath
+								  << std::endl;
+					}
+				}
+			}
+		}
+		std::cout << "[FileMonitor] Total files being monitored: "
+				  << _monitoredFiles.size() << std::endl;
+
+	} catch (const std::exception &e)
+	{
+		std::cerr << "Error scanning project files for monitoring: " << e.what()
+				  << std::endl;
 	}
 }
 
@@ -930,9 +1035,18 @@ bool FileExplorer::shouldReloadFile(const std::string &filePath)
 
 		// Compare with stored hash
 		auto it = _fileContentHashes.find(filePath);
-		if (it != _fileContentHashes.end() && it->second != currentHash)
+		if (it != _fileContentHashes.end())
 		{
-			return true;
+			if (it->second != currentHash)
+			{
+				std::cout << "[FileMonitor] Hash changed for: "
+						  << fs::path(filePath).filename() << std::endl;
+				return true;
+			}
+		} else
+		{
+			std::cout << "[FileMonitor] No stored hash for: "
+					  << fs::path(filePath).filename() << std::endl;
 		}
 
 		return false;
@@ -991,7 +1105,7 @@ void FileExplorer::handleExternalFileChange(const std::string &filePath)
 
 		// Show success notification
 		std::string filename = fs::path(filePath).filename().string();
-		gSettings.renderNotification("File Updated ", 2.0f);
+		gSettings.renderNotification("File modified", 2.0f);
 	} else
 	{
 		// Show error notification
