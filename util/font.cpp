@@ -155,8 +155,8 @@ ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 			0,
 		};
 
-		// Use a slightly larger size for emoji font to ensure good rendering
-		float emojiFontSize = fontSize * 0.9f;
+		// Use a smaller size for emoji font to fit better in terminal
+		float emojiFontSize = fontSize * 0.7f;
 		io.Fonts->AddFontFromFileTTF(
 			emojiPath.c_str(), emojiFontSize, &config_emoji, emoji_ranges);
 		std::cout << "[Font::loadFont] Successfully merged emoji font: " << emojiPath
