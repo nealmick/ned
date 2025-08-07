@@ -115,6 +115,40 @@ void EditorGit::printGitEditedLines()
 	}
 }
 
+void EditorGit::updateModifiedFiles()
+{
+	if (gFileExplorer.selectedFolder.empty())
+	{
+		return;
+	}
+
+	std::string originalDir = fs::current_path().string();
+	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
+	{
+		return; // Failed to change directory
+	}
+
+	std::string cmd = "git status --porcelain";
+	std::string result = execCommand(cmd.c_str());
+
+	chdir(originalDir.c_str()); // Restore original directory
+
+	std::istringstream iss(result);
+	std::string line;
+	std::set<std::string> newModifiedFiles;
+
+	while (std::getline(iss, line))
+	{
+		if (line.length() > 3)
+		{
+			// Extract the file path (after the 2-char status and space)
+			std::string filePath = line.substr(3);
+			newModifiedFiles.insert(filePath);
+		}
+	}
+	modifiedFiles = newModifiedFiles;
+}
+
 void EditorGit::backgroundTask()
 {
 	while (git_enabled)
@@ -131,12 +165,10 @@ void EditorGit::backgroundTask()
 			{
 				currentGitChanges.clear();
 			}
-		} else
-		{
-			editedLines.clear(); // Clear the map when feature is disabled
-			currentGitChanges.clear();
 		}
-		// printGitEditedLines();
+		// Always update modified files, regardless of git_changed_lines setting
+		updateModifiedFiles();
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }

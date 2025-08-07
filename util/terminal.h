@@ -168,6 +168,9 @@ class Terminal
 
 	void UpdateTerminalColors();
 
+	// Reset font size detection (called when fonts are reloaded)
+	void resetFontSizeDetection();
+
   private:
 	// Terminal state
 	struct TermState

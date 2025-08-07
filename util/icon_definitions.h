@@ -4,6 +4,10 @@
 
 namespace IconDefinitions {
 static const std::vector<std::string> DEFAULT_ICONS = {"tf.svg",
+													   "terminal.svg",
+													   "edit-hover.svg",
+													   "edit.svg",
+													   "terminal-hover.svg",
 													   "cshtml.svg",
 													   "green-dot.svg",
 													   "rs.svg",

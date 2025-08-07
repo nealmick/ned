@@ -27,6 +27,7 @@ class EditorHeader
 
 	// Settings icon rendering
 	void renderSettingsIcon(float iconSize);
+	void renderTerminalIcon(float iconSize);
 
 	// Helper function to get file icon
 	ImTextureID getFileIcon(const std::string &filename);
