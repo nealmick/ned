@@ -1905,7 +1905,7 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Foreground color
-		case 30 ... 37:
+		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
 			state.c.fg = defaultColorMap[attr - 30];
 			break;
 		case 38:
@@ -1952,7 +1952,7 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Background color
-		case 40 ... 47:
+		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
 			state.c.bg = defaultColorMap[attr - 40];
 			break;
 		case 48:
@@ -1996,12 +1996,12 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Bright foreground colors
-		case 90 ... 97:
+		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
 			state.c.fg = defaultColorMap[(attr - 90) + 8];
 			break;
 
 		// Bright background colors
-		case 100 ... 107:
+		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
 			state.c.bg = defaultColorMap[(attr - 100) + 8];
 			break;
 		}
