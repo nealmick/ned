@@ -332,7 +332,14 @@ void App::handleWindowFocus(bool &windowFocused, FileExplorer &fileExplorer)
 	}
 }
 
-bool App::shouldTerminateApplication() const { return false; }
+bool App::shouldTerminateApplication() const
+{
+#ifdef __APPLE__
+	return ::shouldTerminateApplication();
+#else
+	return false;
+#endif
+}
 
 void App::configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabled)
 {
