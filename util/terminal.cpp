@@ -4,6 +4,7 @@
 	The emulator is based suckless st.c and support most xterm ansi sequences
 */
 #include "terminal.h"
+#include "../editor/editor_header.h"
 #include "files.h"
 #include "font.h"
 #include "imgui.h"
@@ -50,6 +51,8 @@ ImVec4 Terminal::defaultColorMap[16] = {
 };
 
 extern Terminal gTerminal;
+extern class FileExplorer gFileExplorer;
+
 Terminal::Terminal()
 {
 	// Initialize with safe default size
@@ -480,37 +483,30 @@ void Terminal::render()
 	// Only render terminal content if window is open and not collapsed
 	if (windowCreated && (!isEmbedded || !embeddedWindowCollapsed))
 	{
+		// Move cursor down 8px from top
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 8.0f);
+
+		// Add horizontal padding for left and right margins
+		ImGui::Indent(9.0f);
+
+		// Render editor header above terminal content
+		static EditorHeader editorHeader;
+		editorHeader.render(gFont.currentFont, "Terminal", false);
+
+		// Add small spacing after header
+		ImGui::Spacing();
+
 		handleTerminalResize();
+
+		// Add left padding only - right padding handled in terminal rendering
+		ImGui::Indent(10.0f);
 		renderBuffer();
+		ImGui::Unindent(10.0f);
+
+		ImGui::Unindent(9.0f);
 		handleScrollback(io, state.row);
 		handleMouseInput(io);
 		handleKeyboardInput(io);
-
-		// Add edit icon overlay
-		if (!isEmbedded) {
-			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-
-			// Position in top-right corner with some padding
-			float iconSize = ImGui::GetFontSize() * 0.8f;
-			ImVec2 windowPos = ImGui::GetWindowPos();
-			ImVec2 windowSize = ImGui::GetWindowSize();
-			ImGui::SetCursorPos(ImVec2(windowSize.x - iconSize - ImGui::GetStyle().WindowPadding.x, ImGui::GetStyle().WindowPadding.y));
-
-			// Use hover state for icon
-			bool isHovered = ImGui::IsWindowHovered();
-			ImTextureID icon = isHovered ? gFileExplorer.getStatusIcon("edit-hover") 
-										: gFileExplorer.getStatusIcon("edit");
-			
-			if (ImGui::ImageButton("##terminal-edit", icon, ImVec2(iconSize, iconSize))) {
-				// Handle edit button click here
-			}
-
-			ImGui::PopStyleColor(3);
-			ImGui::PopStyleVar();
-		}
 	}
 
 	// Only call End() if Begin() was actually called and succeeded
@@ -591,6 +587,8 @@ bool Terminal::setupWindow()
 void Terminal::handleTerminalResize()
 {
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
+	// Reduce width by 27px to account for right padding (10px left indent + 17px right margin)
+	contentSize.x -= 27.0f;
 	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
@@ -1905,7 +1903,14 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Foreground color
-		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+		case 30:
+		case 31:
+		case 32:
+		case 33:
+		case 34:
+		case 35:
+		case 36:
+		case 37:
 			state.c.fg = defaultColorMap[attr - 30];
 			break;
 		case 38:
@@ -1952,7 +1957,14 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Background color
-		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+		case 40:
+		case 41:
+		case 42:
+		case 43:
+		case 44:
+		case 45:
+		case 46:
+		case 47:
 			state.c.bg = defaultColorMap[attr - 40];
 			break;
 		case 48:
@@ -1996,12 +2008,26 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Bright foreground colors
-		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
+		case 90:
+		case 91:
+		case 92:
+		case 93:
+		case 94:
+		case 95:
+		case 96:
+		case 97:
 			state.c.fg = defaultColorMap[(attr - 90) + 8];
 			break;
 
 		// Bright background colors
-		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
+		case 100:
+		case 101:
+		case 102:
+		case 103:
+		case 104:
+		case 105:
+		case 106:
+		case 107:
 			state.c.bg = defaultColorMap[(attr - 100) + 8];
 			break;
 		}
