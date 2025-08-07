@@ -1,4 +1,5 @@
 #include "file_tree.h"
+#include "../editor/editor_git.h"
 #include "../editor/editor_utils.h"
 #include "../files/files.h"
 #include "../util/settings.h"
@@ -36,28 +37,73 @@ void FileTree::displayFileTree(FileNode &node)
 	ImGui::PopStyleVar(3);
 }
 
-void FileTree::renderNodeText(const std::string &name, bool isCurrentFile)
+void FileTree::renderNodeText(const std::string &name,
+							  const std::string &fullPath,
+							  bool isCurrentFile)
 {
-	if (!isCurrentFile)
+	ImVec4 textColor = TreeStyleSettings::INACTIVE_TEXT;
+
+	// Get the base text color from settings
+	ImVec4 baseTextColor = ImVec4(0.7f, 0.7f, 0.7f, 1.0f); // Default fallback
+	if (gSettings.getSettings().contains("themes") &&
+		gSettings.getSettings()["themes"].contains(gSettings.getCurrentTheme()) &&
+		gSettings.getSettings()["themes"][gSettings.getCurrentTheme()].contains("text"))
 	{
-		ImGui::Text("%s", name.c_str());
-		return;
+		auto &themeTextColor =
+			gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]["text"];
+		baseTextColor = ImVec4(themeTextColor[0].get<float>(),
+							   themeTextColor[1].get<float>(),
+							   themeTextColor[2].get<float>(),
+							   themeTextColor[3].get<float>());
 	}
 
-	if (gSettings.getRainbowMode())
+	// Convert fullPath to relative path for Git status check
+	std::string relativePath = fullPath;
+	if (fullPath.rfind(gFileExplorer.selectedFolder, 0) == 0)
 	{
-		// Get synchronized rainbow color - no need to pass blink_time
-		ImVec4 rainbowColor = EditorUtils::GetRainbowColor();
-		// Use the rainbow color for the text
-		ImGui::PushStyleColor(ImGuiCol_Text, rainbowColor);
-		ImGui::Text("%s", name.c_str());
-		ImGui::PopStyleColor();
-	} else
-	{
-		ImGui::PushStyleColor(ImGuiCol_Text, TreeStyleSettings::INACTIVE_TEXT);
-		ImGui::Text("%s", name.c_str());
-		ImGui::PopStyleColor();
+		if (gFileExplorer.selectedFolder.length() < fullPath.length())
+		{
+			relativePath = fullPath.substr(gFileExplorer.selectedFolder.length() + 1);
+		} else
+		{
+			relativePath = "."; // Root folder itself
+		}
 	}
+
+	// Prioritize active file rainbow color
+	if (isCurrentFile && gSettings.getRainbowMode())
+	{
+		textColor = EditorUtils::GetRainbowColor();
+	}
+	// Then check for modified files
+	else if (gEditorGit.modifiedFiles.count(relativePath) > 0)
+	{
+		// Apply 40% darkening to the base text color
+		textColor = ImVec4(baseTextColor.x * 0.6f,
+						   baseTextColor.y * 0.6f,
+						   baseTextColor.z * 0.6f,
+						   baseTextColor.w);
+	}
+	// Then check for edited lines (if not already broadly modified)
+	else if (gEditorGit.editedLines.count(relativePath) > 0)
+	{
+		textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for files with line changes
+	}
+	// Fallback for current file if not rainbow mode
+	else if (isCurrentFile)
+	{
+		textColor =
+			TreeStyleSettings::INACTIVE_TEXT; // Or a different color for current file
+	}
+	// Default color for other files
+	else
+	{
+		textColor = TreeStyleSettings::INACTIVE_TEXT;
+	}
+
+	ImGui::PushStyleColor(ImGuiCol_Text, textColor);
+	ImGui::Text("%s", name.c_str());
+	ImGui::PopStyleColor();
 }
 std::string FileTree::findReadmeInRoot()
 {
@@ -200,7 +246,7 @@ void FileTree::displayFileNode(const FileNode &node,
 	ImGui::SameLine(depth * metrics.indentWidth + iconDimensions.x +
 					TreeStyleSettings::LEFT_MARGIN + 10);
 	ImGui::SetCursorPosY(textTopY);
-	renderNodeText(node.name, node.fullPath == gFileExplorer.currentFile);
+	renderNodeText(node.name, node.fullPath, node.fullPath == gFileExplorer.currentFile);
 
 	if (clicked)
 	{

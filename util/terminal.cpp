@@ -3,9 +3,11 @@
 	This utility adds a terminal emulator, activate it using the keybind cmd t
 	The emulator is based suckless st.c and support most xterm ansi sequences
 */
-#include "util/terminal.h"
-
+#include "terminal.h"
+#include "../editor/editor_header.h"
 #include "files.h"
+#include "font.h"
+#include "imgui.h"
 #include "util/settings.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -49,6 +51,8 @@ ImVec4 Terminal::defaultColorMap[16] = {
 };
 
 extern Terminal gTerminal;
+extern class FileExplorer gFileExplorer;
+
 Terminal::Terminal()
 {
 	// Initialize with safe default size
@@ -468,14 +472,38 @@ void Terminal::render()
 
 	ImGuiIO &io = ImGui::GetIO();
 
+	// **changed**: Push the global font to ensure terminal uses the correct font after
+	// reloading
+	extern Font gFont;
+	ImGui::PushFont(gFont.currentFont);
+
 	checkFontSizeChange();
 	bool windowCreated = setupWindow();
 
 	// Only render terminal content if window is open and not collapsed
 	if (windowCreated && (!isEmbedded || !embeddedWindowCollapsed))
 	{
+		// Move cursor down 8px from top
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 8.0f);
+
+		// Add horizontal padding for left and right margins
+		ImGui::Indent(9.0f);
+
+		// Render editor header above terminal content
+		static EditorHeader editorHeader;
+		editorHeader.render(gFont.currentFont, "Terminal", false);
+
+		// Add small spacing after header
+		ImGui::Spacing();
+
 		handleTerminalResize();
+
+		// Add left padding only - right padding handled in terminal rendering
+		ImGui::Indent(10.0f);
 		renderBuffer();
+		ImGui::Unindent(10.0f);
+
+		ImGui::Unindent(9.0f);
 		handleScrollback(io, state.row);
 		handleMouseInput(io);
 		handleKeyboardInput(io);
@@ -486,6 +514,9 @@ void Terminal::render()
 	{
 		ImGui::End();
 	}
+
+	// **changed**: Pop the font we pushed
+	ImGui::PopFont();
 }
 
 void Terminal::renderBuffer()
@@ -512,8 +543,7 @@ void Terminal::checkFontSizeChange()
 	if (currentFontSize != lastFontSize)
 	{
 		lastFontSize = currentFontSize;
-		ImVec2 contentSize = ImGui::GetContentRegionAvail();
-		resize(state.col, state.row);
+		handleTerminalResize(); // Calculate new dimensions based on new font size
 	}
 }
 
@@ -557,6 +587,8 @@ bool Terminal::setupWindow()
 void Terminal::handleTerminalResize()
 {
 	ImVec2 contentSize = ImGui::GetContentRegionAvail();
+	// Reduce width by 27px to account for right padding (10px left indent + 17px right margin)
+	contentSize.x -= 27.0f;
 	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
@@ -1871,7 +1903,14 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Foreground color
-		case 30 ... 37:
+		case 30:
+		case 31:
+		case 32:
+		case 33:
+		case 34:
+		case 35:
+		case 36:
+		case 37:
 			state.c.fg = defaultColorMap[attr - 30];
 			break;
 		case 38:
@@ -1918,7 +1957,14 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Background color
-		case 40 ... 47:
+		case 40:
+		case 41:
+		case 42:
+		case 43:
+		case 44:
+		case 45:
+		case 46:
+		case 47:
 			state.c.bg = defaultColorMap[attr - 40];
 			break;
 		case 48:
@@ -1962,12 +2008,26 @@ void Terminal::handleSGR(const std::vector<int> &args)
 			break;
 
 		// Bright foreground colors
-		case 90 ... 97:
+		case 90:
+		case 91:
+		case 92:
+		case 93:
+		case 94:
+		case 95:
+		case 96:
+		case 97:
 			state.c.fg = defaultColorMap[(attr - 90) + 8];
 			break;
 
 		// Bright background colors
-		case 100 ... 107:
+		case 100:
+		case 101:
+		case 102:
+		case 103:
+		case 104:
+		case 105:
+		case 106:
+		case 107:
 			state.c.bg = defaultColorMap[(attr - 100) + 8];
 			break;
 		}
@@ -3242,4 +3302,9 @@ void Terminal::addToScrollback(const std::vector<Glyph> &line)
 	{
 		scrollbackBuffer.erase(scrollbackBuffer.begin());
 	}
+}
+
+void Terminal::resetFontSizeDetection()
+{
+	lastFontSize = 0; // Force terminal to detect the change on next render
 }

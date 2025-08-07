@@ -9,6 +9,7 @@ Description: Editor header rendering implementation for NED text editor.
 #include "files/files.h"
 #include "imgui.h"
 #include "util/settings.h"
+#include "util/terminal.h"
 
 // External dependencies
 extern class FileExplorer gFileExplorer;
@@ -134,7 +135,7 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 
 	// Vertical centering
 	float textHeight = ImGui::GetTextLineHeight();
-	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
+	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f - 2.0f;
 	ImGui::SetCursorPosY(iconTopY);
 
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
@@ -145,6 +146,33 @@ void EditorHeader::renderSettingsIcon(float iconSize)
 	bool isHovered = ImGui::IsItemHovered();
 	ImGui::SetCursorPos(cursor_pos);
 	ImTextureID icon = isHovered ? getStatusIcon("gear-hover") : getStatusIcon("gear");
+	ImGui::Image(icon, ImVec2(iconSize, iconSize));
+
+	ImGui::PopStyleColor(3);
+	ImGui::PopStyleVar();
+}
+
+void EditorHeader::renderTerminalIcon(float iconSize)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+
+	// Vertical centering
+	float textHeight = ImGui::GetTextLineHeight();
+	float iconTopY = ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f;
+	ImGui::SetCursorPosY(iconTopY);
+
+	ImVec2 cursor_pos = ImGui::GetCursorPos();
+	if (ImGui::InvisibleButton("##terminal-hitbox", ImVec2(iconSize, iconSize)))
+	{
+		gTerminal.toggleVisibility();
+	}
+	bool isHovered = ImGui::IsItemHovered();
+	ImGui::SetCursorPos(cursor_pos);
+	ImTextureID icon =
+		isHovered ? getStatusIcon("terminal-hover") : getStatusIcon("terminal");
 	ImGui::Image(icon, ImVec2(iconSize, iconSize));
 
 	ImGui::PopStyleColor(3);
@@ -174,8 +202,10 @@ void EditorHeader::render(ImFont *font,
 	float iconSize = ImGui::GetFontSize() * 1.15f;
 
 	// Calculate space needed for right-aligned status area
-	const float rightPadding = 25.0f;							// Space from window edge
-	const float totalStatusWidth = iconSize * 2 + rightPadding; // Brain + Gear icons
+	const float rightPadding =
+		(currentFile == "Terminal") ? 25.0f : 25.0f; // Same padding as normal
+	const float totalStatusWidth =
+		iconSize * 3 + rightPadding; // Brain + Terminal + Gear icons
 
 	// Calculate space needed for git changes if enabled and available
 	float gitChangesWidth = 0.0f;
@@ -192,7 +222,15 @@ void EditorHeader::render(ImFont *font,
 		ImGui::Text("Editor - No file selected");
 	} else
 	{
-		ImTextureID fileIcon = getFileIcon(currentFile);
+		// Special case: show shell icon for Terminal
+		ImTextureID fileIcon;
+		if (currentFile == "Terminal")
+		{
+			fileIcon = getStatusIcon("sh");
+		} else
+		{
+			fileIcon = getFileIcon(currentFile);
+		}
 		if (fileIcon)
 		{
 			// Vertical centering for file icon
@@ -206,6 +244,11 @@ void EditorHeader::render(ImFont *font,
 		// Calculate available width for the text, accounting for all elements
 		float x_cursor = ImGui::GetCursorPosX();
 		float x_right_group = ImGui::GetWindowWidth();
+		// Add right margin for terminal
+		if (currentFile == "Terminal")
+		{
+			x_right_group -= 10.0f; // 10px right margin for terminal
+		}
 		float available_width = x_right_group - x_cursor -
 								ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
 								gitChangesWidth;
@@ -213,6 +256,13 @@ void EditorHeader::render(ImFont *font,
 		// Truncate the file path to fit available space
 		std::string truncatedText =
 			truncateFilePath(currentFile, available_width, ImGui::GetFont());
+
+		// Special positioning for Terminal text
+		if (currentFile == "Terminal")
+		{
+			ImVec2 currentPos = ImGui::GetCursorPos();
+			ImGui::SetCursorPos(ImVec2(currentPos.x - 7.0f, currentPos.y + 3.0f));
+		}
 
 		ImGui::Text("%s", truncatedText.c_str());
 
@@ -228,8 +278,13 @@ void EditorHeader::render(ImFont *font,
 	}
 
 	// Right-aligned status area
-	// Position at far right edge
-	ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
+	// Position at far right edge (with margin for terminal)
+	float rightEdge = ImGui::GetWindowWidth() - totalStatusWidth;
+	if (currentFile == "Terminal")
+	{
+		rightEdge -= 20.0f; // 20px right margin for terminal
+	}
+	ImGui::SameLine(rightEdge);
 
 	// Status group
 	ImGui::BeginGroup();
@@ -249,12 +304,32 @@ void EditorHeader::render(ImFont *font,
 		}
 		ImGui::SameLine();
 
+		// Terminal icon (newly added)
+		renderTerminalIcon(iconSize * 0.7f);
+		ImGui::SameLine();
+
 		// Settings icon (always in same position)
-		renderSettingsIcon(iconSize * 0.6f);
+		renderSettingsIcon(iconSize * 0.65f);
 	}
 	ImGui::EndGroup();
 
 	ImGui::PopFont();
 	ImGui::EndGroup();
-	ImGui::Separator();
+
+	// Custom separator for terminal to respect margins
+	if (currentFile == "Terminal")
+	{
+		ImDrawList *draw_list = ImGui::GetWindowDrawList();
+		ImVec2 p = ImGui::GetCursorScreenPos();
+		// Equal 19px margin on both sides
+		float windowLeft = ImGui::GetWindowPos().x + 19.0f; // 19px from left edge
+		float width =
+			ImGui::GetWindowWidth() - 38.0f; // Total width minus 19px on each side
+		ImU32 col = ImGui::GetColorU32(ImGuiCol_Separator);
+		draw_list->AddLine(ImVec2(windowLeft, p.y), ImVec2(windowLeft + width, p.y), col);
+		ImGui::Dummy(ImVec2(0.0f, 1.0f)); // Add separator height
+	} else
+	{
+		ImGui::Separator();
+	}
 }
