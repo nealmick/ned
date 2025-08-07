@@ -202,7 +202,8 @@ void EditorHeader::render(ImFont *font,
 	float iconSize = ImGui::GetFontSize() * 1.15f;
 
 	// Calculate space needed for right-aligned status area
-	const float rightPadding = 25.0f; // Space from window edge
+	const float rightPadding =
+		(currentFile == "Terminal") ? 25.0f : 25.0f; // Same padding as normal
 	const float totalStatusWidth =
 		iconSize * 3 + rightPadding; // Brain + Terminal + Gear icons
 
@@ -221,7 +222,15 @@ void EditorHeader::render(ImFont *font,
 		ImGui::Text("Editor - No file selected");
 	} else
 	{
-		ImTextureID fileIcon = getFileIcon(currentFile);
+		// Special case: show shell icon for Terminal
+		ImTextureID fileIcon;
+		if (currentFile == "Terminal")
+		{
+			fileIcon = getStatusIcon("sh");
+		} else
+		{
+			fileIcon = getFileIcon(currentFile);
+		}
 		if (fileIcon)
 		{
 			// Vertical centering for file icon
@@ -235,6 +244,11 @@ void EditorHeader::render(ImFont *font,
 		// Calculate available width for the text, accounting for all elements
 		float x_cursor = ImGui::GetCursorPosX();
 		float x_right_group = ImGui::GetWindowWidth();
+		// Add right margin for terminal
+		if (currentFile == "Terminal")
+		{
+			x_right_group -= 10.0f; // 10px right margin for terminal
+		}
 		float available_width = x_right_group - x_cursor -
 								ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
 								gitChangesWidth;
@@ -242,6 +256,13 @@ void EditorHeader::render(ImFont *font,
 		// Truncate the file path to fit available space
 		std::string truncatedText =
 			truncateFilePath(currentFile, available_width, ImGui::GetFont());
+
+		// Special positioning for Terminal text
+		if (currentFile == "Terminal")
+		{
+			ImVec2 currentPos = ImGui::GetCursorPos();
+			ImGui::SetCursorPos(ImVec2(currentPos.x - 7.0f, currentPos.y + 3.0f));
+		}
 
 		ImGui::Text("%s", truncatedText.c_str());
 
@@ -257,8 +278,13 @@ void EditorHeader::render(ImFont *font,
 	}
 
 	// Right-aligned status area
-	// Position at far right edge
-	ImGui::SameLine(ImGui::GetWindowWidth() - totalStatusWidth);
+	// Position at far right edge (with margin for terminal)
+	float rightEdge = ImGui::GetWindowWidth() - totalStatusWidth;
+	if (currentFile == "Terminal")
+	{
+		rightEdge -= 20.0f; // 20px right margin for terminal
+	}
+	ImGui::SameLine(rightEdge);
 
 	// Status group
 	ImGui::BeginGroup();
@@ -289,5 +315,21 @@ void EditorHeader::render(ImFont *font,
 
 	ImGui::PopFont();
 	ImGui::EndGroup();
-	ImGui::Separator();
+
+	// Custom separator for terminal to respect margins
+	if (currentFile == "Terminal")
+	{
+		ImDrawList *draw_list = ImGui::GetWindowDrawList();
+		ImVec2 p = ImGui::GetCursorScreenPos();
+		// Equal 19px margin on both sides
+		float windowLeft = ImGui::GetWindowPos().x + 19.0f; // 19px from left edge
+		float width =
+			ImGui::GetWindowWidth() - 38.0f; // Total width minus 19px on each side
+		ImU32 col = ImGui::GetColorU32(ImGuiCol_Separator);
+		draw_list->AddLine(ImVec2(windowLeft, p.y), ImVec2(windowLeft + width, p.y), col);
+		ImGui::Dummy(ImVec2(0.0f, 1.0f)); // Add separator height
+	} else
+	{
+		ImGui::Separator();
+	}
 }
