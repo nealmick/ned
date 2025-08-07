@@ -13,6 +13,12 @@
 #include <unistd.h>
 #include <vector>
 
+#ifdef PLATFORM_LINUX
+#include <poll.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 namespace fs = std::filesystem;
 
 bool EditorGit::isGitInitialized()
@@ -167,48 +173,249 @@ void EditorGit::updateModifiedFiles()
 	modifiedFiles = newModifiedFiles;
 }
 
-void EditorGit::backgroundTask()
+void EditorGit::startFileWatcher()
 {
-	while (git_enabled)
+	if (gFileExplorer.selectedFolder.empty())
+		return;
+
+	fs::path gitDir = fs::path(gFileExplorer.selectedFolder) / ".git";
+	if (!fs::exists(gitDir))
+		return;
+
+#ifdef PLATFORM_MACOS
+	// macOS FSEvents implementation
+	CFStringRef watchPath =
+		CFStringCreateWithCString(NULL, gitDir.c_str(), kCFStringEncodingUTF8);
+	CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&watchPath, 1, NULL);
+
+	FSEventStreamContext context = {0};
+	context.info = this;
+
+	fsEventStream = FSEventStreamCreate(NULL,
+										&EditorGit::fsEventsCallback,
+										&context,
+										pathsToWatch,
+										kFSEventStreamEventIdSinceNow,
+										0.5, // 500ms latency
+										kFSEventStreamCreateFlagFileEvents |
+											kFSEventStreamCreateFlagUseCFTypes);
+
+	if (fsEventStream)
 	{
-		if (gSettings.getSettings()["git_changed_lines"])
+		FSEventStreamScheduleWithRunLoop(fsEventStream,
+										 CFRunLoopGetCurrent(),
+										 kCFRunLoopDefaultMode);
+		FSEventStreamStart(fsEventStream);
+	}
+
+	CFRelease(pathsToWatch);
+	CFRelease(watchPath);
+
+#elif defined(PLATFORM_LINUX)
+	// Linux inotify implementation
+	inotifyFd = inotify_init1(IN_NONBLOCK);
+	if (inotifyFd == -1)
+	{
+		std::cerr << "Failed to initialize inotify" << std::endl;
+		return;
+	}
+
+	gitDirWatch = inotify_add_watch(inotifyFd,
+									gitDir.c_str(),
+									IN_MODIFY | IN_CREATE | IN_DELETE | IN_MOVED_TO |
+										IN_MOVED_FROM);
+
+	if (gitDirWatch == -1)
+	{
+		std::cerr << "Failed to add watch for git directory" << std::endl;
+		close(inotifyFd);
+		inotifyFd = -1;
+		return;
+	}
+
+	// Start watcher thread for Linux
+	watcherThread = std::thread([this]() {
+		while (git_enabled)
 		{
-			// std::cout << "scanning for git changes" << std::endl;
-			gitEditedLines();
-			// Update git changes string for current file
-			if (!gFileExplorer.currentFile.empty())
+			processInotifyEvents();
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	});
+#endif
+}
+
+void EditorGit::stopFileWatcher()
+{
+#ifdef PLATFORM_MACOS
+	if (fsEventStream)
+	{
+		FSEventStreamStop(fsEventStream);
+		FSEventStreamInvalidate(fsEventStream);
+		FSEventStreamRelease(fsEventStream);
+		fsEventStream = nullptr;
+	}
+#elif defined(PLATFORM_LINUX)
+	if (inotifyFd != -1)
+	{
+		if (gitDirWatch != -1)
+		{
+			inotify_rm_watch(inotifyFd, gitDirWatch);
+			gitDirWatch = -1;
+		}
+		close(inotifyFd);
+		inotifyFd = -1;
+	}
+	if (watcherThread.joinable())
+	{
+		watcherThread.join();
+	}
+#endif
+}
+
+void EditorGit::onFileChanged() { filesChanged = true; }
+
+#ifdef PLATFORM_MACOS
+void EditorGit::fsEventsCallback(ConstFSEventStreamRef streamRef,
+								 void *clientCallBackInfo,
+								 size_t numEvents,
+								 void *eventPaths,
+								 const FSEventStreamEventFlags eventFlags[],
+								 const FSEventStreamEventId eventIds[])
+{
+	EditorGit *git = static_cast<EditorGit *>(clientCallBackInfo);
+
+	for (size_t i = 0; i < numEvents; i++)
+	{
+		// Check if this is a relevant git file change
+		CFStringRef path =
+			static_cast<CFArrayRef>(eventPaths)
+				? static_cast<CFStringRef>(
+					  CFArrayGetValueAtIndex(static_cast<CFArrayRef>(eventPaths), i))
+				: nullptr;
+
+		if (path)
+		{
+			char pathBuffer[PATH_MAX];
+			if (CFStringGetCString(
+					path, pathBuffer, sizeof(pathBuffer), kCFStringEncodingUTF8))
 			{
-				currentGitChanges = gitPlusMinus(gFileExplorer.currentFile);
-			} else
-			{
-				currentGitChanges.clear();
+				std::string pathStr(pathBuffer);
+				// Trigger update for any changes in .git directory
+				if (pathStr.find(".git") != std::string::npos &&
+					(pathStr.find("index") != std::string::npos ||
+					 pathStr.find("refs") != std::string::npos ||
+					 pathStr.find("HEAD") != std::string::npos))
+				{
+					git->onFileChanged();
+				}
 			}
 		}
-		// Always update modified files, regardless of git_changed_lines setting
-		updateModifiedFiles();
+	}
+}
+#elif defined(PLATFORM_LINUX)
+void EditorGit::processInotifyEvents()
+{
+	if (inotifyFd == -1)
+		return;
 
-		// Clean up completed animations
+	struct pollfd pfd = {inotifyFd, POLLIN, 0};
+	int ret = poll(&pfd, 1, 0); // Non-blocking poll
+
+	if (ret > 0)
+	{
+		char buffer[4096];
+		ssize_t length = read(inotifyFd, buffer, sizeof(buffer));
+
+		if (length > 0)
+		{
+			size_t i = 0;
+			while (i < length)
+			{
+				struct inotify_event *event = (struct inotify_event *)&buffer[i];
+
+				if (event->len > 0)
+				{
+					std::string filename(event->name);
+					// Check for relevant git files
+					if (filename == "index" ||
+						filename.find("refs") != std::string::npos || filename == "HEAD")
+					{
+						onFileChanged();
+					}
+				}
+
+				i += sizeof(struct inotify_event) + event->len;
+			}
+		}
+	}
+}
+#endif
+
+void EditorGit::backgroundTask()
+{
+	lastUpdate = std::chrono::steady_clock::now();
+
+	while (git_enabled)
+	{
+		bool shouldUpdate = filesChanged.exchange(false); // Atomic check and reset
+
+		// Fallback: check every 5 seconds in case watcher misses something
+		auto now = std::chrono::steady_clock::now();
+		auto timeSinceLastUpdate =
+			std::chrono::duration_cast<std::chrono::seconds>(now - lastUpdate);
+		if (timeSinceLastUpdate.count() >= 5)
+		{
+			shouldUpdate = true;
+		}
+
+		if (shouldUpdate)
+		{
+			if (gSettings.getSettings()["git_changed_lines"])
+			{
+				gitEditedLines();
+				// Update git changes string for current file
+				if (!gFileExplorer.currentFile.empty())
+				{
+					currentGitChanges = gitPlusMinus(gFileExplorer.currentFile);
+				} else
+				{
+					currentGitChanges.clear();
+				}
+			}
+			// Always update modified files, regardless of git_changed_lines setting
+			updateModifiedFiles();
+			lastUpdate = now;
+		}
+
+		// Clean up completed animations (do this frequently for smooth animations)
 		cleanupCompletedAnimations();
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		// Much longer sleep since we're event-driven now
+		std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
 void EditorGit::init()
 {
-	// Kill any existing background thread
+	// Stop any existing watchers and threads
 	if (backgroundThread.joinable())
 	{
 		git_enabled = false;
 		backgroundThread.join();
 	}
 
+	stopFileWatcher();
+
+	// Reset state
+	filesChanged = false;
+
 	// Check if Git is initialized
 	git_enabled = isGitInitialized();
 
-	// Only start background task if Git is enabled
+	// Only start background task and watcher if Git is enabled
 	if (git_enabled)
 	{
+		startFileWatcher();
 		backgroundThread = std::thread(&EditorGit::backgroundTask, this);
 	}
 }
@@ -432,6 +639,18 @@ void EditorGit::cleanupCompletedAnimations()
 			++fileIt;
 		}
 	}
+}
+
+EditorGit::~EditorGit()
+{
+	// Clean shutdown
+	if (backgroundThread.joinable())
+	{
+		git_enabled = false;
+		backgroundThread.join();
+	}
+
+	stopFileWatcher();
 }
 
 EditorGit gEditorGit;
