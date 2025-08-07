@@ -485,6 +485,32 @@ void Terminal::render()
 		handleScrollback(io, state.row);
 		handleMouseInput(io);
 		handleKeyboardInput(io);
+
+		// Add edit icon overlay
+		if (!isEmbedded) {
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+
+			// Position in top-right corner with some padding
+			float iconSize = ImGui::GetFontSize() * 0.8f;
+			ImVec2 windowPos = ImGui::GetWindowPos();
+			ImVec2 windowSize = ImGui::GetWindowSize();
+			ImGui::SetCursorPos(ImVec2(windowSize.x - iconSize - ImGui::GetStyle().WindowPadding.x, ImGui::GetStyle().WindowPadding.y));
+
+			// Use hover state for icon
+			bool isHovered = ImGui::IsWindowHovered();
+			ImTextureID icon = isHovered ? gFileExplorer.getStatusIcon("edit-hover") 
+										: gFileExplorer.getStatusIcon("edit");
+			
+			if (ImGui::ImageButton("##terminal-edit", icon, ImVec2(iconSize, iconSize))) {
+				// Handle edit button click here
+			}
+
+			ImGui::PopStyleColor(3);
+			ImGui::PopStyleVar();
+		}
 	}
 
 	// Only call End() if Begin() was actually called and succeeded
