@@ -355,6 +355,7 @@ endif()
 if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   target_link_libraries(ned PRIVATE
     "-framework Cocoa"
+    "-framework CoreServices"
     "-framework QuartzCore" 
     "-framework IOKit"
     "-framework CoreVideo"
