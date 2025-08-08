@@ -1,3 +1,4 @@
+
 /*
 	File: main.cpp
 	Description: NEDitor main entry point
