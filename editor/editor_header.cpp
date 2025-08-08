@@ -209,11 +209,15 @@ void EditorHeader::render(ImFont *font,
 
 	// Calculate space needed for git changes if enabled and available
 	float gitChangesWidth = 0.0f;
-	if (showGitChanges && gSettings.getSettings()["git_changed_lines"] &&
-		!gEditorGit.currentGitChanges.empty())
+	std::string currentGitChanges;
+	if (showGitChanges && gSettings.getSettings()["git_changed_lines"])
 	{
-		gitChangesWidth = ImGui::CalcTextSize(gEditorGit.currentGitChanges.c_str()).x +
-						  ImGui::GetStyle().ItemSpacing.x;
+		currentGitChanges = gEditorGit.getCurrentGitChanges();
+		if (!currentGitChanges.empty())
+		{
+			gitChangesWidth =
+				gEditorGit.getCachedGitChangesWidth() + ImGui::GetStyle().ItemSpacing.x;
+		}
 	}
 
 	// Render left side (file icon and name)
@@ -269,10 +273,10 @@ void EditorHeader::render(ImFont *font,
 		// Add git changes info if available and window is wide enough
 		if (showGitChanges && gSettings.getSettings()["git_changed_lines"])
 		{
-			if (!gEditorGit.currentGitChanges.empty())
+			if (!currentGitChanges.empty())
 			{
 				ImGui::SameLine();
-				ImGui::Text("%s", gEditorGit.currentGitChanges.c_str());
+				ImGui::Text("%s", currentGitChanges.c_str());
 			}
 		}
 	}

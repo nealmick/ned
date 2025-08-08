@@ -1,5 +1,6 @@
 #include "editor_git.h"
 #include "../files/files.h"
+#include "../lib/imgui/imgui.h"
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -32,6 +33,8 @@ bool EditorGit::isGitInitialized()
 	return fs::exists(gitDir) && fs::is_directory(gitDir);
 }
 
+// Removed isGitBusy() - no longer needed with --no-optional-locks
+
 std::string execCommand(const char *cmd)
 {
 	std::array<char, 128> buffer;
@@ -48,6 +51,18 @@ std::string execCommand(const char *cmd)
 	return result;
 }
 
+void EditorGit::printGitEditedLines()
+{
+	for (const auto &pair : editedLines)
+	{
+		std::cout << "file: " << pair.first << std::endl;
+		for (int line : pair.second)
+		{
+			std::cout << line << std::endl;
+		}
+	}
+}
+
 void EditorGit::gitEditedLines()
 {
 	if (gFileExplorer.selectedFolder.empty())
@@ -55,12 +70,7 @@ void EditorGit::gitEditedLines()
 		return;
 	}
 
-	// Check if git is busy (lock file exists)
-	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
-	if (fs::exists(gitLockFile))
-	{
-		return; // Git is busy, skip this update
-	}
+	// No lock checking needed with --no-optional-locks
 
 	// Change to the project directory before running git commands
 	std::string originalDir = fs::current_path().string();
@@ -69,17 +79,18 @@ void EditorGit::gitEditedLines()
 		return; // Failed to change directory
 	}
 
-	const char *cmd = "git diff --unified=0 --no-color | awk '\n/^diff --git "
-					  "a\\// {\n    if (file) print "
-					  "\"\";\n    file = substr($3, 3);\n    print \"file: \" "
-					  "file;\n    next\n}\n/^@@/ {\n    "
-					  "plus = index($0, \"+\");\n    comma = index(substr($0, "
-					  "plus+1), \",\");\n    if (comma > "
-					  "0) {\n        new_line = substr($0, plus+1, comma-1) + "
-					  "0;\n    } else {\n        new_line "
-					  "= substr($0, plus+1) + 0;\n    }\n    next\n}\n/^\\+/ "
-					  "&& !/^\\+\\+\\+/ {\n    print "
-					  "new_line;\n    new_line++;\n}\n/^ / { new_line++; }\n'";
+	const char *cmd =
+		"git --no-optional-locks diff --unified=0 --no-color | awk '\n/^diff --git "
+		"a\\// {\n    if (file) print "
+		"\"\";\n    file = substr($3, 3);\n    print \"file: \" "
+		"file;\n    next\n}\n/^@@/ {\n    "
+		"plus = index($0, \"+\");\n    comma = index(substr($0, "
+		"plus+1), \",\");\n    if (comma > "
+		"0) {\n        new_line = substr($0, plus+1, comma-1) + "
+		"0;\n    } else {\n        new_line "
+		"= substr($0, plus+1) + 0;\n    }\n    next\n}\n/^\\+/ "
+		"&& !/^\\+\\+\\+/ {\n    print "
+		"new_line;\n    new_line++;\n}\n/^ / { new_line++; }\n'";
 	std::array<char, 256> buffer;
 	std::string result;
 	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
@@ -118,59 +129,6 @@ void EditorGit::gitEditedLines()
 
 	// Update the map with the new changes
 	editedLines = fileChanges;
-}
-
-void EditorGit::printGitEditedLines()
-{
-	for (const auto &pair : editedLines)
-	{
-		std::cout << "file: " << pair.first << std::endl;
-		for (int line : pair.second)
-		{
-			std::cout << line << std::endl;
-		}
-	}
-}
-
-void EditorGit::updateModifiedFiles()
-{
-	if (gFileExplorer.selectedFolder.empty())
-	{
-		return;
-	}
-
-	// Check if git is busy (lock file exists)
-	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
-	if (fs::exists(gitLockFile))
-	{
-		return; // Git is busy, skip this update
-	}
-
-	std::string originalDir = fs::current_path().string();
-	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
-	{
-		return; // Failed to change directory
-	}
-
-	std::string cmd = "git status --porcelain";
-	std::string result = execCommand(cmd.c_str());
-
-	chdir(originalDir.c_str()); // Restore original directory
-
-	std::istringstream iss(result);
-	std::string line;
-	std::set<std::string> newModifiedFiles;
-
-	while (std::getline(iss, line))
-	{
-		if (line.length() > 3)
-		{
-			// Extract the file path (after the 2-char status and space)
-			std::string filePath = line.substr(3);
-			newModifiedFiles.insert(filePath);
-		}
-	}
-	modifiedFiles = newModifiedFiles;
 }
 
 void EditorGit::startFileWatcher()
@@ -272,8 +230,6 @@ void EditorGit::stopFileWatcher()
 #endif
 }
 
-void EditorGit::onFileChanged() { filesChanged = true; }
-
 #ifdef PLATFORM_MACOS
 void EditorGit::fsEventsCallback(ConstFSEventStreamRef streamRef,
 								 void *clientCallBackInfo,
@@ -351,6 +307,8 @@ void EditorGit::processInotifyEvents()
 }
 #endif
 
+void EditorGit::onFileChanged() { filesChanged = true; }
+
 void EditorGit::backgroundTask()
 {
 	lastUpdate = std::chrono::steady_clock::now();
@@ -373,14 +331,8 @@ void EditorGit::backgroundTask()
 			if (gSettings.getSettings()["git_changed_lines"])
 			{
 				gitEditedLines();
-				// Update git changes string for current file
-				if (!gFileExplorer.currentFile.empty())
-				{
-					currentGitChanges = gitPlusMinus(gFileExplorer.currentFile);
-				} else
-				{
-					currentGitChanges.clear();
-				}
+				// Update git changes string for current file atomically
+				updateCurrentGitChanges(gFileExplorer.currentFile);
 			}
 			// Always update modified files, regardless of git_changed_lines setting
 			updateModifiedFiles();
@@ -444,12 +396,7 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	if (!git_enabled || gFileExplorer.selectedFolder.empty())
 		return "";
 
-	// Check if git is busy (lock file exists)
-	fs::path gitLockFile = fs::path(gFileExplorer.selectedFolder) / ".git" / "index.lock";
-	if (fs::exists(gitLockFile))
-	{
-		return ""; // Git is busy, skip this update
-	}
+	// No lock checking needed with --no-optional-locks
 
 	// Get relative path if needed
 	std::string relativePath = filePath;
@@ -470,8 +417,8 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	}
 
 	// Check if file exists in git
-	std::string checkCmd =
-		"git ls-files --error-unmatch -- " + relativePath + " >/dev/null 2>&1";
+	std::string checkCmd = "git --no-optional-locks ls-files --error-unmatch -- " +
+						   relativePath + " >/dev/null 2>&1";
 	int checkResult = system(checkCmd.c_str());
 	if (checkResult != 0)
 	{
@@ -480,7 +427,8 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	}
 
 	// Run git diff command to get added/removed lines
-	std::string cmd = "git diff --numstat -- " + relativePath + " | awk '{print $1,$2}'";
+	std::string cmd = "git --no-optional-locks diff --numstat -- " + relativePath +
+					  " | awk '{print $1,$2}'";
 	std::array<char, 128> buffer;
 	std::string result;
 	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
@@ -510,6 +458,301 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	}
 
 	return "+" + std::to_string(added) + "-" + std::to_string(removed);
+}
+
+std::string EditorGit::getCurrentGitChanges() const
+{
+	std::lock_guard<std::mutex> lock(gitChangesMutex);
+	return currentGitChanges;
+}
+
+void EditorGit::updateCurrentGitChanges(const std::string &filePath)
+{
+	if (!git_enabled || filePath.empty())
+	{
+		std::lock_guard<std::mutex> lock(gitChangesMutex);
+		if (!currentGitChanges.empty())
+		{
+			currentGitChanges.clear();
+			cachedGitChangesWidth = 0.0f;
+		}
+		return;
+	}
+
+	std::string newGitChanges = gitPlusMinus(filePath);
+
+	std::lock_guard<std::mutex> lock(gitChangesMutex);
+	if (currentGitChanges != newGitChanges)
+	{
+		currentGitChanges = newGitChanges;
+		cachedGitChangesWidth = 0.0f; // Reset cache when content changes
+	}
+}
+
+float EditorGit::getCachedGitChangesWidth()
+{
+	std::lock_guard<std::mutex> lock(gitChangesMutex);
+	if (cachedGitChangesWidth == 0.0f && !currentGitChanges.empty())
+	{
+		cachedGitChangesWidth = ImGui::CalcTextSize(currentGitChanges.c_str()).x;
+	}
+	return cachedGitChangesWidth;
+}
+
+void EditorGit::cacheGitContents(const std::string &filePath)
+{
+	if (!git_enabled || gFileExplorer.selectedFolder.empty())
+		return;
+
+	// Get relative path
+	std::string relativePath = filePath;
+	if (filePath.find(gFileExplorer.selectedFolder) == 0)
+	{
+		size_t folderLength = gFileExplorer.selectedFolder.length();
+		if (folderLength < filePath.length())
+		{
+			relativePath = filePath.substr(folderLength + 1);
+		}
+	}
+
+	std::string originalDir = fs::current_path().string();
+	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
+		return;
+
+	// Get file content from git HEAD for just this file
+	std::string gitShowCmd = "git show HEAD:" + relativePath + " 2>/dev/null";
+	std::unique_ptr<FILE, decltype(&pclose)> gitPipe(popen(gitShowCmd.c_str(), "r"),
+													 pclose);
+
+	std::string content;
+	if (gitPipe)
+	{
+		std::array<char, 4096> contentBuffer;
+		while (fgets(contentBuffer.data(), contentBuffer.size(), gitPipe.get()) != nullptr)
+		{
+			content += contentBuffer.data();
+		}
+	}
+
+	chdir(originalDir.c_str());
+
+	if (!content.empty())
+	{
+		// Split into lines for easier comparison
+		std::vector<std::string> lines;
+		std::istringstream contentStream(content);
+		std::string line;
+		while (std::getline(contentStream, line))
+		{
+			lines.push_back(line);
+		}
+
+		// Update cache for this file only
+		std::lock_guard<std::mutex> lock(gitCacheMutex);
+		gitFileContents[relativePath] = content;
+		gitFileLines[relativePath] = lines;
+	}
+}
+
+void EditorGit::updateModifiedFiles()
+{
+	if (!git_enabled || gFileExplorer.selectedFolder.empty())
+		return;
+
+	std::string originalDir = fs::current_path().string();
+	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
+		return;
+
+	std::string cmd = "git --no-optional-locks status --porcelain";
+	std::string result = execCommand(cmd.c_str());
+
+	chdir(originalDir.c_str());
+
+	std::istringstream iss(result);
+	std::string line;
+	std::set<std::string> newModifiedFiles;
+
+	while (std::getline(iss, line))
+	{
+		if (line.length() > 3)
+		{
+			// Extract the file path (after the 2-char status and space)
+			std::string filePath = line.substr(3);
+			newModifiedFiles.insert(filePath);
+		}
+	}
+	modifiedFiles = newModifiedFiles;
+}
+
+void EditorGit::updateCurrentFileLineChanges()
+{
+	if (!git_enabled || gFileExplorer.selectedFolder.empty() ||
+		gFileExplorer.currentFile.empty())
+		return;
+
+	// Get relative path
+	std::string relativePath = gFileExplorer.currentFile;
+	if (gFileExplorer.currentFile.find(gFileExplorer.selectedFolder) == 0)
+	{
+		size_t folderLength = gFileExplorer.selectedFolder.length();
+		if (folderLength < gFileExplorer.currentFile.length())
+		{
+			relativePath = gFileExplorer.currentFile.substr(folderLength + 1);
+		}
+	}
+
+	std::string originalDir = fs::current_path().string();
+	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
+		return;
+
+	// Run simple git diff (avoid complex shell commands)
+	std::string cmd =
+		"git diff --unified=0 --no-color -- \"" + relativePath + "\" 2>/dev/null";
+	std::array<char, 256> buffer;
+	std::string result;
+
+	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+	if (!pipe)
+	{
+		chdir(originalDir.c_str());
+		return;
+	}
+
+	while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+	{
+		result += buffer.data();
+	}
+
+	chdir(originalDir.c_str());
+
+	// Parse the line numbers
+	std::vector<int> changedLines;
+	std::istringstream iss(result);
+	std::string line;
+	while (std::getline(iss, line))
+	{
+		if (!line.empty())
+		{
+			try
+			{
+				int lineNum = std::stoi(line);
+				if (lineNum > 0)
+				{
+					changedLines.push_back(lineNum);
+				}
+			} catch (...)
+			{
+				// Ignore parse errors
+			}
+		}
+	}
+
+	// Update the edited lines for this file
+	editedLines[relativePath] = changedLines;
+}
+
+void EditorGit::detectChangesFromContent(const std::string &filePath,
+										 const std::string &currentContent)
+{
+	if (!git_enabled || gFileExplorer.selectedFolder.empty())
+		return;
+
+	// Get relative path
+	std::string relativePath = filePath;
+	if (filePath.find(gFileExplorer.selectedFolder) == 0)
+	{
+		size_t folderLength = gFileExplorer.selectedFolder.length();
+		if (folderLength < filePath.length())
+		{
+			relativePath = filePath.substr(folderLength + 1);
+		}
+	}
+
+	std::lock_guard<std::mutex> lock(gitCacheMutex);
+
+	// Check if we have cached git content for this file
+	auto gitContentIt = gitFileLines.find(relativePath);
+	if (gitContentIt == gitFileLines.end())
+	{
+		// File not tracked or not in cache
+		return;
+	}
+
+	const std::vector<std::string> &gitLines = gitContentIt->second;
+
+	// Split current content into lines
+	std::vector<std::string> currentLines;
+	std::istringstream iss(currentContent);
+	std::string line;
+	while (std::getline(iss, line))
+	{
+		currentLines.push_back(line);
+	}
+
+	// Simple line-by-line diff to find changed lines
+	std::vector<int> changedLineNumbers;
+	size_t maxLines = std::max(gitLines.size(), currentLines.size());
+
+	for (size_t i = 0; i < maxLines; ++i)
+	{
+		std::string gitLine = (i < gitLines.size()) ? gitLines[i] : "";
+		std::string currentLine = (i < currentLines.size()) ? currentLines[i] : "";
+
+		if (gitLine != currentLine)
+		{
+			changedLineNumbers.push_back(static_cast<int>(i + 1)); // 1-based line numbers
+		}
+	}
+
+	// Update editedLines for this file
+	std::map<std::string, std::vector<int>> newChanges;
+	if (!changedLineNumbers.empty())
+	{
+		newChanges[relativePath] = changedLineNumbers;
+	}
+
+	// Update animations and current changes
+	updateLineAnimations(newChanges);
+	editedLines[relativePath] = changedLineNumbers;
+
+	// Update git changes string
+	int addedLines = 0, removedLines = 0;
+	if (currentLines.size() > gitLines.size())
+		addedLines = currentLines.size() - gitLines.size();
+	else if (gitLines.size() > currentLines.size())
+		removedLines = gitLines.size() - currentLines.size();
+
+	std::string newGitChanges;
+	if (addedLines > 0 || removedLines > 0 || !changedLineNumbers.empty())
+	{
+		newGitChanges =
+			"+" + std::to_string(addedLines) + "-" + std::to_string(removedLines);
+	}
+
+	std::lock_guard<std::mutex> gitChangesLock(gitChangesMutex);
+	if (currentGitChanges != newGitChanges)
+	{
+		currentGitChanges = newGitChanges;
+		cachedGitChangesWidth = 0.0f;
+	}
+}
+
+void EditorGit::onFileContentChanged(const std::string &filePath,
+									 const std::string &currentContent)
+{
+	if (!git_enabled || !gSettings.getSettings()["git_changed_lines"])
+		return;
+
+	detectChangesFromContent(filePath, currentContent);
+}
+
+void EditorGit::refreshGitCache()
+{
+	if (!git_enabled)
+		return;
+
+	// Re-cache git contents (useful after git operations)
+	cacheGitContents();
 }
 
 void EditorGit::updateLineAnimations(
