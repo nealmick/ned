@@ -242,13 +242,30 @@ void AgentRequest::sendMessage(const std::string &payload,
 						const auto &toolCalls = choice["message"]["tool_calls"];
 						for (const auto &toolCall : toolCalls)
 						{
+							// Log the tool call for debugging DeepSeek issues
+							std::cout << "Raw tool call JSON: " << toolCall.dump()
+									  << std::endl;
+
 							if (toolCall.contains("function") &&
-								toolCall["function"].contains("name"))
+								toolCall["function"].contains("name") &&
+								!toolCall["function"]["name"].is_null())
 							{
 								std::string toolName =
 									toolCall["function"]["name"].get<std::string>();
-								std::string argumentsStr =
-									toolCall["function"]["arguments"].get<std::string>();
+								std::string argumentsStr;
+
+								if (!toolCall["function"].contains("arguments") ||
+									toolCall["function"]["arguments"].is_null())
+								{
+									argumentsStr = "{}";
+									std::cout << "No arguments or arguments is null, "
+												 "using empty object"
+											  << std::endl;
+								} else
+								{
+									argumentsStr = toolCall["function"]["arguments"]
+													   .get<std::string>();
+								}
 
 								std::cout << "Executing tool call: " << toolName
 										  << std::endl;
@@ -259,114 +276,35 @@ void AgentRequest::sendMessage(const std::string &payload,
 
 								try
 								{
-									// Validate that the arguments string is
-									// complete JSON
-									if (argumentsStr.empty() ||
-										argumentsStr.find('}') == std::string::npos)
+									// Simple validation - just check if arguments is not
+									// empty Let JSON parser handle validation instead of
+									// custom checks
+									json argumentsJson = json::parse(argumentsStr);
+									std::unordered_map<std::string, std::string> parameters;
+
+									for (auto it = argumentsJson.begin();
+										 it != argumentsJson.end();
+										 ++it)
 									{
-										std::cerr << "Error: Incomplete tool "
-													 "call arguments: "
-												  << argumentsStr << std::endl;
-										result = "ERROR: Incomplete tool call "
-												 "arguments: " +
-												 argumentsStr;
-										toolCallSucceeded = false;
-									} else
-									{
-										// Additional validation for common
-										// malformed patterns
-										bool isMalformed = false;
-
-										// Check for unmatched quotes
-										if (argumentsStr.find('"') != std::string::npos)
+										if (it.value().is_null())
 										{
-											int quoteCount = 0;
-											for (char c : argumentsStr)
-											{
-												if (c == '"')
-													quoteCount++;
-											}
-											if (quoteCount % 2 != 0)
-											{
-												isMalformed = true;
-												std::cerr << "Error: Tool call "
-															 "arguments have "
-															 "unmatched quotes: "
-														  << argumentsStr << std::endl;
-											}
-										}
-
-										// Check for invalid escape sequences
-										if (argumentsStr.find("\\") != std::string::npos)
-										{
-											size_t pos = 0;
-											while ((pos = argumentsStr.find("\\", pos)) !=
-												   std::string::npos)
-											{
-												if (pos + 1 < argumentsStr.length())
-												{
-													char nextChar = argumentsStr[pos + 1];
-													if (nextChar != '"' &&
-														nextChar != '\\' &&
-														nextChar != '/' &&
-														nextChar != 'b' &&
-														nextChar != 'f' &&
-														nextChar != 'n' &&
-														nextChar != 'r' &&
-														nextChar != 't' &&
-														nextChar != 'u')
-													{
-														isMalformed = true;
-														std::cerr << "Error: Tool "
-																	 "call arguments "
-																	 "contain "
-																	 "invalid escape "
-																	 "sequence \\"
-																  << nextChar << ": "
-																  << argumentsStr
-																  << std::endl;
-														break;
-													}
-												}
-												pos += 2;
-											}
-										}
-
-										if (isMalformed)
-										{
-											result = "ERROR: Malformed tool "
-													 "call arguments: " +
-													 argumentsStr;
-											toolCallSucceeded = false;
+											parameters[it.key()] = "";
 										} else
 										{
-											json argumentsJson =
-												json::parse(argumentsStr);
-											std::unordered_map<std::string, std::string>
-												parameters;
-
-											for (auto it = argumentsJson.begin();
-												 it != argumentsJson.end();
-												 ++it)
-											{
-												parameters[it.key()] =
-													it.value().get<std::string>();
-											}
-
-											// Execute the tool call
-											result =
-												gMCPManager.executeToolCall(toolName,
-																			parameters);
-											toolCallSucceeded = true;
-
-											std::cout << "=== TOOL CALL RESULT ==="
-													  << std::endl;
-											std::cout << result << std::endl;
-											std::cout << "=== END TOOL CALL "
-														 "RESULT ==="
-													  << std::endl;
+											parameters[it.key()] =
+												it.value().get<std::string>();
 										}
 									}
+
+									// Execute the tool call
+									result =
+										gMCPManager.executeToolCall(toolName, parameters);
+									toolCallSucceeded = true;
+
+									std::cout << "=== TOOL CALL RESULT ===" << std::endl;
+									std::cout << result << std::endl;
+									std::cout << "=== END TOOL CALL RESULT ==="
+											  << std::endl;
 
 								} catch (const json::parse_error &e)
 								{
@@ -399,7 +337,8 @@ void AgentRequest::sendMessage(const std::string &payload,
 
 									// Set the tool_call_id to match the tool
 									// call ID
-									if (toolCall.contains("id"))
+									if (toolCall.contains("id") &&
+										!toolCall["id"].is_null())
 									{
 										toolMsg.tool_call_id =
 											toolCall["id"].get<std::string>();

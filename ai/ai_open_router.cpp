@@ -243,7 +243,9 @@ std::string OpenRouter::request(const std::string &prompt, const std::string &ap
 				return ""; // Return empty string if response is invalid
 			}
 			std::string raw_content =
-				result["choices"][0]["message"]["content"].get<std::string>();
+				(result["choices"][0]["message"]["content"].is_null()
+					 ? ""
+					 : result["choices"][0]["message"]["content"].get<std::string>());
 			if (raw_content.empty())
 			{
 				return ""; // Return empty string if content is empty
@@ -371,7 +373,9 @@ std::string OpenRouter::promptRequest(const std::string &prompt,
 				return ""; // Return empty string if response is invalid
 			}
 			std::string raw_content =
-				result["choices"][0]["message"]["content"].get<std::string>();
+				(result["choices"][0]["message"]["content"].is_null()
+					 ? ""
+					 : result["choices"][0]["message"]["content"].get<std::string>());
 			if (raw_content.empty())
 			{
 				return ""; // Return empty string if content is empty
@@ -434,7 +438,9 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 							!choice["delta"]["content"].is_null())
 						{
 							std::string content =
-								choice["delta"]["content"].get<std::string>();
+								(choice["delta"]["content"].is_null()
+									 ? ""
+									 : choice["delta"]["content"].get<std::string>());
 							if (!content.empty())
 							{
 								std::lock_guard<std::mutex> lock(g_callbackMutex);
@@ -457,7 +463,13 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 								std::string toolCallId;
 								if (toolCall.contains("id"))
 								{
-									toolCallId = toolCall["id"].get<std::string>();
+									if (toolCall["id"].is_null())
+									{
+										toolCallId = "";
+									} else
+									{
+										toolCallId = toolCall["id"].get<std::string>();
+									}
 								} else if (toolCall.contains("index"))
 								{
 									toolCallId =
@@ -495,11 +507,19 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 									{
 										// Append arguments (they come in fragments)
 										std::string currentArgs =
-											g_accumulatedToolCalls[toolCallId]["function"]
-																  ["arguments"]
-																	  .get<std::string>();
+											(g_accumulatedToolCalls[toolCallId]
+																   ["function"]
+																   ["arguments"]
+																	   .is_null()
+												 ? ""
+												 : g_accumulatedToolCalls
+													   [toolCallId]["function"]
+													   ["arguments"]
+														   .get<std::string>());
 										std::string newArgs =
-											func["arguments"].get<std::string>();
+											(func["arguments"].is_null()
+												 ? ""
+												 : func["arguments"].get<std::string>());
 
 										// Validate that the new arguments
 										// fragment is not malformed
@@ -509,39 +529,10 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 											// that indicate streaming issues
 											bool isMalformed = false;
 
-											// Check for truncated strings
-											// (missing closing quotes)
-											if (newArgs.find('"') != std::string::npos)
-											{
-												int quoteCount = 0;
-												for (char c : newArgs)
-												{
-													if (c == '"')
-														quoteCount++;
-												}
-												if (quoteCount % 2 != 0)
-												{
-													isMalformed = true;
-													std::cout << "WARNING: Detected "
-																 "malformed JSON "
-																 "fragment with "
-																 "unmatched quotes: "
-															  << newArgs << std::endl;
-												}
-											}
-
-											// Check for incomplete object
-											// (missing closing brace)
-											if (newArgs.find('{') != std::string::npos &&
-												newArgs.find('}') == std::string::npos)
-											{
-												isMalformed = true;
-												std::cout << "WARNING: Detected "
-															 "malformed JSON "
-															 "fragment with missing "
-															 "closing brace: "
-														  << newArgs << std::endl;
-											}
+											// Don't check for truncated strings
+											// or incomplete objects as these
+											// are normal during streaming
+											// Only check for truly invalid patterns
 
 											// Check for invalid escape sequences
 											if (newArgs.find("\\") != std::string::npos)
@@ -644,7 +635,9 @@ size_t OpenRouter::WriteDataStream(void *ptr, size_t size, size_t nmemb, std::st
 						if (choice.contains("finish_reason"))
 						{
 							std::string finishReason =
-								choice["finish_reason"].get<std::string>();
+								(choice["finish_reason"].is_null()
+									 ? ""
+									 : choice["finish_reason"].get<std::string>());
 							std::cout << "DEBUG: Found finish_reason in streaming: "
 									  << finishReason << std::endl;
 							if (finishReason == "tool_calls")
@@ -707,7 +700,8 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 											   size_t nmemb,
 											   std::string *data)
 {
-	static int chunkCount = 0;
+	// Use thread-local to avoid race conditions in concurrent requests
+	thread_local int chunkCount = 0;
 	chunkCount++;
 
 	try
@@ -816,9 +810,13 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 											fullChoice["message"]["content"] = "";
 										}
 										fullChoice["message"]["content"] =
-											fullChoice["message"]["content"]
-												.get<std::string>() +
-											delta["content"].get<std::string>();
+											(fullChoice["message"]["content"].is_null()
+												 ? ""
+												 : fullChoice["message"]["content"]
+													   .get<std::string>()) +
+											(delta["content"].is_null()
+												 ? ""
+												 : delta["content"].get<std::string>());
 									}
 
 									// Merge tool calls
@@ -884,12 +882,19 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 													if (func.contains("arguments"))
 													{
 														std::string currentArgs =
-															fullToolCall
-																["function"]["arguments"]
-																	.get<std::string>();
+															(fullToolCall["function"]
+																		 ["arguments"]
+																			 .is_null()
+																 ? ""
+																 : fullToolCall
+																	   ["function"]
+																	   ["arguments"]
+																		   .get<std::string>());
 														std::string newArgs =
-															func["arguments"]
-																.get<std::string>();
+															(func["arguments"].is_null()
+																 ? ""
+																 : func["arguments"]
+																	   .get<std::string>());
 
 														// Validate that the new
 														// arguments fragment is
@@ -902,61 +907,12 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 															// streaming issues
 															bool isMalformed = false;
 
-															// Check for truncated
-															// strings (missing
-															// closing quotes)
-															if (newArgs.find('"') !=
-																std::string::npos)
-															{
-																int quoteCount = 0;
-																for (char c : newArgs)
-																{
-																	if (c == '"')
-																		quoteCount++;
-																}
-																if (quoteCount % 2 != 0)
-																{
-																	isMalformed = true;
-																	std::cout
-																		<< "WARNING: "
-																		   "Detected "
-																		   "malformed "
-																		   "JSON "
-																		   "fragment "
-																		   "with "
-																		   "unmatched "
-																		   "quotes: "
-																		<< newArgs
-																		<< std::endl;
-																}
-															}
-
-															// Check for incomplete
-															// object (missing
-															// closing brace)
-															if (newArgs.find('{') !=
-																	std::string::npos &&
-																newArgs.find('}') ==
-																	std::string::npos)
-															{
-																isMalformed = true;
-																std::cout << "WARNING"
-																			 ": "
-																			 "Detecte"
-																			 "d "
-																			 "malform"
-																			 "ed "
-																			 "JSON "
-																			 "fragmen"
-																			 "t "
-																			 "with "
-																			 "missing"
-																			 " closin"
-																			 "g "
-																			 "brace: "
-																		  << newArgs
-																		  << std::endl;
-															}
+															// Don't check for truncated
+															// strings or incomplete
+															// objects as these are
+															// normal during streaming
+															// Only check for truly
+															// invalid patterns
 
 															// Check for invalid
 															// escape sequences
@@ -1088,7 +1044,9 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 							!choice["delta"]["content"].is_null())
 						{
 							std::string content =
-								choice["delta"]["content"].get<std::string>();
+								(choice["delta"]["content"].is_null()
+									 ? ""
+									 : choice["delta"]["content"].get<std::string>());
 							if (!content.empty())
 							{
 								std::lock_guard<std::mutex> lock(g_callbackMutex);
@@ -1111,7 +1069,13 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 								std::string toolCallId;
 								if (toolCall.contains("id"))
 								{
-									toolCallId = toolCall["id"].get<std::string>();
+									if (toolCall["id"].is_null())
+									{
+										toolCallId = "";
+									} else
+									{
+										toolCallId = toolCall["id"].get<std::string>();
+									}
 								} else if (toolCall.contains("index"))
 								{
 									toolCallId =
@@ -1146,11 +1110,19 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 									if (func.contains("arguments"))
 									{
 										std::string currentArgs =
-											g_accumulatedToolCalls[toolCallId]["function"]
-																  ["arguments"]
-																	  .get<std::string>();
+											(g_accumulatedToolCalls[toolCallId]
+																   ["function"]
+																   ["arguments"]
+																	   .is_null()
+												 ? ""
+												 : g_accumulatedToolCalls
+													   [toolCallId]["function"]
+													   ["arguments"]
+														   .get<std::string>());
 										std::string newArgs =
-											func["arguments"].get<std::string>();
+											(func["arguments"].is_null()
+												 ? ""
+												 : func["arguments"].get<std::string>());
 
 										// Validate that the new arguments
 										// fragment is not malformed
@@ -1160,39 +1132,10 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 											// that indicate streaming issues
 											bool isMalformed = false;
 
-											// Check for truncated strings
-											// (missing closing quotes)
-											if (newArgs.find('"') != std::string::npos)
-											{
-												int quoteCount = 0;
-												for (char c : newArgs)
-												{
-													if (c == '"')
-														quoteCount++;
-												}
-												if (quoteCount % 2 != 0)
-												{
-													isMalformed = true;
-													std::cout << "WARNING: Detected "
-																 "malformed JSON "
-																 "fragment with "
-																 "unmatched quotes: "
-															  << newArgs << std::endl;
-												}
-											}
-
-											// Check for incomplete object
-											// (missing closing brace)
-											if (newArgs.find('{') != std::string::npos &&
-												newArgs.find('}') == std::string::npos)
-											{
-												isMalformed = true;
-												std::cout << "WARNING: Detected "
-															 "malformed JSON "
-															 "fragment with missing "
-															 "closing brace: "
-														  << newArgs << std::endl;
-											}
+											// Don't check for truncated strings
+											// or incomplete objects as these
+											// are normal during streaming
+											// Only check for truly invalid patterns
 
 											// Check for invalid escape sequences
 											if (newArgs.find("\\") != std::string::npos)
@@ -1295,7 +1238,9 @@ size_t OpenRouter::WriteDataStreamWithResponse(void *ptr,
 						if (choice.contains("finish_reason"))
 						{
 							std::string finishReason =
-								choice["finish_reason"].get<std::string>();
+								(choice["finish_reason"].is_null()
+									 ? ""
+									 : choice["finish_reason"].get<std::string>());
 							std::cout << "DEBUG: Found finish_reason in streaming: "
 									  << finishReason << std::endl;
 							if (finishReason == "tool_calls")
