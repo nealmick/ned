@@ -323,7 +323,8 @@ std::string FileSystemServer::editFile(const std::string &target_file,
 			{"messages",
 			 {{{"role", "user"},
 			   {"content",
-				"<instruction>" + instructions + "</instruction>\n<code>" + originalCode + "</code>\n<update>" + code_edit + "</update>"}}}},
+				"<instruction>" + instructions + "</instruction>\n<code>" + originalCode +
+					"</code>\n<update>" + code_edit + "</update>"}}}},
 			{"temperature", 0.0},
 			{"max_tokens", 4000}};
 
