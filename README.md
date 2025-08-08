@@ -1,4 +1,6 @@
-# Ned
+# Ned 
+<img src="https://github.com/nealmick/ned/actions/workflows/pack-app.yml/badge.svg" alt="Build Status">  ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)  ![Debian](https://img.shields.io/badge/Debian-✓-success?logo=debian&logoColor=white)  ![Windows](https://img.shields.io/badge/Windows-✗%20coming%20soon-red?logo=microsoft&logoColor=white)
+
 A retro-style text editor with GL shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
 
 
