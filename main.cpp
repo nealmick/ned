@@ -1,4 +1,7 @@
-
+/*
+	File: main.cpp
+	Description: NEDitor main entry point
+*/
 #include "ned.h"
 int main()
 {

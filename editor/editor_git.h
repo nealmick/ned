@@ -26,37 +26,14 @@ class EditorGit
 	std::string gitPlusMinus(const std::string &filePath);
 	float getLineAnimationAlpha(const std::string &filePath,
 								int lineNumber) const; // Get animation alpha for line
-	std::string getCurrentGitChanges() const;		   // Thread-safe getter
-	void updateCurrentGitChanges(const std::string &filePath); // Thread-safe updater
-	float getCachedGitChangesWidth(); // Get cached width, calculate if needed
-	void cacheGitContents(
-		const std::string &filePath = ""); // Cache git HEAD contents for specific file
-	void detectChangesFromContent(
-		const std::string &filePath,
-		const std::string &currentContent); // Detect changes by comparing content
-	void onFileContentChanged(
-		const std::string &filePath,
-		const std::string
-			&currentContent); // Public method to call when file content changes
-	void refreshGitCache();	  // Refresh git cache (call after git operations)
 	std::map<std::string, std::vector<int>> editedLines;
 	std::string currentGitChanges;		 // Store the current git changes string
 	std::set<std::string> modifiedFiles; // Store paths of modified files
-	mutable std::mutex gitChangesMutex;	 // Protect currentGitChanges access
-	float cachedGitChangesWidth = 0.0f;	 // Cache width to prevent recalculation
-
-	// Git content cache - populated once at startup
-	std::map<std::string, std::string> gitFileContents; // filepath -> git HEAD content
-	std::map<std::string, std::vector<std::string>>
-		gitFileLines;				  // filepath -> lines from git HEAD
-	mutable std::mutex gitCacheMutex; // Protect git cache access
 
   private:
 	bool isGitInitialized();
-	// Removed isGitBusy() - no longer needed with --no-optional-locks
 	void backgroundTask();
-	void updateModifiedFiles();			 // Update list of modified files
-	void updateCurrentFileLineChanges(); // Update line changes for current file
+	void updateModifiedFiles(); // Update list of modified files
 	void
 	updateLineAnimations(const std::map<std::string, std::vector<int>> &newEditedLines);
 	void cleanupCompletedAnimations();
