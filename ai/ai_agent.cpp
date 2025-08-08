@@ -441,11 +441,10 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 			dropdownItems.push_back("anthropic/claude-3-5-haiku-20241022");
 			dropdownItems.push_back("anthropic/claude-3.7-sonnet");
 			// Google models
-			dropdownItems.push_back("google/gemini-2.0-flash-001");
 			dropdownItems.push_back("google/gemini-2.5-flash");
 			dropdownItems.push_back("google/gemini-2.5-pro");
 			// OpenAI models
-			dropdownItems.push_back("openai/gpt-5");
+			//			dropdownItems.push_back("openai/gpt-5");
 			dropdownItems.push_back("openai/gpt-5-mini");
 			dropdownItems.push_back("openai/gpt-5-nano");
 			// xAI models
@@ -462,11 +461,10 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 			displayItems.push_back("claude-3.5-haiku");
 			displayItems.push_back("claude-3.7-sonnet");
 
-			displayItems.push_back("gemini-2.0-flash-001");
 			displayItems.push_back("gemini-2.5-flash");
 			displayItems.push_back("gemini-2.5-pro");
 
-			displayItems.push_back("gpt-5");
+			// displayItems.push_back("gpt-5");
 			displayItems.push_back("gpt-5-mini");
 			displayItems.push_back("gpt-5-nano");
 
