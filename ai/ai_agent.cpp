@@ -205,9 +205,11 @@ void AIAgent::rebuildMessageDisplayLines()
 				{
 					const auto &toolCall = msg.tool_calls[i];
 					if (toolCall.contains("function") &&
-						toolCall["function"].contains("name"))
+						toolCall["function"].contains("name") &&
+						!toolCall["function"]["name"].is_null())
 					{
-						std::string toolName = toolCall["function"]["name"];
+						std::string toolName =
+							toolCall["function"]["name"].get<std::string>();
 						displayText += " " + toolName;
 						if (i < msg.tool_calls.size() - 1)
 							displayText += ",";
@@ -435,6 +437,7 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 
 			// Add placeholder test values
 			dropdownItems.push_back("anthropic/claude-sonnet-4");
+			dropdownItems.push_back("anthropic/claude-3-5-haiku-20241022");
 			dropdownItems.push_back("google/gemini-2.0-flash-001");
 			dropdownItems.push_back("google/gemini-2.5-flash-preview-05-20");
 			dropdownItems.push_back("deepseek/deepseek-chat-v3-0324");
@@ -445,6 +448,7 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 
 			// Create display versions for placeholders (show right part after slash)
 			displayItems.push_back("claude-sonnet-4");
+			displayItems.push_back("claude-3.5-haiku");
 			displayItems.push_back("gemini-2.0-flash-001");
 			displayItems.push_back("gemini-2.5-flash-preview-05-20");
 			displayItems.push_back("deepseek-chat-v3-0324");
@@ -456,6 +460,15 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 			// Reset selection to first item (current model)
 			selectedItem = 0;
 			dropdownInitialized = true;
+
+			// Debug: Print all available models
+			std::cout << "=== AVAILABLE MODELS ===" << std::endl;
+			for (size_t i = 0; i < displayItems.size(); ++i)
+			{
+				std::cout << i << ": " << displayItems[i] << " (" << dropdownItems[i]
+						  << ")" << std::endl;
+			}
+			std::cout << "=== END MODELS ===" << std::endl;
 		}
 
 		// Use the large font for the title
@@ -628,6 +641,7 @@ void AIAgent::sendMessage(const char *msg, bool hide_message)
 		errorMsg.hide_message = false;
 		errorMsg.timestamp = std::chrono::system_clock::now();
 		messages.push_back(errorMsg);
+		messageDisplayLinesDirty = true;
 		scrollToBottom = true;
 		return;
 	}
@@ -853,41 +867,58 @@ void AIAgent::sendMessage(const char *msg, bool hide_message)
 				// Use a small delay to ensure the current request is fully processed
 				std::thread([this]() {
 					std::this_thread::sleep_for(std::chrono::milliseconds(500));
-					if (needsFollowUpMessage)
+					if (needsFollowUpMessage && !agentRequest.isProcessing())
 					{
 						std::cout << "Executing follow-up message..." << std::endl;
 						needsFollowUpMessage = false;
-						// Add a hidden system message to prompt the AI to continue
-						std::string followUpPrompt =
-							"Please continue with the conversation based on "
-							"the tool results. You "
-							"can make additional tool calls if needed to "
-							"complete the user's "
-							"request.";
 
-						// Add the follow-up prompt as a hidden system message
-						// to the conversation
+						try
 						{
-							std::lock_guard<std::mutex> lock(messagesMutex);
-							Message followUpMsg;
-							followUpMsg.text = followUpPrompt;
-							followUpMsg.role = "system";
-							followUpMsg.isStreaming = false;
-							followUpMsg.hide_message = true;
-							followUpMsg.timestamp = std::chrono::system_clock::now();
-							messages.push_back(followUpMsg);
-							messageDisplayLinesDirty = true;
-							std::cout << "Added hidden system message for follow-up"
-									  << std::endl;
-						}
+							// Add a hidden system message to prompt the AI to continue
+							std::string followUpPrompt =
+								"Please continue with the conversation based on "
+								"the tool results. You "
+								"can make additional tool calls if needed to "
+								"complete the user's "
+								"request.";
 
-						// Trigger the AI response directly
-						triggerAIResponse();
-						std::cout << "Triggered AI response" << std::endl;
+							// Add the follow-up prompt as a hidden system message
+							// to the conversation
+							{
+								std::lock_guard<std::mutex> lock(messagesMutex);
+								Message followUpMsg;
+								followUpMsg.text = followUpPrompt;
+								followUpMsg.role = "system";
+								followUpMsg.isStreaming = false;
+								followUpMsg.hide_message = true;
+								followUpMsg.timestamp = std::chrono::system_clock::now();
+								messages.push_back(followUpMsg);
+								messageDisplayLinesDirty = true;
+								std::cout << "Added hidden system message for follow-up"
+										  << std::endl;
+							}
+
+							// Trigger the AI response directly
+							triggerAIResponse();
+							std::cout << "Triggered AI response" << std::endl;
+						} catch (const std::exception &e)
+						{
+							std::cout
+								<< "ERROR in follow-up message processing: " << e.what()
+								<< std::endl;
+							needsFollowUpMessage = false;
+						}
 					} else
 					{
-						std::cout << "Follow-up message flag was cleared, skipping"
-								  << std::endl;
+						if (!needsFollowUpMessage)
+						{
+							std::cout << "Follow-up message flag was cleared, skipping"
+									  << std::endl;
+						} else
+						{
+							std::cout << "Agent is still processing, skipping follow-up"
+									  << std::endl;
+						}
 					}
 				}).detach();
 			} else
@@ -973,6 +1004,7 @@ void AIAgent::triggerAIResponse()
 		errorMsg.hide_message = false;
 		errorMsg.timestamp = std::chrono::system_clock::now();
 		messages.push_back(errorMsg);
+		messageDisplayLinesDirty = true;
 		scrollToBottom = true;
 		return;
 	}
@@ -1133,7 +1165,7 @@ void AIAgent::triggerAIResponse()
 						bool foundMatchingToolCall = false;
 						for (const auto &toolCall : msg.tool_calls)
 						{
-							if (toolCall.contains("id") &&
+							if (toolCall.contains("id") && !toolCall["id"].is_null() &&
 								toolCall["id"].get<std::string>() == nextMsg.tool_call_id)
 							{
 								foundMatchingToolCall = true;
@@ -1149,7 +1181,7 @@ void AIAgent::triggerAIResponse()
 							std::cout << "Tool call IDs: ";
 							for (const auto &toolCall : msg.tool_calls)
 							{
-								if (toolCall.contains("id"))
+								if (toolCall.contains("id") && !toolCall["id"].is_null())
 								{
 									std::cout << toolCall["id"].get<std::string>() << " ";
 								}
