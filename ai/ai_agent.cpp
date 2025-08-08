@@ -435,26 +435,47 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 			}
 			displayItems.push_back(displayModel);
 
-			// Add placeholder test values
+			// Add models grouped by provider
+			// Claude models
 			dropdownItems.push_back("anthropic/claude-sonnet-4");
 			dropdownItems.push_back("anthropic/claude-3-5-haiku-20241022");
-			dropdownItems.push_back("google/gemini-2.0-flash-001");
-			dropdownItems.push_back("google/gemini-2.5-flash-preview-05-20");
-			dropdownItems.push_back("deepseek/deepseek-chat-v3-0324");
 			dropdownItems.push_back("anthropic/claude-3.7-sonnet");
-			dropdownItems.push_back("openai/gpt-4.1");
-			dropdownItems.push_back("x-ai/grok-3-beta");
+			// Google models
+			dropdownItems.push_back("google/gemini-2.0-flash-001");
+			dropdownItems.push_back("google/gemini-2.5-flash");
+			dropdownItems.push_back("google/gemini-2.5-pro");
+			// OpenAI models
+			dropdownItems.push_back("openai/gpt-5");
+			dropdownItems.push_back("openai/gpt-5-mini");
+			dropdownItems.push_back("openai/gpt-5-nano");
+			// xAI models
+			dropdownItems.push_back("x-ai/grok-3");
+			dropdownItems.push_back("x-ai/grok-4");
+			// DeepSeek & Qwen models
+			dropdownItems.push_back("deepseek/deepseek-chat-v3-0324");
+			dropdownItems.push_back("qwen/qwen3-coder");
+			// Other models
 			dropdownItems.push_back("meta-llama/llama-3.3-70b-instruct");
 
 			// Create display versions for placeholders (show right part after slash)
 			displayItems.push_back("claude-sonnet-4");
 			displayItems.push_back("claude-3.5-haiku");
-			displayItems.push_back("gemini-2.0-flash-001");
-			displayItems.push_back("gemini-2.5-flash-preview-05-20");
-			displayItems.push_back("deepseek-chat-v3-0324");
 			displayItems.push_back("claude-3.7-sonnet");
-			displayItems.push_back("gpt-4.1");
-			displayItems.push_back("grok-3-beta");
+
+			displayItems.push_back("gemini-2.0-flash-001");
+			displayItems.push_back("gemini-2.5-flash");
+			displayItems.push_back("gemini-2.5-pro");
+
+			displayItems.push_back("gpt-5");
+			displayItems.push_back("gpt-5-mini");
+			displayItems.push_back("gpt-5-nano");
+
+			displayItems.push_back("grok-3");
+			displayItems.push_back("grok-4");
+
+			displayItems.push_back("deepseek-chat-v3-0324");
+			displayItems.push_back("qwen3-coder");
+
 			displayItems.push_back("llama-3.3-70b-instruct");
 
 			// Reset selection to first item (current model)
