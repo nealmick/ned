@@ -38,6 +38,17 @@ if(APPLE)
 endif()
 
 # ================
+# libgit2 Configuration  
+# ================
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build libgit2 as static library")
+set(BUILD_TESTS OFF CACHE BOOL "Disable libgit2 tests")
+set(BUILD_CLI OFF CACHE BOOL "Disable libgit2 CLI tools")
+set(USE_SSH OFF CACHE BOOL "Disable SSH support")
+set(USE_HTTPS ON CACHE BOOL "Enable HTTPS support")
+set(USE_NTLMCLIENT OFF CACHE BOOL "Disable NTLM client")
+add_subdirectory(lib/libgit2)
+
+# ================
 # Native File Dialog
 # ================
 set(NFD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog)
@@ -181,7 +192,7 @@ endif()
 add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
 
 # Utility library
-add_library(util STATIC
+add_library(ned_util STATIC
   util/settings.cpp
   util/settings_file_manager.cpp
   util/keybinds.cpp
@@ -197,14 +208,16 @@ add_library(util STATIC
   util/scroll.cpp
   util/render.cpp
 )
-target_include_directories(util PUBLIC
+target_include_directories(ned_util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${IMGUI_INCLUDE_DIRS}
   editor
   files
   ${CMAKE_BINARY_DIR}
+  lib/libgit2/include
 )
-target_link_libraries(util PUBLIC ${OPENGL_LIBRARIES} glfw)
+target_link_libraries(ned_util PUBLIC ${OPENGL_LIBRARIES} glfw libgit2 util)
+add_dependencies(ned_util libgit2 util)
 
 # ================
 # Main Executable (only in standalone mode)
@@ -283,6 +296,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     lib/tree-sitter/lib/include
     lib/tree-sitter/lib/src
     lib/utfcpp/source
+    lib/libgit2/include
     ${GLFW_INCLUDE_DIR}
   )
 endif()
@@ -302,6 +316,7 @@ target_include_directories(ned_embed PUBLIC
   lib/tree-sitter/lib/include
   lib/tree-sitter/lib/src
   lib/utfcpp/source
+  lib/libgit2/include
   ${GLFW_INCLUDE_DIR}
 )
 
@@ -314,13 +329,20 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${OPENGL_LIBRARIES}
     glfw
     nfd
-    util
+    ned_util
     GLEW::GLEW
     Freetype::Freetype
     CURL::libcurl 
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
+    libgit2
+    util
+    llhttp
+    xdiff
+    z
+    iconv
   )
+  add_dependencies(ned libgit2 util llhttp xdiff)
 endif()
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -329,13 +351,20 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${OPENGL_LIBRARIES}
     glfw
     nfd
-    util
+    ned_util
     GLEW::GLEW
     Freetype::Freetype
     CURL::libcurl 
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
+    libgit2
+    util
+    llhttp
+    xdiff
+    z
+    iconv
   )
+  add_dependencies(ned_embed libgit2 util llhttp xdiff)
 else()
   # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
   # Note: imgui is compiled directly into the parent executable, so we don't link against it
@@ -343,13 +372,20 @@ else()
     OpenGL::GL
     glfw
     nfd
-    util
+    ned_util
     GLEW::GLEW
     Freetype::Freetype
     CURL::libcurl 
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
+    libgit2
+    util
+    llhttp
+    xdiff
+    z
+    iconv
   )
+  add_dependencies(ned_embed libgit2 util llhttp xdiff)
 endif()
 
 if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -360,6 +396,9 @@ if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     "-framework IOKit"
     "-framework CoreVideo"
     "-framework OpenGL"
+    "-framework Security"
+    "-framework GSS"
+    "-framework CoreFoundation"
   )
 endif()
 
