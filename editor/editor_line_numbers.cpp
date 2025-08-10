@@ -65,6 +65,8 @@ void EditorLineNumbers::renderLineNumbers()
 		// Determine color based on selection, current line, and edited status
 		ImU32 line_number_color;
 		bool is_edited = gEditorGit.isLineEdited(gFileExplorer.currentFile, i + 1);
+		float edit_alpha =
+			gEditorGit.getLineAnimationAlpha(gFileExplorer.currentFile, i + 1);
 
 		if (i >= selection_start_line && i < selection_end_line &&
 			editor_state.selection_active)
@@ -73,9 +75,31 @@ void EditorLineNumbers::renderLineNumbers()
 		} else if (i == current_line)
 		{
 			line_number_color = rainbow_mode ? rainbow_color : CURRENT_LINE_COLOR;
-		} else if (is_edited)
+		} else if (edit_alpha > 0.0f) // Show animation for both fade in and fade out
 		{
-			line_number_color = text_color_u32;
+			// Interpolate between default color and edited color based on animation alpha
+			ImU32 default_color = DEFAULT_LINE_NUMBER_COLOR;
+			ImU32 edited_color = IM_COL32(255, 255, 255, 255); // White for edited lines
+
+			// Extract RGBA components
+			float default_r = ((default_color >> 24) & 0xFF) / 255.0f;
+			float default_g = ((default_color >> 16) & 0xFF) / 255.0f;
+			float default_b = ((default_color >> 8) & 0xFF) / 255.0f;
+			float default_a = (default_color & 0xFF) / 255.0f;
+
+			float edited_r = ((edited_color >> 24) & 0xFF) / 255.0f;
+			float edited_g = ((edited_color >> 16) & 0xFF) / 255.0f;
+			float edited_b = ((edited_color >> 8) & 0xFF) / 255.0f;
+			float edited_a = (edited_color & 0xFF) / 255.0f;
+
+			// Interpolate
+			float r = default_r + (edited_r - default_r) * edit_alpha;
+			float g = default_g + (edited_g - default_g) * edit_alpha;
+			float b = default_b + (edited_b - default_b) * edit_alpha;
+			float a = default_a + (edited_a - default_a) * edit_alpha;
+
+			line_number_color =
+				IM_COL32((int)(r * 255), (int)(g * 255), (int)(b * 255), (int)(a * 255));
 		} else
 		{
 			line_number_color = DEFAULT_LINE_NUMBER_COLOR;

@@ -259,7 +259,9 @@ std::string FileSystemServer::editFile(const std::string &target_file,
 		}
 
 		std::cout << "DEBUG: editFile called with path: " << expandedPath << std::endl;
-		std::cout << "DEBUG: editFile instructions: " << instructions << std::endl;
+		std::cout << "DEBUG: editFile instructions: [" << instructions << "]"
+				  << std::endl;
+		std::cout << "DEBUG: editFile code_edit: [" << code_edit << "]" << std::endl;
 		std::cout << "DEBUG: editFile code_edit length: " << code_edit.length()
 				  << std::endl;
 
@@ -315,15 +317,16 @@ std::string FileSystemServer::editFile(const std::string &target_file,
 			return "ERROR: Failed to initialize CURL for HTTP requests.";
 		}
 
-		// Build the request payload for OpenRouter with Morph model
-		json payload = {{"model", "morph/morph-v2"},
-						{"messages",
-						 {{{"role", "user"},
-						   {"content",
-							"<code>" + originalCode + "</code>\n<update>" + code_edit +
-								"</update>"}}}},
-						{"temperature", 0.0},
-						{"max_tokens", 4000}};
+		// Build the request payload for OpenRouter with Morph V3 Large model
+		json payload = {
+			{"model", "morph/morph-v3-large"},
+			{"messages",
+			 {{{"role", "user"},
+			   {"content",
+				"<instruction>" + instructions + "</instruction>\n<code>" + originalCode +
+					"</code>\n<update>" + code_edit + "</update>"}}}},
+			{"temperature", 0.0},
+			{"max_tokens", 4000}};
 
 		std::string json_str = payload.dump();
 
@@ -375,6 +378,7 @@ std::string FileSystemServer::editFile(const std::string &target_file,
 
 		std::cout << "DEBUG: OpenRouter Morph API response length: " << response.length()
 				  << std::endl;
+		std::cout << "DEBUG: Raw API response: " << response << std::endl;
 
 		// Parse the JSON response
 		try
@@ -387,8 +391,17 @@ std::string FileSystemServer::editFile(const std::string &target_file,
 					   "API.";
 			}
 
-			std::string updatedCode =
-				result["choices"][0]["message"]["content"].get<std::string>();
+			std::string updatedCode;
+			if (result["choices"][0].contains("message") &&
+				result["choices"][0]["message"].contains("content") &&
+				!result["choices"][0]["message"]["content"].is_null())
+			{
+				updatedCode =
+					result["choices"][0]["message"]["content"].get<std::string>();
+			} else
+			{
+				updatedCode = "";
+			}
 
 			if (updatedCode.empty())
 			{

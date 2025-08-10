@@ -145,8 +145,9 @@ std::string
 Manager::executeToolCall(const std::string &toolName,
 						 const std::unordered_map<std::string, std::string> &parameters)
 {
-	static FileSystemServer fileSystemServer;
-	static TerminalServer terminalServer;
+	// Use stack allocation to avoid static destruction order issues
+	FileSystemServer fileSystemServer;
+	TerminalServer terminalServer;
 
 	std::cout << "=== EXECUTING TOOL CALL ===" << std::endl;
 	std::cout << "Tool: " << toolName << std::endl;
