@@ -1,8 +1,12 @@
 #pragma once
 
 #include "imgui.h"
+#include <atomic>
 #include <filesystem>
+#include <mutex>
+#include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -21,12 +25,17 @@ class FileTree
 {
   public:
 	FileTree();
+	~FileTree();
 
 	// Core file tree operations
 	void buildFileTree(const fs::path &path, FileNode &node);
 	void refreshFileTree();
 	void preserveOpenStates(const FileNode &oldNode, FileNode &newNode);
 	void displayFileTree(FileNode &node);
+
+	// Simple git status tracking
+	void startGitStatusTracking();
+	void stopGitStatusTracking();
 
 	// Getters/Setters
 	FileNode &getRootNode() { return rootNode; }
@@ -77,6 +86,15 @@ class FileTree
 	bool shouldCheckForReadme = true;
 
 	std::string findReadmeInRoot();
+
+	// Simple git background thread
+	void gitStatusBackgroundTask();
+	std::thread gitStatusThread;
+	std::atomic<bool> gitStatusEnabled{false};
+
+	// Cached git status results
+	std::set<std::string> cachedModifiedFiles;
+	std::mutex modifiedFilesMutex;
 };
 
 extern FileTree gFileTree;

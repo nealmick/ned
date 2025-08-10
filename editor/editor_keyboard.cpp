@@ -970,6 +970,9 @@ void EditorKeyboard::handleTextInput()
 		gFileExplorer._unsavedChanges = true;
 		gFileExplorer.saveCurrentFile();
 
+		// Trigger immediate git update when text changes
+		gEditorGit.triggerImmediateUpdate();
+
 		editor_state.text_changed = false;
 		editor_state.ensure_cursor_visible.horizontal = true;
 		editor_state.ensure_cursor_visible.vertical = true;

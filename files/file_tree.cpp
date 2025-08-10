@@ -8,6 +8,39 @@
 #include <algorithm>
 #include <iostream>
 
+void FileTree::startGitStatusTracking()
+{
+	gitStatusEnabled = true;
+	gitStatusThread = std::thread(&FileTree::gitStatusBackgroundTask, this);
+}
+
+void FileTree::stopGitStatusTracking()
+{
+	if (gitStatusThread.joinable())
+	{
+		gitStatusEnabled = false;
+		gitStatusThread.join();
+	}
+}
+
+FileTree::~FileTree() { stopGitStatusTracking(); }
+
+void FileTree::gitStatusBackgroundTask()
+{
+	while (gitStatusEnabled)
+	{
+		std::set<std::string> modifiedFiles = gEditorGit.getModifiedFilePaths();
+
+		// Cache the results thread-safely
+		{
+			std::lock_guard<std::mutex> lock(modifiedFilesMutex);
+			cachedModifiedFiles = modifiedFiles;
+		}
+
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
+}
+
 FileTree gFileTree;
 
 FileTree::FileTree()
@@ -43,20 +76,6 @@ void FileTree::renderNodeText(const std::string &name,
 {
 	ImVec4 textColor = TreeStyleSettings::INACTIVE_TEXT;
 
-	// Get the base text color from settings
-	ImVec4 baseTextColor = ImVec4(0.7f, 0.7f, 0.7f, 1.0f); // Default fallback
-	if (gSettings.getSettings().contains("themes") &&
-		gSettings.getSettings()["themes"].contains(gSettings.getCurrentTheme()) &&
-		gSettings.getSettings()["themes"][gSettings.getCurrentTheme()].contains("text"))
-	{
-		auto &themeTextColor =
-			gSettings.getSettings()["themes"][gSettings.getCurrentTheme()]["text"];
-		baseTextColor = ImVec4(themeTextColor[0].get<float>(),
-							   themeTextColor[1].get<float>(),
-							   themeTextColor[2].get<float>(),
-							   themeTextColor[3].get<float>());
-	}
-
 	// Convert fullPath to relative path for Git status check
 	std::string relativePath = fullPath;
 	if (fullPath.rfind(gFileExplorer.selectedFolder, 0) == 0)
@@ -70,30 +89,27 @@ void FileTree::renderNodeText(const std::string &name,
 		}
 	}
 
+	// Check if file is modified (use cached results from background thread)
+	bool isModified = false;
+	{
+		std::lock_guard<std::mutex> lock(modifiedFilesMutex);
+		isModified = cachedModifiedFiles.find(relativePath) != cachedModifiedFiles.end();
+	}
+
 	// Prioritize active file rainbow color
 	if (isCurrentFile && gSettings.getRainbowMode())
 	{
 		textColor = EditorUtils::GetRainbowColor();
 	}
-	// Then check for modified files
-	else if (gEditorGit.modifiedFiles.count(relativePath) > 0)
-	{
-		// Apply 40% darkening to the base text color
-		textColor = ImVec4(baseTextColor.x * 0.6f,
-						   baseTextColor.y * 0.6f,
-						   baseTextColor.z * 0.6f,
-						   baseTextColor.w);
-	}
-	// Then check for edited lines (if not already broadly modified)
-	else if (gEditorGit.editedLines.count(relativePath) > 0)
-	{
-		textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for files with line changes
-	}
 	// Fallback for current file if not rainbow mode
 	else if (isCurrentFile)
 	{
-		textColor =
-			TreeStyleSettings::INACTIVE_TEXT; // Or a different color for current file
+		textColor = TreeStyleSettings::INACTIVE_TEXT;
+	}
+	// Dark grey color for modified files (but not the current file)
+	else if (isModified)
+	{
+		textColor = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); // Dark grey for modified files
 	}
 	// Default color for other files
 	else

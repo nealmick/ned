@@ -26,83 +26,6 @@ bool EditorGit::isGitInitialized()
 	return fs::exists(gitDir) && fs::is_directory(gitDir);
 }
 
-std::string execCommand(const char *cmd)
-{
-	std::array<char, 128> buffer;
-	std::string result;
-	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-	if (!pipe)
-	{
-		throw std::runtime_error("popen() failed!");
-	}
-	while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
-	{
-		result += buffer.data();
-	}
-	return result;
-}
-
-void EditorGit::gitEditedLines()
-{
-	if (gFileExplorer.selectedFolder.empty())
-	{
-		return;
-	}
-
-	// Change to the project directory before running git commands
-	std::string originalDir = fs::current_path().string();
-	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
-	{
-		return; // Failed to change directory
-	}
-
-	const char *cmd = "git diff --unified=0 --no-color | awk '\n/^diff --git "
-					  "a\\// {\n    if (file) print "
-					  "\"\";\n    file = substr($3, 3);\n    print \"file: \" "
-					  "file;\n    next\n}\n/^@@/ {\n    "
-					  "plus = index($0, \"+\");\n    comma = index(substr($0, "
-					  "plus+1), \",\");\n    if (comma > "
-					  "0) {\n        new_line = substr($0, plus+1, comma-1) + "
-					  "0;\n    } else {\n        new_line "
-					  "= substr($0, plus+1) + 0;\n    }\n    next\n}\n/^\\+/ "
-					  "&& !/^\\+\\+\\+/ {\n    print "
-					  "new_line;\n    new_line++;\n}\n/^ / { new_line++; }\n'";
-	std::array<char, 256> buffer;
-	std::string result;
-	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-	if (!pipe)
-	{
-		std::cerr << "Failed to run git diff awk command!" << std::endl;
-		chdir(originalDir.c_str()); // Restore original directory
-		return;
-	}
-	while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
-	{
-		result += buffer.data();
-	}
-
-	// Restore original directory
-	chdir(originalDir.c_str());
-
-	std::istringstream iss(result);
-	std::string line;
-	std::string currentFile;
-	std::map<std::string, std::vector<int>> fileChanges;
-	while (std::getline(iss, line))
-	{
-		if (line.compare(0, 6, "file: ") == 0)
-		{
-			currentFile = line.substr(6);
-		} else if (!line.empty())
-		{
-			int lineNum = std::stoi(line);
-			fileChanges[currentFile].push_back(lineNum);
-		}
-	}
-	// Update the map with the new changes
-	editedLines = fileChanges;
-}
-
 void EditorGit::printGitEditedLines()
 {
 	for (const auto &pair : editedLines)
@@ -114,80 +37,122 @@ void EditorGit::printGitEditedLines()
 		}
 	}
 }
-
-void EditorGit::updateModifiedFiles()
+void EditorGit::gitEditedLines()
 {
 	if (gFileExplorer.selectedFolder.empty())
 	{
 		return;
 	}
 
-	std::string originalDir = fs::current_path().string();
-	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
+	auto start_git_edited = std::chrono::high_resolution_clock::now();
+	std::cout << "[GIT TIMING] gitEditedLines() called" << std::endl;
+
+	// Use libgit2 for lock-free operation
+	std::map<std::string, std::vector<int>> fileChanges = gitWrapper.getEditedLines();
+
+	auto end_git_edited = std::chrono::high_resolution_clock::now();
+	auto duration_git_edited = std::chrono::duration_cast<std::chrono::microseconds>(
+		end_git_edited - start_git_edited);
+	std::cout << "[GIT TIMING] gitEditedLines getEditedLines: "
+			  << duration_git_edited.count() << " μs" << std::endl;
+
+	// Update animations before changing anything
+	updateLineAnimations(fileChanges);
+
+	// Only update if we have valid data to prevent flashing from empty results
+	// Don't update to empty if we already have data (prevents flicker on save)
+	if (!fileChanges.empty())
 	{
-		return; // Failed to change directory
+		editedLines = fileChanges;
 	}
-
-	std::string cmd = "git status --porcelain";
-	std::string result = execCommand(cmd.c_str());
-
-	chdir(originalDir.c_str()); // Restore original directory
-
-	std::istringstream iss(result);
-	std::string line;
-	std::set<std::string> newModifiedFiles;
-
-	while (std::getline(iss, line))
+	// If fileChanges is empty but we have no existing data, then clear it
+	else if (editedLines.empty())
 	{
-		if (line.length() > 3)
-		{
-			// Extract the file path (after the 2-char status and space)
-			std::string filePath = line.substr(3);
-			newModifiedFiles.insert(filePath);
-		}
+		editedLines = fileChanges; // This will be empty, but that's correct for first run
 	}
-	modifiedFiles = newModifiedFiles;
+	// If fileChanges is empty but we have existing data, keep the existing data
+	// This prevents the flicker when saving files
 }
 
 void EditorGit::backgroundTask()
 {
+	auto lastRegularUpdate = std::chrono::steady_clock::now();
+	const auto regularInterval = std::chrono::milliseconds(500);
+
 	while (git_enabled)
 	{
-		if (gSettings.getSettings()["git_changed_lines"])
+		bool shouldUpdate =
+			immediateUpdateRequested.exchange(false); // Check and clear flag
+		auto now = std::chrono::steady_clock::now();
+
+		// Check if it's time for regular update
+		bool timeForRegularUpdate = (now - lastRegularUpdate) >= regularInterval;
+
+		if (shouldUpdate ||
+			(timeForRegularUpdate && gSettings.getSettings()["git_changed_lines"]))
 		{
-			// std::cout << "scanning for git changes" << std::endl;
-			gitEditedLines();
-			// Update git changes string for current file
+			// Update current file only
 			if (!gFileExplorer.currentFile.empty())
 			{
-				currentGitChanges = gitPlusMinus(gFileExplorer.currentFile);
-			} else
+				std::string relativePath = gFileExplorer.currentFile;
+				if (relativePath.find(gFileExplorer.selectedFolder) == 0)
+				{
+					size_t folderLength = gFileExplorer.selectedFolder.length();
+					if (folderLength < relativePath.length())
+					{
+						relativePath = relativePath.substr(folderLength + 1);
+					}
+				}
+
+				// Get current file changes and stats in single operation (FAST)
+				auto currentFileData = gitWrapper.getCurrentFileData(relativePath);
+
+				// Always update the actual data (clears old data when file becomes clean)
+				editedLines[relativePath] = currentFileData.editedLines;
+
+				if (currentFileData.stats.additions > 0 ||
+					currentFileData.stats.deletions > 0)
+				{
+					currentGitChanges =
+						"+" + std::to_string(currentFileData.stats.additions) + "-" +
+						std::to_string(currentFileData.stats.deletions);
+				} else
+				{
+					currentGitChanges = "";
+				}
+			}
+
+			// Update timestamp if this was a regular update
+			if (timeForRegularUpdate)
 			{
-				currentGitChanges.clear();
+				lastRegularUpdate = now;
 			}
 		}
-		// Always update modified files, regardless of git_changed_lines setting
-		updateModifiedFiles();
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		// Always sleep for short time to check for immediate updates frequently
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
 	}
 }
 
 void EditorGit::init()
 {
-	// Kill any existing background thread
 	if (backgroundThread.joinable())
 	{
 		git_enabled = false;
 		backgroundThread.join();
 	}
 
-	// Check if Git is initialized
 	git_enabled = isGitInitialized();
 
-	// Only start background task if Git is enabled
 	if (git_enabled)
 	{
+		gitWrapper.init(gFileExplorer.selectedFolder);
+
+		// Initial scan to pick up existing changes
+		std::cout << "[GIT TIMING] Initial scan on startup" << std::endl;
+		auto initialData = gitWrapper.getAllGitData();
+		editedLines = initialData.editedLines;
+
 		backgroundThread = std::thread(&EditorGit::backgroundTask, this);
 	}
 }
@@ -227,54 +192,176 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 		}
 	}
 
-	// Change to the project directory before running git commands
-	std::string originalDir = fs::current_path().string();
-	if (chdir(gFileExplorer.selectedFolder.c_str()) != 0)
-	{
-		return ""; // Failed to change directory
-	}
+	// Use libgit2 for lock-free operation
+	GitDiffStats stats = gitWrapper.getPlusMinusStats(relativePath);
 
-	// Check if file exists in git
-	std::string checkCmd =
-		"git ls-files --error-unmatch -- " + relativePath + " >/dev/null 2>&1";
-	int checkResult = system(checkCmd.c_str());
-	if (checkResult != 0)
-	{
-		chdir(originalDir.c_str()); // Restore original directory
-		return "";					// File not tracked by git
-	}
-
-	// Run git diff command to get added/removed lines
-	std::string cmd = "git diff --numstat -- " + relativePath + " | awk '{print $1,$2}'";
-	std::array<char, 128> buffer;
-	std::string result;
-	std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-
-	if (!pipe)
-	{
-		chdir(originalDir.c_str()); // Restore original directory
-		return "";
-	}
-
-	while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
-	{
-		result += buffer.data();
-	}
-
-	// Restore original directory
-	chdir(originalDir.c_str());
-
-	// Parse the result
-	std::istringstream iss(result);
-	int added = 0, removed = 0;
-	iss >> added >> removed;
-
-	if (added == 0 && removed == 0)
+	if (stats.additions == 0 && stats.deletions == 0)
 	{
 		return "";
 	}
 
-	return "+" + std::to_string(added) + "-" + std::to_string(removed);
+	return "+" + std::to_string(stats.additions) + "-" + std::to_string(stats.deletions);
+}
+
+void EditorGit::updateLineAnimations(
+	const std::map<std::string, std::vector<int>> &newEditedLines)
+{
+	auto now = std::chrono::steady_clock::now();
+
+	// For each file in the new changes
+	for (const auto &filePair : newEditedLines)
+	{
+		const std::string &filePath = filePair.first;
+		const std::vector<int> &newLines = filePair.second;
+
+		// Get current edited lines for this file
+		std::set<int> oldLines;
+		auto oldIt = editedLines.find(filePath);
+		if (oldIt != editedLines.end())
+		{
+			oldLines.insert(oldIt->second.begin(), oldIt->second.end());
+		}
+
+		std::set<int> newLinesSet(newLines.begin(), newLines.end());
+
+		// Start fade-in animation for newly added lines
+		for (int line : newLines)
+		{
+			if (oldLines.find(line) == oldLines.end())
+			{
+				// New line - start fade in
+				lineAnimations[filePath][line] = {now, true};
+			}
+		}
+
+		// Start fade-out animation for removed lines
+		for (int line : oldLines)
+		{
+			if (newLinesSet.find(line) == newLinesSet.end())
+			{
+				// Line removed - start fade out
+				lineAnimations[filePath][line] = {now, false};
+			}
+		}
+	}
+}
+
+float EditorGit::getLineAnimationAlpha(const std::string &filePath, int lineNumber) const
+{
+	// No animations - just return 1.0f if line is edited, 0.0f otherwise
+	return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
+}
+
+void EditorGit::cleanupCompletedAnimations()
+{
+	auto now = std::chrono::steady_clock::now();
+	const float animationDurationMs = 25.0f;
+
+	for (auto fileIt = lineAnimations.begin(); fileIt != lineAnimations.end();)
+	{
+		for (auto lineIt = fileIt->second.begin(); lineIt != fileIt->second.end();)
+		{
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+							   now - lineIt->second.startTime)
+							   .count();
+
+			if (elapsed > animationDurationMs)
+			{
+				// Animation completed
+				if (!lineIt->second.fadingIn)
+				{
+					// Fade out completed - remove the animation
+					lineIt = fileIt->second.erase(lineIt);
+				} else
+				{
+					// Fade in completed - keep the line but remove animation tracking
+					lineIt = fileIt->second.erase(lineIt);
+				}
+			} else
+			{
+				++lineIt;
+			}
+		}
+
+		// Remove empty file entries
+		if (fileIt->second.empty())
+		{
+			fileIt = lineAnimations.erase(fileIt);
+		} else
+		{
+			++fileIt;
+		}
+	}
+}
+
+EditorGit::~EditorGit()
+{
+	// Clean shutdown
+	if (backgroundThread.joinable())
+	{
+		git_enabled = false;
+		backgroundThread.join();
+	}
+}
+
+std::set<std::string> EditorGit::getModifiedFilePaths()
+{
+	std::set<std::string> modifiedFiles;
+
+	if (!git_enabled || gFileExplorer.selectedFolder.empty())
+		return modifiedFiles;
+
+	// Simple libgit2 git status check
+	git_repository *repo = nullptr;
+	int open_result = git_repository_open(&repo, gFileExplorer.selectedFolder.c_str());
+	if (open_result != 0)
+	{
+		std::cout << "[FILE TREE GIT] Failed to open repository: "
+				  << git_error_last()->message << std::endl;
+		return {};
+	}
+
+	git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+	// Use default options - should include workdir and index changes
+
+	git_status_list *status_list = nullptr;
+	int status_result = git_status_list_new(&status_list, repo, &opts);
+	if (status_result == 0)
+	{
+		size_t count = git_status_list_entrycount(status_list);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			const git_status_entry *entry = git_status_byindex(status_list, i);
+
+			// Check all possible status flags
+			if (entry->status != GIT_STATUS_CURRENT && entry->status != 0)
+			{
+				const char *path = nullptr;
+				if (entry->index_to_workdir && entry->index_to_workdir->new_file.path)
+					path = entry->index_to_workdir->new_file.path;
+				else if (entry->head_to_index && entry->head_to_index->new_file.path)
+					path = entry->head_to_index->new_file.path;
+
+				if (path)
+				{
+					modifiedFiles.insert(path);
+				}
+			}
+		}
+
+		git_status_list_free(status_list);
+	}
+
+	git_repository_free(repo);
+
+	return modifiedFiles;
+}
+
+void EditorGit::triggerImmediateUpdate()
+{
+	// Signal the background thread to run immediately (non-blocking)
+	immediateUpdateRequested = true;
 }
 
 EditorGit gEditorGit;
