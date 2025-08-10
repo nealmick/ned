@@ -344,6 +344,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
     $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned libgit2 util llhttp xdiff)
 endif()
@@ -369,6 +371,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
     $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 else()
@@ -393,6 +397,8 @@ else()
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
     $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 endif()
