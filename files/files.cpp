@@ -936,76 +936,85 @@ void FileExplorer::scanProjectFilesForMonitoring()
 		return;
 	}
 
-	std::cout << "[FileMonitor] Scanning project files in: " << selectedFolder
+	// If already scanning, don't start another scan
+	if (_fileScanThread.joinable())
+	{
+		return;
+	}
+
+	std::cout << "[FileMonitor] Starting background scan for: " << selectedFolder
 			  << std::endl;
 
-	try
-	{
-		// Common file extensions that should be monitored
-		std::set<std::string> monitoredExtensions = {
-			".cpp",	 ".c",	  ".h",	   ".hpp",	".cc",	".cxx", ".py",	".js",
-			".ts",	 ".tsx",  ".jsx",  ".java", ".go",	".rs",	".rb",	".php",
-			".html", ".css",  ".scss", ".json", ".xml", ".md",	".txt", ".yml",
-			".yaml", ".toml", ".sh",   ".bat",	".ps1", ".sql"};
-
-		// Recursively scan the project directory
-		for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
+	// Launch scan in background thread
+	_fileScanThread = std::thread([this]() {
+		try
 		{
-			if (entry.is_regular_file())
+			// Common file extensions that should be monitored
+			std::set<std::string> monitoredExtensions = {
+				".cpp",	 ".c",	  ".h",	   ".hpp",	".cc",	".cxx", ".py",	".js",
+				".ts",	 ".tsx",  ".jsx",  ".java", ".go",	".rs",	".rb",	".php",
+				".html", ".css",  ".scss", ".json", ".xml", ".md",	".txt", ".yml",
+				".yaml", ".toml", ".sh",   ".bat",	".ps1", ".sql"};
+
+			// Recursively scan the project directory
+			for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
 			{
-				std::string filePath = entry.path().string();
-				std::string filename = entry.path().filename().string();
-
-				if (filename == ".undo-redo-ned.json" ||
-					filename == ".ned-agent-history.json")
+				if (entry.is_regular_file())
 				{
-					continue;
-				}
-				std::string extension = entry.path().extension().string();
+					std::string filePath = entry.path().string();
+					std::string filename = entry.path().filename().string();
 
-				// Only monitor files with relevant extensions
-				if (monitoredExtensions.find(extension) != monitoredExtensions.end())
-				{
-					// Add to monitoring if not already present
-					if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
+					if (filename == ".undo-redo-ned.json" ||
+						filename == ".ned-agent-history.json")
 					{
-						_monitoredFiles.insert(filePath);
-						// Initialize modification time
-						if (fs::exists(filePath))
-						{
-							_fileModificationTimes[filePath] =
-								fs::last_write_time(filePath);
+						continue;
+					}
+					std::string extension = entry.path().extension().string();
 
-							// Also initialize content hash for change detection
-							try
+					// Only monitor files with relevant extensions
+					if (monitoredExtensions.find(extension) != monitoredExtensions.end())
+					{
+						// Add to monitoring if not already present
+						if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
+						{
+							_monitoredFiles.insert(filePath);
+							// Initialize modification time
+							if (fs::exists(filePath))
 							{
-								std::ifstream file(filePath, std::ios::binary);
-								if (file)
+								_fileModificationTimes[filePath] =
+									fs::last_write_time(filePath);
+
+								// Also initialize content hash for change detection
+								try
 								{
-									std::stringstream buffer;
-									buffer << file.rdbuf();
-									_fileContentHashes[filePath] =
-										calculateFileHash(buffer.str());
+									std::ifstream file(filePath, std::ios::binary);
+									if (file)
+									{
+										std::stringstream buffer;
+										buffer << file.rdbuf();
+										_fileContentHashes[filePath] =
+											calculateFileHash(buffer.str());
+									}
+								} catch (...)
+								{
+									// Ignore errors for individual files
 								}
-							} catch (...)
-							{
-								// Ignore errors for individual files
 							}
+							std::cout << "[FileMonitor] Added to monitoring: " << filePath
+									  << std::endl;
 						}
-						std::cout << "[FileMonitor] Added to monitoring: " << filePath
-								  << std::endl;
 					}
 				}
 			}
-		}
-		std::cout << "[FileMonitor] Total files being monitored: "
-				  << _monitoredFiles.size() << std::endl;
+			std::cout << "[FileMonitor] Background scan completed. Total files being "
+						 "monitored: "
+					  << _monitoredFiles.size() << std::endl;
 
-	} catch (const std::exception &e)
-	{
-		std::cerr << "Error scanning project files for monitoring: " << e.what()
-				  << std::endl;
-	}
+		} catch (const std::exception &e)
+		{
+			std::cerr << "Error in background file scan: " << e.what() << std::endl;
+		}
+	});
 }
 
 std::string FileExplorer::calculateFileHash(const std::string &content)

@@ -147,6 +147,9 @@ class FileExplorer
 	std::set<std::string>
 		_monitoredFiles; // Track all files that should be monitored for changes
 
+	// Background file scanning
+	std::thread _fileScanThread;
+
 	// External file change detection methods
 	void checkForExternalFileChanges();
 	void updateFileModificationTime(const std::string &filePath);
