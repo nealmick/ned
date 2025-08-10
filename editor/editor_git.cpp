@@ -76,11 +76,22 @@ void EditorGit::gitEditedLines()
 
 void EditorGit::backgroundTask()
 {
+	auto lastRegularUpdate = std::chrono::steady_clock::now();
+	const auto regularInterval = std::chrono::milliseconds(500);
+
 	while (git_enabled)
 	{
-		if (gSettings.getSettings()["git_changed_lines"])
+		bool shouldUpdate =
+			immediateUpdateRequested.exchange(false); // Check and clear flag
+		auto now = std::chrono::steady_clock::now();
+
+		// Check if it's time for regular update
+		bool timeForRegularUpdate = (now - lastRegularUpdate) >= regularInterval;
+
+		if (shouldUpdate ||
+			(timeForRegularUpdate && gSettings.getSettings()["git_changed_lines"]))
 		{
-			// FAST PATH: Update current file only (every 100ms)
+			// Update current file only
 			if (!gFileExplorer.currentFile.empty())
 			{
 				std::string relativePath = gFileExplorer.currentFile;
@@ -93,17 +104,8 @@ void EditorGit::backgroundTask()
 					}
 				}
 
-				auto start_fast = std::chrono::high_resolution_clock::now();
-
 				// Get current file changes and stats in single operation (FAST)
 				auto currentFileData = gitWrapper.getCurrentFileData(relativePath);
-
-				auto end_fast = std::chrono::high_resolution_clock::now();
-				auto duration_fast =
-					std::chrono::duration_cast<std::chrono::microseconds>(end_fast -
-																		  start_fast);
-				std::cout << "[GIT TIMING] Fast current file update: "
-						  << duration_fast.count() << " μs" << std::endl;
 
 				// Always update the actual data (clears old data when file becomes clean)
 				editedLines[relativePath] = currentFileData.editedLines;
@@ -119,7 +121,15 @@ void EditorGit::backgroundTask()
 					currentGitChanges = "";
 				}
 			}
+
+			// Update timestamp if this was a regular update
+			if (timeForRegularUpdate)
+			{
+				lastRegularUpdate = now;
+			}
 		}
+
+		// Always sleep for short time to check for immediate updates frequently
 		std::this_thread::sleep_for(std::chrono::milliseconds(25));
 	}
 }
@@ -346,6 +356,12 @@ std::set<std::string> EditorGit::getModifiedFilePaths()
 	git_repository_free(repo);
 
 	return modifiedFiles;
+}
+
+void EditorGit::triggerImmediateUpdate()
+{
+	// Signal the background thread to run immediately (non-blocking)
+	immediateUpdateRequested = true;
 }
 
 EditorGit gEditorGit;

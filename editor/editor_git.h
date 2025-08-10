@@ -31,6 +31,9 @@ class EditorGit
 	// Simple function for file tree to get modified file paths
 	std::set<std::string> getModifiedFilePaths();
 
+	// Trigger immediate git update for current file (non-blocking)
+	void triggerImmediateUpdate();
+
 	std::map<std::string, std::vector<int>> editedLines;
 	std::string currentGitChanges; // Store the current git changes string
 
@@ -42,6 +45,7 @@ class EditorGit
 	void cleanupCompletedAnimations();
 
 	std::atomic<bool> git_enabled{false};
+	std::atomic<bool> immediateUpdateRequested{false};
 	std::thread backgroundThread;
 	std::chrono::steady_clock::time_point lastUpdate;
 
