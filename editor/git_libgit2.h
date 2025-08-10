@@ -32,6 +32,10 @@ class GitLibgit2
 	GitDiffStats getPlusMinusStats(const std::string &filePath);
 	std::set<std::string> getModifiedFiles();
 
+	// NEW: Fast single-file operations for current file only
+	std::vector<int> getCurrentFileEditedLines(const std::string &filePath);
+	GitDiffStats getCurrentFileStats(const std::string &filePath);
+
 	// NEW: Single fast operation to get all data at once
 	struct GitAllData
 	{
@@ -45,9 +49,18 @@ class GitLibgit2
 	git_repository *repo = nullptr;
 	std::string repoPath;
 
+	// Cache to avoid expensive HEAD tree lookups
+	git_tree *cachedHeadTree = nullptr;
+	git_oid cachedHeadOid;
+	bool hasCachedTree = false;
+
 	// Helper methods
 	bool isRepositoryValid() const;
 	git_diff *createDiffToWorkdir();
+	git_diff *
+	createSingleFileDiff(const std::string &filePath); // NEW: Fast single-file diff
+	git_tree *getCachedHeadTree();					   // New: cached HEAD tree access
+	void invalidateTreeCache();						   // New: clear cache when needed
 	void processDiffForEditedLines(git_diff *diff,
 								   std::map<std::string, std::vector<int>> &result);
 	void

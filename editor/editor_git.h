@@ -38,6 +38,7 @@ class EditorGit
 	void
 	updateLineAnimations(const std::map<std::string, std::vector<int>> &newEditedLines);
 	void cleanupCompletedAnimations();
+	void cleanupRevertedFiles(const std::set<std::string> &currentModifiedFiles);
 
 	std::atomic<bool> git_enabled{false};
 	std::thread backgroundThread;
