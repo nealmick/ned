@@ -1,6 +1,8 @@
 #include "git_libgit2.h"
+#include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -56,8 +58,33 @@ git_diff *GitLibgit2::createDiffToWorkdir()
 	git_diff *diff = nullptr;
 	git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
 
-	// Create diff between HEAD and working directory
-	int error = git_diff_index_to_workdir(&diff, repo, nullptr, &opts);
+	// Set options for better diff detection
+	opts.flags = GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+
+	// Get HEAD tree to compare against working directory
+	git_object *head_obj = nullptr;
+	git_tree *head_tree = nullptr;
+
+	int error = git_revparse_single(&head_obj, repo, "HEAD");
+	if (error != 0)
+	{
+		// No HEAD (empty repo), compare against empty tree
+		error = git_diff_tree_to_workdir(&diff, repo, nullptr, &opts);
+	} else
+	{
+		error = git_object_peel((git_object **)&head_tree, head_obj, GIT_OBJECT_TREE);
+		if (error == 0)
+		{
+			// Compare HEAD tree directly to working directory
+			error = git_diff_tree_to_workdir(&diff, repo, head_tree, &opts);
+		}
+
+		if (head_tree)
+			git_tree_free(head_tree);
+		if (head_obj)
+			git_object_free(head_obj);
+	}
+
 	if (error != 0)
 	{
 		std::cerr << "Failed to create diff: " << git_error_last()->message << std::endl;
