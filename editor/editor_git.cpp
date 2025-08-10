@@ -94,12 +94,9 @@ void EditorGit::backgroundTask()
 				}
 
 				auto start_fast = std::chrono::high_resolution_clock::now();
-				std::cout << "[GIT TIMING] Fast current file update started" << std::endl;
 
-				// Get current file changes only (FAST)
-				auto currentFileLines =
-					gitWrapper.getCurrentFileEditedLines(relativePath);
-				auto currentFileStats = gitWrapper.getCurrentFileStats(relativePath);
+				// Get current file changes and stats in single operation (FAST)
+				auto currentFileData = gitWrapper.getCurrentFileData(relativePath);
 
 				auto end_fast = std::chrono::high_resolution_clock::now();
 				auto duration_fast =
@@ -108,34 +105,22 @@ void EditorGit::backgroundTask()
 				std::cout << "[GIT TIMING] Fast current file update: "
 						  << duration_fast.count() << " μs" << std::endl;
 
-				// Update current file data and animations
-				std::map<std::string, std::vector<int>> newEditedLines;
-				if (!currentFileLines.empty())
-				{
-					newEditedLines[relativePath] = currentFileLines;
-				}
+				// Always update the actual data (clears old data when file becomes clean)
+				editedLines[relativePath] = currentFileData.editedLines;
 
-				// Update animations before changing editedLines
-				updateLineAnimations(newEditedLines);
-
-				// Now update the actual data
-				if (!currentFileLines.empty())
+				if (currentFileData.stats.additions > 0 ||
+					currentFileData.stats.deletions > 0)
 				{
-					editedLines[relativePath] = currentFileLines;
-				}
-
-				if (currentFileStats.additions > 0 || currentFileStats.deletions > 0)
-				{
-					currentGitChanges = "+" + std::to_string(currentFileStats.additions) +
-										"-" + std::to_string(currentFileStats.deletions);
+					currentGitChanges =
+						"+" + std::to_string(currentFileData.stats.additions) + "-" +
+						std::to_string(currentFileData.stats.deletions);
 				} else
 				{
 					currentGitChanges = "";
 				}
 			}
 		}
-		cleanupCompletedAnimations();
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
 	}
 }
 
@@ -253,52 +238,14 @@ void EditorGit::updateLineAnimations(
 
 float EditorGit::getLineAnimationAlpha(const std::string &filePath, int lineNumber) const
 {
-	// Get relative path for consistency
-	std::string relativePath = filePath;
-	if (filePath.find(gFileExplorer.selectedFolder) == 0)
-	{
-		size_t folderLength = gFileExplorer.selectedFolder.length();
-		if (folderLength < filePath.length())
-		{
-			relativePath = filePath.substr(folderLength + 1);
-		}
-	}
-
-	auto fileIt = lineAnimations.find(relativePath);
-	if (fileIt == lineAnimations.end())
-	{
-		// No animation data, check if line is edited
-		return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
-	}
-
-	auto lineIt = fileIt->second.find(lineNumber);
-	if (lineIt == fileIt->second.end())
-	{
-		// No animation for this line, check if it's edited
-		return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
-	}
-
-	const LineAnimation &anim = lineIt->second;
-	auto now = std::chrono::steady_clock::now();
-	auto elapsed =
-		std::chrono::duration_cast<std::chrono::milliseconds>(now - anim.startTime).count();
-
-	const float animationDurationMs = 250.0f; // 0.25 seconds
-	float progress = std::min(elapsed / animationDurationMs, 1.0f);
-
-	if (anim.fadingIn)
-	{
-		return progress; // 0 to 1
-	} else
-	{
-		return 1.0f - progress; // 1 to 0
-	}
+	// No animations - just return 1.0f if line is edited, 0.0f otherwise
+	return isLineEdited(filePath, lineNumber) ? 1.0f : 0.0f;
 }
 
 void EditorGit::cleanupCompletedAnimations()
 {
 	auto now = std::chrono::steady_clock::now();
-	const float animationDurationMs = 250.0f;
+	const float animationDurationMs = 25.0f;
 
 	for (auto fileIt = lineAnimations.begin(); fileIt != lineAnimations.end();)
 	{

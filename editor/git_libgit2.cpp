@@ -237,6 +237,44 @@ GitDiffStats GitLibgit2::getCurrentFileStats(const std::string &filePath)
 	return stats;
 }
 
+GitLibgit2::CurrentFileData GitLibgit2::getCurrentFileData(const std::string &filePath)
+{
+	START_TIMING(getCurrentFileData);
+	CurrentFileData result;
+
+	git_diff *diff = createSingleFileDiff(filePath);
+	if (!diff)
+	{
+		END_TIMING(getCurrentFileData);
+		return result;
+	}
+
+	// Process diff to get both lines and stats in single pass
+	git_diff_print(
+		diff,
+		GIT_DIFF_FORMAT_PATCH,
+		[](const git_diff_delta *delta,
+		   const git_diff_hunk *hunk,
+		   const git_diff_line *line,
+		   void *payload) -> int {
+			auto *data = static_cast<CurrentFileData *>(payload);
+			if (line->origin == GIT_DIFF_LINE_ADDITION)
+			{
+				data->editedLines.push_back(line->new_lineno);
+				data->stats.additions++;
+			} else if (line->origin == GIT_DIFF_LINE_DELETION)
+			{
+				data->stats.deletions++;
+			}
+			return 0;
+		},
+		&result);
+
+	git_diff_free(diff);
+	END_TIMING(getCurrentFileData);
+	return result;
+}
+
 git_diff *GitLibgit2::createDiffToWorkdir()
 {
 	START_TIMING(createDiffToWorkdir);

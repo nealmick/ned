@@ -36,6 +36,14 @@ class GitLibgit2
 	std::vector<int> getCurrentFileEditedLines(const std::string &filePath);
 	GitDiffStats getCurrentFileStats(const std::string &filePath);
 
+	// NEW: Combined single-file operation (more efficient)
+	struct CurrentFileData
+	{
+		std::vector<int> editedLines;
+		GitDiffStats stats;
+	};
+	CurrentFileData getCurrentFileData(const std::string &filePath);
+
 	// NEW: Single fast operation to get all data at once
 	struct GitAllData
 	{
