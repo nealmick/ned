@@ -27,18 +27,19 @@ class EditorGit
 	std::string gitPlusMinus(const std::string &filePath);
 	float getLineAnimationAlpha(const std::string &filePath,
 								int lineNumber) const; // Get animation alpha for line
+
+	// Simple function for file tree to get modified file paths
+	std::set<std::string> getModifiedFilePaths();
+
 	std::map<std::string, std::vector<int>> editedLines;
-	std::string currentGitChanges;		 // Store the current git changes string
-	std::set<std::string> modifiedFiles; // Store paths of modified files
+	std::string currentGitChanges; // Store the current git changes string
 
   private:
 	bool isGitInitialized();
 	void backgroundTask();
-	void updateModifiedFiles(); // Update list of modified files
 	void
 	updateLineAnimations(const std::map<std::string, std::vector<int>> &newEditedLines);
 	void cleanupCompletedAnimations();
-	void cleanupRevertedFiles(const std::set<std::string> &currentModifiedFiles);
 
 	std::atomic<bool> git_enabled{false};
 	std::thread backgroundThread;

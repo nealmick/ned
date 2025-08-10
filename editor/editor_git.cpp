@@ -122,16 +122,12 @@ void EditorGit::backgroundTask()
 				if (!currentFileLines.empty())
 				{
 					editedLines[relativePath] = currentFileLines;
-					// Add to modifiedFiles for consistent coloring
-					modifiedFiles.insert(relativePath);
 				}
 
 				if (currentFileStats.additions > 0 || currentFileStats.deletions > 0)
 				{
 					currentGitChanges = "+" + std::to_string(currentFileStats.additions) +
 										"-" + std::to_string(currentFileStats.deletions);
-					// Add to modifiedFiles for file explorer coloring
-					modifiedFiles.insert(relativePath);
 				} else
 				{
 					currentGitChanges = "";
@@ -161,7 +157,6 @@ void EditorGit::init()
 		std::cout << "[GIT TIMING] Initial scan on startup" << std::endl;
 		auto initialData = gitWrapper.getAllGitData();
 		editedLines = initialData.editedLines;
-		modifiedFiles = initialData.modifiedFiles;
 
 		backgroundThread = std::thread(&EditorGit::backgroundTask, this);
 	}
@@ -211,15 +206,6 @@ std::string EditorGit::gitPlusMinus(const std::string &filePath)
 	}
 
 	return "+" + std::to_string(stats.additions) + "-" + std::to_string(stats.deletions);
-}
-
-void EditorGit::updateModifiedFiles()
-{
-	if (!git_enabled || gFileExplorer.selectedFolder.empty())
-		return;
-
-	// Use libgit2 for lock-free operation
-	modifiedFiles = gitWrapper.getModifiedFiles();
 }
 
 void EditorGit::updateLineAnimations(
@@ -351,36 +337,6 @@ void EditorGit::cleanupCompletedAnimations()
 	}
 }
 
-void EditorGit::cleanupRevertedFiles(const std::set<std::string> &currentModifiedFiles)
-{
-	// Remove files from modifiedFiles that are no longer in the current Git state
-	// This handles cases where files get reverted or committed
-	for (auto it = modifiedFiles.begin(); it != modifiedFiles.end();)
-	{
-		if (currentModifiedFiles.find(*it) == currentModifiedFiles.end())
-		{
-			// File is no longer modified, remove it
-			it = modifiedFiles.erase(it);
-		} else
-		{
-			++it;
-		}
-	}
-
-	// Also clean up editedLines for files that are no longer modified
-	for (auto it = editedLines.begin(); it != editedLines.end();)
-	{
-		if (currentModifiedFiles.find(it->first) == currentModifiedFiles.end())
-		{
-			// File is no longer modified, remove its edited lines
-			it = editedLines.erase(it);
-		} else
-		{
-			++it;
-		}
-	}
-}
-
 EditorGit::~EditorGit()
 {
 	// Clean shutdown
@@ -389,6 +345,60 @@ EditorGit::~EditorGit()
 		git_enabled = false;
 		backgroundThread.join();
 	}
+}
+
+std::set<std::string> EditorGit::getModifiedFilePaths()
+{
+	std::set<std::string> modifiedFiles;
+
+	if (!git_enabled || gFileExplorer.selectedFolder.empty())
+		return modifiedFiles;
+
+	// Simple libgit2 git status check
+	git_repository *repo = nullptr;
+	int open_result = git_repository_open(&repo, gFileExplorer.selectedFolder.c_str());
+	if (open_result != 0)
+	{
+		std::cout << "[FILE TREE GIT] Failed to open repository: "
+				  << git_error_last()->message << std::endl;
+		return {};
+	}
+
+	git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+	// Use default options - should include workdir and index changes
+
+	git_status_list *status_list = nullptr;
+	int status_result = git_status_list_new(&status_list, repo, &opts);
+	if (status_result == 0)
+	{
+		size_t count = git_status_list_entrycount(status_list);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			const git_status_entry *entry = git_status_byindex(status_list, i);
+
+			// Check all possible status flags
+			if (entry->status != GIT_STATUS_CURRENT && entry->status != 0)
+			{
+				const char *path = nullptr;
+				if (entry->index_to_workdir && entry->index_to_workdir->new_file.path)
+					path = entry->index_to_workdir->new_file.path;
+				else if (entry->head_to_index && entry->head_to_index->new_file.path)
+					path = entry->head_to_index->new_file.path;
+
+				if (path)
+				{
+					modifiedFiles.insert(path);
+				}
+			}
+		}
+
+		git_status_list_free(status_list);
+	}
+
+	git_repository_free(repo);
+
+	return modifiedFiles;
 }
 
 EditorGit gEditorGit;
