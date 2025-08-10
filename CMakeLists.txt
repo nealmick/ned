@@ -17,6 +17,9 @@ if(APPLE)
     add_compile_definitions(PLATFORM_MACOS)
 elseif(UNIX)
     add_compile_definitions(PLATFORM_LINUX)
+    # Ensure proper feature test macros for Linux to expose le16toh/be16toh functions
+    add_compile_definitions(_GNU_SOURCE)
+    add_compile_definitions(_DEFAULT_SOURCE)
 endif()
 
 # ==============
@@ -340,7 +343,12 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
+    $<$<PLATFORM_ID:Linux>:ssl>
+    $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned libgit2 util llhttp xdiff)
 endif()
@@ -362,7 +370,12 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
+    $<$<PLATFORM_ID:Linux>:ssl>
+    $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 else()
@@ -383,7 +396,12 @@ else()
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
+    $<$<PLATFORM_ID:Linux>:ssl>
+    $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 endif()
