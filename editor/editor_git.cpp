@@ -37,7 +37,6 @@ void EditorGit::printGitEditedLines()
 		}
 	}
 }
-
 void EditorGit::gitEditedLines()
 {
 	if (gFileExplorer.selectedFolder.empty())
@@ -52,11 +51,18 @@ void EditorGit::gitEditedLines()
 	updateLineAnimations(fileChanges);
 
 	// Only update if we have valid data to prevent flashing from empty results
-	// If git returns empty, keep the existing data until we get real results
-	if (!fileChanges.empty() || editedLines.empty())
+	// Don't update to empty if we already have data (prevents flicker on save)
+	if (!fileChanges.empty())
 	{
 		editedLines = fileChanges;
 	}
+	// If fileChanges is empty but we have no existing data, then clear it
+	else if (editedLines.empty())
+	{
+		editedLines = fileChanges; // This will be empty, but that's correct for first run
+	}
+	// If fileChanges is empty but we have existing data, keep the existing data
+	// This prevents the flicker when saving files
 }
 
 void EditorGit::backgroundTask()
@@ -67,7 +73,17 @@ void EditorGit::backgroundTask()
 		{
 			auto gitData = gitWrapper.getAllGitData();
 
-			editedLines = gitData.editedLines;
+			// Apply the same non-flickering logic as gitEditedLines()
+			if (!gitData.editedLines.empty())
+			{
+				editedLines = gitData.editedLines;
+			} else if (editedLines.empty())
+			{
+				editedLines =
+					gitData.editedLines; // Will be empty, but correct for first run
+			}
+			// If gitData.editedLines is empty but we have existing data, keep existing data
+
 			modifiedFiles = gitData.modifiedFiles;
 
 			// Update current file stats
