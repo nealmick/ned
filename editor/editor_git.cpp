@@ -44,8 +44,17 @@ void EditorGit::gitEditedLines()
 		return;
 	}
 
+	auto start_git_edited = std::chrono::high_resolution_clock::now();
+	std::cout << "[GIT TIMING] gitEditedLines() called" << std::endl;
+
 	// Use libgit2 for lock-free operation
 	std::map<std::string, std::vector<int>> fileChanges = gitWrapper.getEditedLines();
+
+	auto end_git_edited = std::chrono::high_resolution_clock::now();
+	auto duration_git_edited = std::chrono::duration_cast<std::chrono::microseconds>(
+		end_git_edited - start_git_edited);
+	std::cout << "[GIT TIMING] gitEditedLines getEditedLines: "
+			  << duration_git_edited.count() << " μs" << std::endl;
 
 	// Update animations before changing anything
 	updateLineAnimations(fileChanges);
@@ -71,22 +80,7 @@ void EditorGit::backgroundTask()
 	{
 		if (gSettings.getSettings()["git_changed_lines"])
 		{
-			auto gitData = gitWrapper.getAllGitData();
-
-			// Apply the same non-flickering logic as gitEditedLines()
-			if (!gitData.editedLines.empty())
-			{
-				editedLines = gitData.editedLines;
-			} else if (editedLines.empty())
-			{
-				editedLines =
-					gitData.editedLines; // Will be empty, but correct for first run
-			}
-			// If gitData.editedLines is empty but we have existing data, keep existing data
-
-			modifiedFiles = gitData.modifiedFiles;
-
-			// Update current file stats
+			// FAST PATH: Update current file only (every 100ms)
 			if (!gFileExplorer.currentFile.empty())
 			{
 				std::string relativePath = gFileExplorer.currentFile;
@@ -99,18 +93,45 @@ void EditorGit::backgroundTask()
 					}
 				}
 
-				auto statsIt = gitData.fileStats.find(relativePath);
-				if (statsIt != gitData.fileStats.end())
+				auto start_fast = std::chrono::high_resolution_clock::now();
+				std::cout << "[GIT TIMING] Fast current file update started" << std::endl;
+
+				// Get current file changes only (FAST)
+				auto currentFileLines =
+					gitWrapper.getCurrentFileEditedLines(relativePath);
+				auto currentFileStats = gitWrapper.getCurrentFileStats(relativePath);
+
+				auto end_fast = std::chrono::high_resolution_clock::now();
+				auto duration_fast =
+					std::chrono::duration_cast<std::chrono::microseconds>(end_fast -
+																		  start_fast);
+				std::cout << "[GIT TIMING] Fast current file update: "
+						  << duration_fast.count() << " μs" << std::endl;
+
+				// Update current file data and animations
+				std::map<std::string, std::vector<int>> newEditedLines;
+				if (!currentFileLines.empty())
 				{
-					auto &stats = statsIt->second;
-					if (stats.additions > 0 || stats.deletions > 0)
-					{
-						currentGitChanges = "+" + std::to_string(stats.additions) + "-" +
-											std::to_string(stats.deletions);
-					} else
-					{
-						currentGitChanges = "";
-					}
+					newEditedLines[relativePath] = currentFileLines;
+				}
+
+				// Update animations before changing editedLines
+				updateLineAnimations(newEditedLines);
+
+				// Now update the actual data
+				if (!currentFileLines.empty())
+				{
+					editedLines[relativePath] = currentFileLines;
+					// Add to modifiedFiles for consistent coloring
+					modifiedFiles.insert(relativePath);
+				}
+
+				if (currentFileStats.additions > 0 || currentFileStats.deletions > 0)
+				{
+					currentGitChanges = "+" + std::to_string(currentFileStats.additions) +
+										"-" + std::to_string(currentFileStats.deletions);
+					// Add to modifiedFiles for file explorer coloring
+					modifiedFiles.insert(relativePath);
 				} else
 				{
 					currentGitChanges = "";
@@ -135,6 +156,13 @@ void EditorGit::init()
 	if (git_enabled)
 	{
 		gitWrapper.init(gFileExplorer.selectedFolder);
+
+		// Initial scan to pick up existing changes
+		std::cout << "[GIT TIMING] Initial scan on startup" << std::endl;
+		auto initialData = gitWrapper.getAllGitData();
+		editedLines = initialData.editedLines;
+		modifiedFiles = initialData.modifiedFiles;
+
 		backgroundThread = std::thread(&EditorGit::backgroundTask, this);
 	}
 }
@@ -319,6 +347,36 @@ void EditorGit::cleanupCompletedAnimations()
 		} else
 		{
 			++fileIt;
+		}
+	}
+}
+
+void EditorGit::cleanupRevertedFiles(const std::set<std::string> &currentModifiedFiles)
+{
+	// Remove files from modifiedFiles that are no longer in the current Git state
+	// This handles cases where files get reverted or committed
+	for (auto it = modifiedFiles.begin(); it != modifiedFiles.end();)
+	{
+		if (currentModifiedFiles.find(*it) == currentModifiedFiles.end())
+		{
+			// File is no longer modified, remove it
+			it = modifiedFiles.erase(it);
+		} else
+		{
+			++it;
+		}
+	}
+
+	// Also clean up editedLines for files that are no longer modified
+	for (auto it = editedLines.begin(); it != editedLines.end();)
+	{
+		if (currentModifiedFiles.find(it->first) == currentModifiedFiles.end())
+		{
+			// File is no longer modified, remove its edited lines
+			it = editedLines.erase(it);
+		} else
+		{
+			++it;
 		}
 	}
 }

@@ -75,7 +75,7 @@ void FileTree::renderNodeText(const std::string &name,
 	{
 		textColor = EditorUtils::GetRainbowColor();
 	}
-	// Then check for modified files
+	// Then check for modified files (including those with edited lines)
 	else if (gEditorGit.modifiedFiles.count(relativePath) > 0)
 	{
 		// Apply 40% darkening to the base text color
@@ -83,11 +83,6 @@ void FileTree::renderNodeText(const std::string &name,
 						   baseTextColor.y * 0.6f,
 						   baseTextColor.z * 0.6f,
 						   baseTextColor.w);
-	}
-	// Then check for edited lines (if not already broadly modified)
-	else if (gEditorGit.editedLines.count(relativePath) > 0)
-	{
-		textColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for files with line changes
 	}
 	// Fallback for current file if not rainbow mode
 	else if (isCurrentFile)

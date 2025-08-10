@@ -6,6 +6,18 @@
 
 namespace fs = std::filesystem;
 
+// Timing macros for performance debugging
+#define START_TIMING(name) auto start_##name = std::chrono::high_resolution_clock::now()
+#define END_TIMING(name)                                                                 \
+	do                                                                                   \
+	{                                                                                    \
+		auto end_##name = std::chrono::high_resolution_clock::now();                     \
+		auto duration_##name = std::chrono::duration_cast<std::chrono::microseconds>(    \
+			end_##name - start_##name);                                                  \
+		std::cout << "[GIT TIMING] " << #name << ": " << duration_##name.count()         \
+				  << " μs" << std::endl;                                                 \
+	} while (0)
+
 GitLibgit2::GitLibgit2()
 {
 	// Initialize libgit2 globally
@@ -39,6 +51,7 @@ bool GitLibgit2::init(const std::string &path)
 
 void GitLibgit2::cleanup()
 {
+	invalidateTreeCache();
 	if (repo)
 	{
 		git_repository_free(repo);
@@ -48,8 +61,186 @@ void GitLibgit2::cleanup()
 
 bool GitLibgit2::isRepositoryValid() const { return repo != nullptr; }
 
+void GitLibgit2::invalidateTreeCache()
+{
+	if (cachedHeadTree)
+	{
+		git_tree_free(cachedHeadTree);
+		cachedHeadTree = nullptr;
+	}
+	hasCachedTree = false;
+}
+
+git_tree *GitLibgit2::getCachedHeadTree()
+{
+	if (!isRepositoryValid())
+	{
+		return nullptr;
+	}
+
+	// Get current HEAD OID
+	git_oid currentHeadOid;
+	git_reference *head_ref = nullptr;
+	int error = git_repository_head(&head_ref, repo);
+	if (error != 0)
+	{
+		return nullptr; // No HEAD
+	}
+
+	const git_oid *target_oid = git_reference_target(head_ref);
+	if (!target_oid)
+	{
+		git_reference_free(head_ref);
+		return nullptr;
+	}
+
+	currentHeadOid = *target_oid;
+	git_reference_free(head_ref);
+
+	// Check if we have a valid cached tree for this HEAD
+	if (hasCachedTree && git_oid_equal(&currentHeadOid, &cachedHeadOid))
+	{
+		return cachedHeadTree; // Return cached tree
+	}
+
+	// Cache is invalid, need to load new tree
+	invalidateTreeCache();
+
+	git_object *head_obj = nullptr;
+	error = git_object_lookup(&head_obj, repo, &currentHeadOid, GIT_OBJECT_COMMIT);
+	if (error == 0)
+	{
+		error =
+			git_object_peel((git_object **)&cachedHeadTree, head_obj, GIT_OBJECT_TREE);
+		if (error == 0)
+		{
+			cachedHeadOid = currentHeadOid;
+			hasCachedTree = true;
+		}
+		git_object_free(head_obj);
+	}
+
+	return (error == 0) ? cachedHeadTree : nullptr;
+}
+
+git_diff *GitLibgit2::createSingleFileDiff(const std::string &filePath)
+{
+	START_TIMING(createSingleFileDiff);
+
+	if (!isRepositoryValid())
+	{
+		END_TIMING(createSingleFileDiff);
+		return nullptr;
+	}
+
+	git_diff *diff = nullptr;
+	git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+
+	// Optimize for single file - no binary checks, no context
+	opts.flags = GIT_DIFF_SKIP_BINARY_CHECK;
+	opts.context_lines = 0;
+	opts.interhunk_lines = 0;
+
+	// Only diff the specific file
+	const char *pathspec[] = {filePath.c_str()};
+	git_strarray paths;
+	paths.strings = (char **)pathspec;
+	paths.count = 1;
+	opts.pathspec = paths;
+
+	// Get cached HEAD tree
+	git_tree *head_tree = getCachedHeadTree();
+
+	// Create diff for just this file
+	int error = git_diff_tree_to_workdir(&diff, repo, head_tree, &opts);
+
+	if (error != 0)
+	{
+		std::cerr << "Failed to create single file diff: " << git_error_last()->message
+				  << std::endl;
+		END_TIMING(createSingleFileDiff);
+		return nullptr;
+	}
+
+	END_TIMING(createSingleFileDiff);
+	return diff;
+}
+
+std::vector<int> GitLibgit2::getCurrentFileEditedLines(const std::string &filePath)
+{
+	START_TIMING(getCurrentFileEditedLines);
+	std::vector<int> result;
+
+	git_diff *diff = createSingleFileDiff(filePath);
+	if (!diff)
+	{
+		END_TIMING(getCurrentFileEditedLines);
+		return result;
+	}
+
+	// Process diff to get edited lines
+	git_diff_print(
+		diff,
+		GIT_DIFF_FORMAT_PATCH,
+		[](const git_diff_delta *delta,
+		   const git_diff_hunk *hunk,
+		   const git_diff_line *line,
+		   void *payload) -> int {
+			if (line->origin == GIT_DIFF_LINE_ADDITION)
+			{
+				auto *result_vec = static_cast<std::vector<int> *>(payload);
+				result_vec->push_back(line->new_lineno);
+			}
+			return 0;
+		},
+		&result);
+
+	git_diff_free(diff);
+	END_TIMING(getCurrentFileEditedLines);
+	return result;
+}
+
+GitDiffStats GitLibgit2::getCurrentFileStats(const std::string &filePath)
+{
+	START_TIMING(getCurrentFileStats);
+	GitDiffStats stats;
+
+	git_diff *diff = createSingleFileDiff(filePath);
+	if (!diff)
+	{
+		END_TIMING(getCurrentFileStats);
+		return stats;
+	}
+
+	// Process diff to get stats
+	git_diff_print(
+		diff,
+		GIT_DIFF_FORMAT_PATCH,
+		[](const git_diff_delta *delta,
+		   const git_diff_hunk *hunk,
+		   const git_diff_line *line,
+		   void *payload) -> int {
+			auto *file_stats = static_cast<GitDiffStats *>(payload);
+			if (line->origin == GIT_DIFF_LINE_ADDITION)
+			{
+				file_stats->additions++;
+			} else if (line->origin == GIT_DIFF_LINE_DELETION)
+			{
+				file_stats->deletions++;
+			}
+			return 0;
+		},
+		&stats);
+
+	git_diff_free(diff);
+	END_TIMING(getCurrentFileStats);
+	return stats;
+}
+
 git_diff *GitLibgit2::createDiffToWorkdir()
 {
+	START_TIMING(createDiffToWorkdir);
+
 	if (!isRepositoryValid())
 	{
 		return nullptr;
@@ -58,66 +249,82 @@ git_diff *GitLibgit2::createDiffToWorkdir()
 	git_diff *diff = nullptr;
 	git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
 
-	// Set options for better diff detection
-	opts.flags = GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+	// Optimize for speed - remove expensive operations and add exclusions
+	opts.flags = GIT_DIFF_SKIP_BINARY_CHECK | GIT_DIFF_INCLUDE_UNMODIFIED;
+	opts.context_lines = 0;		// No context lines needed for our use case
+	opts.interhunk_lines = 0;	// No interhunk lines needed
+	opts.max_size = 512 * 1024; // Skip very large files (>512KB) for speed
 
-	// Get HEAD tree to compare against working directory
-	git_object *head_obj = nullptr;
-	git_tree *head_tree = nullptr;
+	// Exclude common directories that slow down scanning
+	const char *pathspec[] = {":!node_modules/*",
+							  ":!.git/*",
+							  ":!build/*",
+							  ":!dist/*",
+							  ":!target/*",
+							  ":!vendor/*",
+							  ":!venv/*",
+							  ":!.venv/*",
+							  ":!__pycache__/*",
+							  ":!*.pyc",
+							  ":!.DS_Store"};
+	git_strarray paths;
+	paths.strings = (char **)pathspec;
+	paths.count = sizeof(pathspec) / sizeof(pathspec[0]);
+	opts.pathspec = paths;
 
-	int error = git_revparse_single(&head_obj, repo, "HEAD");
-	if (error != 0)
-	{
-		// No HEAD (empty repo), compare against empty tree
-		error = git_diff_tree_to_workdir(&diff, repo, nullptr, &opts);
-	} else
-	{
-		error = git_object_peel((git_object **)&head_tree, head_obj, GIT_OBJECT_TREE);
-		if (error == 0)
-		{
-			// Compare HEAD tree directly to working directory
-			error = git_diff_tree_to_workdir(&diff, repo, head_tree, &opts);
-		}
+	// Get cached HEAD tree for comparison
+	START_TIMING(getCachedHeadTree);
+	git_tree *head_tree = getCachedHeadTree();
+	END_TIMING(getCachedHeadTree);
 
-		if (head_tree)
-			git_tree_free(head_tree);
-		if (head_obj)
-			git_object_free(head_obj);
-	}
+	// Compare HEAD tree to working directory with optimized options
+	START_TIMING(diff_tree_to_workdir);
+	int error = git_diff_tree_to_workdir(&diff, repo, head_tree, &opts);
+	END_TIMING(diff_tree_to_workdir);
 
 	if (error != 0)
 	{
 		std::cerr << "Failed to create diff: " << git_error_last()->message << std::endl;
+		END_TIMING(createDiffToWorkdir);
 		return nullptr;
 	}
 
+	END_TIMING(createDiffToWorkdir);
 	return diff;
 }
 
 std::map<std::string, std::vector<int>> GitLibgit2::getEditedLines()
 {
+	START_TIMING(getEditedLines_total);
 	std::map<std::string, std::vector<int>> result;
 
 	if (!isRepositoryValid())
 	{
+		END_TIMING(getEditedLines_total);
 		return result;
 	}
 
 	git_diff *diff = createDiffToWorkdir();
 	if (!diff)
 	{
+		END_TIMING(getEditedLines_total);
 		return result;
 	}
 
+	START_TIMING(processDiffForEditedLines);
 	processDiffForEditedLines(diff, result);
+	END_TIMING(processDiffForEditedLines);
+
 	git_diff_free(diff);
 
+	END_TIMING(getEditedLines_total);
 	return result;
 }
 
 void GitLibgit2::processDiffForEditedLines(git_diff *diff,
 										   std::map<std::string, std::vector<int>> &result)
 {
+	START_TIMING(diff_print_patch);
 	// Use libgit2's diff print to get line-by-line data
 	git_diff_print(
 		diff,
@@ -136,6 +343,7 @@ void GitLibgit2::processDiffForEditedLines(git_diff *diff,
 			return 0;
 		},
 		&result);
+	END_TIMING(diff_print_patch);
 }
 
 GitDiffStats GitLibgit2::getPlusMinusStats(const std::string &filePath)
@@ -234,24 +442,29 @@ void GitLibgit2::processDiffForModifiedFiles(git_diff *diff, std::set<std::strin
 
 GitLibgit2::GitAllData GitLibgit2::getAllGitData()
 {
+	START_TIMING(getAllGitData_total);
 	GitAllData result;
 
 	if (!isRepositoryValid())
 	{
+		END_TIMING(getAllGitData_total);
 		return result;
 	}
 
 	git_diff *diff = createDiffToWorkdir();
 	if (!diff)
 	{
+		END_TIMING(getAllGitData_total);
 		return result;
 	}
 
-	// Get all data from the single diff
-	processDiffForEditedLines(diff, result.editedLines);
+	// Get modified files first (fastest operation)
+	START_TIMING(getAllGitData_processDiffForModifiedFiles);
 	processDiffForModifiedFiles(diff, result.modifiedFiles);
+	END_TIMING(getAllGitData_processDiffForModifiedFiles);
 
-	// Get stats for each file
+	// Single optimized pass to get both edited lines AND stats
+	START_TIMING(getAllGitData_single_pass);
 	git_diff_print(
 		diff,
 		GIT_DIFF_FORMAT_PATCH,
@@ -264,6 +477,8 @@ GitLibgit2::GitAllData GitLibgit2::getAllGitData()
 
 			if (line->origin == GIT_DIFF_LINE_ADDITION)
 			{
+				// Collect edited lines AND increment stats in single pass
+				result_ptr->editedLines[file_path].push_back(line->new_lineno);
 				result_ptr->fileStats[file_path].additions++;
 			} else if (line->origin == GIT_DIFF_LINE_DELETION)
 			{
@@ -272,7 +487,9 @@ GitLibgit2::GitAllData GitLibgit2::getAllGitData()
 			return 0;
 		},
 		&result);
+	END_TIMING(getAllGitData_single_pass);
 
 	git_diff_free(diff);
+	END_TIMING(getAllGitData_total);
 	return result;
 }
