@@ -340,7 +340,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
   )
   add_dependencies(ned libgit2 util llhttp xdiff)
 endif()
@@ -362,7 +363,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 else()
@@ -383,7 +385,8 @@ else()
     llhttp
     xdiff
     z
-    iconv
+    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 endif()
