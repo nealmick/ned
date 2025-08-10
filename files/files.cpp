@@ -208,6 +208,9 @@ void FileExplorer::openFolderDialog()
 		// Initialize git tracking for the project
 		gEditorGit.init();
 
+		// Start simple file tree git status tracking
+		gFileTree.startGitStatusTracking();
+
 		// Scan project files for external change monitoring
 		scanProjectFilesForMonitoring();
 	} else if (result == NFD_CANCEL)
@@ -419,7 +422,7 @@ void FileExplorer::loadFileContent(const std::string &path,
 		_externalFileChangeDetected = false;
 		_lastChangedFile.clear();
 
-		// Initialize Git tracking for the new file
+		// Set current file path for line numbers
 		gEditorLineNumbers.setCurrentFilePath(path);
 
 		notifyLSPFileOpen(path);
