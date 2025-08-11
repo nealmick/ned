@@ -191,8 +191,13 @@ void Settings::renderSettingsWindow()
 		applyImGuiStyles();
 		ImGui::Begin("Settings", nullptr, windowFlags);
 
+		// Push the current font to ensure settings window uses the updated font
+		extern Font gFont;
+		ImGui::PushFont(gFont.currentFont);
+
 		renderSettingsContent();
 
+		ImGui::PopFont(); // Pop the font we pushed
 		ImGui::End();
 		ImGui::PopStyleColor(8);
 		ImGui::PopStyleVar(6);
@@ -221,6 +226,20 @@ void Settings::renderSettingsContent()
 
 	// Create a child window for scrollable content with padding
 	ImGuiWindowFlags childFlags = ImGuiWindowFlags_AlwaysVerticalScrollbar;
+
+	// Set the child window background color to match the main window
+	auto &bgColor = settings["backgroundColor"];
+	float bgR = bgColor[0].get<float>();
+	float bgG = bgColor[1].get<float>();
+	float bgB = bgColor[2].get<float>();
+	const float WINDOW_BG_MULTIPLIER = 0.8f;
+
+	ImGui::PushStyleColor(ImGuiCol_ChildBg,
+						  ImVec4(bgR * WINDOW_BG_MULTIPLIER,
+								 bgG * WINDOW_BG_MULTIPLIER,
+								 bgB * WINDOW_BG_MULTIPLIER,
+								 1.0f));
+
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
 						ImVec2(15.0f, 5.0f)); // Reduced bottom padding from 15.0f to 5.0f
 	ImGui::BeginChild("SettingsContent", ImVec2(0, contentHeight), false, childFlags);
@@ -245,6 +264,7 @@ void Settings::renderSettingsContent()
 	renderKeybindsSettings();
 
 	ImGui::EndChild();
+	ImGui::PopStyleColor(); // Pop the child background color
 	ImGui::PopStyleVar();
 
 	handleWindowInput();
