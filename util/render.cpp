@@ -451,13 +451,21 @@ void Render::renderMainWindow(GLFWwindow *window,
 	{
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
+
+		// Ensure agent pane has minimum width of 25%
+		float minAgentWidth = availableWidth * 0.25f;
+		float maxEditorWidth = availableWidth - minAgentWidth - kAgentSplitterWidth;
+
 		float editorWidth =
 			Splitter::showAgentPane
-				? (availableWidth * agentSplit)
+				? std::min(availableWidth * agentSplit, maxEditorWidth)
 				: availableWidth + 5.0f; // Add extra width when agent pane is hidden
-		float agentPaneWidth = Splitter::showAgentPane
-								   ? (availableWidth - editorWidth - kAgentSplitterWidth)
-								   : 0.0f;
+
+		float agentPaneWidth =
+			Splitter::showAgentPane
+				? std::max(availableWidth - editorWidth - kAgentSplitterWidth,
+						   minAgentWidth)
+				: 0.0f;
 
 		gEditor.renderEditor(gFont.currentFont, editorWidth);
 		if (Splitter::showAgentPane)
