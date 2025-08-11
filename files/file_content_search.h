@@ -11,8 +11,8 @@ class FileContentSearch
 	FileContentSearch();
 
 	// Search operations
-	void findNext(bool ignoreCase = false);
-	void findPrevious(bool ignoreCase = false);
+	void findNext(bool ignoreCase = true);
+	void findPrevious(bool ignoreCase = true);
 
 	// UI functions
 	void renderFindBox();
