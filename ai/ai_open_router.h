@@ -30,7 +30,7 @@ class OpenRouter
 								  std::atomic<bool> *cancelFlag = nullptr);
 
 	// New function for modern JSON payload streaming with full response callback
-	static bool
+	static std::pair<bool, std::string>
 	jsonPayloadStreamWithResponse(const std::string &jsonPayload,
 								  const std::string &api_key,
 								  std::function<void(const std::string &)> tokenCallback,
