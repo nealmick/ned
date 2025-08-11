@@ -5,10 +5,12 @@
 */
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <nfd.h>
 #include <sstream>
+#include <thread>
 
 #include "../editor/editor_highlight.h"
 #include "../editor/editor_line_jump.h"
@@ -82,7 +84,7 @@ bool FileExplorer::loadSingleIcon(
 		{
 			finalPathToLoad = packagedPath;
 			// std::cout << "[IconLoader] Found icon at Debian package path: "
-			// << finalPathToLoad << std::endl;
+			//           << finalPathToLoad << std::endl;
 		} else
 		{
 			// std::cerr << "[IconLoader] Icon not found. Tried:\n"
@@ -850,7 +852,8 @@ void FileExplorer::checkForExternalFileChanges()
 	// Periodically rescan for new files
 	if (currentTime - _lastScanTime > FILE_SCAN_INTERVAL)
 	{
-		scanProjectFilesForMonitoring();
+		// Quick scan for new files (don't do full rescan with hashing)
+		quickScanForNewFiles();
 		_lastScanTime = currentTime;
 	}
 
@@ -865,8 +868,7 @@ void FileExplorer::checkForExternalFileChanges()
 			{
 				// File was deleted externally
 				std::string filename = fs::path(filePath).filename().string();
-				gSettings.renderNotification("File was deleted externally: " + filename +
-												 "\nFile content preserved in editor",
+				gSettings.renderNotification("File was deleted externally: " + filename,
 											 5.0f);
 				// Remove from monitoring since it no longer exists
 				it = _monitoredFiles.erase(it);
@@ -956,13 +958,23 @@ void FileExplorer::scanProjectFilesForMonitoring()
 				".html", ".css",  ".scss", ".json", ".xml", ".md",	".txt", ".yml",
 				".yaml", ".toml", ".sh",   ".bat",	".ps1", ".sql"};
 
-			// Recursively scan the project directory
+			// First pass: quickly add only essential files (fast startup)
+			std::vector<std::string> filesToHash;
+			std::vector<std::string> additionalFilesToMonitor;
+			int essentialFileCount = 0;
+			int totalFileCount = 0;
+
+			std::cout
+				<< "[FileMonitor] Starting first pass: scanning for essential files..."
+				<< std::endl;
+
 			for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
 			{
 				if (entry.is_regular_file())
 				{
 					std::string filePath = entry.path().string();
 					std::string filename = entry.path().filename().string();
+					totalFileCount++;
 
 					if (filename == ".undo-redo-ned.json" ||
 						filename == ".ned-agent-history.json")
@@ -974,17 +986,121 @@ void FileExplorer::scanProjectFilesForMonitoring()
 					// Only monitor files with relevant extensions
 					if (monitoredExtensions.find(extension) != monitoredExtensions.end())
 					{
-						// Add to monitoring if not already present
+						// Priority 1: Essential files (CMakeLists.txt, package.json, etc.)
+						bool isEssential =
+							(filename == "CMakeLists.txt" || filename == "package.json" ||
+							 filename == "Cargo.toml" || filename == "build.sh" ||
+							 filename == "Makefile" || filename == "README.md");
+
+						if (isEssential || essentialFileCount <
+											   50) // Limit initial monitoring to 50 files
+						{
+							// Add to monitoring immediately
+							if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
+							{
+								_monitoredFiles.insert(filePath);
+								essentialFileCount++;
+
+								// Initialize modification time (fast operation)
+								if (fs::exists(filePath))
+								{
+									_fileModificationTimes[filePath] =
+										fs::last_write_time(filePath);
+
+									// Queue for content hashing (will be done later)
+									filesToHash.push_back(filePath);
+								}
+
+								if (essentialFileCount % 10 ==
+									0) // Progress indicator every 10 files
+								{
+									std::cout << "[FileMonitor] Progress: "
+											  << essentialFileCount
+											  << " essential files added..." << std::endl;
+								}
+							}
+						} else
+						{
+							// Queue additional files for later monitoring
+							additionalFilesToMonitor.push_back(filePath);
+						}
+					}
+				}
+			}
+
+			std::cout << "[FileMonitor] ✅ First pass completed! Monitoring "
+					  << essentialFileCount << " essential files out of "
+					  << totalFileCount << " total files found" << std::endl;
+
+			// Second pass: gradually hash essential files (non-blocking)
+			std::cout << "[FileMonitor] Starting second pass: calculating content hashes "
+						 "for essential files..."
+					  << std::endl;
+			int hashedCount = 0;
+			for (const auto &filePath : filesToHash)
+			{
+				try
+				{
+					if (fs::exists(filePath))
+					{
+						std::ifstream file(filePath, std::ios::binary);
+						if (file)
+						{
+							std::stringstream buffer;
+							buffer << file.rdbuf();
+							_fileContentHashes[filePath] =
+								calculateFileHash(buffer.str());
+							hashedCount++;
+
+							if (hashedCount % 20 ==
+								0) // Progress indicator every 20 files
+							{
+								std::cout
+									<< "[FileMonitor] Hash progress: " << hashedCount
+									<< "/" << filesToHash.size() << " files hashed..."
+									<< std::endl;
+							}
+						}
+					}
+				} catch (...)
+				{
+					// Ignore errors for individual files
+				}
+
+				// Small delay to prevent blocking the UI thread
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+
+			std::cout << "[FileMonitor] ✅ Second pass completed! Content hashes "
+						 "calculated for "
+					  << hashedCount << " essential files" << std::endl;
+
+			// Third pass: gradually add remaining files to monitoring (much faster now)
+			if (!additionalFilesToMonitor.empty())
+			{
+				std::cout << "[FileMonitor] Starting third pass: quickly adding "
+						  << additionalFilesToMonitor.size()
+						  << " additional files to monitoring..." << std::endl;
+
+				int additionalCount = 0;
+				int batchSize = 50; // Process files in batches
+				int batchCount = 0;
+
+				for (const auto &filePath : additionalFilesToMonitor)
+				{
+					try
+					{
 						if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
 						{
 							_monitoredFiles.insert(filePath);
-							// Initialize modification time
+							additionalCount++;
+
 							if (fs::exists(filePath))
 							{
 								_fileModificationTimes[filePath] =
 									fs::last_write_time(filePath);
 
-								// Also initialize content hash for change detection
+								// Also calculate content hash for change detection
 								try
 								{
 									std::ifstream file(filePath, std::ios::binary);
@@ -1000,15 +1116,40 @@ void FileExplorer::scanProjectFilesForMonitoring()
 									// Ignore errors for individual files
 								}
 							}
-							std::cout << "[FileMonitor] Added to monitoring: " << filePath
-									  << std::endl;
+
+							// Progress indicator every 100 files
+							if (additionalCount % 100 == 0)
+							{
+								std::cout << "[FileMonitor] Additional files progress: "
+										  << additionalCount << "/"
+										  << additionalFilesToMonitor.size()
+										  << " files added..." << std::endl;
+							}
+
+							// Small delay only every 50 files to keep UI responsive
+							batchCount++;
+							if (batchCount % batchSize == 0)
+							{
+								std::this_thread::sleep_for(std::chrono::milliseconds(1));
+							}
 						}
+					} catch (...)
+					{
+						// Ignore errors for individual files
 					}
 				}
+
+				std::cout << "[FileMonitor] ✅ Third pass completed! All "
+						  << _monitoredFiles.size()
+						  << " files now being monitored with content hashes"
+						  << std::endl;
 			}
-			std::cout << "[FileMonitor] Background scan completed. Total files being "
-						 "monitored: "
-					  << _monitoredFiles.size() << std::endl;
+
+			std::cout << "[FileMonitor] 🎉 File monitoring initialization COMPLETE!"
+					  << std::endl;
+			std::cout << "[FileMonitor] 📊 Final stats: " << _monitoredFiles.size()
+					  << " files monitored, " << _fileContentHashes.size()
+					  << " files with content hashes" << std::endl;
 
 		} catch (const std::exception &e)
 		{
@@ -1168,5 +1309,87 @@ void FileExplorer::reloadCurrentFile()
 	} else
 	{
 		gSettings.renderNotification("Failed to reload file", 3.0f);
+	}
+}
+
+void FileExplorer::quickScanForNewFiles()
+{
+	if (selectedFolder.empty())
+	{
+		return;
+	}
+
+	// Common file extensions that should be monitored
+	std::set<std::string> monitoredExtensions = {
+		".cpp",	 ".c",	  ".h",	   ".hpp",	".cc",	".cxx", ".py",	".js",
+		".ts",	 ".tsx",  ".jsx",  ".java", ".go",	".rs",	".rb",	".php",
+		".html", ".css",  ".scss", ".json", ".xml", ".md",	".txt", ".yml",
+		".yaml", ".toml", ".sh",   ".bat",	".ps1", ".sql"};
+
+	int newFilesFound = 0;
+
+	// Quick scan for new files
+	for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
+	{
+		if (entry.is_regular_file())
+		{
+			std::string filePath = entry.path().string();
+			std::string filename = entry.path().filename().string();
+
+			if (filename == ".undo-redo-ned.json" ||
+				filename == ".ned-agent-history.json")
+			{
+				continue;
+			}
+
+			std::string extension = entry.path().extension().string();
+
+			// Only monitor files with relevant extensions
+			if (monitoredExtensions.find(extension) != monitoredExtensions.end())
+			{
+				// Check if this file is already being monitored
+				if (_monitoredFiles.find(filePath) == _monitoredFiles.end())
+				{
+					// New file found! Add it to monitoring
+					_monitoredFiles.insert(filePath);
+
+					if (fs::exists(filePath))
+					{
+						_fileModificationTimes[filePath] = fs::last_write_time(filePath);
+
+						// Calculate content hash for change detection
+						try
+						{
+							std::ifstream file(filePath, std::ios::binary);
+							if (file)
+							{
+								std::stringstream buffer;
+								buffer << file.rdbuf();
+								_fileContentHashes[filePath] =
+									calculateFileHash(buffer.str());
+							}
+						} catch (...)
+						{
+							// Ignore errors for individual files
+						}
+					}
+
+					newFilesFound++;
+
+					// Show notification for new files
+					std::string filename = fs::path(filePath).filename().string();
+					gSettings.renderNotification("New file detected: " + filename, 3.0f);
+
+					std::cout << "[FileMonitor] New file added to monitoring: "
+							  << filePath << std::endl;
+				}
+			}
+		}
+	}
+
+	if (newFilesFound > 0)
+	{
+		std::cout << "[FileMonitor] Quick scan completed: " << newFilesFound
+				  << " new files added to monitoring" << std::endl;
 	}
 }

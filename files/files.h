@@ -143,7 +143,8 @@ class FileExplorer
 	double _lastChangeCheckTime = 0.0;
 	double _lastScanTime = 0.0;
 	const double FILE_CHANGE_CHECK_INTERVAL = 1.0; // Check every second
-	const double FILE_SCAN_INTERVAL = 30.0; // Rescan for new files every 30 seconds
+	const double FILE_SCAN_INTERVAL =
+		2.0; // Rescan for new files every 2 seconds (much faster)
 	std::set<std::string>
 		_monitoredFiles; // Track all files that should be monitored for changes
 
@@ -154,6 +155,7 @@ class FileExplorer
 	void checkForExternalFileChanges();
 	void updateFileModificationTime(const std::string &filePath);
 	void scanProjectFilesForMonitoring(); // Scan project directory for files to monitor
+	void quickScanForNewFiles();		  // Quick scan for newly created files
 	std::string calculateFileHash(const std::string &content);
 	void handleExternalFileChange(const std::string &filePath);
 	bool shouldReloadFile(const std::string &filePath);
