@@ -96,7 +96,7 @@ Currently Ned is tested on macOS ARM and Intel. There is also a Debian build ava
 If you have questions or issues, feel free to reach out.
 
 
-# Work In Progress 👷🔨
+# 👷 Work In Progress 🔨
 #### MCP Agent 
 Ned has an AI agent that uses OpenRouter to connect to the latest models. The agent can use MCP to call tools such as read file, run command, or edit file. The edit file tool uses a specialized model called Morph to apply code edits on large files at high speed with high accuracy, similar to Cursor. Check it out at [morph.so](https://morphllm.com). The whole system is tied into the settings where the key for the agent and completion model is stored. Below is a demo of the agent:
 
