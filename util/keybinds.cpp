@@ -529,7 +529,8 @@ bool KeybindsManager::handleKeyboardShortcuts()
 			float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
 			newRightSplit = editorWidth / availableWidth;
 		}
-		gSettings.setAgentSplitPos(clamp(newRightSplit, 0.1f, 0.9f));
+		gSettings.setAgentSplitPos(clamp(
+			newRightSplit, 0.25f, 0.9f)); // Changed minimum from 0.1f to 0.25f (25%)
 
 		std::cout << "Toggled sidebar visibility" << std::endl;
 		shortcutPressed = true;

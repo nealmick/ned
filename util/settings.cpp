@@ -1168,7 +1168,9 @@ void Settings::toggleSidebar()
 		float editorWidth = availableWidth - agentPaneWidthPx - kAgentSplitterWidth;
 		newRightSplit = editorWidth / availableWidth;
 	}
-	setAgentSplitPos(std::max(0.1f, std::min(0.9f, newRightSplit)));
+	setAgentSplitPos(std::max(
+		0.25f,
+		std::min(0.9f, newRightSplit))); // Changed minimum from 0.1f to 0.25f (25%)
 
 	std::cout << "Toggled sidebar visibility from settings" << std::endl;
 }

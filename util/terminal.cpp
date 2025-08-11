@@ -629,7 +629,11 @@ void Terminal::handleMouseInput(const ImGuiIO &io)
 	float charWidth = ImGui::GetFontBaked()->GetCharAdvance('M');
 	float lineHeight = ImGui::GetTextLineHeight();
 
-	int cellX = static_cast<int>((mousePos.x - contentPos.x) / charWidth);
+	// Account for terminal padding: 9px (first indent) + 10px (second indent) = 19px total
+	const float totalLeftPadding = 19.0f;
+
+	int cellX =
+		static_cast<int>((mousePos.x - contentPos.x - totalLeftPadding) / charWidth);
 	int cellY =
 		static_cast<int>((mousePos.y - contentPos.y + (lineHeight * 0.2)) / lineHeight);
 
