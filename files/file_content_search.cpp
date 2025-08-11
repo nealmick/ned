@@ -164,17 +164,27 @@ void FileContentSearch::handleFindBoxActivation()
 }
 void FileContentSearch::renderFindBox()
 {
+	if (needsInputUnblock)
+	{
+		if (--unblockDelayFrames <= 0)
+		{
+			editor_state.block_input = false;
+			needsInputUnblock = false;
+		}
+	} else
+	{
+		if (editor_state.active_find_box)
+		{
+			editor_state.block_input = true;
+		}
+	}
+
 	// Only render if the find box is active.
 	if (!editor_state.active_find_box)
 	{
 		findBoxRectSet = false; // Reset rect tracking when inactive
 		return;
 	}
-
-	// Block input on every frame while find box is active
-	editor_state.block_input = true;
-
-
 
 	// Check for mouse click outside the find box area
 	if (findBoxRectSet && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
@@ -184,13 +194,12 @@ void FileContentSearch::renderFindBox()
 			// Click occurred outside find box - close it
 			editor_state.active_find_box = false;
 			editor_state.block_input = false;
-			std::cout << "Clicked outside find box" << std::endl;
 		}
 	}
 
 	// We'll declare this static here since it's used in both the UI and
 	// keyboard shortcuts
-	static bool ignoreCaseCheckbox = true;
+	static bool ignoreCaseCheckbox = false;
 
 	// Wrap entire find box in a group to get its bounding rect
 	ImGui::BeginGroup();
