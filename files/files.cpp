@@ -971,6 +971,66 @@ void FileExplorer::scanProjectFilesForMonitoring()
 
 			for (const auto &entry : fs::recursive_directory_iterator(selectedFolder))
 			{
+				// Skip problematic directories and files in library folders
+				std::string fullPath = entry.path().string();
+				std::string filename = entry.path().filename().string();
+
+				// Skip paths that contain library and build directories
+				if (fullPath.find("/lib/") != std::string::npos ||
+					fullPath.find("/libs/") != std::string::npos ||
+					fullPath.find("/deps/") != std::string::npos ||
+					fullPath.find("/vendor/") != std::string::npos ||
+					fullPath.find("/node_modules/") != std::string::npos ||
+					fullPath.find("/build/") != std::string::npos ||
+					fullPath.find("/dist/") != std::string::npos ||
+					fullPath.find("/target/") != std::string::npos ||
+					fullPath.find("/out/") != std::string::npos ||
+					fullPath.find("/bin/") != std::string::npos ||
+					fullPath.find("/obj/") != std::string::npos ||
+					fullPath.find("/.git/") != std::string::npos ||
+					fullPath.find("/.svn/") != std::string::npos ||
+					fullPath.find("/.hg/") != std::string::npos ||
+					fullPath.find("/.vscode/") != std::string::npos ||
+					fullPath.find("/.idea/") != std::string::npos ||
+					fullPath.find("/.vs/") != std::string::npos ||
+					fullPath.find("/__pycache__/") != std::string::npos ||
+					fullPath.find("/.pytest_cache/") != std::string::npos ||
+					fullPath.find("/.mypy_cache/") != std::string::npos ||
+					fullPath.find("/.coverage/") != std::string::npos ||
+					fullPath.find("/coverage/") != std::string::npos ||
+					fullPath.find("/.tox/") != std::string::npos ||
+					fullPath.find("/.eggs/") != std::string::npos ||
+					fullPath.find("/.cache/") != std::string::npos ||
+					fullPath.find("/.tmp/") != std::string::npos ||
+					fullPath.find("/temp/") != std::string::npos ||
+					fullPath.find("/tmp/") != std::string::npos ||
+					fullPath.find("/logs/") != std::string::npos ||
+					fullPath.find("/.logs/") != std::string::npos)
+				{
+					continue;
+				}
+
+				// Skip specific annoying file types and names
+				if (filename == ".DS_Store" || filename == "Thumbs.db" ||
+					filename == "desktop.ini" || filename == ".gitignore" ||
+					filename == ".gitattributes" || filename == ".editorconfig" ||
+					filename == ".prettierrc" || filename == ".eslintrc" ||
+					filename == "tsconfig.json" || filename == "package-lock.json" ||
+					filename == "yarn.lock" || filename == "pnpm-lock.yaml" ||
+					filename == "Cargo.lock" || filename == "go.sum" ||
+					filename == "go.mod" || filename == "requirements.txt" ||
+					filename == "Pipfile" || filename == "poetry.lock" ||
+					filename == "Gemfile.lock" || filename == "composer.lock" ||
+					filename == "*.egg-info" || filename == "*.pyc" ||
+					filename == "*.pyo" || filename == "*.pyd" || filename == "*.so" ||
+					filename == "*.dll" || filename == "*.dylib" || filename == "*.exe" ||
+					filename == "*.app" || filename == "*.deb" || filename == "*.rpm" ||
+					filename == "*.zip" || filename == "*.tar.gz" || filename == "*.7z" ||
+					filename == "*.rar")
+				{
+					continue;
+				}
+
 				if (entry.is_regular_file())
 				{
 					std::string filePath = entry.path().string();
