@@ -189,12 +189,27 @@ void AIAgent::rebuildMessageDisplayLines()
 			continue;
 		}
 
+		// Add separator line before each message (except the first one)
+		if (i > 0)
+		{
+			// Calculate separator width based on available width and font metrics
+			float separatorWidth = availableWidth;
+			ImVec2 dashSize = ImGui::CalcTextSize("-"); // Get dash character width
+			float charAdvance = dashSize.x;
+			int numDashes = static_cast<int>(separatorWidth / charAdvance);
+			if (numDashes < 3)
+				numDashes = 3; // Minimum 3 dashes
+
+			std::string separator(numDashes, '-');
+			messageDisplayLines.push_back(separator);
+		}
+
 		std::string displayText = msg.text;
 
 		// Use role-based display only
 		if (msg.role == "assistant")
 		{
-			displayText = "##### Agent: " + displayText;
+			displayText = "🤖 Agent: " + displayText;
 
 			// If this assistant message contains tool calls, add details about them
 			if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() &&
@@ -219,13 +234,13 @@ void AIAgent::rebuildMessageDisplayLines()
 			}
 		} else if (msg.role == "user")
 		{
-			displayText = "##### User: " + displayText;
+			displayText = "👤 User: " + displayText;
 		} else if (msg.role == "tool")
 		{
-			displayText = "##### Tool Result: " + displayText;
+			displayText = "🔧 Tool Result: " + displayText;
 		} else if (msg.role == "system")
 		{
-			displayText = "##### System: " + displayText;
+			displayText = "⚙️ System: " + displayText;
 		}
 
 		// Handle both existing newlines and word wrapping
