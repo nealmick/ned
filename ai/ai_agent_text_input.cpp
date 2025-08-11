@@ -94,11 +94,8 @@ void AIAgentTextInput::render(const ImVec2 &textBoxSize,
 
 void AIAgentTextInput::renderInputBox(const ImVec2 &textBoxSize, float textBoxWidth)
 {
-	bool inputActive = ImGui::InputTextMultiline("##AIAgentInput",
-												 inputBuffer,
-												 bufferSize,
-												 textBoxSize,
-												 ImGuiInputTextFlags_NoHorizontalScroll);
+	bool inputActive =
+		ImGui::InputTextMultiline("##AIAgentInput", inputBuffer, bufferSize, textBoxSize);
 
 	// Restore focus if needed
 	if (shouldRestoreFocus)
