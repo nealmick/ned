@@ -1613,7 +1613,7 @@ bool OpenRouter::jsonPayloadStream(const std::string &jsonPayload,
 	}
 }
 
-bool OpenRouter::jsonPayloadStreamWithResponse(
+std::pair<bool, std::string> OpenRouter::jsonPayloadStreamWithResponse(
 	const std::string &jsonPayload,
 	const std::string &api_key,
 	std::function<void(const std::string &)> tokenCallback,
@@ -1630,7 +1630,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 		if (cancelFlag && cancelFlag->load())
 		{
 			std::cout << "Request cancelled before starting" << std::endl;
-			return false; // Return immediately if cancelled
+			return {false, "Request cancelled"};
 		}
 
 		// Clear any previous tool call state
@@ -1653,7 +1653,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 		if (!initializeCURL())
 		{
 			std::cerr << "ERROR: Failed to initialize CURL" << std::endl;
-			return false;
+			return {false, "Failed to initialize CURL"};
 		}
 		std::cout << "CURL initialized successfully" << std::endl;
 
@@ -1661,7 +1661,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 		if (!curl)
 		{
 			std::cerr << "ERROR: Failed to create CURL handle" << std::endl;
-			return false;
+			return {false, "Failed to create CURL handle"};
 		}
 		std::cout << "CURL handle created successfully" << std::endl;
 
@@ -1693,7 +1693,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 				std::lock_guard<std::mutex> responseLock(g_responseMutex);
 				g_responseCallback = nullptr;
 			}
-			return false;
+			return {false, "Failed to parse JSON payload"};
 		}
 
 		// Add streaming to the payload
@@ -1772,7 +1772,7 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 				std::lock_guard<std::mutex> responseLock(g_responseMutex);
 				g_responseCallback = nullptr;
 			}
-			return false;
+			return {false, "CURL request failed: " + std::string(curl_easy_strerror(res))};
 		}
 		std::cout << "CURL request completed successfully" << std::endl;
 
@@ -1814,6 +1814,27 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 			std::string detailedError = getDetailedErrorResponse(json_str, api_key);
 			std::cerr << "Detailed Error Response: " << detailedError << std::endl;
 			std::cerr << "=== END HTTP ERROR ===" << std::endl;
+
+			// Return specific error messages for common HTTP errors
+			std::string errorMessage;
+			if (http_code == 401)
+			{
+				errorMessage = "Invalid or expired API key. Please check your OpenRouter "
+							   "API key in Settings.";
+			} else if (http_code == 429)
+			{
+				errorMessage =
+					"Rate limit exceeded. Please wait a moment before trying again.";
+			} else if (http_code == 500)
+			{
+				errorMessage = "Server error. Please try again later.";
+			} else
+			{
+				errorMessage = "HTTP error " + std::to_string(http_code) + " (" +
+							   getHttpStatusDescription(http_code) + ")";
+			}
+
+			return {false, errorMessage};
 		} else
 		{
 			std::cout << "HTTP request successful (200 OK)" << std::endl;
@@ -1822,17 +1843,17 @@ bool OpenRouter::jsonPayloadStreamWithResponse(
 		bool success = http_code == 200;
 		std::cout << "=== OPENROUTER: STREAMING REQUEST "
 				  << (success ? "SUCCEEDED" : "FAILED") << " ===" << std::endl;
-		return success;
+		return {success, ""};
 	} catch (const std::exception &e)
 	{
 		std::cerr << "EXCEPTION in jsonPayloadStreamWithResponse: " << e.what()
 				  << std::endl;
 		std::cerr << "Exception type: " << typeid(e).name() << std::endl;
-		return false;
+		return {false, "Exception occurred: " + std::string(e.what())};
 	} catch (...)
 	{
 		std::cerr << "UNKNOWN EXCEPTION in jsonPayloadStreamWithResponse" << std::endl;
-		return false;
+		return {false, "Unknown error occurred"};
 	}
 }
 
