@@ -209,7 +209,7 @@ void AIAgent::rebuildMessageDisplayLines()
 		// Use role-based display only
 		if (msg.role == "assistant")
 		{
-			displayText = "🤖 Agent: " + displayText;
+			displayText = "✨ Agent: " + displayText;
 
 			// If this assistant message contains tool calls, add details about them
 			if (!msg.tool_calls.is_null() && msg.tool_calls.is_array() &&
@@ -234,7 +234,7 @@ void AIAgent::rebuildMessageDisplayLines()
 			}
 		} else if (msg.role == "user")
 		{
-			displayText = "👤 User: " + displayText;
+			displayText = "🧑 User: " + displayText;
 		} else if (msg.role == "tool")
 		{
 			displayText = "🔧 Tool Result: " + displayText;
