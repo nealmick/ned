@@ -5,6 +5,8 @@
 #include <GLFW/glfw3native.h>
 #include "macos_window.h"
 #import <QuartzCore/QuartzCore.h>
+#include <cstdlib> // for exit()
+#include <iostream> // for std::cout and std::endl
 
 // Static variables to track views and settings
 static NSView* appContainerView = nil;
@@ -31,7 +33,20 @@ static NSWindow* configuredWindow = nil;
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
-    // Set flag to indicate clean termination
+    // For Cmd+Q, immediately kill the process to avoid slow cleanup
+    // This prevents the app from hanging during exit, especially after long running sessions
+    
+    // Get the current event to check if it's Cmd+Q
+    NSEvent* currentEvent = [NSApp currentEvent];
+    if (currentEvent && (currentEvent.modifierFlags & NSEventModifierFlagCommand) && 
+        currentEvent.type == NSEventTypeKeyDown && currentEvent.keyCode == 12) { // 12 is 'Q' key
+        
+        // Immediate exit for Cmd+Q - kill the process
+        std::cout << "Cmd+Q detected - immediately exiting..." << std::endl;
+        exit(0);
+    }
+    
+    // For other termination methods, use normal cleanup
     self.shouldTerminate = YES;
     
     // Post a custom event to trigger cleanup in the main loop
