@@ -248,99 +248,97 @@ float EditorScroll::calculateCursorXPosition()
 
 ScrollChange EditorScroll::ensureCursorVisible()
 {
-	if (!editor_state.block_input)
+	// Removed block_input statement for file content search - cursor visibility should
+	// work during search
+
+	// Get current scroll offsets
+	float scroll_x = ImGui::GetScrollX();
+	float scroll_y = ImGui::GetScrollY();
+
+	// Calculate viewport dimensions
+	float scrollbar_width = ImGui::GetStyle().ScrollbarSize;
+	float additional_padding = 80.0f;
+	float viewport_width = editor_state.size.x - scrollbar_width - additional_padding;
+	float viewport_height = editor_state.size.y;
+
+	// Calculate cursor position
+	float abs_cursor_x = calculateCursorXPosition();
+	// Use our own getLineFromPosition to avoid circular dependency
+	int cursor_line =
+		getLineFromPosition(editor_state.editor_content_lines, editor_state.cursor_index);
+	float abs_cursor_y = editor_state.text_pos.y + cursor_line * editor_state.line_height;
+
+	// Calculate cursor position relative to viewport
+	float visible_cursor_x = abs_cursor_x - editor_state.text_pos.x - scroll_x;
+	float visible_cursor_y = abs_cursor_y - editor_state.text_pos.y - scroll_y;
+
+	// Margins - space to keep between cursor and edges
+	float margin_x = ImGui::GetFontSize() * 4.0f;
+	float margin_y = editor_state.line_height * 1.5f;
+
+	// Calculate distances from each edge (negative means cursor is outside)
+	float dist_left = visible_cursor_x;
+	float dist_right = viewport_width - visible_cursor_x;
+	float dist_top = visible_cursor_y;
+	float dist_bottom = viewport_height - visible_cursor_y - editor_state.line_height;
+
+	bool scroll_x_changed = false;
+	bool scroll_y_changed = false;
+	float new_scroll_x = scroll_x;
+	float new_scroll_y = scroll_y;
+
+	const float cursor_width = ImGui::GetFontSize() * 1.2f;
+
+	// Calculate the actual visible area considering padding
+	const float actual_viewport_width = viewport_width - margin_x * 2;
+
+	// Check if cursor needs horizontal scrolling
+	if (visible_cursor_x < margin_x)
 	{
+		// Cursor too close to left edge
+		new_scroll_x = abs_cursor_x - editor_state.text_pos.x - margin_x;
+		new_scroll_x = std::max(0.0f, new_scroll_x);
+		scroll_x_changed = true;
+	} else if (visible_cursor_x > viewport_width - margin_x)
+	{
+		// Cursor too close to right edge - scroll more aggressively
+		float overflow = visible_cursor_x - (viewport_width - margin_x);
 
-		// Get current scroll offsets
-		float scroll_x = ImGui::GetScrollX();
-		float scroll_y = ImGui::GetScrollY();
+		// Add extra buffer proportional to font size
+		float extra_buffer = std::max(10.0f, cursor_width * 1.5f);
 
-		// Calculate viewport dimensions
-		float scrollbar_width = ImGui::GetStyle().ScrollbarSize;
-		float additional_padding = 80.0f;
-		float viewport_width = editor_state.size.x - scrollbar_width - additional_padding;
-		float viewport_height = editor_state.size.y;
-
-		// Calculate cursor position
-		float abs_cursor_x = calculateCursorXPosition();
-		// Use our own getLineFromPosition to avoid circular dependency
-		int cursor_line = getLineFromPosition(editor_state.editor_content_lines,
-											  editor_state.cursor_index);
-		float abs_cursor_y =
-			editor_state.text_pos.y + cursor_line * editor_state.line_height;
-
-		// Calculate cursor position relative to viewport
-		float visible_cursor_x = abs_cursor_x - editor_state.text_pos.x - scroll_x;
-		float visible_cursor_y = abs_cursor_y - editor_state.text_pos.y - scroll_y;
-
-		// Margins - space to keep between cursor and edges
-		float margin_x = ImGui::GetFontSize() * 4.0f;
-		float margin_y = editor_state.line_height * 1.5f;
-
-		// Calculate distances from each edge (negative means cursor is outside)
-		float dist_left = visible_cursor_x;
-		float dist_right = viewport_width - visible_cursor_x;
-		float dist_top = visible_cursor_y;
-		float dist_bottom = viewport_height - visible_cursor_y - editor_state.line_height;
-
-		bool scroll_x_changed = false;
-		bool scroll_y_changed = false;
-		float new_scroll_x = scroll_x;
-		float new_scroll_y = scroll_y;
-
-		const float cursor_width = ImGui::GetFontSize() * 1.2f;
-
-		// Calculate the actual visible area considering padding
-		const float actual_viewport_width = viewport_width - margin_x * 2;
-
-		// Check if cursor needs horizontal scrolling
-		if (visible_cursor_x < margin_x)
-		{
-			// Cursor too close to left edge
-			new_scroll_x = abs_cursor_x - editor_state.text_pos.x - margin_x;
-			new_scroll_x = std::max(0.0f, new_scroll_x);
-			scroll_x_changed = true;
-		} else if (visible_cursor_x > viewport_width - margin_x)
-		{
-			// Cursor too close to right edge - scroll more aggressively
-			float overflow = visible_cursor_x - (viewport_width - margin_x);
-
-			// Add extra buffer proportional to font size
-			float extra_buffer = std::max(10.0f, cursor_width * 1.5f);
-
-			new_scroll_x = scroll_x + overflow + extra_buffer;
-			new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
-			scroll_x_changed = true;
-		}
-
-		// Check if cursor needs vertical scrolling
-		if (dist_top < margin_y)
-		{
-			// Cursor too close to or beyond top edge
-			new_scroll_y = scroll_y - (margin_y - dist_top);
-			new_scroll_y = std::max(0.0f, new_scroll_y);
-			scroll_y_changed = true;
-		} else if (dist_bottom < margin_y)
-		{
-			// Cursor too close to or beyond bottom edge
-			new_scroll_y = scroll_y + (margin_y - dist_bottom);
-			new_scroll_y = std::min(new_scroll_y, ImGui::GetScrollMaxY());
-			scroll_y_changed = true;
-		}
-
-		// Store target positions in our scroll state variables
-		if (scroll_x_changed)
-		{
-			scrollX = new_scroll_x;
-		}
-
-		if (scroll_y_changed)
-		{
-			scrollPos.y = new_scroll_y;
-		}
-
-		return {scroll_y_changed, scroll_x_changed};
+		new_scroll_x = scroll_x + overflow + extra_buffer;
+		new_scroll_x = std::min(new_scroll_x, ImGui::GetScrollMaxX());
+		scroll_x_changed = true;
 	}
+
+	// Check if cursor needs vertical scrolling
+	if (dist_top < margin_y)
+	{
+		// Cursor too close to or beyond top edge
+		new_scroll_y = scroll_y - (margin_y - dist_top);
+		new_scroll_y = std::max(0.0f, new_scroll_y);
+		scroll_y_changed = true;
+	} else if (dist_bottom < margin_y)
+	{
+		// Cursor too close to or beyond bottom edge
+		new_scroll_y = scroll_y + (margin_y - dist_bottom);
+		new_scroll_y = std::min(new_scroll_y, ImGui::GetScrollMaxY());
+		scroll_y_changed = true;
+	}
+
+	// Store target positions in our scroll state variables
+	if (scroll_x_changed)
+	{
+		scrollX = new_scroll_x;
+	}
+
+	if (scroll_y_changed)
+	{
+		scrollPos.y = new_scroll_y;
+	}
+
+	return {scroll_y_changed, scroll_x_changed};
 }
 
 void EditorScroll::adjustScrollForCursorVisibility()
