@@ -8,12 +8,12 @@ A retro-style text editor with GL shader effects. NED offers Tree Sitter syntax 
 
 https://github.com/user-attachments/assets/74af4120-7cf7-4e8c-9b60-7e2aa3228be0
 
-## Shader Effects:  Static Noise, Burn In, Screen Curviture, Bloom, Vignetting. 
+## Shader Effects:  Static Noise, Burn In, Screen Curvature, Bloom, Vignetting. 
 | Amber | Solarized |
 |---------|---------|
 | <video src="https://github.com/user-attachments/assets/1461119f-8eef-4fe0-8564-c49ab1d0b227" width="300"></video> | <video src="https://github.com/user-attachments/assets/465204eb-cd81-4621-8a03-e5319b8a9103" width="300"></video> |
 
-| Ned | Custom |
+| Ned | Custom |
 |---------|---------|
 | <video src="https://github.com/user-attachments/assets/9f352517-2c51-4fa2-a008-84c254175326" width="300"></video> | <video src="https://github.com/user-attachments/assets/86c6810e-2507-440c-80cd-467df04483ce" width="300"></video> |
 
@@ -23,12 +23,12 @@ https://github.com/user-attachments/assets/74af4120-7cf7-4e8c-9b60-7e2aa3228be0
 #### Notable Features
 - OpenGL Shaders with retro style for the best coding vibes
 - Text Bookmarks make editing multiple files with saved cursors a breeze
-- Rainbow mode cursor to never lose your cursor, and stand out
+- Rainbow mode cursor so you never lose your cursor and stand out
 - LSP Adapters for easy navigation and advanced language support
 - Terminal Emulator based on suckless st.c ported to C++ with multiplexer support
 - Optional Custom lexers and tokenizers for custom languages and obscure syntax patterns
-- Copilot-like auto complete using open router, choose the latest and best LLM models
-- Multi cursor support, easily find and replace strings with multi selection
+- Copilot-like auto complete using OpenRouter, choose the latest and best LLM models
+- Multi-cursor support, easily find and replace strings with multi selection
 
 
 
@@ -91,7 +91,18 @@ Ned is a feature-rich text editor built with Dear ImGui that combines the power 
 
 The editor includes LSP integration with support for clangd, gopls, pyright, and TypeScript language servers, providing goto definition, find references, and symbol information. Ned also includes a terminal emulator and AI integration with OpenRouter support. The editor features emoji support with proper font rendering, custom shader effects, and a theming system. The project is designed to be embeddable in other ImGui applications through the ned_embed library, making it easy to integrate into your own projects.
 
-Currently Ned is tested on MacOs Arm and Intel, There is also a debian build availabe.  Windows is not supported, but hopefully will be added in the future.  
+Currently Ned is tested on macOS ARM and Intel. There is also a Debian build available. Windows is not supported, but hopefully will be added in the future.  
 
-If you have questions or issues feel free to reach out.
+If you have questions or issues, feel free to reach out.
 
+
+# 👷 Work In Progress 🔨
+#### MCP Agent 
+Ned has an AI agent that uses OpenRouter to connect to the latest models. The agent can use MCP to call tools such as read file, run command, or edit file. The edit file tool uses a specialized model called Morph to apply code edits on large files at high speed with high accuracy, similar to Cursor. Check it out at [morph.so](https://morphllm.com). The whole system is tied into the settings where the key for the agent and completion model is stored. Below is a demo of the agent:
+
+https://github.com/user-attachments/assets/13c01a86-3b16-49c8-89e8-3fb5d7fb8910
+
+#### Multi Cursor
+Ned has the ability to track multiple cursors at once, which can make editing in certain scenarios much easier. The multi cursor system is used for file content searches to spawn cursors at each instance of a text search string. The app also supports multi selection for selecting text with multiple cursors. The cursor also supports keybinds such as jump to line end or jump one word forward. Below is a demo:
+
+https://github.com/user-attachments/assets/b6537f42-fe11-4e5c-bd97-41f2db7bc262

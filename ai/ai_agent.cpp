@@ -355,6 +355,12 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 		lastKnownWidth = currentWidth;
 	}
 
+	// Check if font size has changed and trigger rebuild if needed
+	if (gSettings.hasFontSizeChanged())
+	{
+		messageDisplayLinesDirty.store(true);
+	}
+
 	if (messageDisplayLinesDirty.load())
 	{
 		rebuildMessageDisplayLines();

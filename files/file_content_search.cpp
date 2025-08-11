@@ -171,6 +171,12 @@ void FileContentSearch::renderFindBox()
 			editor_state.block_input = false;
 			needsInputUnblock = false;
 		}
+	} else
+	{
+		if (editor_state.active_find_box)
+		{
+			editor_state.block_input = true;
+		}
 	}
 
 	// Only render if the find box is active.
@@ -193,7 +199,7 @@ void FileContentSearch::renderFindBox()
 
 	// We'll declare this static here since it's used in both the UI and
 	// keyboard shortcuts
-	static bool ignoreCaseCheckbox = false;
+	static bool ignoreCaseCheckbox = true;
 
 	// Wrap entire find box in a group to get its bounding rect
 	ImGui::BeginGroup();
@@ -285,7 +291,7 @@ void FileContentSearch::renderFindBox()
 				   1.0f));
 		ImGui::PushStyleColor(ImGuiCol_Border, Style::BORDER_COLOR);
 
-		ImGui::Checkbox("Ignore Case", &ignoreCaseCheckbox);
+		ImGui::Checkbox("Case Insensitive", &ignoreCaseCheckbox);
 		ImGui::PopStyleColor(2);
 		ImGui::PopStyleVar(2);
 	}
