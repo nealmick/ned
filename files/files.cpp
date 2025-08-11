@@ -211,6 +211,7 @@ void FileExplorer::openFolderDialog()
 		gEditorGit.init();
 
 		// Start simple file tree git status tracking
+		gFileTree.stopGitStatusTracking();
 		gFileTree.startGitStatusTracking();
 
 		// Scan project files for external change monitoring
