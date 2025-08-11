@@ -193,7 +193,7 @@ void FileContentSearch::renderFindBox()
 
 	// We'll declare this static here since it's used in both the UI and
 	// keyboard shortcuts
-	static bool ignoreCaseCheckbox = false;
+	static bool ignoreCaseCheckbox = true;
 
 	// Wrap entire find box in a group to get its bounding rect
 	ImGui::BeginGroup();
