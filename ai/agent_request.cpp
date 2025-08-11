@@ -131,7 +131,7 @@ void AgentRequest::sendMessage(const std::string &payload,
 			std::cout << "Calling OpenRouter::jsonPayloadStreamWithResponse..."
 					  << std::endl;
 			// Use the new JSON payload streaming function with response callback
-			bool streamSuccess = OpenRouter::jsonPayloadStreamWithResponse(
+			auto streamResult = OpenRouter::jsonPayloadStreamWithResponse(
 				payloadJson.dump(),
 				api_key,
 				[this, onStreamingToken, fullResponse](const std::string &token) {
@@ -154,6 +154,9 @@ void AgentRequest::sendMessage(const std::string &payload,
 				[fullJsonResponse](const json &response) { *fullJsonResponse = response; },
 				&shouldCancelStreaming);
 
+			bool streamSuccess = streamResult.first;
+			std::string errorDetails = streamResult.second;
+
 			if (!streamSuccess)
 			{
 				isStreaming.store(false);
@@ -174,7 +177,7 @@ void AgentRequest::sendMessage(const std::string &payload,
 				}
 
 				if (onComplete)
-					onComplete("Error: Streaming failed", false);
+					onComplete("Error: " + errorDetails, false); // Pass detailed error
 				return;
 			}
 

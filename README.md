@@ -91,7 +91,7 @@ Ned is a feature-rich text editor built with Dear ImGui that combines the power 
 
 The editor includes LSP integration with support for clangd, gopls, pyright, and TypeScript language servers, providing goto definition, find references, and symbol information. Ned also includes a terminal emulator and AI integration with OpenRouter support. The editor features emoji support with proper font rendering, custom shader effects, and a theming system. The project is designed to be embeddable in other ImGui applications through the ned_embed library, making it easy to integrate into your own projects.
 
-Currently Ned is tested on MacOs both Arm and Intel, There is also a debian build availabe.  Windows is not support, but hopefully will added in future.  
+Currently Ned is tested on MacOs Arm and Intel, There is also a debian build availabe.  Windows is not supported, but hopefully will be added in the future.  
 
 If you have questions or issues feel free to reach out.
 

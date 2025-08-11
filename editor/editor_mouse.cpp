@@ -96,17 +96,28 @@ void EditorMouse::handleMouseInput()
 	// Handle right click for context menu
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 	{
-		gAITab.cancel_request();
-		gAITab.dismiss_completion();
-		// Store the position where the context menu should appear
+		// Check if the mouse is over the AI agent area
+		ImVec2 mousePos = ImGui::GetMousePos();
+		float windowWidth = ImGui::GetIO().DisplaySize.x;
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3;
+
+		// Simple calculation: AI agent pane is the right portion based on split position
+		float leftSplit = gSettings.getSplitPos();
+		float agentPaneWidth = availableWidth * (1.0f - leftSplit);
+		float agentStartX = padding + availableWidth * leftSplit;
+		float agentEndX = agentStartX + agentPaneWidth;
+
+		// If mouse is over AI agent area, don't show editor context menu
+		if (mousePos.x >= agentStartX && mousePos.x <= agentEndX)
+		{
+			// Let the AI agent handle the right-click for text selection
+			return;
+		}
+
 		context_menu_pos = ImGui::GetMousePos();
 		show_context_menu = true;
-
-		// If no active selection, set cursor at the clicked position
-		if (!editor_state.selection_active)
-		{
-			editor_state.cursor_index = char_index;
-		}
+		ImGui::OpenPopup("##EditorContextMenu");
 	}
 }
 
@@ -249,6 +260,25 @@ void EditorMouse::handleContextMenu()
 	// Check if right click just happened to open menu
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 	{
+		// Check if the mouse is over the AI agent area
+		ImVec2 mousePos = ImGui::GetMousePos();
+		float windowWidth = ImGui::GetIO().DisplaySize.x;
+		float padding = ImGui::GetStyle().WindowPadding.x;
+		float availableWidth = windowWidth - padding * 3;
+
+		// Simple calculation: AI agent pane is the right portion based on split position
+		float leftSplit = gSettings.getSplitPos();
+		float agentPaneWidth = availableWidth * (1.0f - leftSplit);
+		float agentStartX = padding + availableWidth * leftSplit;
+		float agentEndX = agentStartX + agentPaneWidth;
+
+		// If mouse is over AI agent area, don't show editor context menu
+		if (mousePos.x >= agentStartX && mousePos.x <= agentEndX)
+		{
+			// Let the AI agent handle the right-click for text selection
+			return;
+		}
+
 		context_menu_pos = ImGui::GetMousePos();
 		show_context_menu = true;
 		ImGui::OpenPopup("##EditorContextMenu");
