@@ -631,21 +631,6 @@ void AIAgent::renderMessageHistory(const ImVec2 &size, ImFont *largeFont)
 		scrollToBottom = false;
 	}
 
-	if (ImGui::BeginPopupContextWindow())
-	{
-		ImGui::BeginDisabled(!textSelect.hasSelection());
-		if (ImGui::MenuItem("Copy", "Ctrl+C"))
-		{
-			textSelect.copy();
-		}
-		ImGui::EndDisabled();
-		if (ImGui::MenuItem("Select all", "Ctrl+A"))
-		{
-			textSelect.selectAll();
-		}
-		ImGui::EndPopup();
-	}
-
 	ImGui::EndChild();
 
 	// Restore styles
