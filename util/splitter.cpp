@@ -212,11 +212,14 @@ void Splitter::renderAgentSplitter(float padding,
 		{
 			new_split =
 				clamp((availableWidth - mouseX - AGENT_SPLITTER_WIDTH) / availableWidth,
-					  0.15f,
+					  0.25f, // Increased minimum from 0.15f to 0.25f (25% minimum)
 					  maxRightSplit);
 		} else
 		{
-			new_split = clamp(mouseX / availableWidth, 0.15f, maxRightSplit);
+			new_split = clamp(
+				mouseX / availableWidth,
+				0.25f,
+				maxRightSplit); // Increased minimum from 0.15f to 0.25f (25% minimum)
 		}
 		gSettings.setAgentSplitPos(new_split);
 	}
