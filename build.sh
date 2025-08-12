@@ -39,6 +39,11 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "${GREEN}📦 Running cmake...${NC}"
+# Set minimum macOS version for compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    export MACOSX_DEPLOYMENT_TARGET=11.0
+    echo "${BLUE}🍎 Setting macOS deployment target to 11.0${NC}"
+fi
 cmake ..
 
 echo "${GREEN}📦 Running make...${NC}"
