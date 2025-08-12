@@ -105,17 +105,130 @@ copy_lib() {
     fi
 }
 
-# GLEW Library
-GLEW_LIB="$HOMEBREW_PREFIX/Cellar/glew/2.2.0_1/lib/libGLEW.dylib"
-copy_lib "$GLEW_LIB" "$FRAMEWORKS/"
+# GLEW Library - find the correct versioned library
+GLEW_LIBS=(
+    "$HOMEBREW_PREFIX/lib/libGLEW.2.2.dylib"
+    "$HOMEBREW_PREFIX/Cellar/glew/*/lib/libGLEW.2.2.dylib"
+    "$HOMEBREW_PREFIX/opt/glew/lib/libGLEW.2.2.dylib"
+)
+
+for glew_path in "${GLEW_LIBS[@]}"; do
+    if [ -f $glew_path ]; then
+        copy_lib "$glew_path" "$FRAMEWORKS/"
+        break
+    fi
+done
 
 # GLFW Library
-GLFW_LIB="$HOMEBREW_PREFIX/Cellar/glfw/3.3.9/lib/libglfw.3.dylib"
-copy_lib "$GLFW_LIB" "$FRAMEWORKS/"
+GLFW_LIBS=(
+    "$HOMEBREW_PREFIX/lib/libglfw.3.dylib"
+    "$HOMEBREW_PREFIX/Cellar/glfw/*/lib/libglfw.3.dylib"
+    "$HOMEBREW_PREFIX/opt/glfw/lib/libglfw.3.dylib"
+)
+
+for glfw_path in "${GLFW_LIBS[@]}"; do
+    if [ -f $glfw_path ]; then
+        copy_lib "$glfw_path" "$FRAMEWORKS/"
+        break
+    fi
+done
+
+# FreeType Library
+FREETYPE_LIBS=(
+    "$HOMEBREW_PREFIX/lib/libfreetype.6.dylib"
+    "$HOMEBREW_PREFIX/Cellar/freetype/*/lib/libfreetype.6.dylib"
+    "$HOMEBREW_PREFIX/opt/freetype/lib/libfreetype.6.dylib"
+)
+
+for freetype_path in "${FREETYPE_LIBS[@]}"; do
+    if [ -f $freetype_path ]; then
+        copy_lib "$freetype_path" "$FRAMEWORKS/"
+        break
+    fi
+done
+
+# PNG Library (needed by FreeType)
+PNG_LIBS=(
+    "$HOMEBREW_PREFIX/lib/libpng16.16.dylib"
+    "$HOMEBREW_PREFIX/Cellar/libpng/*/lib/libpng16.16.dylib"
+    "$HOMEBREW_PREFIX/opt/libpng/lib/libpng16.16.dylib"
+)
+
+for png_path in "${PNG_LIBS[@]}"; do
+    if [ -f $png_path ]; then
+        copy_lib "$png_path" "$FRAMEWORKS/"
+        break
+    fi
+done
 
 echo "Fixing library paths..."
-install_name_tool -change "@rpath/libGLEW.dylib" "@executable_path/../Frameworks/libGLEW.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
-install_name_tool -change "@rpath/libglfw.3.dylib" "@executable_path/../Frameworks/libglfw.3.dylib" "$MACOS/$APP_NAME" 2>/dev/null || true
+
+# Get the actual library paths from the binary
+CURRENT_GLEW=$(otool -L "$MACOS/$APP_NAME" | grep GLEW | awk '{print $1}' | head -1)
+CURRENT_GLFW=$(otool -L "$MACOS/$APP_NAME" | grep glfw | awk '{print $1}' | head -1)
+
+if [ -n "$CURRENT_GLEW" ]; then
+    install_name_tool -change "$CURRENT_GLEW" "@executable_path/../Frameworks/libGLEW.2.2.dylib" "$MACOS/$APP_NAME"
+    echo "Fixed GLEW path: $CURRENT_GLEW -> @executable_path/../Frameworks/libGLEW.2.2.dylib"
+fi
+
+if [ -n "$CURRENT_GLFW" ]; then
+    install_name_tool -change "$CURRENT_GLFW" "@executable_path/../Frameworks/libglfw.3.dylib" "$MACOS/$APP_NAME"
+    echo "Fixed GLFW path: $CURRENT_GLFW -> @executable_path/../Frameworks/libglfw.3.dylib"
+fi
+
+# Get FreeType path from binary
+CURRENT_FREETYPE=$(otool -L "$MACOS/$APP_NAME" | grep freetype | awk '{print $1}' | head -1)
+
+if [ -n "$CURRENT_FREETYPE" ]; then
+    install_name_tool -change "$CURRENT_FREETYPE" "@executable_path/../Frameworks/libfreetype.6.dylib" "$MACOS/$APP_NAME"
+    echo "Fixed FreeType path: $CURRENT_FREETYPE -> @executable_path/../Frameworks/libfreetype.6.dylib"
+fi
+
+# Fix dependencies within the bundled libraries themselves
+echo "Fixing internal library dependencies..."
+
+# Fix dependencies within the bundled libraries themselves
+for lib in "$FRAMEWORKS"/*.dylib; do
+    echo "Checking dependencies for $(basename "$lib")..."
+    
+    # Get all homebrew/usr/local dependencies for this library
+    LIB_DEPS=$(otool -L "$lib" | grep -E "(homebrew|usr/local)" | awk '{print $1}')
+    
+    for dep_path in $LIB_DEPS; do
+        dep_name=$(basename "$dep_path")
+        
+        # If we have this dependency in our Frameworks, fix the path
+        if [ -f "$FRAMEWORKS/$dep_name" ]; then
+            install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$lib"
+            echo "Fixed internal dependency: $dep_path -> @loader_path/$dep_name in $(basename "$lib")"
+        else
+            echo "⚠️  Missing dependency for $(basename "$lib"): $dep_name"
+            # Try to copy the missing dependency
+            copy_lib "$dep_path" "$FRAMEWORKS/"
+            if [ -f "$FRAMEWORKS/$dep_name" ]; then
+                install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$lib"
+                echo "Fixed newly copied dependency: $dep_path -> @loader_path/$dep_name"
+            fi
+        fi
+    done
+done
+
+echo "Final check for any remaining missing libraries..."
+MISSING_LIBS=$(otool -L "$MACOS/$APP_NAME" | grep -E "(homebrew|usr/local)" | awk '{print $1}')
+
+for lib_path in $MISSING_LIBS; do
+    lib_name=$(basename "$lib_path")
+    if [ ! -f "$FRAMEWORKS/$lib_name" ]; then
+        echo "⚠️  Still missing: $lib_name"
+        copy_lib "$lib_path" "$FRAMEWORKS/"
+        
+        if [ -f "$FRAMEWORKS/$lib_name" ]; then
+            install_name_tool -change "$lib_path" "@executable_path/../Frameworks/$lib_name" "$MACOS/$APP_NAME"
+            echo "Fixed main app dependency: $lib_path -> @executable_path/../Frameworks/$lib_name"
+        fi
+    fi
+done
 
 # Sign the libs
 echo "Signing libraries..."

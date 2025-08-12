@@ -391,46 +391,112 @@ void App::cleanup()
 // Graphics initialization methods
 bool App::initializeGLFW()
 {
+	std::cout << "Initializing GLFW..." << std::endl;
+
 	if (!glfwInit())
 	{
-		std::cerr << "Failed to initialize GLFW" << std::endl;
+		std::cerr << "❌ Failed to initialize GLFW" << std::endl;
+
+		// Get detailed GLFW error
+		const char *error_description;
+		glfwGetError(&error_description);
+		if (error_description)
+		{
+			std::cerr << "GLFW Init Error: " << error_description << std::endl;
+		}
+
 		return false;
 	}
+
+	std::cout << "✅ GLFW initialized successfully" << std::endl;
 	return true;
 }
 
 void App::setupWindowHints()
 {
+	std::cout << "Setting up GLFW window hints..." << std::endl;
+
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	std::cout << "  - OpenGL 3.3 Core Profile" << std::endl;
 
 #ifdef __APPLE__
-	glfwWindowHint(GLFW_DECORATED,
-				   GLFW_FALSE); // No OS decorations for macOS (custom handling)
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS specific
-	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
+	// For app bundles, use more conservative window hints
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations for app bundles
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);	  // macOS specific
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE); // Disable for compatibility
+	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE); // Enable retina support
+	std::cout << "  - macOS specific hints set" << std::endl;
 #else // For Linux/Ubuntu and other non-Apple platforms
 	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
+	std::cout << "  - Linux/Ubuntu hints set" << std::endl;
 #endif
 	// GLFW_RESIZABLE should be TRUE for both.
 	// On Linux, the OS window manager handles resizing if DECORATED is TRUE.
 	// On macOS, your custom logic handles resizing.
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	std::cout << "  - Resizable: TRUE" << std::endl;
+
+	std::cout << "Window hints configured successfully" << std::endl;
 }
 
 bool App::createWindow()
 {
+	std::cout << "=== GLFW Window Creation Debug ===" << std::endl;
+
 	setupWindowHints();
+	std::cout << "Window hints set, attempting to create window with OpenGL 3.3..."
+			  << std::endl;
+
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
 
 	if (!window)
 	{
-		std::cerr << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return false;
+		std::cerr << "❌ Failed with OpenGL 3.3, trying OpenGL 2.1..." << std::endl;
+
+		// Get detailed error for OpenGL 3.3 failure
+		const char *error_description;
+		glfwGetError(&error_description);
+		if (error_description)
+		{
+			std::cerr << "OpenGL 3.3 Error: " << error_description << std::endl;
+		}
+
+		// Try with older OpenGL for VM compatibility
+		std::cout << "Setting OpenGL 2.1 hints..." << std::endl;
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+		// Remove core profile requirement for older OpenGL
+		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+
+		std::cout << "Attempting to create window with OpenGL 2.1..." << std::endl;
+		window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+
+		if (!window)
+		{
+			std::cerr << "❌ Failed to create GLFW window with any OpenGL version"
+					  << std::endl;
+
+			// Get detailed error for OpenGL 2.1 failure
+			glfwGetError(&error_description);
+			if (error_description)
+			{
+				std::cerr << "OpenGL 2.1 Error: " << error_description << std::endl;
+			}
+
+			glfwTerminate();
+			return false;
+		} else
+		{
+			std::cout << "✅ OpenGL 2.1 window created successfully!" << std::endl;
+		}
+	} else
+	{
+		std::cout << "✅ OpenGL 3.3 window created successfully!" << std::endl;
 	}
 
+	std::cout << "=== Window Creation Complete ===" << std::endl;
 	return true;
 }
 
