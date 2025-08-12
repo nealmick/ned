@@ -40,6 +40,18 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 		return true;
 	}
 
+	// Check if the LSP server executable exists and is accessible
+	if (access(lspPath.c_str(), X_OK) != 0)
+	{
+		std::cerr << "\033[31mPyright:\033[0m LSP server not found or not executable at: "
+				  << lspPath << std::endl;
+		std::cerr << "\033[33mPyright:\033[0m Error: " << strerror(errno) << std::endl;
+		std::cerr << "\033[33mPyright:\033[0m Pyright LSP support will be disabled for "
+					 "this session"
+				  << std::endl;
+		return false;
+	}
+
 	try
 	{
 		std::cout << "\033[35mPyright:\033[0m Starting LSP server with path: " << lspPath

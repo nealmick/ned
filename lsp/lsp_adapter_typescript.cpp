@@ -107,6 +107,19 @@ bool LSPAdapterTypescript::initialize(const std::string &workspacePath)
 		impl = std::make_unique<TypescriptImpl>();
 	}
 
+	// Check if the LSP server executable exists and is accessible
+	if (access(lspPath.c_str(), X_OK) != 0)
+	{
+		std::cerr
+			<< "\033[31mTypescript:\033[0m LSP server not found or not executable at: "
+			<< lspPath << std::endl;
+		std::cerr << "\033[33mTypescript:\033[0m Error: " << strerror(errno) << std::endl;
+		std::cerr << "\033[33mTypescript:\033[0m TypeScript LSP support will be disabled "
+					 "for this session"
+				  << std::endl;
+		return false;
+	}
+
 	std::cout << "\033[35mTypescript:\033[0m Starting LSP server with path: " << lspPath
 			  << std::endl;
 
