@@ -15,6 +15,17 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(APPLE)
     add_compile_definitions(PLATFORM_MACOS)
+    # Set minimum macOS version to 11.0 (Big Sur)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
+    # Detect current architecture and target only that
+    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architecture for macOS" FORCE)
+    else()
+        set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architecture for macOS" FORCE)
+    endif()
+    # Add compatibility flags for macOS 11.0+
+    add_compile_options(-mmacosx-version-min=11.0)
+    add_link_options(-mmacosx-version-min=11.0)
 elseif(UNIX)
     add_compile_definitions(PLATFORM_LINUX)
     # Ensure proper feature test macros for Linux to expose le16toh/be16toh functions

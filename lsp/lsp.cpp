@@ -83,10 +83,29 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
 		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: "
 				  << workspacePath << std::endl;
 
-		if (!gLSPManager.initialize(workspacePath))
+		try
 		{
-			std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for " << filePath
+			if (!gLSPManager.initialize(workspacePath))
+			{
+				std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for "
+						  << filePath << std::endl;
+				return;
+			}
+		} catch (const std::exception &e)
+		{
+			std::cout << "\033[31mLSP:\033[0m Exception during LSP initialization: "
+					  << e.what() << std::endl;
+			std::cout
+				<< "\033[33mLSP:\033[0m LSP support will be disabled for this session"
+				<< std::endl;
+			return;
+		} catch (...)
+		{
+			std::cout << "\033[31mLSP:\033[0m Unknown exception during LSP initialization"
 					  << std::endl;
+			std::cout
+				<< "\033[33mLSP:\033[0m LSP support will be disabled for this session"
+				<< std::endl;
 			return;
 		}
 	}
@@ -108,9 +127,18 @@ void EditorLSP::didOpen(const std::string &filePath, const std::string &content)
             }
         })";
 
-	gLSPManager.sendRequest(notification);
-	// std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully"
-	// << std::endl;
+	// Only send request if we have a working adapter
+	if (gLSPManager.hasWorkingAdapter())
+	{
+		gLSPManager.sendRequest(notification);
+		// std::cout << "\033[32mLSP:\033[0m didOpen notification sent successfully"
+		// << std::endl;
+	} else
+	{
+		std::cout
+			<< "\033[33mLSP:\033[0m Skipping LSP request - no working adapter available"
+			<< std::endl;
+	}
 }
 
 void EditorLSP::didChange(const std::string &filePath, int version)
@@ -128,10 +156,29 @@ void EditorLSP::didChange(const std::string &filePath, int version)
 		std::cout << "\033[35mLSP:\033[0m Auto-initializing with workspace: "
 				  << workspacePath << std::endl;
 
-		if (!gLSPManager.initialize(workspacePath))
+		try
 		{
-			std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for " << filePath
+			if (!gLSPManager.initialize(workspacePath))
+			{
+				std::cout << "\033[31mLSP:\033[0m Failed to initialize LSP for "
+						  << filePath << std::endl;
+				return;
+			}
+		} catch (const std::exception &e)
+		{
+			std::cout << "\033[31mLSP:\033[0m Exception during LSP initialization: "
+					  << e.what() << std::endl;
+			std::cout
+				<< "\033[33mLSP:\033[0m LSP support will be disabled for this session"
+				<< std::endl;
+			return;
+		} catch (...)
+		{
+			std::cout << "\033[31mLSP:\033[0m Unknown exception during LSP initialization"
 					  << std::endl;
+			std::cout
+				<< "\033[33mLSP:\033[0m LSP support will be disabled for this session"
+				<< std::endl;
 			return;
 		}
 	}
@@ -155,14 +202,23 @@ void EditorLSP::didChange(const std::string &filePath, int version)
         }
     })";
 
-	if (gLSPManager.sendRequest(notification))
+	// Only send request if we have a working adapter
+	if (gLSPManager.hasWorkingAdapter())
 	{
-		// std::cout << "\033[32mLSP:\033[0m didChange notification sent
-		// successfully (v" << version
-		// << ")\n";
+		if (gLSPManager.sendRequest(notification))
+		{
+			// std::cout << "\033[32mLSP:\033[0m didChange notification sent
+			// successfully (v" << version
+			// << ")\n";
+		} else
+		{
+			// std::cout << "\033[31mLSP:\033[0m Failed to send didChange
+			// notification\n";
+		}
 	} else
 	{
-		// std::cout << "\033[31mLSP:\033[0m Failed to send didChange
-		// notification\n";
+		std::cout
+			<< "\033[33mLSP:\033[0m Skipping LSP request - no working adapter available"
+			<< std::endl;
 	}
 }

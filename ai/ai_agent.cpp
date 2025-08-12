@@ -6,6 +6,7 @@
 #include "mcp/mcp_manager.h"
 #include "textselect.hpp"
 #include "util/settings.h"
+#include "util/settings_file_manager.h"
 #include <cctype>
 #include <cstring>
 #include <filesystem>
@@ -126,9 +127,17 @@ void AIAgent::render(float agentPaneWidth, ImFont *largeFont)
 	ImGui::SameLine();
 
 	ImGui::BeginGroup(); // Vertical stack for message history, button, and input
-
-	// Render message history above the send button and input
+	// Calculate history height - reduce it if we need to show the key input
 	float historyHeight = windowHeight * 0.7f;
+	if (hasApiKeyError)
+	{
+		// Reduce history height to make room for the key input area
+		// The key input area takes roughly 120-140 pixels (including separators and spacing)
+		historyHeight -= 190.0f;
+		if (historyHeight < 100.0f) // Ensure minimum height
+			historyHeight = 100.0f;
+	}
+
 	// Account for scroll bar width and padding to prevent overflow
 	float scrollbarWidth = ImGui::GetStyle().ScrollbarSize;
 	float historyWidth = textBoxWidth - 2 * horizontalPadding - scrollbarWidth +
@@ -138,6 +147,9 @@ void AIAgent::render(float agentPaneWidth, ImFont *largeFont)
 	ImVec2 historySize = ImVec2(historyWidth, historyHeight);
 	renderMessageHistory(historySize, largeFont);
 	ImGui::Spacing();
+
+	// Render OpenRouter key input if there are API key errors
+	renderOpenRouterKeyInput(textBoxWidth, horizontalPadding);
 
 	float lineHeight = ImGui::GetTextLineHeightWithSpacing();
 	float fontSize = ImGui::GetFontSize();
@@ -666,6 +678,8 @@ void AIAgent::sendMessage(const char *msg, bool hide_message)
 		errorMsg.hide_message = false;
 		errorMsg.timestamp = std::chrono::system_clock::now();
 		messages.push_back(errorMsg);
+		hasApiKeyError = true;
+		std::cout << "hasApiKeyError: " << hasApiKeyError << std::endl;
 		messageDisplayLinesDirty = true;
 		scrollToBottom = true;
 		return;
@@ -873,6 +887,18 @@ void AIAgent::sendMessage(const char *msg, bool hide_message)
 						errorMsg.hide_message = false;
 						errorMsg.timestamp = std::chrono::system_clock::now();
 						messages.push_back(errorMsg);
+
+						// Check if this is an API key error and set the flag
+						if (finalResult.find("Invalid or expired API key") !=
+								std::string::npos ||
+							finalResult.find("No OpenRouter API key configured") !=
+								std::string::npos)
+						{
+							hasApiKeyError = true;
+							std::cout << "Set hasApiKeyError to true for API key error"
+									  << std::endl;
+						}
+
 						messageDisplayLinesDirty = true;
 						std::cout << "Created new error message successfully!"
 								  << std::endl;
@@ -1091,6 +1117,8 @@ void AIAgent::triggerAIResponse()
 		errorMsg.hide_message = false;
 		errorMsg.timestamp = std::chrono::system_clock::now();
 		messages.push_back(errorMsg);
+		hasApiKeyError = true;
+		std::cout << "hasApiKeyError: " << hasApiKeyError << std::endl;
 		messageDisplayLinesDirty = true;
 		scrollToBottom = true;
 		return;
@@ -1437,4 +1465,151 @@ void AIAgent::triggerAIResponse()
 		});
 
 	std::cout << "=== TRIGGER AI RESPONSE: FINISHED ===" << std::endl;
+}
+
+void AIAgent::renderOpenRouterKeyInput(float textBoxWidth, float horizontalPadding)
+{
+	// Only render if we have API key errors
+	if (!hasApiKeyError)
+	{
+		return;
+	}
+
+	// Static variables for the input
+	static char openRouterKeyBuffer[128] = "";
+	static bool showOpenRouterKey = false;
+	static bool initialized = false;
+	static bool keyChanged = false;
+
+	// Initialize the buffer
+	if (!initialized)
+	{
+		openRouterKeyBuffer[0] = '\0';
+		initialized = true;
+	}
+
+	// Render the key input section
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+	ImGui::TextWrapped("⚠️ OpenRouter Key");
+	ImGui::PopStyleColor();
+	ImGui::Spacing();
+
+	// Buttons above the input (styled like agent input buttons)
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+
+	// Safe access to backgroundColor with null checks
+	auto &bgColor = gSettings.getSettings()["backgroundColor"];
+	float bgR = (bgColor.is_array() && bgColor.size() > 0 && !bgColor[0].is_null())
+					? bgColor[0].get<float>()
+					: 0.1f;
+	float bgG = (bgColor.is_array() && bgColor.size() > 1 && !bgColor[1].is_null())
+					? bgColor[1].get<float>()
+					: 0.1f;
+	float bgB = (bgColor.is_array() && bgColor.size() > 2 && !bgColor[2].is_null())
+					? bgColor[2].get<float>()
+					: 0.1f;
+
+	ImGui::PushStyleColor(ImGuiCol_Button,
+						  ImVec4(bgR * 0.8f, bgG * 0.8f, bgB * 0.8f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+						  ImVec4(bgR * 0.95f, bgG * 0.95f, bgB * 0.95f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+						  ImVec4(bgR * 0.7f, bgG * 0.7f, bgB * 0.7f, 1.0f));
+
+	// Save button
+	ImVec2 saveTextSize = ImGui::CalcTextSize("Save");
+	ImVec2 saveButtonSize = ImVec2(saveTextSize.x + 16.0f, 0);
+	if (ImGui::Button("Save##agent_key", saveButtonSize) && keyChanged)
+	{
+		gSettingsFileManager.setOpenRouterKey(std::string(openRouterKeyBuffer));
+		gAITab.load_key();
+		gSettings.renderNotification("OpenRouter key saved!", 2.0f);
+		keyChanged = false;
+
+		// Clear the buffer after saving
+		openRouterKeyBuffer[0] = '\0';
+
+		// Clear the API key error flag so the input disappears
+		hasApiKeyError = false;
+
+		// Mark display as dirty to refresh the error message display
+		messageDisplayLinesDirty = true;
+	}
+	ImGui::SameLine();
+
+	// Show/Hide button
+	ImVec2 showTextSize = ImGui::CalcTextSize(showOpenRouterKey ? "Hide" : "Show");
+	ImVec2 showButtonSize = ImVec2(showTextSize.x + 16.0f, 0);
+	if (ImGui::Button(showOpenRouterKey ? "Hide" : "Show", showButtonSize))
+	{
+		showOpenRouterKey = !showOpenRouterKey;
+	}
+
+	ImGui::PopStyleColor(4);
+	ImGui::PopStyleVar(3);
+
+	ImGui::Spacing();
+
+	// OpenRouter Key Input - styled like agent input below
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+
+	// Safe access to backgroundColor with null checks
+	auto &bgColor2 = gSettings.getSettings()["backgroundColor"];
+	float bgR2 = (bgColor2.is_array() && bgColor2.size() > 0 && !bgColor2[0].is_null())
+					 ? bgColor2[0].get<float>()
+					 : 0.1f;
+	float bgG2 = (bgColor2.is_array() && bgColor2.size() > 1 && !bgColor2[1].is_null())
+					 ? bgColor2[1].get<float>()
+					 : 0.1f;
+	float bgB2 = (bgColor2.is_array() && bgColor2.size() > 2 && !bgColor2[2].is_null())
+					 ? bgColor2[1].get<float>()
+					 : 0.1f;
+
+	ImGui::PushStyleColor(ImGuiCol_FrameBg,
+						  ImVec4(bgR2 * 0.8f, bgG2 * 0.8f, bgB2 * 0.8f, 1.0f));
+
+	// Set width to match agent input (responsive to pane size)
+	ImGui::SetNextItemWidth(textBoxWidth - 2 * horizontalPadding);
+
+	ImGuiInputTextFlags flags = showOpenRouterKey ? 0 : ImGuiInputTextFlags_Password;
+	bool inputChanged = ImGui::InputTextWithHint("##openrouterkey_agent",
+												 "API key",
+												 openRouterKeyBuffer,
+												 sizeof(openRouterKeyBuffer),
+												 flags);
+
+	ImGui::PopStyleColor(2);
+	ImGui::PopStyleVar(3);
+
+	// Check focus state immediately after the input widget
+	bool isInputActive = ImGui::IsItemActive();
+
+	if (inputChanged)
+	{
+		keyChanged = true;
+	}
+
+	ImGui::Spacing();
+
+	// Handle input blocking logic for the key input
+	static bool wasInputActive = false;
+	if (isInputActive != wasInputActive)
+	{
+		editor_state.block_input = isInputActive;
+		wasInputActive = isInputActive;
+	}
+	if (isInputActive)
+	{
+		editor_state.block_input = true;
+	}
 }

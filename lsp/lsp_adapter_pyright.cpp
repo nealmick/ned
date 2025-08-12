@@ -1,5 +1,7 @@
 #include "lsp_adapter_pyright.h"
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <sys/select.h>
@@ -38,6 +40,31 @@ bool LSPAdapterPyright::initialize(const std::string &workspacePath)
 	{
 		std::cout << "\033[35mPyright:\033[0m Already initialized" << std::endl;
 		return true;
+	}
+
+	// Check if the LSP server executable exists and is accessible
+	// Use a more defensive approach to avoid permission issues
+	try
+	{
+		if (access(lspPath.c_str(), X_OK) != 0)
+		{
+			std::cerr
+				<< "\033[31mPyright:\033[0m LSP server not found or not executable at: "
+				<< lspPath << std::endl;
+			std::cerr << "\033[33mPyright:\033[0m Error: " << strerror(errno)
+					  << std::endl;
+			std::cerr
+				<< "\033[33mPyright:\033[0m Pyright LSP support will be disabled for "
+				   "this session"
+				<< std::endl;
+			return false;
+		}
+	} catch (...)
+	{
+		std::cerr << "\033[33mPyright:\033[0m Could not check LSP server accessibility - "
+					 "disabling LSP support"
+				  << std::endl;
+		return false;
 	}
 
 	try
