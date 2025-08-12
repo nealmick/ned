@@ -16,6 +16,12 @@ fi
 
 echo -e "${BLUE}📦 Creating macOS app bundle...${NC}"
 
+# Check if we're building with the right deployment target
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    export MACOSX_DEPLOYMENT_TARGET=11.0
+    echo -e "${BLUE}🍎 Setting macOS deployment target to 11.0${NC}"
+fi
+
 # Ensure the app exists
 if [ ! -f ".build/ned" ]; then
     echo -e "${RED}❌ Application not found. Run build.sh first.${NC}"
@@ -69,6 +75,8 @@ cat > "$CONTENTS/Info.plist" << EOF
     <string>1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
@@ -243,6 +251,11 @@ codesign --force --sign - "$MACOS/$APP_NAME"
 # Sign the entire .app
 echo "Signing app bundle..."
 codesign --force --deep --sign - "$APP_BUNDLE"
+
+# Verify the app bundle structure
+echo "Verifying app bundle..."
+echo "Minimum system version: $(plutil -p "$CONTENTS/Info.plist" | grep LSMinimumSystemVersion)"
+echo "Architectures: $(file "$MACOS/$APP_NAME" | grep -o 'x86_64\|arm64' | tr '\n' ' ')"
 
 # Instead of creating a DMG, create a ZIP
 echo "Creating ZIP archive of the .app..."
