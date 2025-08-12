@@ -18,6 +18,14 @@ LSPManager::~LSPManager() = default; // Relies on unique_ptr to clean up adapter
 
 bool LSPManager::initialize(const std::string &path)
 {
+	// Defensive check - don't initialize if path is empty or invalid
+	if (path.empty())
+	{
+		std::cerr << "\033[33mLSP Manager:\033[0m Cannot initialize with empty path"
+				  << std::endl;
+		return false;
+	}
+
 	workspacePath = path; // Store for potential use by any adapter
 
 	// Only initialize the active adapter if it's not already initialized
