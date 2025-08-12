@@ -1,5 +1,7 @@
 #include "lsp_adapter_clangd.h"
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <sys/types.h>
@@ -40,13 +42,24 @@ bool LSPAdapterClangd::initialize(const std::string &workspacePath)
 	}
 
 	// Check if the LSP server executable exists and is accessible
-	if (access(lspPath.c_str(), X_OK) != 0)
+	// Use a more defensive approach to avoid permission issues
+	try
 	{
-		std::cerr << "\033[31mClangd:\033[0m LSP server not found or not executable at: "
-				  << lspPath << std::endl;
-		std::cerr << "\033[33mClangd:\033[0m Error: " << strerror(errno) << std::endl;
-		std::cerr << "\033[33mClangd:\033[0m Clangd LSP support will be disabled for "
-					 "this session"
+		if (access(lspPath.c_str(), X_OK) != 0)
+		{
+			std::cerr
+				<< "\033[31mClangd:\033[0m LSP server not found or not executable at: "
+				<< lspPath << std::endl;
+			std::cerr << "\033[33mClangd:\033[0m Error: " << strerror(errno) << std::endl;
+			std::cerr << "\033[33mClangd:\033[0m Clangd LSP support will be disabled for "
+						 "this session"
+					  << std::endl;
+			return false;
+		}
+	} catch (...)
+	{
+		std::cerr << "\033[33mClangd:\033[0m Could not check LSP server accessibility - "
+					 "disabling LSP support"
 				  << std::endl;
 		return false;
 	}
