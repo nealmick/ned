@@ -69,6 +69,9 @@ class AIAgent
 	// Helper method to trigger AI response after tool calls
 	void triggerAIResponse();
 
+	// Helper method to render OpenRouter key input when API key errors occur
+	void renderOpenRouterKeyInput(float textBoxWidth, float horizontalPadding);
+
 	// History management
 	AIAgentHistory historyManager;
 
@@ -82,4 +85,7 @@ class AIAgent
 	std::map<std::string, int> failedToolCalls; // tool_name -> failure_count
 	std::chrono::system_clock::time_point lastToolCallTime;
 	static const int MAX_FAILED_CALLS = 3; // Maximum consecutive failures for same tool
+
+	// Track API key errors to show key input
+	bool hasApiKeyError = false;
 };
