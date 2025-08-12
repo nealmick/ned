@@ -30,6 +30,9 @@ class LSPManager
 	// Language-specific helpers
 	std::string getLanguageId(const std::string &filePath) const;
 
+	// Check if the current adapter is working
+	bool hasWorkingAdapter() const;
+
   private:
 	// LSP adapter instances
 	std::unique_ptr<LSPAdapterClangd> clangdAdapter;
