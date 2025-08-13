@@ -1,4 +1,6 @@
-# Ned 
+
+<img width="250" height="150" alt="ned-3" src="https://github.com/user-attachments/assets/4bfde9f8-6e01-4854-91e7-7b5c2f202712" />
+
 <img src="https://github.com/nealmick/ned/actions/workflows/pack-app.yml/badge.svg" alt="Build Status">  ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)  ![Debian](https://img.shields.io/badge/Debian-✓-success?logo=debian&logoColor=white)  ![Windows](https://img.shields.io/badge/Windows-✗%20coming%20soon-red?logo=microsoft&logoColor=white)
 
 A retro-style text editor with GL shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
@@ -76,7 +78,7 @@ xattr -dr com.apple.quarantine Ned.app
 # Embed Ned in Your Dear ImGui Projects
 
 https://github.com/user-attachments/assets/56c17e13-729b-4667-a6d4-95119f059252
-# [github.com/nealmick/ImGui_Ned_Embed](https://github.com/nealmick/ImGui_Ned_Embed)
+### [github.com/nealmick/ImGui_Ned_Embed](https://github.com/nealmick/ImGui_Ned_Embed)
 
 Ned can be embedded in other ImGui applications, taking advantage of its text editor, file explorer, and terminal emulator. The embedded version also includes emoji support, themes, and much more. We have a demo repository that shows how to get started embedding the neditor into your projects.
 
