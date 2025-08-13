@@ -128,17 +128,25 @@ void Terminal::UpdateTerminalColors()
 Terminal::~Terminal()
 {
 	shouldTerminate = true;
-	if (readThread.joinable())
-	{
-		readThread.join();
-	}
+
+	// Close PTY first to signal the child process
 	if (ptyFd >= 0)
 	{
 		close(ptyFd);
+		ptyFd = -1;
 	}
+
+	// Terminate child process
 	if (childPid > 0)
 	{
 		kill(childPid, SIGTERM);
+		childPid = -1;
+	}
+
+	// Wait for read thread with timeout
+	if (readThread.joinable())
+	{
+		readThread.join();
 	}
 }
 
@@ -2779,6 +2787,20 @@ void Terminal::readOutput()
 	char buffer[4096];
 	while (!shouldTerminate)
 	{
+		// Use select with timeout to make thread responsive to shouldTerminate
+		fd_set readfds;
+		struct timeval timeout;
+		FD_ZERO(&readfds);
+		FD_SET(ptyFd, &readfds);
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 100000; // 100ms timeout
+
+		int result = select(ptyFd + 1, &readfds, NULL, NULL, &timeout);
+		if (result < 0)
+			break;
+		if (result == 0)
+			continue; // timeout, check shouldTerminate
+
 		ssize_t bytesRead = read(ptyFd, buffer, sizeof(buffer) - 1);
 		if (bytesRead > 0)
 		{
@@ -2788,8 +2810,6 @@ void Terminal::readOutput()
 		{
 			break;
 		}
-		// Add this line:
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 void Terminal::tputtab(int n)

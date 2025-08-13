@@ -10,6 +10,7 @@
 #include "../editor/editor.h"
 #include "../lsp/lsp.h"
 #include "file_content_search.h"
+#include "file_monitor.h"
 #include "file_tree.h"
 #include "file_undo_redo.h"
 
@@ -136,29 +137,12 @@ class FileExplorer
 	bool _undoStateDirty = false; // Track if undo state needs saving
 
 	// External file change detection
-	std::map<std::string, fs::file_time_type> _fileModificationTimes;
-	std::map<std::string, std::string> _fileContentHashes;
-	bool _externalFileChangeDetected = false;
-	std::string _lastChangedFile;
-	double _lastChangeCheckTime = 0.0;
-	double _lastScanTime = 0.0;
-	const double FILE_CHANGE_CHECK_INTERVAL = 1.0; // Check every second
-	const double FILE_SCAN_INTERVAL =
-		2.0; // Rescan for new files every 2 seconds (much faster)
-	std::set<std::string>
-		_monitoredFiles; // Track all files that should be monitored for changes
-
-	// Background file scanning
-	std::thread _fileScanThread;
+	FileMonitor _fileMonitor;
 
 	// External file change detection methods
 	void checkForExternalFileChanges();
-	void updateFileModificationTime(const std::string &filePath);
-	void scanProjectFilesForMonitoring(); // Scan project directory for files to monitor
-	void quickScanForNewFiles();		  // Quick scan for newly created files
-	std::string calculateFileHash(const std::string &content);
-	void handleExternalFileChange(const std::string &filePath);
-	bool shouldReloadFile(const std::string &filePath);
+
+	// File reloading
 	void reloadCurrentFile();
 
   private:
