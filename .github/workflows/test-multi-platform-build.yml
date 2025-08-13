@@ -23,18 +23,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
-      
       - name: Build
         run: ./build.sh
-      
       - name: Package
         run: |
           ./pack-mac.sh
           mv Ned.zip "Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
-      
       - name: Upload macOS ARM Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -49,20 +45,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
-      
       - name: Build
         run: |
           export MACOSX_DEPLOYMENT_TARGET=10.15
           ./build.sh
-      
       - name: Package
         run: |
           ./pack-mac.sh
           mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
-      
       - name: Upload macOS Intel Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -77,22 +69,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
             pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
-      
       - name: Build
         run: ./build.sh
-      
       - name: Package
         run: |
           chmod +x pack-deb.sh
           ./pack-deb.sh
           mv Ned_*.deb "Ned-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
-      
       - name: Upload Debian Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:

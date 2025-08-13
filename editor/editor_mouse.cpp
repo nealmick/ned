@@ -173,6 +173,23 @@ void EditorMouse::handleMouseClick(int char_index)
 		// Snap to UTF-8 boundary
 		editor_state.cursor_index =
 			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
+
+		// Update cursor column preference for shift-click (visual column)
+		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+		int line_start = editor_state.editor_content_lines[current_line];
+		int visual_column = 0;
+		const int TAB_WIDTH = 4;
+		for (int i = line_start; i < editor_state.cursor_index; i++)
+		{
+			if (editor_state.fileContent[i] == '\t')
+			{
+				visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
+			} else
+			{
+				visual_column++;
+			}
+		}
+		editor_state.cursor_column_prefered = visual_column;
 	} else
 	{
 		// On a regular click (without shift), reset the selection and update
@@ -182,9 +199,22 @@ void EditorMouse::handleMouseClick(int char_index)
 		editor_state.selection_start = char_index;
 		editor_state.selection_end = char_index;
 		editor_state.selection_active = false;
+		// Calculate visual column for preferred column (accounts for tabs)
 		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-		editor_state.cursor_column_prefered =
-			editor_state.cursor_index - editor_state.editor_content_lines[current_line];
+		int line_start = editor_state.editor_content_lines[current_line];
+		int visual_column = 0;
+		const int TAB_WIDTH = 4;
+		for (int i = line_start; i < editor_state.cursor_index; i++)
+		{
+			if (editor_state.fileContent[i] == '\t')
+			{
+				visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
+			} else
+			{
+				visual_column++;
+			}
+		}
+		editor_state.cursor_column_prefered = visual_column;
 		editor_state.ensure_cursor_visible.horizontal = true;
 		// Snap to UTF-8 boundary
 		editor_state.cursor_index =
@@ -232,6 +262,23 @@ void EditorMouse::handleMouseDrag(int char_index)
 		editor_state.cursor_index =
 			snapToUtf8CharBoundary(editor_state.fileContent, editor_state.cursor_index);
 	}
+
+	// Update cursor column preference for any drag operation (visual column)
+	int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
+	int line_start = editor_state.editor_content_lines[current_line];
+	int visual_column = 0;
+	const int TAB_WIDTH = 4;
+	for (int i = line_start; i < editor_state.cursor_index; i++)
+	{
+		if (editor_state.fileContent[i] == '\t')
+		{
+			visual_column = ((visual_column / TAB_WIDTH) + 1) * TAB_WIDTH;
+		} else
+		{
+			visual_column++;
+		}
+	}
+	editor_state.cursor_column_prefered = visual_column;
 }
 
 void EditorMouse::handleMouseRelease()
