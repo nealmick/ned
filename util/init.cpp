@@ -120,6 +120,58 @@ void Init::initializeImGui(GLFWwindow *window)
 	io.IniFilename = NULL; // Disable ImGui .ini file writing
 	(void)io;
 	ImGui::StyleColorsDark();
+
+	// Customize ImGui style for rounded borders
+	ImGuiStyle &style = ImGui::GetStyle();
+	style.FrameRounding = 8.0f;		// Rounded corners for input fields, sliders, etc.
+	style.GrabRounding = 8.0f;		// Rounded corners for grab handles
+	style.WindowRounding = 12.0f;	// Rounded corners for windows
+	style.ChildRounding = 8.0f;		// Rounded corners for child windows
+	style.PopupRounding = 8.0f;		// Rounded corners for popups
+	style.ScrollbarRounding = 8.0f; // Rounded corners for scrollbars
+	style.TabRounding = 8.0f;		// Rounded corners for tabs
+
+	// Bootstrap-like color scheme
+	ImVec4 *colors = style.Colors;
+
+	// Primary colors (Darker Bootstrap blue)
+	colors[ImGuiCol_Button] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);		 // Primary button
+	colors[ImGuiCol_ButtonHovered] = ImVec4(0.06f, 0.35f, 0.60f, 1.00f); // Hovered button
+	colors[ImGuiCol_ButtonActive] = ImVec4(0.04f, 0.25f, 0.45f, 1.00f);	 // Active button
+
+	// Checkbox and radio button colors
+	colors[ImGuiCol_CheckMark] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f); // Checkmark color
+	colors[ImGuiCol_FrameBg] =
+		ImVec4(0.95f, 0.95f, 0.95f, 0.30f); // Input field background
+	colors[ImGuiCol_FrameBgHovered] =
+		ImVec4(0.90f, 0.90f, 0.90f, 0.40f); // Input field hover
+	colors[ImGuiCol_FrameBgActive] =
+		ImVec4(0.85f, 0.85f, 0.85f, 0.50f); // Input field active
+
+	// Slider colors
+	colors[ImGuiCol_SliderGrab] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f); // Slider grab
+	colors[ImGuiCol_SliderGrabActive] =
+		ImVec4(0.06f, 0.35f, 0.60f, 1.00f); // Slider grab active
+
+	// Header colors
+	colors[ImGuiCol_Header] = ImVec4(0.08f, 0.45f, 0.75f, 0.31f); // Header background
+	colors[ImGuiCol_HeaderHovered] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f); // Header hover
+	colors[ImGuiCol_HeaderActive] = ImVec4(0.08f, 0.45f, 0.75f, 0.80f);	 // Header active
+
+	// Tab colors
+	colors[ImGuiCol_Tab] = ImVec4(0.08f, 0.45f, 0.75f, 0.31f);		  // Tab background
+	colors[ImGuiCol_TabHovered] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f); // Tab hover
+	colors[ImGuiCol_TabActive] = ImVec4(0.08f, 0.45f, 0.75f, 0.80f);  // Tab active
+
+	// Scrollbar colors
+	colors[ImGuiCol_ScrollbarBg] =
+		ImVec4(0.95f, 0.95f, 0.95f, 0.30f); // Scrollbar background
+	colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f); // Scrollbar grab
+	colors[ImGuiCol_ScrollbarGrabHovered] =
+		ImVec4(0.08f, 0.45f, 0.75f, 0.80f); // Scrollbar grab hover
+	colors[ImGuiCol_ScrollbarGrabActive] =
+		ImVec4(0.06f, 0.35f, 0.60f, 1.00f); // Scrollbar grab active
+
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
 }
