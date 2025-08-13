@@ -22,6 +22,7 @@ class EditorRender
 	void renderEditorContent();
 	void renderText();
 	void renderWhitespaceGuides();
+	void renderCurrentLineHighlight();
 	bool validateAndResizeColors();
 	void setupEditorWindow(const char *label);
 	void beginTextEditorChild(const char *label,

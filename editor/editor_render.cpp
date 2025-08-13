@@ -180,6 +180,9 @@ void EditorRender::renderEditorContent()
 	// Render whitespace guides first (behind text)
 	renderWhitespaceGuides();
 
+	// Render current line highlighting (behind text)
+	renderCurrentLineHighlight();
+
 	renderText();
 
 	gEditorCursor.renderCursor();
@@ -408,6 +411,117 @@ void EditorRender::renderWhitespaceGuides()
 												1.0f);
 		}
 	}
+}
+
+void EditorRender::renderCurrentLineHighlight()
+{
+	ImVec2 base_text_pos = editor_state.text_pos;
+	const float scroll_x = ImGui::GetScrollX();
+	const float scroll_y = ImGui::GetScrollY();
+	const float window_height = ImGui::GetWindowHeight();
+	const float line_height = editor_state.line_height;
+
+	if (line_height <= 0.0f || editor_state.editor_content_lines.empty())
+	{
+		return;
+	}
+
+	// Find which line the cursor is on - optimized calculation
+	static size_t cached_cursor_line = 0;
+	static size_t cached_cursor_pos = SIZE_MAX;
+
+	size_t cursor_pos = editor_state.cursor_index;
+	size_t cursor_line = cached_cursor_line;
+
+	// Only recalculate if cursor position changed
+	if (cursor_pos != cached_cursor_pos)
+	{
+		// Start search from cached position for efficiency
+		size_t search_start = (cached_cursor_line > 0) ? cached_cursor_line - 1 : 0;
+		size_t search_end =
+			std::min(cached_cursor_line + 2, editor_state.editor_content_lines.size());
+
+		bool found = false;
+
+		// Quick search around cached position first
+		for (size_t i = search_start;
+			 i < search_end && i < editor_state.editor_content_lines.size();
+			 ++i)
+		{
+			size_t line_start = editor_state.editor_content_lines[i];
+			size_t line_end = (i + 1 < editor_state.editor_content_lines.size())
+								  ? editor_state.editor_content_lines[i + 1]
+								  : editor_state.fileContent.size();
+
+			if ((cursor_pos >= line_start && cursor_pos < line_end) ||
+				(i == editor_state.editor_content_lines.size() - 1 &&
+				 cursor_pos == line_end))
+			{
+				cursor_line = i;
+				found = true;
+				break;
+			}
+		}
+
+		// If not found in quick search, do full search
+		if (!found)
+		{
+			for (size_t i = 0; i < editor_state.editor_content_lines.size(); ++i)
+			{
+				size_t line_start = editor_state.editor_content_lines[i];
+				size_t line_end = (i + 1 < editor_state.editor_content_lines.size())
+									  ? editor_state.editor_content_lines[i + 1]
+									  : editor_state.fileContent.size();
+
+				if ((cursor_pos >= line_start && cursor_pos < line_end) ||
+					(i == editor_state.editor_content_lines.size() - 1 &&
+					 cursor_pos == line_end))
+				{
+					cursor_line = i;
+					break;
+				}
+			}
+		}
+
+		// Update cache
+		cached_cursor_line = cursor_line;
+		cached_cursor_pos = cursor_pos;
+	}
+
+	// Calculate visible line range
+	int start_line_idx = static_cast<int>(scroll_y / line_height);
+	start_line_idx = std::max(0, start_line_idx - 2);
+	int end_line_idx = static_cast<int>((scroll_y + window_height) / line_height);
+	end_line_idx =
+		std::min(static_cast<int>(editor_state.editor_content_lines.size() - 1),
+				 end_line_idx + 2);
+
+	// Only highlight if the cursor line is visible
+	if (static_cast<int>(cursor_line) < start_line_idx ||
+		static_cast<int>(cursor_line) > end_line_idx)
+	{
+		return;
+	}
+
+	// Calculate line position
+	float line_y_start =
+		base_text_pos.y + (static_cast<float>(cursor_line) * line_height);
+	float line_y_end = line_y_start + line_height;
+
+	// Get window bounds for full-width highlight (shifted 6px to the right)
+	ImVec2 window_pos = ImGui::GetWindowPos();
+	float window_width = ImGui::GetWindowWidth();
+	float hl_x_start = window_pos.x + 6.0f;
+	float hl_x_end = window_pos.x + window_width;
+
+	// Subtle highlight color - light grey tint
+	const ImU32 highlight_color =
+		ImGui::ColorConvertFloat4ToU32(ImVec4(0.5f, 0.5f, 0.5f, 0.08f));
+
+	// Draw the highlight rectangle
+	ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(hl_x_start, line_y_start),
+											  ImVec2(hl_x_end, line_y_end),
+											  highlight_color);
 }
 
 void EditorRender::renderText()
