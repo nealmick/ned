@@ -23,18 +23,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
-      
       - name: Build
         run: ./build.sh
-      
       - name: Package
         run: |
           ./pack-mac.sh
           mv Ned.zip "Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
-      
       - name: Upload macOS ARM Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -49,20 +45,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
       - name: Install dependencies
         run: brew install clang-format cmake llvm glfw glew pkg-config
-      
       - name: Build
         run: |
           export MACOSX_DEPLOYMENT_TARGET=10.15
           ./build.sh
-      
       - name: Package
         run: |
           ./pack-mac.sh
           mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
-      
       - name: Upload macOS Intel Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -77,24 +69,56 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
             pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
-      
       - name: Build
         run: ./build.sh
-      
       - name: Package
         run: |
           chmod +x pack-deb.sh
           ./pack-deb.sh
           mv Ned_*.deb "Ned-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
-      
       - name: Upload Debian Artifact # Changed from Release to Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Ned-Debian-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
           path: Ned-Debian-*.deb # Path to the file(s)
+
+  debian-arm64:
+    runs-on: ubuntu-22.04
+    needs: create-tag
+    # permissions: contents: write # Not needed for artifact upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup ARM64 cross-compilation
+        run: |
+          sudo apt update
+          sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo dpkg --add-architecture arm64
+          sudo apt update
+          sudo apt install -y cmake libglfw3-dev:arm64 libglew-dev:arm64 \
+            libgtk-3-dev:arm64 pkg-config build-essential libcurl4-openssl-dev:arm64 \
+            clang-format mesa-utils
+      - name: Build for ARM64
+        run: |
+          export CC=aarch64-linux-gnu-gcc
+          export CXX=aarch64-linux-gnu-g++
+          export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          ./build.sh
+      - name: Package
+        run: |
+          chmod +x pack-deb.sh
+          # Override architecture detection for ARM64
+          sed -i 's/ARCH=$(dpkg --print-architecture)/ARCH=arm64/' pack-deb.sh
+          ./pack-deb.sh
+          mv Ned_*.deb "Ned-Debian-ARM64-${{ needs.create-tag.outputs.timestamp }}.deb"
+      - name: Upload Debian ARM64 Artifact # Changed from Release to Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-Debian-ARM64-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
+          path: Ned-Debian-ARM64-*.deb # Path to the file(s)
