@@ -61,6 +61,9 @@ class FileMonitor
 	// File extensions to monitor
 	std::set<std::string> _monitoredExtensions;
 
+	// Throttling for checkForExternalFileChanges
+	double _lastChangeCheckTime = 0.0;
+
 	// Initialize monitored extensions
 	void initializeMonitoredExtensions();
 };
