@@ -65,6 +65,16 @@ void FileMonitor::checkForExternalFileChanges()
 		return;
 	}
 
+	// Throttle checks to avoid performance impact - check every second like the old
+	// implementation
+	double currentTime = glfwGetTime();
+	const double FILE_CHANGE_CHECK_INTERVAL = 1.0; // Check every second
+	if (currentTime - _lastChangeCheckTime < FILE_CHANGE_CHECK_INTERVAL)
+	{
+		return;
+	}
+	_lastChangeCheckTime = currentTime;
+
 	// Check all monitored files for external changes
 	std::vector<std::string> filesToRemove;
 
