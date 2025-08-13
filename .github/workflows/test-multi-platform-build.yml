@@ -86,27 +86,3 @@ jobs:
         with:
           name: Ned-Debian-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
           path: Ned-Debian-*.deb # Path to the file(s)
-  debian-arm64:
-    runs-on: ubuntu-24.04-arm64  # Use actual ARM64 runner
-    needs: create-tag
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
-            pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
-      - name: Build
-        run: ./build.sh
-      - name: Package
-        run: |
-          chmod +x pack-deb.sh
-          ./pack-deb.sh
-          mv Ned_*.deb "Ned-Debian-ARM64-${{ needs.create-tag.outputs.timestamp }}.deb"
-      - name: Upload Debian ARM64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Ned-Debian-ARM64-${{ needs.create-tag.outputs.timestamp }}
-          path: Ned-Debian-ARM64-*.deb
