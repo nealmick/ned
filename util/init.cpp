@@ -131,6 +131,9 @@ void Init::initializeImGui(GLFWwindow *window)
 	style.ScrollbarRounding = 8.0f; // Rounded corners for scrollbars
 	style.TabRounding = 8.0f;		// Rounded corners for tabs
 
+	// Global padding for all buttons and framed elements
+	style.FramePadding = ImVec2(6.0f, 4.0f); // Horizontal and vertical padding
+
 	// Bootstrap-like color scheme
 	ImVec4 *colors = style.Colors;
 

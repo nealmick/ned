@@ -65,7 +65,7 @@ class FileTree
 		static constexpr ImVec2 FRAME_PADDING = ImVec2(4, 2);
 		static constexpr ImVec2 ITEM_SPACING = ImVec2(1, 3);
 		static constexpr ImVec4 TRANSPARENT_BG = ImVec4(0, 0, 0, 0);
-		static constexpr ImVec4 HOVER_COLOR = ImVec4(0.26f, 0.59f, 0.98f, 0.31f);
+		static constexpr ImVec4 HOVER_COLOR = ImVec4(0.06f, 0.35f, 0.60f, 0.85f);
 		static constexpr ImVec4 INACTIVE_TEXT = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
 	};
 

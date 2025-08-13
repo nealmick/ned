@@ -177,6 +177,8 @@ void EditorRender::beginTextEditorChild(const char *label,
 
 void EditorRender::renderEditorContent()
 {
+	// Render whitespace guides first (behind text)
+	renderWhitespaceGuides();
 
 	renderText();
 
@@ -317,6 +319,97 @@ bool EditorRender::skipLineIfAboveVisible(size_t &char_index,
 	}
 	return false;
 }
+void EditorRender::renderWhitespaceGuides()
+{
+	ImVec2 base_text_pos = editor_state.text_pos;
+	const float scroll_x = ImGui::GetScrollX();
+	const float scroll_y = ImGui::GetScrollY();
+	const float window_height = ImGui::GetWindowHeight();
+	const float line_height = editor_state.line_height;
+
+	if (line_height <= 0.0f || editor_state.editor_content_lines.empty())
+	{
+		return;
+	}
+
+	// Calculate visible line range
+	int start_line_idx = static_cast<int>(scroll_y / line_height);
+	start_line_idx = std::max(0, start_line_idx - 2);
+	int end_line_idx = static_cast<int>((scroll_y + window_height) / line_height);
+	end_line_idx =
+		std::min(static_cast<int>(editor_state.editor_content_lines.size() - 1),
+				 end_line_idx + 2);
+
+	if (start_line_idx > end_line_idx)
+	{
+		return;
+	}
+
+	// Calculate character width for spaces and tabs
+	float space_width = ImGui::CalcTextSize(" ").x;
+	float tab_width = space_width * 4; // Assuming 4-space tabs
+
+	// Color for whitespace guides (subtle gray)
+	const ImU32 guide_color =
+		ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.3f, 0.4f));
+
+	// Iterate through visible lines
+	for (int line_num = start_line_idx; line_num <= end_line_idx; ++line_num)
+	{
+		size_t line_char_start_idx = editor_state.editor_content_lines[line_num];
+		size_t line_char_end_idx;
+
+		if (static_cast<size_t>(line_num + 1) < editor_state.editor_content_lines.size())
+		{
+			line_char_end_idx = editor_state.editor_content_lines[line_num + 1];
+		} else
+		{
+			line_char_end_idx = editor_state.fileContent.size();
+		}
+
+		// Count leading whitespace and find first non-whitespace position
+		int total_whitespace_chars = 0;
+		size_t first_non_whitespace_idx = line_char_end_idx; // Default to end of line
+
+		for (size_t i = line_char_start_idx; i < line_char_end_idx; ++i)
+		{
+			if (editor_state.fileContent[i] == ' ')
+			{
+				total_whitespace_chars++;
+			} else if (editor_state.fileContent[i] == '\t')
+			{
+				total_whitespace_chars += 4; // Convert tab to 4 spaces
+			} else if (editor_state.fileContent[i] != '\n')
+			{
+				// Found first non-whitespace character (excluding newline)
+				first_non_whitespace_idx = i;
+				break;
+			} else
+			{
+				// Hit newline, this is an empty/whitespace-only line
+				break;
+			}
+		}
+
+		// Draw vertical guides for each indentation level (full height, shifted up)
+		float line_y_start =
+			base_text_pos.y + (static_cast<float>(line_num) * line_height) - 2.0f;
+		float line_y_end = line_y_start + line_height;
+
+		// Draw guides every 4 characters, but stop before where text begins
+		for (int level = 1; level * 4 < total_whitespace_chars; ++level)
+		{
+			float guide_x =
+				base_text_pos.x + (static_cast<float>(level * 4) * space_width);
+
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(guide_x, line_y_start),
+												ImVec2(guide_x, line_y_end),
+												guide_color,
+												1.0f);
+		}
+	}
+}
+
 void EditorRender::renderText()
 {
 	ImVec2 base_text_pos = editor_state.text_pos; // Base screen position for text area
