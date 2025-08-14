@@ -452,8 +452,8 @@ void Render::renderMainWindow(GLFWwindow *window,
 		// No sidebar: just editor and agent pane
 		float agentSplit = gSettings.getAgentSplitPos();
 
-		// Ensure agent pane has minimum width of 25%
-		float minAgentWidth = availableWidth * 0.25f;
+		// Ensure agent pane has minimum width of 300px
+		float minAgentWidth = 300.0f;
 		float maxEditorWidth = availableWidth - minAgentWidth - kAgentSplitterWidth;
 
 		float editorWidth =

@@ -221,7 +221,8 @@ void FileMonitor::scanProjectFilesForMonitoring()
 
 					// Skip specific files
 					if (filename == ".undo-redo-ned.json" ||
-						filename == ".ned-agent-history.json")
+						filename == ".ned-agent-history.json" ||
+						filename == "open_router_key.json")
 					{
 						continue;
 					}
