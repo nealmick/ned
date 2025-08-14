@@ -3,6 +3,10 @@
 #include "util/debug_console.h"
 #include <iostream>
 
+// PNG loading with stb_image
+#define STB_IMAGE_IMPLEMENTATION
+#include "../lib/stb_image.h"
+
 Welcome &gWelcome = Welcome::getInstance();
 
 void Welcome::calculateFPS()
@@ -16,6 +20,31 @@ void Welcome::calculateFPS()
 		frameCount = 0;
 		lastTime = currentTime;
 	}
+}
+
+bool Welcome::loadNedLogo()
+{
+	if (nedLogoTexture != 0)
+		return true; // Already loaded
+
+	int width, height, channels;
+	unsigned char *data = stbi_load("icons/ned.png", &width, &height, &channels, 4);
+	if (!data)
+	{
+		std::cerr << "Failed to load ned.png logo" << std::endl;
+		return false;
+	}
+
+	// Create OpenGL texture
+	glGenTextures(1, &nedLogoTexture);
+	glBindTexture(GL_TEXTURE_2D, nedLogoTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(
+		GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+	stbi_image_free(data);
+	return true;
 }
 
 void Welcome::render()
@@ -60,153 +89,264 @@ void Welcome::render()
 	}
 	// ImGui::TextColored(fpsColor, "FPS: %d", fps);
 
-	ImGui::SetCursorPosY(windowHeight * 0.2f);
-	{ // Scope for title scaling
-		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
-		float baseFontSize = currentFont->LegacySize;
-		float desiredFontSize = 48.0f; // Title size
-		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+	// Dynamic vertical positioning - move up for smaller windows
+	float minTopMargin = 20.0f;
+	float maxTopMargin = 80.0f;
+	float topMargin = minTopMargin + (maxTopMargin - minTopMargin) *
+										 std::min(1.0f, (windowHeight - 400.0f) / 400.0f);
+	float currentY = topMargin;
 
-		ImGui::PushFont(currentFont);
-		ImGui::SetWindowFontScale(scaleFactor);
+	// Check if we have enough width for side-by-side layout
+	bool useSideBySideLayout = windowWidth > 800.0f;
 
-		const char *title = "Welcome to NED";
-		float titleWidth = ImGui::CalcTextSize(title).x;
-		ImGui::SetCursorPosX((windowWidth - titleWidth) * 0.5f);
-		ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
-
-		ImGui::SetWindowFontScale(1.0f);
-		ImGui::PopFont();
-	} // End scope for title scaling
-
-	// GitHub link right under title
-	ImGui::SetCursorPosY(windowHeight * 0.27f); // Set Y position first
-	{											// Scope for github link scaling
-		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0]; // Get default font again
-		float baseFontSize = currentFont->LegacySize;
-		float desiredFontSize = 22.0f; // <<< Github link desired size
-		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
-
-		ImGui::PushFont(currentFont);			// Push font to scale
-		ImGui::SetWindowFontScale(scaleFactor); // Apply scaling for github link
-
-		const char *github = "github.com/nealmick/ned";
-		float githubWidth =
-			ImGui::CalcTextSize(github).x; // Calculate width with scaled font
-		ImGui::SetCursorPosX((windowWidth - githubWidth) *
-							 0.5f); // Set X position after calculating width
-		ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f),
-						   "%s",
-						   github); // Draw scaled text
-		ImGui::SetItemAllowOverlap();
-
-		ImGui::SetWindowFontScale(1.0f); // Reset scale
-		ImGui::PopFont();				 // Pop font
-	} // End scope for github link scaling
-	if (ImGui::GetWindowWidth() > 750.0f)
+	if (useSideBySideLayout && loadNedLogo())
 	{
-		ImGui::SetCursorPosY(windowHeight * 0.35f);
-		{ // Scope for description scaling
+		// Hero layout: Logo on LEFT of center, title and button on RIGHT of center
+		// Scale logo based on window size - bigger windows get bigger logos (40% larger)
+		float logoSize =
+			std::min(windowWidth * 0.31f, std::min(310.0f, windowHeight * 0.49f));
+		float centerX = windowWidth * 0.5f;
+		float spacing = 60.0f; // Space between logo and title/button section
+
+		// Logo positioned LEFT of center
+		float logoX = centerX - spacing - logoSize;
+		float logoY = currentY + 20.0f;
+
+		ImGui::SetCursorPos(ImVec2(logoX, logoY));
+		ImGui::Image((ImTextureID)(intptr_t)nedLogoTexture, ImVec2(logoSize, logoSize));
+
+		// Title and button positioned RIGHT of center, moved 200px left
+		float contentStartX = centerX + spacing - 100.0f;
+		float titleY = logoY + 20.0f;
+
+		// Title - positioned right of center
+		{ // Scope for title scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
 			float baseFontSize = currentFont->LegacySize;
-			float desiredFontSize = 24.0f; // <<< Description desired size
+			float desiredFontSize = std::min(64.0f, windowWidth * 0.12f);
 			float scaleFactor =
 				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
 			ImGui::PushFont(currentFont);
 			ImGui::SetWindowFontScale(scaleFactor);
 
-			const char *description = "A lightweight, feature-rich text editor "
-									  "built with C++ and ImGui.";
-			float descWidth = ImGui::CalcTextSize(description).x;
-			ImGui::SetCursorPosX((windowWidth - descWidth) * 0.5f);
-			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "%s", description);
+			const char *title = "Welcome to NED";
+			ImGui::SetCursorPos(ImVec2(contentStartX, titleY));
+			ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
 
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::PopFont();
-		} // End scope for description scaling
+		}
 
-		// Keybinds section
-		ImGui::SetCursorPosY(windowHeight * 0.42f);
-		{ // Scope for keybinds scaling
+		// Button below title - positioned right of center (bigger button)
+		float buttonY = titleY + 70.0f;
+		float buttonWidth = 280.0f;
+		float buttonHeight = 60.0f;
+		float buttonX = contentStartX;
+
+		ImGui::SetCursorPos(ImVec2(buttonX, buttonY));
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+
+		{ // Scope for button text scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
 			float baseFontSize = currentFont->LegacySize;
-			float desiredFontSize = 24.0f; // <<< Keybinds desired size
+			float desiredFontSize = 26.0f;
 			float scaleFactor =
 				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
 			ImGui::PushFont(currentFont);
-			ImGui::SetWindowFontScale(scaleFactor); // Apply scale for the whole section
+			ImGui::SetWindowFontScale(scaleFactor);
 
-			// First row of keybinds
-			ImGui::SetCursorPosX(windowWidth * 0.3f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+O Open Folder");
-			ImGui::SameLine(windowWidth * 0.6f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+T Terminal");
+			if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
+			{
+				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
+						  << std::endl;
+				gFileExplorer._showFileDialog = true;
+			}
 
-			// Second row
-			ImGui::SetCursorPosX(windowWidth * 0.3f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+B Bookmarks");
-			ImGui::SameLine(windowWidth * 0.6f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+: Line Jump");
+			ImGui::SetWindowFontScale(1.0f);
+			ImGui::PopFont();
+		}
 
-			// Third row
-			ImGui::SetCursorPosX(windowWidth * 0.3f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+F Find");
-			ImGui::SameLine(windowWidth * 0.6f);
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "CMD+/ Show this window");
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor(3);
 
-			ImGui::SetWindowFontScale(1.0f); // Reset scale after the section
-			ImGui::PopFont();				 // Pop font after the section
-		} // End scope for keybinds scaling
-	}
-	// Open Folder button
-	float buttonWidth = 300;
-	float buttonHeight = 50;
-	if (ImGui::GetWindowWidth() < 750.0f)
-	{
-		ImGui::SetCursorPosY(windowHeight * 0.40f);
+		// Keybinds section under the button on the right side
+		float keybindsY = buttonY + buttonHeight + 30.0f;
+		float keybindsX = contentStartX;
+
+		// Only show keybinds if there's enough space
+		if (windowHeight > keybindsY + 120.0f)
+		{
+			{ // Scope for keybinds scaling
+				ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
+				float baseFontSize = currentFont->LegacySize;
+				float desiredFontSize = std::min(20.0f, windowWidth * 0.045f);
+				float scaleFactor =
+					(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+
+				ImGui::PushFont(currentFont);
+				ImGui::SetWindowFontScale(scaleFactor);
+
+				// Two column layout aligned under the button
+				const char *keybinds[] = {"CMD+O Open Folder",
+										  "CMD+T Terminal",
+										  "CMD+B Bookmarks",
+										  "CMD+: Line Jump",
+										  "CMD+F Find",
+										  "CMD+/ Show this window"};
+
+				// Two-column layout: 3 rows, 2 columns
+				float colSpacing = 200.0f;
+				for (int i = 0; i < 3; i++)
+				{
+					// Left column
+					ImGui::SetCursorPos(ImVec2(keybindsX, keybindsY + i * 22.0f));
+					ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+									   "%s",
+									   keybinds[i * 2]);
+
+					// Right column
+					if (i * 2 + 1 < 6)
+					{
+						ImGui::SetCursorPos(
+							ImVec2(keybindsX + colSpacing, keybindsY + i * 22.0f));
+						ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+										   "%s",
+										   keybinds[i * 2 + 1]);
+					}
+				}
+
+				ImGui::SetWindowFontScale(1.0f);
+				ImGui::PopFont();
+			}
+		}
+
+		currentY = std::max(logoY + logoSize,
+							std::max(buttonY + buttonHeight, keybindsY + 140.0f)) +
+				   40.0f;
 	} else
 	{
-		ImGui::SetCursorPosY(windowHeight * 0.60f);
+		// Vertical layout: Logo, title, and button stacked
+
+		// Logo (if available and fits)
+		if (loadNedLogo() && windowHeight > 400.0f)
+		{
+			float logoSize =
+				std::min(windowWidth * 0.3f, std::min(150.0f, windowHeight * 0.2f));
+			float logoX = (windowWidth - logoSize) * 0.5f;
+
+			ImGui::SetCursorPos(ImVec2(logoX, currentY));
+			ImGui::Image((ImTextureID)(intptr_t)nedLogoTexture,
+						 ImVec2(logoSize, logoSize));
+			currentY += logoSize + 30.0f;
+		}
+
+		// Title - always centered
+		{ // Scope for title scaling
+			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
+			float baseFontSize = currentFont->LegacySize;
+			float desiredFontSize = std::min(40.0f, windowWidth * 0.08f);
+			float scaleFactor =
+				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+
+			ImGui::PushFont(currentFont);
+			ImGui::SetWindowFontScale(scaleFactor);
+
+			const char *title = "Welcome to NED";
+			float titleWidth = ImGui::CalcTextSize(title).x;
+			ImGui::SetCursorPos(ImVec2((windowWidth - titleWidth) * 0.5f, currentY));
+			ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
+
+			ImGui::SetWindowFontScale(1.0f);
+			ImGui::PopFont();
+		}
+		currentY += 60.0f;
+
+		// Button - centered (bigger in vertical layout too)
+		float buttonWidth = std::min(320.0f, windowWidth * 0.8f);
+		float buttonHeight = 55.0f;
+
+		ImGui::SetCursorPos(ImVec2((windowWidth - buttonWidth) * 0.5f, currentY));
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+
+		{ // Scope for button text scaling
+			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
+			float baseFontSize = currentFont->LegacySize;
+			float desiredFontSize = 24.0f;
+			float scaleFactor =
+				(baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
+
+			ImGui::PushFont(currentFont);
+			ImGui::SetWindowFontScale(scaleFactor);
+
+			if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
+			{
+				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
+						  << std::endl;
+				gFileExplorer._showFileDialog = true;
+			}
+
+			ImGui::SetWindowFontScale(1.0f);
+			ImGui::PopFont();
+		}
+
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor(3);
+
+		currentY += buttonHeight + 40.0f;
 	}
-	ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
 
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
-
-	{ // Scope for button text scaling
+	// GitHub link at the bottom - centered
+	float githubY = windowHeight - 60.0f; // 60px from bottom
+	ImGui::SetCursorPosY(githubY);
+	{ // Scope for github link scaling
 		ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
 		float baseFontSize = currentFont->LegacySize;
-		float desiredFontSize = 32.0f; // <<< Button text desired size
+		float desiredFontSize = 20.0f;
 		float scaleFactor = (baseFontSize > 0) ? (desiredFontSize / baseFontSize) : 1.0f;
 
 		ImGui::PushFont(currentFont);
-		ImGui::SetWindowFontScale(scaleFactor); // Scale font for the button text
+		ImGui::SetWindowFontScale(scaleFactor);
 
-		// Draw the button - the text inside will use the scaled font
-		if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
+		const char *github = "github.com/nealmick/ned";
+		float githubWidth = ImGui::CalcTextSize(github).x;
+		ImGui::SetCursorPosX((windowWidth - githubWidth) * 0.5f);
+
+		// Make GitHub link clickable
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+		if (ImGui::Selectable(github,
+							  false,
+							  ImGuiSelectableFlags_None,
+							  ImVec2(githubWidth,
+									 ImGui::GetTextLineHeight() * scaleFactor)))
 		{
-			std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
-					  << std::endl;
-			gFileExplorer._showFileDialog = true;
+			// Open GitHub URL in default browser
+#ifdef __APPLE__
+			system("open https://github.com/nealmick/ned");
+#elif defined(_WIN32)
+			system("start https://github.com/nealmick/ned");
+#else
+			system("xdg-open https://github.com/nealmick/ned");
+#endif
+		}
+		ImGui::PopStyleColor();
+
+		// Add hover effect
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Click to open GitHub repository");
 		}
 
-		ImGui::SetWindowFontScale(1.0f); // Reset scale immediately after button
-		ImGui::PopFont();				 // Pop font immediately after button
-	} // End scope for button text scaling
-
-	ImGui::SetCursorPosY(windowHeight * 0.71f); // Position below button
-	ImGui::SetCursorPosX((windowWidth - (windowWidth * 0.6f)) * 0.5f); // Center console
-
-	ImGui::SetCursorPosY(windowHeight * 0.71f); // Position below button
-	ImGui::SetCursorPosX((windowWidth - (windowWidth * 0.6f)) * 0.5f); // Center console
-	gDebugConsole.render();
-
-	ImGui::PopStyleVar();
-	ImGui::PopStyleColor(3);
+		ImGui::SetWindowFontScale(1.0f);
+		ImGui::PopFont();
+	} // End scope for github link scaling
 
 	if (!isEmbedded)
 	{

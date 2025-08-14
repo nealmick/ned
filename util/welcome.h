@@ -18,9 +18,9 @@ class Welcome
 	bool getEmbedded() const { return isEmbedded; }
 
   private:
-	Welcome()
-		: frameCount(0), lastTime(0.0), fps(0), isEmbedded(false)
-	{} // Initialize FPS members
+	Welcome() : frameCount(0), lastTime(0.0), fps(0), isEmbedded(false), nedLogoTexture(0)
+	{
+	} // Initialize FPS members
 
 	// FPS calculation members
 	int frameCount;
@@ -28,7 +28,11 @@ class Welcome
 	int fps;
 	bool isEmbedded;
 
+	// Logo texture
+	GLuint nedLogoTexture;
+
 	void calculateFPS(); // Helper to calculate FPS
+	bool loadNedLogo();	 // Load the ned.png logo
 };
 
 extern Welcome &gWelcome;
