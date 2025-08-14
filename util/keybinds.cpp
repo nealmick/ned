@@ -617,7 +617,6 @@ bool KeybindsManager::handleKeyboardShortcuts()
 	{
 		std::cout << "triggering file dialog" << std::endl;
 		ClosePopper::closeAll();
-		gFileExplorer.showWelcomeScreen = false;
 		gFileExplorer.saveCurrentFile();
 		gFileExplorer._showFileDialog = true;
 		shortcutPressed = true;
