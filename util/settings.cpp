@@ -1361,6 +1361,10 @@ void Settings::switchToProfile(const std::string &profileName)
 	profileJustSwitched = true;
 	settingsChanged = true;
 	fontChanged = true;
+
+	// Force syntax color update for editor
+	extern class EditorHighlight gEditorHighlight;
+	gEditorHighlight.forceColorUpdate();
 }
 
 std::string Settings::getCurrentProfileName() const
