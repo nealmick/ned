@@ -1,5 +1,6 @@
 #include "welcome.h"
 #include "../files/files.h"
+#include "settings.h"
 #include "util/debug_console.h"
 #include <iostream>
 
@@ -45,6 +46,283 @@ bool Welcome::loadNedLogo()
 
 	stbi_image_free(data);
 	return true;
+}
+
+bool Welcome::loadWelcomeImages()
+{
+	bool allLoaded = true;
+
+	for (int i = 0; i < 4; i++)
+	{
+		if (welcomeImages[i].loaded)
+			continue; // Already loaded
+
+		int width, height, channels;
+		unsigned char *data =
+			stbi_load(welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
+		if (!data)
+		{
+			std::cerr << "Failed to load " << welcomeImages[i].filename << std::endl;
+			allLoaded = false;
+			continue;
+		}
+
+		// Create OpenGL texture
+		glGenTextures(1, &welcomeImages[i].texture);
+		glBindTexture(GL_TEXTURE_2D, welcomeImages[i].texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(
+			GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+		stbi_image_free(data);
+		welcomeImages[i].loaded = true;
+	}
+
+	return allLoaded;
+}
+
+void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, float currentY)
+{
+	// Only show image grid if window is wide enough and we have space
+	if (windowWidth < 600.0f || !loadWelcomeImages())
+		return;
+
+	// Check if we have enough vertical space
+	float remainingHeight =
+		windowHeight - currentY - 100.0f; // Leave space for github link
+	if (remainingHeight < 150.0f)
+		return;
+
+	// Calculate responsive image size based on window width (35% smaller)
+	// Original images are 1240x940 (aspect ratio ~1.32:1)
+	float effectiveWidth = std::min(windowWidth, 1100.0f); // Cap scaling at 1100px
+	float baseImageSize =
+		std::min(160.0f, effectiveWidth * 0.1f);	  // Reduced from 250px to 160px
+	float imageSize = std::max(80.0f, baseImageSize); // Reduced minimum size
+
+	// Scale up for larger windows (less aggressive scaling) - but only up to 1100px width
+	if (effectiveWidth > 1000.0f)
+		imageSize = baseImageSize * 1.1f;
+
+	// Calculate grid layout
+	float spacing = 20.0f;
+	float totalGridWidth = (imageSize * 4) + (spacing * 3);
+
+	// If grid doesn't fit, make images smaller
+	if (totalGridWidth > windowWidth - 40.0f)
+	{
+		imageSize = (windowWidth - 40.0f - (spacing * 3)) / 4.0f;
+		if (imageSize < 80.0f) // Too small, don't show
+			return;
+	}
+
+	// Center the grid
+	float startX = (windowWidth - totalGridWidth) * 0.5f;
+	if (totalGridWidth > windowWidth - 40.0f)
+	{
+		totalGridWidth = (imageSize * 4) + (spacing * 3);
+		startX = (windowWidth - totalGridWidth) * 0.5f;
+	}
+
+	// Add some padding above the grid
+	currentY += 30.0f;
+
+	// Render the 4 images in a row
+	for (int i = 0; i < 4; i++)
+	{
+		if (!welcomeImages[i].loaded)
+			continue;
+
+		float imageX = startX + (imageSize + spacing) * i;
+		ImGui::SetCursorPos(ImVec2(imageX, currentY));
+
+		// Create an invisible button for click detection
+		ImGui::PushStyleColor(ImGuiCol_Button,
+							  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+							  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent hover
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+							  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent active
+
+		std::string buttonId = "welcome_img_" + std::to_string(i);
+		bool clicked = ImGui::Button(buttonId.c_str(), ImVec2(imageSize, imageSize));
+
+		ImGui::PopStyleColor(3);
+
+		// Get the button's position for drawing
+		ImVec2 p_min = ImGui::GetItemRectMin();
+		ImVec2 p_max = ImGui::GetItemRectMax();
+		ImDrawList *draw_list = ImGui::GetWindowDrawList();
+
+		// Draw the rounded image
+		draw_list->AddImageRounded((ImTextureID)(intptr_t)welcomeImages[i].texture,
+								   p_min,
+								   p_max,
+								   ImVec2(0, 0),
+								   ImVec2(1, 1),   // UV coordinates (full image)
+								   IM_COL32_WHITE, // Tint color
+								   12.0f);		   // Rounding radius
+
+		// Draw hover overlay if hovered
+		bool isHovered = ImGui::IsItemHovered();
+		if (isHovered)
+		{
+			draw_list->AddRectFilled(
+				p_min, p_max, IM_COL32(0, 123, 255, 76), 12.0f); // Light blue overlay
+		}
+
+		// Always draw grey border
+		draw_list->AddRect(p_min, p_max, IM_COL32(128, 128, 128, 80), 12.0f, 0, 1.5f);
+
+		// Check for click animation on this image
+		bool showClickAnimation = false;
+		float clickAnimationAlpha = 0.0f;
+		if (isPlayingClickAnimation && clickedThemeIndex == i)
+		{
+			double currentTime = glfwGetTime();
+			double animationProgress =
+				(currentTime - clickAnimationStartTime) / 0.7; // 0.7 second animation
+
+			if (animationProgress <= 1.0)
+			{
+				// Create fade in/out effect - reaches peak at 0.5, fades to 0 at 1.0
+				if (animationProgress <= 0.5)
+				{
+					clickAnimationAlpha = animationProgress * 2.0f; // Fade in (0 to 1)
+				} else
+				{
+					clickAnimationAlpha =
+						2.0f - (animationProgress * 2.0f); // Fade out (1 to 0)
+				}
+				showClickAnimation = true;
+			} else
+			{
+				// Animation finished
+				isPlayingClickAnimation = false;
+				clickedThemeIndex = -1;
+			}
+		}
+
+		// Draw click animation border (white)
+		if (showClickAnimation)
+		{
+			uint8_t alpha = (uint8_t)(clickAnimationAlpha * 255.0f);
+			draw_list->AddRect(
+				p_min, p_max, IM_COL32(255, 255, 255, alpha), 12.0f, 0, 3.0f);
+		}
+
+		// Add blue border on hover (only if not showing click animation)
+		if (isHovered && !showClickAnimation)
+		{
+			std::cout << "Hovered: " << welcomeImages[i].name << std::endl;
+			draw_list->AddRect(p_min, p_max, IM_COL32(0, 123, 255, 200), 12.0f, 0, 2.5f);
+
+			// Create tooltip with theme background color (force opacity to 1.0)
+			extern Settings gSettings;
+			ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+			bgColor.w = 1.0f; // Force full opacity
+			ImGui::PushStyleColor(ImGuiCol_PopupBg, bgColor);
+			ImGui::BeginTooltip();
+			ImGui::Text("%s", welcomeImages[i].name.c_str());
+			ImGui::EndTooltip();
+			ImGui::PopStyleColor();
+		}
+
+		// Handle theme preview and clicking
+		handleThemePreview(i, isHovered, clicked);
+
+		if (clicked)
+		{
+			std::cout << "Clicked: " << welcomeImages[i].name << std::endl;
+		}
+	}
+}
+
+void Welcome::handleThemePreview(int themeIndex, bool isHovered, bool isClicked)
+{
+	double currentTime = glfwGetTime();
+
+	// Map theme indices to profile filenames
+	std::string profileNames[] = {
+		"amber.json", "solarized.json", "solarized-light.json", "ned.json"};
+
+	if (isClicked)
+	{
+		// Permanent theme switch on click
+		if (themeIndex >= 0 && themeIndex < 4)
+		{
+			std::cout << "[Welcome] Permanently switching to theme: "
+					  << welcomeImages[themeIndex].name << std::endl;
+
+			// Start click animation
+			clickedThemeIndex = themeIndex;
+			clickAnimationStartTime = currentTime;
+			isPlayingClickAnimation = true;
+
+			// Use the settings global to switch profile
+			extern Settings gSettings;
+			gSettings.switchToProfile(profileNames[themeIndex]);
+
+			isPreviewingTheme = false;
+			hoveredThemeIndex = -1;
+		}
+		return;
+	}
+
+	if (isHovered)
+	{
+		if (hoveredThemeIndex != themeIndex)
+		{
+			// New hover started
+			hoveredThemeIndex = themeIndex;
+			hoverStartTime = currentTime;
+
+			// Store original profile if not already previewing
+			if (!isPreviewingTheme)
+			{
+				// Get current profile name to restore later
+				extern Settings gSettings;
+				originalProfile = gSettings.getCurrentProfileName();
+				std::cout << "[Welcome] Stored original profile: " << originalProfile
+						  << std::endl;
+			}
+		}
+
+		// Instantly preview theme on hover
+		if (!isPreviewingTheme)
+		{
+			std::cout << "[Welcome] Preview theme: " << welcomeImages[themeIndex].name
+					  << std::endl;
+
+			// Switch to preview theme
+			extern Settings gSettings;
+			gSettings.switchToProfile(profileNames[themeIndex]);
+
+			isPreviewingTheme = true;
+		}
+	} else
+	{
+		// No longer hovering
+		if (hoveredThemeIndex == themeIndex && isPreviewingTheme)
+		{
+			std::cout << "[Welcome] Restoring original theme: " << originalProfile
+					  << std::endl;
+
+			// Restore original theme
+			if (!originalProfile.empty())
+			{
+				extern Settings gSettings;
+				gSettings.switchToProfile(originalProfile);
+			}
+			isPreviewingTheme = false;
+		}
+
+		if (hoveredThemeIndex == themeIndex)
+		{
+			hoveredThemeIndex = -1;
+		}
+	}
 }
 
 void Welcome::render()
@@ -132,7 +410,11 @@ void Welcome::render()
 
 			const char *title = "Welcome to NED";
 			ImGui::SetCursorPos(ImVec2(contentStartX, titleY));
-			ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
+
+			// Use theme text color
+			extern Settings gSettings;
+			ImVec4 textColor = gSettings.getCurrentTextColor();
+			ImGui::TextColored(textColor, "%s", title);
 
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::PopFont();
@@ -203,20 +485,24 @@ void Welcome::render()
 				float colSpacing = 200.0f;
 				for (int i = 0; i < 3; i++)
 				{
+					// Get theme text color for keybinds (slightly dimmed)
+					extern Settings gSettings;
+					ImVec4 textColor = gSettings.getCurrentTextColor();
+					ImVec4 keybindColor = ImVec4(textColor.x * 0.8f,
+												 textColor.y * 0.8f,
+												 textColor.z * 0.8f,
+												 textColor.w);
+
 					// Left column
 					ImGui::SetCursorPos(ImVec2(keybindsX, keybindsY + i * 22.0f));
-					ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-									   "%s",
-									   keybinds[i * 2]);
+					ImGui::TextColored(keybindColor, "%s", keybinds[i * 2]);
 
 					// Right column
 					if (i * 2 + 1 < 6)
 					{
 						ImGui::SetCursorPos(
 							ImVec2(keybindsX + colSpacing, keybindsY + i * 22.0f));
-						ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-										   "%s",
-										   keybinds[i * 2 + 1]);
+						ImGui::TextColored(keybindColor, "%s", keybinds[i * 2 + 1]);
 					}
 				}
 
@@ -228,6 +514,7 @@ void Welcome::render()
 		currentY = std::max(logoY + logoSize,
 							std::max(buttonY + buttonHeight, keybindsY + 140.0f)) +
 				   40.0f;
+
 	} else
 	{
 		// Vertical layout: Logo, title, and button stacked
@@ -259,7 +546,11 @@ void Welcome::render()
 			const char *title = "Welcome to NED";
 			float titleWidth = ImGui::CalcTextSize(title).x;
 			ImGui::SetCursorPos(ImVec2((windowWidth - titleWidth) * 0.5f, currentY));
-			ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", title);
+
+			// Use theme text color
+			extern Settings gSettings;
+			ImVec4 textColor = gSettings.getCurrentTextColor();
+			ImGui::TextColored(textColor, "%s", title);
 
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::PopFont();
@@ -303,6 +594,9 @@ void Welcome::render()
 		currentY += buttonHeight + 40.0f;
 	}
 
+	// Render welcome image grid below the main content (after both layouts)
+	renderWelcomeImageGrid(windowWidth, windowHeight, currentY);
+
 	// GitHub link at the bottom - centered
 	float githubY = windowHeight - 60.0f; // 60px from bottom
 	ImGui::SetCursorPosY(githubY);
@@ -319,8 +613,10 @@ void Welcome::render()
 		float githubWidth = ImGui::CalcTextSize(github).x;
 		ImGui::SetCursorPosX((windowWidth - githubWidth) * 0.5f);
 
-		// Make GitHub link clickable
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+		// Make GitHub link clickable - use theme text color
+		extern Settings gSettings;
+		ImVec4 textColor = gSettings.getCurrentTextColor();
+		ImGui::PushStyleColor(ImGuiCol_Text, textColor);
 		if (ImGui::Selectable(github,
 							  false,
 							  ImGuiSelectableFlags_None,
@@ -338,10 +634,15 @@ void Welcome::render()
 		}
 		ImGui::PopStyleColor();
 
-		// Add hover effect
+		// Add hover effect with theme background color
 		if (ImGui::IsItemHovered())
 		{
+			extern Settings gSettings;
+			ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+			bgColor.w = 1.0f; // Force full opacity
+			ImGui::PushStyleColor(ImGuiCol_PopupBg, bgColor);
 			ImGui::SetTooltip("Click to open GitHub repository");
+			ImGui::PopStyleColor();
 		}
 
 		ImGui::SetWindowFontScale(1.0f);

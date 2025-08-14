@@ -1353,3 +1353,59 @@ void Settings::handleSettingsChanges(bool &needFontReload,
 		}
 	}
 }
+
+void Settings::switchToProfile(const std::string &profileName)
+{
+	settingsFileManager.switchProfile(
+		profileName, settings, settingsPath, settingsChanged, fontChanged, themeChanged);
+	profileJustSwitched = true;
+	settingsChanged = true;
+	fontChanged = true;
+}
+
+std::string Settings::getCurrentProfileName() const
+{
+	if (settingsPath.empty())
+		return "ned.json"; // Default fallback
+
+	// Extract filename from the path
+	return fs::path(settingsPath).filename().string();
+}
+
+ImVec4 Settings::getCurrentTextColor() const
+{
+	std::string currentTheme = getCurrentTheme();
+
+	// Check if theme and text color exist
+	if (settings.contains("themes") && settings["themes"].contains(currentTheme) &&
+		settings["themes"][currentTheme].contains("text") &&
+		settings["themes"][currentTheme]["text"].is_array() &&
+		settings["themes"][currentTheme]["text"].size() == 4)
+	{
+		auto &textColor = settings["themes"][currentTheme]["text"];
+		return ImVec4(textColor[0].get<float>(),
+					  textColor[1].get<float>(),
+					  textColor[2].get<float>(),
+					  textColor[3].get<float>());
+	}
+
+	// Fallback to white if theme data is missing
+	return ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+}
+
+ImVec4 Settings::getCurrentBackgroundColor() const
+{
+	// Check if background color exists
+	if (settings.contains("backgroundColor") && settings["backgroundColor"].is_array() &&
+		settings["backgroundColor"].size() == 4)
+	{
+		auto &bgColor = settings["backgroundColor"];
+		return ImVec4(bgColor[0].get<float>(),
+					  bgColor[1].get<float>(),
+					  bgColor[2].get<float>(),
+					  bgColor[3].get<float>());
+	}
+
+	// Fallback to dark background if missing
+	return ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+}
