@@ -208,18 +208,19 @@ void Splitter::renderAgentSplitter(float padding,
 		float new_split;
 		float leftSplit = gSettings.getSplitPos();
 		float maxRightSplit = sidebarVisible ? (0.85f - leftSplit) : 0.85f;
+		// Convert 300px minimum to ratio based on available width
+		float minAgentRatio = std::min(300.0f / availableWidth, 0.9f);
 		if (sidebarVisible)
 		{
 			new_split =
 				clamp((availableWidth - mouseX - AGENT_SPLITTER_WIDTH) / availableWidth,
-					  0.25f, // Increased minimum from 0.15f to 0.25f (25% minimum)
+					  minAgentRatio, // Use 300px minimum width
 					  maxRightSplit);
 		} else
 		{
-			new_split = clamp(
-				mouseX / availableWidth,
-				0.25f,
-				maxRightSplit); // Increased minimum from 0.15f to 0.25f (25% minimum)
+			new_split = clamp(mouseX / availableWidth,
+							  minAgentRatio,
+							  maxRightSplit); // Use 300px minimum width
 		}
 		gSettings.setAgentSplitPos(new_split);
 	}
