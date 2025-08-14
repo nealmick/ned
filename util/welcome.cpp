@@ -263,66 +263,11 @@ void Welcome::handleThemePreview(int themeIndex, bool isHovered, bool isClicked)
 			// Use the settings global to switch profile
 			extern Settings gSettings;
 			gSettings.switchToProfile(profileNames[themeIndex]);
-
-			isPreviewingTheme = false;
-			hoveredThemeIndex = -1;
 		}
 		return;
 	}
 
-	if (isHovered)
-	{
-		if (hoveredThemeIndex != themeIndex)
-		{
-			// New hover started
-			hoveredThemeIndex = themeIndex;
-			hoverStartTime = currentTime;
-
-			// Store original profile if not already previewing
-			if (!isPreviewingTheme)
-			{
-				// Get current profile name to restore later
-				extern Settings gSettings;
-				originalProfile = gSettings.getCurrentProfileName();
-				std::cout << "[Welcome] Stored original profile: " << originalProfile
-						  << std::endl;
-			}
-		}
-
-		// Instantly preview theme on hover
-		if (!isPreviewingTheme)
-		{
-			std::cout << "[Welcome] Preview theme: " << welcomeImages[themeIndex].name
-					  << std::endl;
-
-			// Switch to preview theme
-			extern Settings gSettings;
-			gSettings.switchToProfile(profileNames[themeIndex]);
-
-			isPreviewingTheme = true;
-		}
-	} else
-	{
-		// No longer hovering
-		if (hoveredThemeIndex == themeIndex && isPreviewingTheme)
-		{
-			std::cout << "[Welcome] Restoring original theme: " << originalProfile
-					  << std::endl;
-
-			// Restore original theme
-			if (!originalProfile.empty())
-			{
-				extern Settings gSettings;
-				gSettings.switchToProfile(originalProfile);
-			}
-			isPreviewingTheme = false;
-		}
-
-		if (hoveredThemeIndex == themeIndex)
-		{
-			hoveredThemeIndex = -1;
-		}
-	}
+	// Removed hover-based theme switching - only handle click events now
 }
 
 void Welcome::render()
@@ -427,10 +372,27 @@ void Welcome::render()
 		float buttonX = contentStartX;
 
 		ImGui::SetCursorPos(ImVec2(buttonX, buttonY));
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
+		// Get background color and make it 10% darker
+		extern Settings gSettings;
+		ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+		ImVec4 buttonBgColor =
+			ImVec4(bgColor.x * 0.9f, bgColor.y * 0.9f, bgColor.z * 0.9f, 0.8f);
+
+		// Get font color for border
+		ImVec4 fontColor = gSettings.getCurrentTextColor();
+
+		// Create hover and active states (20% darker for hover)
+		ImVec4 hoverColor =
+			ImVec4(bgColor.x * 0.8f, bgColor.y * 0.8f, bgColor.z * 0.8f, 0.9f);
+		ImVec4 activeColor =
+			ImVec4(bgColor.x * 0.7f, bgColor.y * 0.7f, bgColor.z * 0.7f, 1.0f);
+
+		// Create button and check if it's hovered to set border color
+		ImGui::PushStyleColor(ImGuiCol_Button, buttonBgColor);
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 
 		{ // Scope for button text scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
@@ -442,6 +404,23 @@ void Welcome::render()
 			ImGui::PushFont(currentFont);
 			ImGui::SetWindowFontScale(scaleFactor);
 
+			// Set border color - white if hovered, blue otherwise
+			ImVec2 buttonPos = ImGui::GetCursorScreenPos();
+			ImVec2 mousePos = ImGui::GetMousePos();
+			bool willBeHovered =
+				(mousePos.x >= buttonPos.x && mousePos.x <= buttonPos.x + buttonWidth &&
+				 mousePos.y >= buttonPos.y && mousePos.y <= buttonPos.y + buttonHeight);
+
+			if (willBeHovered)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Border,
+									  ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // White border
+			} else
+			{
+				ImGui::PushStyleColor(ImGuiCol_Border,
+									  ImVec4(0.0f, 0.48f, 1.0f, 1.0f)); // Blue border
+			}
+
 			if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
 			{
 				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
@@ -449,11 +428,13 @@ void Welcome::render()
 				gFileExplorer._showFileDialog = true;
 			}
 
+			ImGui::PopStyleColor(); // Pop border color
+
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::PopFont();
 		}
 
-		ImGui::PopStyleVar();
+		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(3);
 
 		// Keybinds section under the button on the right side
@@ -562,10 +543,27 @@ void Welcome::render()
 		float buttonHeight = 55.0f;
 
 		ImGui::SetCursorPos(ImVec2((windowWidth - buttonWidth) * 0.5f, currentY));
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.8f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.9f, 1.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.7f, 1.0f));
+		// Get background color and make it 10% darker
+		extern Settings gSettings;
+		ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+		ImVec4 buttonBgColor =
+			ImVec4(bgColor.x * 0.9f, bgColor.y * 0.9f, bgColor.z * 0.9f, 0.8f);
+
+		// Get font color for border
+		ImVec4 fontColor = gSettings.getCurrentTextColor();
+
+		// Create hover and active states (20% darker for hover)
+		ImVec4 hoverColor =
+			ImVec4(bgColor.x * 0.8f, bgColor.y * 0.8f, bgColor.z * 0.8f, 0.9f);
+		ImVec4 activeColor =
+			ImVec4(bgColor.x * 0.7f, bgColor.y * 0.7f, bgColor.z * 0.7f, 1.0f);
+
+		// Create button and check if it's hovered to set border color
+		ImGui::PushStyleColor(ImGuiCol_Button, buttonBgColor);
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 
 		{ // Scope for button text scaling
 			ImFont *currentFont = ImGui::GetIO().Fonts->Fonts[0];
@@ -577,6 +575,23 @@ void Welcome::render()
 			ImGui::PushFont(currentFont);
 			ImGui::SetWindowFontScale(scaleFactor);
 
+			// Set border color - blue if hovered, font color otherwise
+			ImVec2 buttonPos = ImGui::GetCursorScreenPos();
+			ImVec2 mousePos = ImGui::GetMousePos();
+			bool willBeHovered =
+				(mousePos.x >= buttonPos.x && mousePos.x <= buttonPos.x + buttonWidth &&
+				 mousePos.y >= buttonPos.y && mousePos.y <= buttonPos.y + buttonHeight);
+
+			if (willBeHovered)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Border,
+									  ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // White border
+			} else
+			{
+				ImGui::PushStyleColor(ImGuiCol_Border,
+									  ImVec4(0.0f, 0.48f, 1.0f, 1.0f)); // Blue border
+			}
+
 			if (ImGui::Button("Open Folder", ImVec2(buttonWidth, buttonHeight)))
 			{
 				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
@@ -584,11 +599,13 @@ void Welcome::render()
 				gFileExplorer._showFileDialog = true;
 			}
 
+			ImGui::PopStyleColor(); // Pop border color
+
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::PopFont();
 		}
 
-		ImGui::PopStyleVar();
+		ImGui::PopStyleVar(2);
 		ImGui::PopStyleColor(3);
 
 		currentY += buttonHeight + 40.0f;
