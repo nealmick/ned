@@ -74,7 +74,9 @@ void FileTree::renderNodeText(const std::string &name,
 							  const std::string &fullPath,
 							  bool isCurrentFile)
 {
-	ImVec4 textColor = TreeStyleSettings::INACTIVE_TEXT;
+	// Get current theme text color as default
+	extern Settings gSettings;
+	ImVec4 textColor = gSettings.getCurrentTextColor();
 
 	// Convert fullPath to relative path for Git status check
 	std::string relativePath = fullPath;
@@ -101,20 +103,20 @@ void FileTree::renderNodeText(const std::string &name,
 	{
 		textColor = EditorUtils::GetRainbowColor();
 	}
-	// Fallback for current file if not rainbow mode
+	// Fallback for current file if not rainbow mode - use theme color
 	else if (isCurrentFile)
 	{
-		textColor = TreeStyleSettings::INACTIVE_TEXT;
+		textColor = gSettings.getCurrentTextColor();
 	}
 	// Dark grey color for modified files (but not the current file)
 	else if (isModified)
 	{
 		textColor = ImVec4(0.4f, 0.4f, 0.4f, 1.0f); // Dark grey for modified files
 	}
-	// Default color for other files
+	// Default color for other files - use theme color
 	else
 	{
-		textColor = TreeStyleSettings::INACTIVE_TEXT;
+		textColor = gSettings.getCurrentTextColor();
 	}
 
 	ImGui::PushStyleColor(ImGuiCol_Text, textColor);
@@ -190,7 +192,13 @@ void FileTree::displayDirectoryNode(const FileNode &node,
 					TreeStyleSettings::HORIZONTAL_PADDING +
 					TreeStyleSettings::TEXT_PADDING);
 	ImGui::SetCursorPosY(textTopY);
+
+	// Use theme text color for folder names
+	extern Settings gSettings;
+	ImVec4 folderTextColor = gSettings.getCurrentTextColor();
+	ImGui::PushStyleColor(ImGuiCol_Text, folderTextColor);
 	ImGui::Text("%s", node.name.c_str());
+	ImGui::PopStyleColor();
 
 	if (isOpen)
 	{
