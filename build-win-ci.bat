@@ -70,9 +70,26 @@ if %errorlevel% neq 0 (
 echo Build completed successfully!
 echo Executable should be in build\Release\ned.exe
 
+REM Bundle DLLs for distribution
+echo Bundling required DLLs...
+if not exist "Release\dlls" mkdir "Release\dlls"
+
+REM Copy all required DLLs from vcpkg
+copy "vcpkg_installed\x64-windows\bin\*.dll" "Release\" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Warning: Some DLLs may not have been copied
+)
+
+REM Create a distributable package
+echo Creating distributable package...
+if not exist "ned-windows-portable" mkdir "ned-windows-portable"
+copy "Release\ned.exe" "ned-windows-portable\" >nul
+copy "Release\*.dll" "ned-windows-portable\" >nul 2>&1
+echo Portable package created in ned-windows-portable\
+
 REM For CI, don't run the executable
 if "%CI%"=="true" (
-    echo CI build complete - not launching executable
+    echo CI build complete - portable package ready
 ) else (
     echo Starting ned.exe...
     .\Release\ned.exe
