@@ -57,9 +57,9 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Build the project with parallel compilation
+REM Build the project with parallel compilation (suppress warnings for cleaner output)
 echo Building project...
-cmake --build . --config Release --parallel
+cmake --build . --config Release --parallel -- /p:WarningLevel=1
 
 REM Check if build succeeded
 if %errorlevel% neq 0 (
