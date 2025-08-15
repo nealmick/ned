@@ -60,6 +60,9 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 
+# vcpkg installed packages (generated from vcpkg.json)
+vcpkg_installed/
+
 # IDE specific files
 .vscode/
 .idea/
