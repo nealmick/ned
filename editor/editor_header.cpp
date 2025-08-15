@@ -239,8 +239,13 @@ void EditorHeader::render(ImFont *font,
 	// Calculate space needed for right-aligned status area
 	const float rightPadding =
 		(currentFile == "Terminal") ? 25.0f : 25.0f; // Same padding as normal
+#ifdef PLATFORM_WINDOWS
+	const float totalStatusWidth =
+		iconSize * 2 + rightPadding; // Brain + Gear icons (no terminal on Windows)
+#else
 	const float totalStatusWidth =
 		iconSize * 3 + rightPadding; // Brain + Terminal + Gear icons
+#endif
 
 	// Calculate space needed for git changes if enabled and available
 	float gitChangesWidth = 0.0f;
@@ -339,9 +344,11 @@ void EditorHeader::render(ImFont *font,
 		}
 		ImGui::SameLine();
 
+#ifndef PLATFORM_WINDOWS
 		// Terminal icon (newly added)
 		renderTerminalIcon(iconSize * 0.7f);
 		ImGui::SameLine();
+#endif
 
 		// Settings icon (always in same position)
 		renderSettingsIcon(iconSize * 0.65f);
