@@ -86,3 +86,21 @@ jobs:
         with:
           name: Ned-Debian-${{ needs.create-tag.outputs.timestamp }} # Artifact name in UI
           path: Ned-Debian-*.deb # Path to the file(s)
+
+  windows:
+    runs-on: windows-2022
+    needs: create-tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Install dependencies and build
+        run: |
+          .\build-win-ci.bat
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ned-Windows-${{ needs.create-tag.outputs.timestamp }}
+          path: build/Release/ned.exe
