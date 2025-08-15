@@ -1,0 +1,80 @@
+@echo off
+echo Building NED for Windows in CI environment...
+
+REM Check if we're running in CI
+if "%CI%"=="true" (
+    echo Detected CI environment
+) else (
+    echo Running in local environment
+)
+
+REM Set up environment variables
+set VCPKG_ROOT=%CD%\vcpkg
+set VCPKG_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake
+
+REM Install vcpkg if not present
+if not exist "%VCPKG_ROOT%" (
+    echo Installing vcpkg...
+    git clone https://github.com/Microsoft/vcpkg.git
+    if %errorlevel% neq 0 (
+        echo Failed to clone vcpkg!
+        exit /b 1
+    )
+    
+    cd vcpkg
+    call bootstrap-vcpkg.bat
+    if %errorlevel% neq 0 (
+        echo Failed to bootstrap vcpkg!
+        exit /b 1
+    )
+    cd ..
+) else (
+    echo vcpkg already exists, skipping installation
+)
+
+REM Install dependencies via vcpkg
+echo Installing dependencies via vcpkg...
+%VCPKG_ROOT%\vcpkg.exe install --triplet x64-windows
+if %errorlevel% neq 0 (
+    echo Failed to install vcpkg dependencies!
+    exit /b 1
+)
+
+REM Create build directory if it doesn't exist
+if not exist build (
+    mkdir build
+)
+
+cd build
+
+REM Configure with CMake using vcpkg toolchain
+echo Configuring with CMake...
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_TARGET_TRIPLET=x64-windows
+
+REM Check if configuration succeeded
+if %errorlevel% neq 0 (
+    echo CMake configuration failed!
+    exit /b 1
+)
+
+REM Build the project with parallel compilation
+echo Building project...
+cmake --build . --config Release --parallel
+
+REM Check if build succeeded
+if %errorlevel% neq 0 (
+    echo Build failed!
+    exit /b 1
+)
+
+echo Build completed successfully!
+echo Executable should be in build\Release\ned.exe
+
+REM For CI, don't run the executable
+if "%CI%"=="true" (
+    echo CI build complete - not launching executable
+) else (
+    echo Starting ned.exe...
+    .\Release\ned.exe
+    pause
+)
