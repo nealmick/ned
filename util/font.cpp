@@ -95,6 +95,15 @@ ImFont *Font::loadFont(const std::string &fontName, float fontSize)
 	config_main.MergeMode = false;
 	config_main.GlyphRanges = ranges;
 
+	// Font-specific adjustments for alignment issues
+	if (fontName.find("vt100") != std::string::npos ||
+		fontName.find("VT100") != std::string::npos)
+	{
+		// VT100 font has character alignment issues - adjust glyph offset
+		config_main.GlyphOffset.x = 3.0f; // Shift characters slightly right
+		config_main.PixelSnapH = true;	  // Ensure pixel-perfect horizontal alignment
+	}
+
 	// Clear existing fonts if you want a single font each time, or
 	// if you want to stack multiple fonts, you might skip clearing.
 	io.Fonts->Clear();

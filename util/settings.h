@@ -109,6 +109,18 @@ class Settings
 	void toggleSettingsWindow();
 	bool isBlockingInput() const { return blockInput; }
 
+	// Public method to switch profile
+	void switchToProfile(const std::string &profileName);
+
+	// Get current profile name
+	std::string getCurrentProfileName() const;
+
+	// Get current theme text color
+	ImVec4 getCurrentTextColor() const;
+
+	// Get current background color
+	ImVec4 getCurrentBackgroundColor() const;
+
 	bool getRainbowMode() const
 	{
 		if (settings.contains("rainbow") && settings["rainbow"].is_boolean())
@@ -164,7 +176,6 @@ class Settings
 		"VT323-Regular",
 		"IBM_MDA",
 		"VT100",
-		"seguiemj",
 	};
 	std::string currentFontName;
 	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed

@@ -235,6 +235,60 @@ void EditorRender::renderCharacterAndSelection(size_t char_index,
 							   ? &editor_state.fileContent[char_index + 1]
 							   : nullptr;
 
+	// Handle tab characters specially to avoid font-specific rendering issues
+	if (*char_start == '\t')
+	{
+		// Calculate tab width based on current position
+		float space_width = ImGui::CalcTextSize(" ").x;
+		const int TAB_SIZE = 4;
+		float current_column_pixels = current_draw_pos.x - editor_state.text_pos.x;
+		int current_column = static_cast<int>(current_column_pixels / space_width);
+		int next_tab_stop = ((current_column / TAB_SIZE) + 1) * TAB_SIZE;
+		float tab_width = (next_tab_stop - current_column) * space_width;
+
+		// Render selection if needed
+		int s_start = selection_start;
+		int s_end = selection_end;
+		int current_char_idx = static_cast<int>(char_index);
+
+		bool is_selected = (s_start <= s_end && // Normal order: start <= end
+							current_char_idx >= s_start && current_char_idx < s_end) ||
+						   (s_start > s_end && // Inverse order: start > end
+							current_char_idx >= s_end && current_char_idx < s_start);
+
+		if (!is_selected && editor_state.selection_active &&
+			!editor_state.multi_selections.empty())
+		{
+			for (const auto &multi_sel : editor_state.multi_selections)
+			{
+				if (static_cast<int>(char_index) >=
+						std::min(multi_sel.start_index, multi_sel.end_index) &&
+					static_cast<int>(char_index) <
+						std::max(multi_sel.start_index, multi_sel.end_index))
+				{
+					is_selected = true;
+					break;
+				}
+			}
+		}
+
+		if (is_selected)
+		{
+			ImVec2 sel_start_pos = current_draw_pos;
+			ImVec2 sel_end_pos = ImVec2(sel_start_pos.x + tab_width,
+										sel_start_pos.y + editor_state.line_height);
+			const ImU32 selection_color =
+				ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
+			ImGui::GetWindowDrawList()->AddRectFilled(sel_start_pos,
+													  sel_end_pos,
+													  selection_color);
+		}
+
+		// Don't render anything - just advance the cursor by tab width
+		current_draw_pos.x += tab_width;
+		return;
+	}
+
 	// For multi-byte characters (like emojis), we need to find the end of the character
 	if (char_end && (*char_start & 0x80)) // Check if it's a multi-byte character
 	{
