@@ -1,2 +1,0 @@
-C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/zlib_x64-windows/debug/lib/zlibd.lib
-C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/zlib_x64-windows/debug/bin/zlibd1.dll

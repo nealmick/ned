@@ -1,3 +1,0 @@
-C:\Users\nealm\source\ned\vcpkg_installed\vcpkg\blds\bzip2\config-x64-windows-dbg-CMakeCache.txt.log
-C:\Users\nealm\source\ned\vcpkg_installed\vcpkg\blds\bzip2\config-x64-windows-rel-CMakeCache.txt.log
-C:\Users\nealm\source\ned\vcpkg_installed\vcpkg\blds\bzip2\config-x64-windows-out.log
