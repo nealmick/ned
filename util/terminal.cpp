@@ -1123,7 +1123,12 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	}
 }
 
-void Terminal::toggleVisibility() { isVisible = !isVisible; }
+void Terminal::toggleVisibility() {
+#ifndef PLATFORM_WINDOWS
+	isVisible = !isVisible;
+#endif
+	// On Windows, do nothing - terminal toggle is disabled
+}
 
 void Terminal::writeToBuffer(const char *data, size_t length)
 {
