@@ -4,9 +4,11 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#ifndef PLATFORM_WINDOWS
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 class LSPAdapterClangd::ClangdImpl
 {

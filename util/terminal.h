@@ -10,7 +10,9 @@
 #include <mutex>
 #include <stdint.h>
 #include <string>
+#ifndef PLATFORM_WINDOWS
 #include <sys/types.h>
+#endif
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -219,8 +221,10 @@ class Terminal
 	// Terminal configuration
 	bool isVisible{false};
 	bool isEmbedded{false};
+#ifndef PLATFORM_WINDOWS
 	int ptyFd{-1};
 	pid_t childPid{-1};
+#endif
 
 	// Embedded terminal window state
 	ImVec2 embeddedWindowPos{100.0f, 100.0f};
