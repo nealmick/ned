@@ -18,6 +18,9 @@ compile_commands.json
 .cache/
 .undo-redo-ned.json
 .ned-agent-history.json
+
+# Runtime configuration directory
+ned/
 # macOS system files
 .DS_Store
 .AppleDouble

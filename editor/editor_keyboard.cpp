@@ -107,6 +107,15 @@ void EditorKeyboard::handleBackspaceKey()
 				if (prev != editor_state.fileContent.begin())
 				{
 					utf8::unchecked::prior(prev);
+					
+#ifdef PLATFORM_WINDOWS
+					// Special handling for Windows line endings (\r\n)
+					// If we're about to delete \n and the previous char is \r, delete both
+					if (*prev == '\n' && prev != editor_state.fileContent.begin() && *(prev - 1) == '\r')
+					{
+						--prev; // Move back to include the \r as well
+					}
+#endif
 				}
 				int start_pos = str_index_at(editor_state.fileContent, prev);
 				ranges_to_delete.emplace_back(start_pos, pos);
