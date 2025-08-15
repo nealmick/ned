@@ -466,6 +466,15 @@ if(WIN32 AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   )
 endif()
 
+# Add macOS frameworks for ned_embed when building on Apple platforms
+if(APPLE)
+  target_link_libraries(ned_embed PUBLIC
+    "-framework Security"
+    "-framework GSS"
+    "-framework CoreFoundation"
+  )
+endif()
+
 # ================
 # Resources
 # ================
