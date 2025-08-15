@@ -58,30 +58,60 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 
 	try
 	{
-		for (const auto &entry : fs::recursive_directory_iterator(projectDir))
+		// Add some debug output to see what's happening
+		std::cout << "[FileFinder] Scanning directory: " << projectDir << std::endl;
+		
+		auto directoryIterator = fs::recursive_directory_iterator(projectDir);
+		int fileCount = 0;
+		
+		for (const auto &entry : directoryIterator)
 		{
-			if (entry.is_regular_file())
-			{
-				fs::path fullPath = entry.path();
-				fs::path relativePath = fs::relative(fullPath, projectDir);
+			try {
+				if (entry.is_regular_file())
+				{
+					fs::path fullPath = entry.path();
+					fs::path relativePath = fs::relative(fullPath, projectDir);
 
-				std::string filenameLower = relativePath.filename().string();
-				std::transform(filenameLower.begin(),
-							   filenameLower.end(),
-							   filenameLower.begin(),
-							   ::tolower);
+#ifdef PLATFORM_WINDOWS
+					// On Windows, use UTF-8 string conversion to handle Unicode properly
+					auto u8fullPath = fullPath.u8string();
+					auto u8relativePath = relativePath.u8string();
+					auto u8filename = relativePath.filename().u8string();
+					
+					std::string fullPathStr(u8fullPath.begin(), u8fullPath.end());
+					std::string relativePathStr(u8relativePath.begin(), u8relativePath.end());
+					std::string filenameStr(u8filename.begin(), u8filename.end());
+#else
+					// On Unix systems, use normal string conversion
+					std::string fullPathStr = fullPath.string();
+					std::string relativePathStr = relativePath.string();
+					std::string filenameStr = relativePath.filename().string();
+#endif
 
-				std::string fullPathStr = fullPath.string();
-				std::string fullPathLower = fullPathStr;
-				std::transform(fullPathLower.begin(),
-							   fullPathLower.end(),
-							   fullPathLower.begin(),
-							   ::tolower);
+					std::string filenameLower = filenameStr;
+					std::transform(filenameLower.begin(),
+								   filenameLower.end(),
+								   filenameLower.begin(),
+								   ::tolower);
 
-				newFileList.push_back(
-					{fullPathStr, relativePath.string(), fullPathLower, filenameLower});
+					std::string fullPathLower = fullPathStr;
+					std::transform(fullPathLower.begin(),
+								   fullPathLower.end(),
+								   fullPathLower.begin(),
+								   ::tolower);
+
+					newFileList.push_back(
+						{fullPathStr, relativePathStr, fullPathLower, filenameLower});
+					fileCount++;
+				}
+			} catch (const std::exception &e) {
+				// Skip files that cause Unicode conversion errors
+				std::cerr << "[FileFinder] Skipping file due to encoding error: " << e.what() << std::endl;
+				continue;
 			}
 		}
+		
+		std::cout << "[FileFinder] Found " << fileCount << " files" << std::endl;
 
 		{
 			std::lock_guard<std::mutex> lock(fileListMutex);
@@ -110,6 +140,9 @@ void FileFinder::updateFilteredList()
 		std::lock_guard<std::mutex> lock(fileListMutex);
 		localFileList = fileList;
 	}
+	
+	std::cout << "[FileFinder] updateFilteredList: fileList size = " << localFileList.size() 
+			  << ", searchTerm = '" << searchTerm << "'" << std::endl;
 
 	for (const auto &file : localFileList)
 	{
