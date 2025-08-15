@@ -10,6 +10,7 @@ Description: Editor header rendering implementation for NED text editor.
 #include "imgui.h"
 #include "util/settings.h"
 #include "util/terminal.h"
+#include <algorithm>
 
 // External dependencies
 extern class FileExplorer gFileExplorer;
@@ -20,6 +21,40 @@ extern class EditorGit gEditorGit;
 namespace fs = std::filesystem;
 
 EditorHeader::EditorHeader() {}
+
+// Helper function to convert forward slashes to backslashes on Windows
+std::string EditorHeader::normalizePathForDisplay(const std::string &path)
+{
+#ifdef PLATFORM_WINDOWS
+	std::string result = path;
+	// Convert forward slashes to backslashes
+	std::replace(result.begin(), result.end(), '/', '\\');
+	
+	// Remove consecutive backslashes (but preserve UNC paths that start with \\)
+	std::string cleaned;
+	bool lastWasBackslash = false;
+	bool isUNCPath = result.length() >= 2 && result[0] == '\\' && result[1] == '\\';
+	
+	for (size_t i = 0; i < result.length(); ++i) {
+		char c = result[i];
+		if (c == '\\') {
+			if (!lastWasBackslash || (i == 1 && isUNCPath)) {
+				// Add the backslash if it's not consecutive, or if it's the second slash in UNC path
+				cleaned += c;
+				lastWasBackslash = true;
+			}
+			// Skip consecutive backslashes
+		} else {
+			cleaned += c;
+			lastWasBackslash = false;
+		}
+	}
+	
+	return cleaned;
+#else
+	return path;
+#endif
+}
 
 std::string
 EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *font)
@@ -58,7 +93,7 @@ EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *
 
 	if (components.empty())
 	{
-		return root_part.empty() ? path : root_part;
+		return normalizePathForDisplay(root_part.empty() ? path : root_part);
 	}
 
 	// Check full path first
@@ -71,7 +106,7 @@ EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *
 									});
 	if (ImGui::CalcTextSize(fullPath.c_str()).x <= maxWidth)
 	{
-		return fullPath;
+		return normalizePathForDisplay(fullPath);
 	}
 	// Try removing directories from the front
 	for (size_t start = 0; start < components.size(); ++start)
@@ -96,7 +131,7 @@ EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *
 		float width = ImGui::CalcTextSize(candidate.c_str()).x;
 		if (width <= maxWidth)
 		{
-			return candidate;
+			return normalizePathForDisplay(candidate);
 		}
 	}
 
@@ -104,7 +139,7 @@ EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *
 	std::string filename = root_part + components.back();
 	if (ImGui::CalcTextSize(filename.c_str()).x <= maxWidth)
 	{
-		return filename;
+		return normalizePathForDisplay(filename);
 	}
 
 	// Truncate filename
@@ -116,13 +151,13 @@ EditorHeader::truncateFilePath(const std::string &path, float maxWidth, ImFont *
 		std::string candidate = root_part + temp;
 		if (ImGui::CalcTextSize(candidate.c_str()).x <= maxWidth)
 		{
-			return candidate;
+			return normalizePathForDisplay(candidate);
 		}
 		maxLength--;
 	}
 
 	// Minimum case
-	return root_part + "...";
+	return normalizePathForDisplay(root_part + "...");
 }
 
 void EditorHeader::renderSettingsIcon(float iconSize)
