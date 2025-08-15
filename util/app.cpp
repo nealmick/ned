@@ -269,14 +269,32 @@ bool App::isWindowFocused() const
 
 void App::pollEvents(double currentTime, bool shaderEnabled, double lastActivityTime)
 {
+#ifdef PLATFORM_WINDOWS
+	// On Windows, always use non-blocking polling for consistent frame timing
+	glfwPollEvents();
+#else
+	// On macOS/Linux, use timeout-based polling for power efficiency
 	double timeout = calculateEventTimeout(currentTime, shaderEnabled, lastActivityTime);
 	glfwWaitEventsTimeout(timeout);
+#endif
 }
 
 double App::calculateEventTimeout(double currentTime,
 								  bool shaderEnabled,
 								  double lastActivityTime)
 {
+#ifdef PLATFORM_WINDOWS
+	// On Windows, always use consistent FPS-based timeout
+	float fpsTarget = 60.0f;
+	extern Settings gSettings;
+	if (gSettings.getSettings().contains("fps_target") &&
+		gSettings.getSettings()["fps_target"].is_number())
+	{
+		fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
+	}
+	return 1.0 / fpsTarget; // Convert FPS to timeout
+#else
+	// On macOS/Linux, keep the variable timeout logic for smooth user interaction
 	// Check if scroll animation is active - if so, use shorter timeout for responsiveness
 	extern EditorScroll gEditorScroll;
 	bool scrollAnimationActive = gEditorScroll.isScrollAnimationActive();
@@ -309,6 +327,7 @@ double App::calculateEventTimeout(double currentTime,
 
 		return (currentTime - lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
 	}
+#endif
 }
 
 // Window management methods
@@ -503,7 +522,13 @@ bool App::createWindow()
 bool App::initializeGLEW()
 {
 	glfwMakeContextCurrent(window);
+#ifdef PLATFORM_WINDOWS
+	// On Windows, try different VSync disable approaches for better compatibility
+	glfwSwapInterval(-1);  // Try adaptive VSync first
+	glfwSwapInterval(0);   // Then disable completely
+#else
 	glfwSwapInterval(0);
+#endif
 	glfwSetWindowRefreshCallback(window, [](GLFWwindow *window) { glfwPostEmptyEvent(); });
 
 	// Enable raw mouse motion for more accurate tracking
