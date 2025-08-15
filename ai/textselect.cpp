@@ -14,7 +14,20 @@
 #include "../editor/editor.h"
 #include <imgui.h>
 #include <imgui_internal.h>
+
+#ifdef _WIN32
+// Fix for Windows UTF-8 library assert macro conflict
+#include <cassert>
+#ifdef assert
+#undef assert
+#endif
 #include <utf8.h>
+#ifdef _WIN32
+#define assert(expr) ((void)0)
+#endif
+#else
+#include <utf8.h>
+#endif
 
 // Calculates the midpoint between two numbers.
 template <typename T> constexpr T midpoint(T a, T b) { return a + (b - a) / 2; }
