@@ -179,13 +179,15 @@ set(APP_SOURCES
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
-if(NOT WIN32)
-    file(GLOB_RECURSE LSP_SOURCES       "lsp/*.cpp")
-else()
-    # On Windows, use stub implementations
+if(WIN32)
+    # On Windows, use stub implementations only
     set(LSP_SOURCES
         lsp/lsp_stubs_windows.cpp
     )
+else()
+    # On Unix systems, use real LSP implementation (exclude Windows stubs)
+    file(GLOB_RECURSE LSP_SOURCES "lsp/*.cpp")
+    list(REMOVE_ITEM LSP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_stubs_windows.cpp")
 endif()
 file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
