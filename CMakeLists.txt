@@ -371,7 +371,9 @@ target_link_libraries(ned PRIVATE
   llhttp
   xdiff
   pcre
-  ZLIB::ZLIB
+  $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
   $<$<PLATFORM_ID:Darwin>:iconv>
   $<$<PLATFORM_ID:Linux>:pthread>
   $<$<PLATFORM_ID:Linux>:ssl>
@@ -398,7 +400,9 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     pcre
-    ZLIB::ZLIB
+    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
     $<$<PLATFORM_ID:Darwin>:iconv>
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
@@ -425,7 +429,9 @@ else()
     llhttp
     xdiff
     pcre
-    ZLIB::ZLIB
+    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
     $<$<PLATFORM_ID:Darwin>:iconv>
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
