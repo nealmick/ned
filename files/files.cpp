@@ -847,7 +847,7 @@ void FileExplorer::saveCurrentFile()
 			return;
 		}
 
-		std::ofstream file(currentFile);
+		std::ofstream file(currentFile, std::ios::binary);
 		if (file.is_open())
 		{
 			file << editor_state.fileContent;

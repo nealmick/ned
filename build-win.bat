@@ -41,4 +41,8 @@ if %errorlevel% neq 0 (
 echo Build completed successfully!
 echo Executable should be in build\Release\ned.exe
 
+REM Run the built executable
+echo Starting ned.exe...
+.\Release\ned.exe
+
 pause
