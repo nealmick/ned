@@ -551,13 +551,28 @@ int EditorMouse::getCharIndexFromCoords()
 	{
 		const char *char_start = &editor_state.fileContent[char_idx];
 		const char *char_end = char_start + 1;
-		if ((*char_start & 0x80) != 0)
+		float width;
+
+		// Handle tab characters specially to match rendering logic
+		if (*char_start == '\t')
 		{
-			while (char_end < &editor_state.fileContent[line_end] &&
-				   (*char_end & 0xC0) == 0x80)
-				++char_end;
+			// Calculate tab width based on current position
+			float space_width = ImGui::CalcTextSize(" ").x;
+			const int TAB_SIZE = 4;
+			int current_column = static_cast<int>(cumulative_x / space_width);
+			int next_tab_stop = ((current_column / TAB_SIZE) + 1) * TAB_SIZE;
+			width = (next_tab_stop - current_column) * space_width;
+		} else
+		{
+			if ((*char_start & 0x80) != 0)
+			{
+				while (char_end < &editor_state.fileContent[line_end] &&
+					   (*char_end & 0xC0) == 0x80)
+					++char_end;
+			}
+			width = ImGui::CalcTextSize(char_start, char_end).x;
 		}
-		float width = ImGui::CalcTextSize(char_start, char_end).x;
+
 		charWidths.push_back(width);
 		codepointIndices.push_back(char_idx);
 		cumulative_x += width;

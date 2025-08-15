@@ -719,6 +719,17 @@ float EditorCursor::getCursorXPosition(const ImVec2 &text_pos,
 		{
 			x = text_pos.x;
 			i++;
+		} else if (text[i] == '\t')
+		{
+			// Handle tab characters specially to match rendering logic
+			float space_width = ImGui::CalcTextSize(" ").x;
+			const int TAB_SIZE = 4;
+			float current_column_pixels = x - text_pos.x;
+			int current_column = static_cast<int>(current_column_pixels / space_width);
+			int next_tab_stop = ((current_column / TAB_SIZE) + 1) * TAB_SIZE;
+			float tab_width = (next_tab_stop - current_column) * space_width;
+			x += tab_width;
+			i++;
 		} else
 		{
 			// Skip continuation bytes of multi-byte characters (same logic as rendering)

@@ -17,6 +17,7 @@
     "font": "JetBrainsMonoNL-Regular",
     "fontSize": 25.0,
     "fps_target": 60.0,
+    "fps_target_unfocused": 30.0,
     "fps_toggle": true,
     "git_changed_lines": true,
     "jitter_intensity": 0.0,
