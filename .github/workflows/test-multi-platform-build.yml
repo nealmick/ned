@@ -102,5 +102,5 @@ jobs:
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ned-Windows-${{ needs.create-tag.outputs.timestamp }}
-          path: build/Release/ned.exe
+          name: Ned-Windows-Portable-${{ needs.create-tag.outputs.timestamp }}
+          path: build/ned-windows-portable/*
