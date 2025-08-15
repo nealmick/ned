@@ -3,9 +3,10 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#ifndef PLATFORM_WINDOWS
 #include <libgen.h>
 #include <unistd.h>
-#include <unistd.h> // Add this for readlink
+#endif
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -176,7 +177,7 @@ void SettingsFileManager::loadSettings(json &settings, std::string &settingsPath
 		for (const auto &filename : filesToCopy)
 		{
 			std::string sourcePath = bundleSettingsDir + "/" + filename;
-			std::string destPath = fs::path(primarySettingsDir) / filename;
+			std::string destPath = (fs::path(primarySettingsDir) / filename).string();
 
 			if (fs::exists(sourcePath))
 			{

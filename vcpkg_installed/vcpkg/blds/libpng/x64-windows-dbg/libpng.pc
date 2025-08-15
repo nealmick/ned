@@ -1,0 +1,12 @@
+prefix=C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug
+exec_prefix=C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug
+libdir=C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib
+includedir=C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/include/libpng16
+
+Name: libpng
+Description: Loads and saves PNG files
+Version: 1.6.43
+Requires.private: zlib
+Libs: -L${libdir} -lpng16
+Libs.private: 
+Cflags: -I${includedir}

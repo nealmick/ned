@@ -1,0 +1,6 @@
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib/libpng16d.lib
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/bin/libpng16d.dll
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib/pkgconfig/libpng16.pc
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib/libpng/libpng16.cmake
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib/libpng/libpng16-debug.cmake
+C:/Users/nealm/source/ned/vcpkg_installed/vcpkg/pkgs/libpng_x64-windows/debug/lib/libpng/libpng-config.cmake

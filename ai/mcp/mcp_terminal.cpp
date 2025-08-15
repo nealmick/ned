@@ -30,6 +30,7 @@ std::string TerminalServer::executeCommand(const std::string &command)
 		std::string result;
 
 		// Execute command and capture stdout
+#ifndef PLATFORM_WINDOWS
 		std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
 		if (!pipe)
 		{
@@ -52,6 +53,10 @@ std::string TerminalServer::executeCommand(const std::string &command)
 		}
 
 		return result;
+#else
+		// Windows doesn't support popen/pclose easily, stub this functionality
+		return "ERROR: MCP terminal commands not supported on Windows";
+#endif
 
 	} catch (const std::exception &e)
 	{

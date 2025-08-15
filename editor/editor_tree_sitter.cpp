@@ -6,9 +6,13 @@
 #include <sstream>
 #include <vector>
 
+#ifndef PLATFORM_WINDOWS
 #include <libgen.h> // For dirname
+#include <unistd.h> // For getcwd, readlink
+#else
+#define PATH_MAX 260
+#endif
 #include <limits.h> // Or <climits> for C++ style
-#include <unistd.h> // For getcwd
 
 #include <algorithm>
 #include <iostream>
@@ -224,7 +228,7 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		}
 		CFRelease(relPath);
 	}
-#else
+#elif !defined(PLATFORM_WINDOWS)
 	// --- Linux/Ubuntu Fix ---
 	char exePath[PATH_MAX];
 	ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
@@ -243,6 +247,9 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 	}
 	// Fallback (for development builds)
 	return "queries/" + relativePath; // Not "editor/queries"
+#else
+	// Windows - use simple fallback
+	return "queries/" + relativePath;
 #endif
 	// Fallback for development environment
 	return "editor/queries/" + relativePath;
