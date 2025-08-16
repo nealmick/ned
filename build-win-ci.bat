@@ -94,8 +94,7 @@ xcopy "..\fonts" "ned-windows-portable\fonts\" /E /I /Q
 xcopy "..\icons" "ned-windows-portable\icons\" /E /I /Q
 xcopy "..\settings" "ned-windows-portable\settings\" /E /I /Q
 xcopy "..\shaders" "ned-windows-portable\shaders\" /E /I /Q
-if not exist "ned-windows-portable\editor" mkdir "ned-windows-portable\editor"
-xcopy "..\editor\queries" "ned-windows-portable\editor\queries\" /E /I /Q
+xcopy "..\editor\queries" "ned-windows-portable\queries\" /E /I /Q
 
 REM Create ZIP package for easy distribution
 if "%CI%"=="true" (
