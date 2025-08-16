@@ -88,6 +88,17 @@ REM Copy executable and DLLs
 copy "Release\ned.exe" "ned-windows-portable\" >nul
 copy "Release\*.dll" "ned-windows-portable\" >nul 2>&1
 
+REM Copy Visual C++ Runtime DLLs (required for fresh Windows installs)
+set "VC_REDIST_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC"
+if not exist "%VC_REDIST_PATH%" set "VC_REDIST_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
+if not exist "%VC_REDIST_PATH%" set "VC_REDIST_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC"
+for /d %%i in ("%VC_REDIST_PATH%\*") do (
+    if exist "%%i\x64\Microsoft.VC143.CRT\*.dll" (
+        copy "%%i\x64\Microsoft.VC143.CRT\*.dll" "ned-windows-portable\" >nul 2>&1
+        echo Copied VC++ Runtime DLLs from %%i
+    )
+)
+
 REM Copy resource directories
 echo Copying resource directories...
 xcopy "..\fonts" "ned-windows-portable\fonts\" /E /I /Q

@@ -141,8 +141,9 @@ void FileFinder::updateFilteredList()
 		localFileList = fileList;
 	}
 	
-	std::cout << "[FileFinder] updateFilteredList: fileList size = " << localFileList.size() 
-			  << ", searchTerm = '" << searchTerm << "'" << std::endl;
+	// Debug: Uncomment to see when filtering occurs
+	// std::cout << "[FileFinder] updateFilteredList: fileList size = " << localFileList.size() 
+	//		  << ", searchTerm = '" << searchTerm << "'" << std::endl;
 
 	for (const auto &file : localFileList)
 	{
@@ -460,13 +461,13 @@ void FileFinder::renderWindow()
 	}
 
 	// Update filtered list based on search input.
-	std::string oldSearchTerm = previousSearch; // Store the old search term
-	updateFilteredList();
-
-	// If the search term changed (meaning we have new filtered results)
-	// or if we're navigating with arrow keys, handle the selection
-	if (oldSearchTerm != previousSearch)
+	std::string currentSearchTerm(searchBuffer);
+	std::transform(currentSearchTerm.begin(), currentSearchTerm.end(), currentSearchTerm.begin(), ::tolower);
+	
+	// Only update filtered list if search term changed
+	if (currentSearchTerm != previousSearch)
 	{
+		updateFilteredList();
 		isInitialSelection = false; // No longer initial when search changes
 		handleSelectionChange();
 	}
