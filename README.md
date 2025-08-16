@@ -55,31 +55,15 @@ brew install clang-format cmake llvm glfw glew pkg-config curl
 # Ubuntu (may require patching logic, currently un-tested)
 sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
 
-# Windows
-# No manual dependency installation required - the build script handles everything!
 ```
 
 ## Building the Project
 
 ### Windows
-For Windows users, simply run the automated build script:
 
 ```batch
 build-win.bat
 ```
-
-This will automatically:
-- Detect and use existing vcpkg installation (or build without it)
-- Configure the project with CMake
-- Build all dependencies and the ned editor
-- Launch `ned.exe` automatically
-
-For a clean build, run:
-```batch
-build-win.bat clean
-```
-
-**Note**: The script will try to find vcpkg in common locations or use the VCPKG_ROOT environment variable. If vcpkg is not found, it will attempt to build with system dependencies.
 
 ### macOS/Linux
 ```sh

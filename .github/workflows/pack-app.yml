@@ -128,10 +128,15 @@ jobs:
       - name: Install dependencies and build
         run: |
           .\build-win-ci.bat
+      
+      - name: Package
+        run: |
+          Compress-Archive -Path "ned-release\*" -DestinationPath "Ned-Windows-x64-${{ needs.create-tag.outputs.timestamp }}.zip"
+      
       - name: Upload Windows Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ned-release/*
+          files: Ned-Windows-x64-*.zip
           tag_name: ${{ needs.create-tag.outputs.timestamp }}
           name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           draft: false
