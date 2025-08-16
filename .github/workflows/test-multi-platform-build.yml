@@ -103,4 +103,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Ned-Windows-Portable-${{ needs.create-tag.outputs.timestamp }}
-          path: build/ned
+          path: ned-release/

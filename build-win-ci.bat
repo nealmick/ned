@@ -99,11 +99,13 @@ xcopy "..\editor\queries" "ned-windows-portable\queries\" /E /I /Q
 REM Create clean folder structure for CI
 if "%CI%"=="true" (
     echo Creating clean folder structure for CI...
-    REM Create ned folder and copy everything into it
-    if exist "ned" rmdir /s /q "ned"
-    mkdir "ned"
-    xcopy "ned-windows-portable\*" "ned\" /E /I /Q
-    echo Folder 'ned' created for GitHub Actions upload
+    REM Create ned-release directory with ned folder inside
+    cd ..
+    if exist "ned-release" rmdir /s /q "ned-release"
+    mkdir "ned-release"
+    mkdir "ned-release\ned"
+    xcopy "build\ned-windows-portable\*" "ned-release\ned\" /E /I /Q
+    echo Folder 'ned-release/ned' created for GitHub Actions upload
 )
 
 echo Portable package created in ned-windows-portable\
