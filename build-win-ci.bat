@@ -96,13 +96,17 @@ xcopy "..\settings" "ned-windows-portable\settings\" /E /I /Q
 xcopy "..\shaders" "ned-windows-portable\shaders\" /E /I /Q
 xcopy "..\editor\queries" "ned-windows-portable\queries\" /E /I /Q
 
-REM Prepare folder structure for GitHub Actions
+REM Create clean folder structure and ZIP for CI
 if "%CI%"=="true" (
-    echo Preparing folder structure for CI...
-    REM Rename the folder to 'ned' for cleaner extraction
+    echo Creating clean folder structure for CI...
+    REM Create ned folder and copy everything into it
     if exist "ned" rmdir /s /q "ned"
-    ren "ned-windows-portable" "ned"
-    echo Folder renamed to 'ned' for GitHub Actions upload
+    mkdir "ned"
+    xcopy "ned-windows-portable\*" "ned\" /E /I /Q
+    
+    REM Create ZIP with the ned folder inside
+    powershell -Command "Compress-Archive -Path 'ned' -DestinationPath 'ned-windows-portable.zip' -Force"
+    echo ZIP package created: ned-windows-portable.zip
 )
 
 echo Portable package created in ned-windows-portable\
