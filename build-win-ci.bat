@@ -83,8 +83,30 @@ if %errorlevel% neq 0 (
 REM Create a distributable package
 echo Creating distributable package...
 if not exist "ned-windows-portable" mkdir "ned-windows-portable"
+
+REM Copy executable and DLLs
 copy "Release\ned.exe" "ned-windows-portable\" >nul
 copy "Release\*.dll" "ned-windows-portable\" >nul 2>&1
+
+REM Copy resource directories
+echo Copying resource directories...
+xcopy "..\fonts" "ned-windows-portable\fonts\" /E /I /Q
+xcopy "..\icons" "ned-windows-portable\icons\" /E /I /Q
+xcopy "..\settings" "ned-windows-portable\settings\" /E /I /Q
+xcopy "..\shaders" "ned-windows-portable\shaders\" /E /I /Q
+if not exist "ned-windows-portable\editor" mkdir "ned-windows-portable\editor"
+xcopy "..\editor\queries" "ned-windows-portable\editor\queries\" /E /I /Q
+
+REM Create ZIP package for easy distribution
+if "%CI%"=="true" (
+    echo Creating ZIP package for CI...
+    REM Rename the folder to 'ned' for cleaner extraction
+    if exist "ned" rmdir /s /q "ned"
+    ren "ned-windows-portable" "ned"
+    powershell -Command "Compress-Archive -Path 'ned' -DestinationPath 'ned-windows-portable.zip' -Force"
+    echo ZIP package created: ned-windows-portable.zip
+)
+
 echo Portable package created in ned-windows-portable\
 
 REM For CI, don't run the executable
