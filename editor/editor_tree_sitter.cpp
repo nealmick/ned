@@ -249,7 +249,7 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 	// Fallback (for development builds)
 	return "queries/" + relativePath; // Not "editor/queries"
 #else
-	// Windows - get executable path and construct relative path to queries
+	// Windows - get executable path and construct relative path
 	char exePath[PATH_MAX];
 	DWORD pathLength = GetModuleFileNameA(NULL, exePath, PATH_MAX);
 	if (pathLength > 0 && pathLength < PATH_MAX)
@@ -260,14 +260,23 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		if (lastSlash != std::string::npos)
 		{
 			exeDir = exeDir.substr(0, lastSlash);
-			// Go up one level from Release to build directory, then into queries
+			
+			// For portable builds: Check if queries folder exists relative to exe
+			std::string portablePath = exeDir + "\\" + relativePath;
+			std::ifstream testFile(portablePath);
+			if (testFile.good()) {
+				std::cout << "[DEBUG] Windows Portable Query Path: " << portablePath << std::endl;
+				return portablePath;
+			}
+			
+			// For development builds: Go up one level from Release to build directory
 			size_t secondLastSlash = exeDir.find_last_of("\\");
 			if (secondLastSlash != std::string::npos)
 			{
 				std::string buildDir = exeDir.substr(0, secondLastSlash);
-				std::string path = buildDir + "\\" + relativePath;
-				std::cout << "[DEBUG] Windows Query Path: " << path << std::endl;
-				return path;
+				std::string devPath = buildDir + "\\" + relativePath;
+				std::cout << "[DEBUG] Windows Dev Query Path: " << devPath << std::endl;
+				return devPath;
 			}
 		}
 	}
