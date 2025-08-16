@@ -1,6 +1,18 @@
 #include "editor_mouse.h"
 #include "../files/files.h"
+#ifdef _WIN32
+// Fix for Windows UTF-8 library assert macro conflict
+#include <cassert>
+#ifdef assert
+#undef assert
+#endif
 #include "../lib/utfcpp/source/utf8.h"
+#ifdef _WIN32
+#define assert(expr) ((void)0)
+#endif
+#else
+#include "../lib/utfcpp/source/utf8.h"
+#endif
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
 #include "editor.h"

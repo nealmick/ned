@@ -125,7 +125,11 @@ void Init::initializeImGui(GLFWwindow *window)
 	ImGuiStyle &style = ImGui::GetStyle();
 	style.FrameRounding = 8.0f;		// Rounded corners for input fields, sliders, etc.
 	style.GrabRounding = 8.0f;		// Rounded corners for grab handles
-	style.WindowRounding = 12.0f;	// Rounded corners for windows
+#ifdef PLATFORM_WINDOWS
+	style.WindowRounding = 0.0f;	// Square corners for windows on Windows to match title bar
+#else
+	style.WindowRounding = 12.0f;	// Rounded corners for windows on macOS/Linux
+#endif
 	style.ChildRounding = 8.0f;		// Rounded corners for child windows
 	style.PopupRounding = 8.0f;		// Rounded corners for popups
 	style.ScrollbarRounding = 8.0f; // Rounded corners for scrollbars

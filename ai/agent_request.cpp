@@ -8,7 +8,19 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#ifdef _WIN32
+// Fix for Windows UTF-8 library assert macro conflict
+#include <cassert>
+#ifdef assert
+#undef assert
+#endif
 #include <utf8.h>
+#ifdef _WIN32
+#define assert(expr) ((void)0)
+#endif
+#else
+#include <utf8.h>
+#endif
 
 using json = nlohmann::json;
 

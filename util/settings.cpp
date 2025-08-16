@@ -23,7 +23,9 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#ifndef PLATFORM_WINDOWS
 #include <libgen.h>
+#endif
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -34,7 +36,9 @@
 #endif
 
 #include <map>
+#ifndef PLATFORM_WINDOWS
 #include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 extern Settings gSettings;
@@ -972,8 +976,8 @@ void Settings::renderKeybindsSettings()
 	if (ImGui::Button("Open Keybinds File"))
 	{
 		std::string keybindsPath =
-			fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-			"keybinds.json";
+			(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+			"keybinds.json").string();
 		if (fs::exists(keybindsPath))
 		{
 			gFileExplorer.loadFileContent(keybindsPath);
@@ -989,11 +993,11 @@ void Settings::renderKeybindsSettings()
 
 	// Check if we're using default keybinds
 	std::string keybindsPath =
-		fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"keybinds.json";
+		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+		"keybinds.json").string();
 	std::string defaultKeybindsPath =
-		fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"default-keybinds.json";
+		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
+		"default-keybinds.json").string();
 
 	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath))
 	{

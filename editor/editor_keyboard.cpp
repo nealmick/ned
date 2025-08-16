@@ -3,7 +3,19 @@
 #include "../editor/editor_git.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
+#ifdef _WIN32
+// Fix for Windows UTF-8 library assert macro conflict
+#include <cassert>
+#ifdef assert
+#undef assert
+#endif
 #include "../lib/utfcpp/source/utf8.h"
+#ifdef _WIN32
+#define assert(expr) ((void)0)
+#endif
+#else
+#include "../lib/utfcpp/source/utf8.h"
+#endif
 #include "../lsp/lsp_autocomplete.h"
 #include "../lsp/lsp_goto_def.h"
 #include "../lsp/lsp_goto_ref.h"
@@ -107,6 +119,15 @@ void EditorKeyboard::handleBackspaceKey()
 				if (prev != editor_state.fileContent.begin())
 				{
 					utf8::unchecked::prior(prev);
+					
+#ifdef PLATFORM_WINDOWS
+					// Special handling for Windows line endings (\r\n)
+					// If we're about to delete \n and the previous char is \r, delete both
+					if (*prev == '\n' && prev != editor_state.fileContent.begin() && *(prev - 1) == '\r')
+					{
+						--prev; // Move back to include the \r as well
+					}
+#endif
 				}
 				int start_pos = str_index_at(editor_state.fileContent, prev);
 				ranges_to_delete.emplace_back(start_pos, pos);

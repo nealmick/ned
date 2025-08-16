@@ -6,9 +6,14 @@
 #include <sstream>
 #include <vector>
 
+#ifndef PLATFORM_WINDOWS
 #include <libgen.h> // For dirname
+#include <unistd.h> // For getcwd, readlink
+#else
+#define PATH_MAX 260
+#include <windows.h> // For GetModuleFileNameA
+#endif
 #include <limits.h> // Or <climits> for C++ style
-#include <unistd.h> // For getcwd
 
 #include <algorithm>
 #include <iostream>
@@ -224,7 +229,7 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		}
 		CFRelease(relPath);
 	}
-#else
+#elif !defined(PLATFORM_WINDOWS)
 	// --- Linux/Ubuntu Fix ---
 	char exePath[PATH_MAX];
 	ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
@@ -243,6 +248,40 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 	}
 	// Fallback (for development builds)
 	return "queries/" + relativePath; // Not "editor/queries"
+#else
+	// Windows - get executable path and construct relative path
+	char exePath[PATH_MAX];
+	DWORD pathLength = GetModuleFileNameA(NULL, exePath, PATH_MAX);
+	if (pathLength > 0 && pathLength < PATH_MAX)
+	{
+		// Get directory containing the executable
+		std::string exeDir(exePath);
+		size_t lastSlash = exeDir.find_last_of("\\");
+		if (lastSlash != std::string::npos)
+		{
+			exeDir = exeDir.substr(0, lastSlash);
+			
+			// For portable builds: Check if queries folder exists relative to exe
+			std::string portablePath = exeDir + "\\" + relativePath;
+			std::ifstream testFile(portablePath);
+			if (testFile.good()) {
+				std::cout << "[DEBUG] Windows Portable Query Path: " << portablePath << std::endl;
+				return portablePath;
+			}
+			
+			// For development builds: Go up one level from Release to build directory
+			size_t secondLastSlash = exeDir.find_last_of("\\");
+			if (secondLastSlash != std::string::npos)
+			{
+				std::string buildDir = exeDir.substr(0, secondLastSlash);
+				std::string devPath = buildDir + "\\" + relativePath;
+				std::cout << "[DEBUG] Windows Dev Query Path: " << devPath << std::endl;
+				return devPath;
+			}
+		}
+	}
+	// Fallback for development builds
+	return "..\\" + relativePath;
 #endif
 	// Fallback for development environment
 	return "editor/queries/" + relativePath;
