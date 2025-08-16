@@ -130,3 +130,10 @@ https://github.com/user-attachments/assets/13c01a86-3b16-49c8-89e8-3fb5d7fb8910
 Ned has the ability to track multiple cursors at once, which can make editing in certain scenarios much easier. The multi cursor system is used for file content searches to spawn cursors at each instance of a text search string. The app also supports multi selection for selecting text with multiple cursors. The cursor also supports keybinds such as jump to line end or jump one word forward. Below is a demo:
 
 https://github.com/user-attachments/assets/b6537f42-fe11-4e5c-bd97-41f2db7bc262
+
+#### Windows
+Windows support is still being tested, but there is a windows build available in releases as well as a build script for both the standalone and embedded versions. 
+
+https://github.com/user-attachments/assets/b3055f15-5180-4f44-b534-a9a75219ecf8
+
+
