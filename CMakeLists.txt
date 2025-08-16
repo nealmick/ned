@@ -257,6 +257,11 @@ add_dependencies(ned_util libgit2 util)
 # ================
 # Main Executable (only in standalone mode)
 # ================
+# Add Windows resource file
+if(WIN32)
+  set(WINDOWS_RESOURCES ned.rc)
+endif()
+
 # Force ned executable to be built
 add_executable(ned
   globals.cpp
@@ -267,6 +272,7 @@ add_executable(ned
   ${AI_MM_SOURCES}
   ${FILES_SOURCES}
   ${IMGUI_SOURCES}
+  ${WINDOWS_RESOURCES}
 )
 
 # ================

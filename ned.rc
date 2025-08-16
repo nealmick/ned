@@ -1,0 +1,28 @@
+#include <windows.h>
+
+// Application icon
+IDI_APPLICATION ICON "icons/ned.ico"
+
+// Version information
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName", "Ned Team"
+            VALUE "FileDescription", "Ned Text Editor"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "ned"
+            VALUE "OriginalFilename", "ned.exe"
+            VALUE "ProductName", "Ned"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END
