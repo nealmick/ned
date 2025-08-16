@@ -78,6 +78,31 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 
 	float fpsTarget = DEFAULT_FPS_TARGET;
 
+#ifdef PLATFORM_WINDOWS
+	// On Windows, use simple fixed frame timing - just sleep for the target frame time
+	if (settings.getSettings().contains("fps_target") &&
+		settings.getSettings()["fps_target"].is_number())
+	{
+		fpsTarget = settings.getSettings()["fps_target"].get<float>();
+	}
+	
+	// Simple busy waiting - the only thing that works reliably on Windows
+	if (fpsTarget > MIN_FPS_TARGET && fpsTarget < MAX_FPS_TARGET)
+	{
+		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
+		auto frame_duration_seconds = std::chrono::duration<double>(frame_duration);
+		
+		if (frame_duration_seconds < targetFrameTime)
+		{
+			auto endTime = frame_start + std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(targetFrameTime);
+			while (std::chrono::high_resolution_clock::now() < endTime)
+			{
+				// Busy wait for precise timing
+			}
+		}
+	}
+#else
+	// On macOS/Linux, keep the variable FPS logic for smooth user interaction
 	// Check if scroll animation is active - if so, bypass FPS restrictions like mouse wheel
 	extern EditorScroll gEditorScroll;
 	bool scrollAnimationActive = gEditorScroll.isScrollAnimationActive();
@@ -124,6 +149,7 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 			std::this_thread::sleep_for(targetFrameTime - frame_duration);
 		}
 	}
+#endif
 }
 
 void Render::checkForActivity()

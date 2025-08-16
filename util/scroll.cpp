@@ -24,5 +24,11 @@ void Scroll::scrollCallback(GLFWwindow *window,
 							double yoffset,
 							std::function<void(double, double)> updateAccumulators)
 {
+#ifdef PLATFORM_WINDOWS
+	// On Windows, use normal scroll speed (no slowing)
+	updateAccumulators(xoffset, yoffset);
+#else
+	// On macOS/Linux, apply scroll slowing for better feel
 	updateAccumulators(xoffset * 0.2, yoffset * 0.2);
+#endif
 }

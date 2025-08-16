@@ -18,6 +18,9 @@ compile_commands.json
 .cache/
 .undo-redo-ned.json
 .ned-agent-history.json
+
+# Runtime configuration directory
+ned/
 # macOS system files
 .DS_Store
 .AppleDouble
@@ -60,6 +63,9 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 
+# vcpkg installed packages (generated from vcpkg.json)
+vcpkg_installed/
+
 # IDE specific files
 .vscode/
 .idea/
@@ -99,3 +105,4 @@ ehthumbs.db
 Thumbs.db
 # debian packages
 *.deb
+vcpkg/

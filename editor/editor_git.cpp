@@ -10,7 +10,9 @@
 #include <memory>
 #include <sstream>
 #include <thread>
+#ifndef PLATFORM_WINDOWS
 #include <unistd.h>
+#endif
 #include <vector>
 
 namespace fs = std::filesystem;

@@ -4,9 +4,11 @@
 #include <cstring> // For strncmp, strcmp, strerror
 #include <iostream>
 #include <sstream>
+#ifndef PLATFORM_WINDOWS
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h> // For pipe, fork, dup2, execl, close, usleep
+#endif
 #include <vector>	// For readResponse buffer
 
 // PImpl class definition

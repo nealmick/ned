@@ -10,7 +10,9 @@
 #include <iostream>
 #include <set>
 #include <sstream>
+#ifndef PLATFORM_WINDOWS
 #include <unistd.h>
+#endif
 
 Shader::Shader() { shaderProgram = 0; }
 

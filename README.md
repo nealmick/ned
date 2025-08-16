@@ -1,6 +1,6 @@
 <img width="250" height="150" alt="ned-3" src="https://github.com/user-attachments/assets/49cc36bf-1164-4bdc-bc22-7b89a0021c77" />
 
-<img src="https://github.com/nealmick/ned/actions/workflows/pack-app.yml/badge.svg" alt="Build Status">  ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)  ![Debian](https://img.shields.io/badge/Debian-✓-success?logo=debian&logoColor=white)  ![Windows](https://img.shields.io/badge/Windows-✗%20coming%20soon-red?logo=microsoft&logoColor=white)
+<img src="https://github.com/nealmick/ned/actions/workflows/pack-app.yml/badge.svg" alt="Build Status">  ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)  ![Debian](https://img.shields.io/badge/Debian-✓-success?logo=debian&logoColor=white)  ![Windows](https://img.shields.io/badge/Windows-✓-success?logo=microsoft&logoColor=white)
 
 A retro-style text editor with GL shader effects. NED offers Tree Sitter syntax highlighting, LSP integration, and a terminal emulator.
 
@@ -49,18 +49,41 @@ cd ned
 git submodule init
 git submodule update
 
-#Mac OS Intel and ARM
+# macOS (Intel and ARM)
 brew install clang-format cmake llvm glfw glew pkg-config curl
 
-#Ubuntu may require patching logic, currently un-tested
+# Ubuntu (may require patching logic, currently un-tested)
 sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
 
+# Windows
+# No manual dependency installation required - the build script handles everything!
 ```
 
-Building the Project
+## Building the Project
+
+### Windows
+For Windows users, simply run the automated build script:
+
+```batch
+build-win.bat
+```
+
+This will automatically:
+- Detect and use existing vcpkg installation (or build without it)
+- Configure the project with CMake
+- Build all dependencies and the ned editor
+- Launch `ned.exe` automatically
+
+For a clean build, run:
+```batch
+build-win.bat clean
+```
+
+**Note**: The script will try to find vcpkg in common locations or use the VCPKG_ROOT environment variable. If vcpkg is not found, it will attempt to build with system dependencies.
+
+### macOS/Linux
 ```sh
 ./build.sh
-
 ```
 
 Create app package
@@ -92,7 +115,7 @@ Ned is a feature-rich text editor built with Dear ImGui that combines the power 
 
 The editor includes LSP integration with support for clangd, gopls, pyright, and TypeScript language servers, providing goto definition, find references, and symbol information. Ned also includes a terminal emulator and AI integration with OpenRouter support. The editor features emoji support with proper font rendering, custom shader effects, and a theming system. The project is designed to be embeddable in other ImGui applications through the ned_embed library, making it easy to integrate into your own projects.
 
-Currently Ned is tested on macOS ARM and Intel. There is also a Debian build available. Windows is not supported, but hopefully will be added in the future.  
+Currently Ned is tested on macOS ARM and Intel, Windows x64, and has a Debian build available. Windows support includes automated dependency management through the build script.  
 
 If you have questions or issues, feel free to reach out.
 
@@ -107,3 +130,10 @@ https://github.com/user-attachments/assets/13c01a86-3b16-49c8-89e8-3fb5d7fb8910
 Ned has the ability to track multiple cursors at once, which can make editing in certain scenarios much easier. The multi cursor system is used for file content searches to spawn cursors at each instance of a text search string. The app also supports multi selection for selecting text with multiple cursors. The cursor also supports keybinds such as jump to line end or jump one word forward. Below is a demo:
 
 https://github.com/user-attachments/assets/b6537f42-fe11-4e5c-bd97-41f2db7bc262
+
+#### Windows
+Windows support is still being tested, but there is a windows build available in releases as well as a build script for both the standalone and embedded versions. 
+
+https://github.com/user-attachments/assets/b3055f15-5180-4f44-b534-a9a75219ecf8
+
+

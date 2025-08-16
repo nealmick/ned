@@ -8,7 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in" "${CMAKE_BINARY_DIR}/config.h")
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -26,6 +26,11 @@ if(APPLE)
     # Add compatibility flags for macOS 11.0+
     add_compile_options(-mmacosx-version-min=11.0)
     add_link_options(-mmacosx-version-min=11.0)
+elseif(WIN32)
+    add_compile_definitions(PLATFORM_WINDOWS)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)
+    add_compile_definitions(NOMINMAX)
+    add_compile_definitions(_WIN32_WINNT=0x0601) # Windows 7+
 elseif(UNIX)
     add_compile_definitions(PLATFORM_LINUX)
     # Ensure proper feature test macros for Linux to expose le16toh/be16toh functions
@@ -60,6 +65,11 @@ set(BUILD_CLI OFF CACHE BOOL "Disable libgit2 CLI tools")
 set(USE_SSH OFF CACHE BOOL "Disable SSH support")
 set(USE_HTTPS ON CACHE BOOL "Enable HTTPS support")
 set(USE_NTLMCLIENT OFF CACHE BOOL "Disable NTLM client")
+set(REGEX_BACKEND "builtin" CACHE STRING "Force libgit2 to use builtin regex")
+set(USE_BUNDLED_ZLIB ON CACHE BOOL "Use bundled zlib")
+set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
+set(EMBED_SSH_PATH OFF CACHE BOOL "Disable SSH path")
+set(THREADSAFE OFF CACHE BOOL "Disable threadsafe")
 add_subdirectory(lib/libgit2)
 
 # ================
@@ -75,6 +85,9 @@ if(APPLE)
   target_sources(nfd PRIVATE ${NFD_DIR}/src/nfd_cocoa.m)
   target_compile_options(nfd PRIVATE -x objective-c -Wno-deprecated-declarations)
   target_link_libraries(nfd PRIVATE "-framework Cocoa")
+elseif(WIN32)
+  target_sources(nfd PRIVATE ${NFD_DIR}/src/nfd_win.cpp)
+  target_link_libraries(nfd PRIVATE shell32 ole32 uuid)
 elseif(UNIX)
   target_sources(nfd PRIVATE ${NFD_DIR}/src/nfd_gtk.c)
   find_package(PkgConfig REQUIRED)
@@ -94,7 +107,6 @@ target_include_directories(nfd PUBLIC
 # Core library
 add_library(tree-sitter-lib STATIC
   lib/tree-sitter/lib/src/lib.c
-  lib/tree-sitter/lib/src/parser.c
   lib/tree-sitter/lib/src/query.c 
 )
 target_include_directories(tree-sitter-lib PUBLIC
@@ -167,7 +179,16 @@ set(APP_SOURCES
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
-file(GLOB_RECURSE LSP_SOURCES       "lsp/*.cpp")
+if(WIN32)
+    # On Windows, use stub implementations only
+    set(LSP_SOURCES
+        lsp/lsp_stubs_windows.cpp
+    )
+else()
+    # On Unix systems, use real LSP implementation (exclude Windows stubs)
+    file(GLOB_RECURSE LSP_SOURCES "lsp/*.cpp")
+    list(REMOVE_ITEM LSP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_stubs_windows.cpp")
+endif()
 file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
@@ -236,18 +257,23 @@ add_dependencies(ned_util libgit2 util)
 # ================
 # Main Executable (only in standalone mode)
 # ================
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-  add_executable(ned
-    globals.cpp
-    ${APP_SOURCES}
-    ${EDITOR_SOURCES}
-    ${LSP_SOURCES}
-    ${AI_SOURCES}
-    ${AI_MM_SOURCES}
-    ${FILES_SOURCES}
-    ${IMGUI_SOURCES}
-  )
+# Add Windows resource file
+if(WIN32)
+  set(WINDOWS_RESOURCES ned.rc)
 endif()
+
+# Force ned executable to be built
+add_executable(ned
+  globals.cpp
+  ${APP_SOURCES}
+  ${EDITOR_SOURCES}
+  ${LSP_SOURCES}
+  ${AI_SOURCES}
+  ${AI_MM_SOURCES}
+  ${FILES_SOURCES}
+  ${IMGUI_SOURCES}
+  ${WINDOWS_RESOURCES}
+)
 
 # ================
 # Embeddable Library
@@ -337,32 +363,33 @@ target_include_directories(ned_embed PUBLIC
 # ================
 # Linking
 # ================
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-  # Standalone: link to our own ImGui, FreeType, GLEW, etc.
-  target_link_libraries(ned PRIVATE
-    ${OPENGL_LIBRARIES}
-    glfw
-    nfd
-    ned_util
-    GLEW::GLEW
-    Freetype::Freetype
-    CURL::libcurl 
-    tree-sitter-lib
-    ${TS_GRAMMAR_LIBS}
-    libgit2
-    util
-    llhttp
-    xdiff
-    z
-    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
-    $<$<PLATFORM_ID:Linux>:pthread>
-    $<$<PLATFORM_ID:Linux>:ssl>
-    $<$<PLATFORM_ID:Linux>:crypto>
-    $<$<PLATFORM_ID:Linux>:pcre>
-    $<$<PLATFORM_ID:Linux>:rt>
-  )
-  add_dependencies(ned libgit2 util llhttp xdiff)
-endif()
+# Force standalone linking
+target_link_libraries(ned PRIVATE
+  ${OPENGL_LIBRARIES}
+  glfw
+  nfd
+  ned_util
+  GLEW::GLEW
+  Freetype::Freetype
+  CURL::libcurl 
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
+  libgit2
+  util
+  llhttp
+  xdiff
+  pcre
+  $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
+  $<$<PLATFORM_ID:Darwin>:iconv>
+  $<$<PLATFORM_ID:Linux>:pthread>
+  $<$<PLATFORM_ID:Linux>:ssl>
+  $<$<PLATFORM_ID:Linux>:crypto>
+  $<$<PLATFORM_ID:Linux>:pcre>
+  $<$<PLATFORM_ID:Linux>:rt>
+)
+add_dependencies(ned libgit2 util llhttp xdiff)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   # Standalone: link to our own ImGui, FreeType, GLEW, etc.
@@ -380,8 +407,11 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     util
     llhttp
     xdiff
-    z
-    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    pcre
+    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
+    $<$<PLATFORM_ID:Darwin>:iconv>
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
     $<$<PLATFORM_ID:Linux>:crypto>
@@ -406,8 +436,11 @@ else()
     util
     llhttp
     xdiff
-    z
-    $<$<NOT:$<PLATFORM_ID:Linux>>:iconv>
+    pcre
+    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
+    $<$<PLATFORM_ID:Darwin>:iconv>
     $<$<PLATFORM_ID:Linux>:pthread>
     $<$<PLATFORM_ID:Linux>:ssl>
     $<$<PLATFORM_ID:Linux>:crypto>
@@ -428,6 +461,22 @@ if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     "-framework Security"
     "-framework GSS"
     "-framework CoreFoundation"
+  )
+endif()
+
+if(WIN32 AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  target_link_libraries(ned PRIVATE
+    winhttp
+    secur32
+    crypt32
+    rpcrt4
+    ws2_32
+    advapi32
+    shell32
+    ole32
+    oleaut32
+    user32
+    comdlg32
   )
 endif()
 

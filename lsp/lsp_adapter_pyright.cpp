@@ -4,10 +4,12 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#ifndef PLATFORM_WINDOWS
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 class LSPAdapterPyright::PyrightImpl
 {
   public:

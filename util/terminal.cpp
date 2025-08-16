@@ -9,19 +9,21 @@
 #include "font.h"
 #include "imgui.h"
 #include "util/settings.h"
+#include <iostream>
+
+#ifndef PLATFORM_WINDOWS
 #include <errno.h>
 #include <fcntl.h>
-#include <iostream>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-
 #include <limits.h>	   // For PATH_MAX (on Linux)
 #include <pwd.h>	   // For getpwuid
 #include <stdlib.h>	   // For getenv, setenv, unsetenv, realpath
 #include <string.h>	   // For strrchr, strcpy, strncpy, strerror
 #include <sys/types.h> // For getpwuid, uid_t
+#endif
 
 #ifndef PATH_MAX // Define a fallback if PATH_MAX is not found (e.g., on some
 				 // systems)
@@ -130,6 +132,7 @@ Terminal::~Terminal()
 	shouldTerminate = true;
 
 	// Close PTY first to signal the child process
+#ifndef PLATFORM_WINDOWS
 	if (ptyFd >= 0)
 	{
 		close(ptyFd);
@@ -142,6 +145,7 @@ Terminal::~Terminal()
 		kill(childPid, SIGTERM);
 		childPid = -1;
 	}
+#endif
 
 	// Wait for read thread with timeout
 	if (readThread.joinable())
@@ -150,6 +154,7 @@ Terminal::~Terminal()
 	}
 }
 
+#ifndef PLATFORM_WINDOWS
 void Terminal::startShell()
 {
 	// Open PTY master
@@ -468,15 +473,24 @@ void Terminal::startShell()
 
 	readThread = std::thread(&Terminal::readOutput, this);
 }
+#else
+void Terminal::startShell()
+{
+	// Terminal not supported on Windows
+}
+#endif
+
 void Terminal::render()
 {
 	if (!isVisible)
 		return;
 
+#ifndef PLATFORM_WINDOWS
 	if (ptyFd < 0)
 	{
 		startShell();
 	}
+#endif
 
 	ImGuiIO &io = ImGui::GetIO();
 
@@ -1109,7 +1123,12 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	}
 }
 
-void Terminal::toggleVisibility() { isVisible = !isVisible; }
+void Terminal::toggleVisibility() {
+#ifndef PLATFORM_WINDOWS
+	isVisible = !isVisible;
+#endif
+	// On Windows, do nothing - terminal toggle is disabled
+}
 
 void Terminal::writeToBuffer(const char *data, size_t length)
 {
@@ -2642,10 +2661,12 @@ void Terminal::resize(int cols, int rows)
 		state.c.y = std::min(state.c.y, rows - 1);
 
 		// Update PTY size if valid
+#ifndef PLATFORM_WINDOWS
 		struct winsize ws = {};
 		ws.ws_row = state.row;
 		ws.ws_col = state.col;
 		ioctl(ptyFd, TIOCSWINSZ, &ws); // Set master side size
+#endif
 
 	} catch (const std::exception &e)
 	{
@@ -2726,6 +2747,7 @@ void Terminal::handleControlCode(unsigned char c)
 	}
 }
 
+#ifndef PLATFORM_WINDOWS
 void Terminal::processInput(const std::string &input)
 {
 	if (ptyFd < 0)
@@ -2781,7 +2803,14 @@ void Terminal::processInput(const std::string &input)
 
 	write(ptyFd, input.c_str(), input.length());
 }
+#else
+void Terminal::processInput(const std::string &input)
+{
+	// Terminal not supported on Windows
+}
+#endif
 
+#ifndef PLATFORM_WINDOWS
 void Terminal::readOutput()
 {
 	char buffer[4096];
@@ -2812,9 +2841,15 @@ void Terminal::readOutput()
 		}
 	}
 }
+#else
+void Terminal::readOutput()
+{
+	// Terminal not supported on Windows
+}
+#endif
 void Terminal::tputtab(int n)
 {
-	uint x = state.c.x;
+	unsigned int x = state.c.x;
 
 	if (n > 0)
 	{
@@ -3020,6 +3055,7 @@ void Terminal::pasteFromClipboard()
 	std::cout << "MODE_BRACKETPASTE: " << MODE_BRACKETPASTE << "\n";
 	std::cout << "Check result: " << (state.mode & MODE_BRACKETPASTE) << "\n";
 
+#ifndef PLATFORM_WINDOWS
 	if (state.mode & MODE_BRACKETPASTE)
 	{
 		std::cout << "Bracketed paste mode active\n";
@@ -3034,6 +3070,7 @@ void Terminal::pasteFromClipboard()
 		std::cout << "Normal paste mode\n";
 		write(ptyFd, text, strlen(text));
 	}
+#endif
 }
 bool Terminal::selectedText(int x, int y)
 {
