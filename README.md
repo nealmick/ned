@@ -44,6 +44,7 @@ Curl
 
 Clone the repository with its submodules:
 ```sh
+#Make sure you clone with recursive flag
 git clone --recursive https://github.com/nealmick/ned
 cd ned
 git submodule init
@@ -55,19 +56,23 @@ brew install clang-format cmake llvm glfw glew pkg-config curl
 # Ubuntu (may require patching logic, currently un-tested)
 sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
 
+# For Windows, the dependencies are installed using the build script
 ```
 
 ## Building the Project
 
-### Windows
-
-```batch
-build-win.bat
-```
 
 ### macOS/Linux
 ```sh
 ./build.sh
+```
+
+### Windows
+```sh
+./build-win.bat
+# On Windows, the build script will attempt to install Visual Studio with Build Tools. 10-20 minutes.
+# After VS has been installed, you must close and re-open PowerShell and run ./build-win.bat again.
+# Subsequent rebuilds are much faster after the initial dependencies have been installed.
 ```
 
 Create app package
