@@ -29,27 +29,32 @@ std::string EditorHeader::normalizePathForDisplay(const std::string &path)
 	std::string result = path;
 	// Convert forward slashes to backslashes
 	std::replace(result.begin(), result.end(), '/', '\\');
-	
+
 	// Remove consecutive backslashes (but preserve UNC paths that start with \\)
 	std::string cleaned;
 	bool lastWasBackslash = false;
 	bool isUNCPath = result.length() >= 2 && result[0] == '\\' && result[1] == '\\';
-	
-	for (size_t i = 0; i < result.length(); ++i) {
+
+	for (size_t i = 0; i < result.length(); ++i)
+	{
 		char c = result[i];
-		if (c == '\\') {
-			if (!lastWasBackslash || (i == 1 && isUNCPath)) {
-				// Add the backslash if it's not consecutive, or if it's the second slash in UNC path
+		if (c == '\\')
+		{
+			if (!lastWasBackslash || (i == 1 && isUNCPath))
+			{
+				// Add the backslash if it's not consecutive, or if it's the second slash
+				// in UNC path
 				cleaned += c;
 				lastWasBackslash = true;
 			}
 			// Skip consecutive backslashes
-		} else {
+		} else
+		{
 			cleaned += c;
 			lastWasBackslash = false;
 		}
 	}
-	
+
 	return cleaned;
 #else
 	return path;

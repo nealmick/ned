@@ -85,16 +85,19 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 	{
 		fpsTarget = settings.getSettings()["fps_target"].get<float>();
 	}
-	
+
 	// Simple busy waiting - the only thing that works reliably on Windows
 	if (fpsTarget > MIN_FPS_TARGET && fpsTarget < MAX_FPS_TARGET)
 	{
 		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
 		auto frame_duration_seconds = std::chrono::duration<double>(frame_duration);
-		
+
 		if (frame_duration_seconds < targetFrameTime)
 		{
-			auto endTime = frame_start + std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(targetFrameTime);
+			auto endTime =
+				frame_start +
+				std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
+					targetFrameTime);
 			while (std::chrono::high_resolution_clock::now() < endTime)
 			{
 				// Busy wait for precise timing
