@@ -260,15 +260,17 @@ std::string TreeSitter::getResourcePath(const std::string &relativePath)
 		if (lastSlash != std::string::npos)
 		{
 			exeDir = exeDir.substr(0, lastSlash);
-			
+
 			// For portable builds: Check if queries folder exists relative to exe
 			std::string portablePath = exeDir + "\\" + relativePath;
 			std::ifstream testFile(portablePath);
-			if (testFile.good()) {
-				std::cout << "[DEBUG] Windows Portable Query Path: " << portablePath << std::endl;
+			if (testFile.good())
+			{
+				std::cout << "[DEBUG] Windows Portable Query Path: " << portablePath
+						  << std::endl;
 				return portablePath;
 			}
-			
+
 			// For development builds: Go up one level from Release to build directory
 			size_t secondLastSlash = exeDir.find_last_of("\\");
 			if (secondLastSlash != std::string::npos)
