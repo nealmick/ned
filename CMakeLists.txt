@@ -180,11 +180,14 @@ set(APP_SOURCES
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
 if(WIN32)
-    # On Windows, use stub implementations plus basic Python LSP support
+    # On Windows, use cross-platform LSP support with Windows adapters
     set(LSP_SOURCES
         lsp/lsp_stubs_windows.cpp
         lsp/lsp_manager_windows.cpp
         lsp/lsp_adapter_pyright_windows.cpp
+        lsp/lsp_goto_def.cpp
+        lsp/lsp_goto_ref.cpp
+        lsp/lsp_symbol_info.cpp
     )
 else()
     # On Unix systems, use real LSP implementation (exclude Windows stubs)

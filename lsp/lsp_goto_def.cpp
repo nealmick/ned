@@ -8,8 +8,28 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <fstream>
+#include <set>
+
+#ifdef PLATFORM_WINDOWS
+#include <windows.h>
+#endif
+
+// Platform-specific LSP manager includes
+#ifdef PLATFORM_WINDOWS
+#include "lsp_manager_windows.h"
+#else
+#include "lsp_manager.h"
+#endif
 
 using json = nlohmann::json;
+
+// Platform-specific LSP manager selection
+#ifdef PLATFORM_WINDOWS
+#define CURRENT_LSP_MANAGER gLSPManagerWindows
+#else
+#define CURRENT_LSP_MANAGER gLSPManager
+#endif
 
 LSPGotoDef gLSPGotoDef;
 
@@ -21,22 +41,103 @@ LSPGotoDef::~LSPGotoDef() = default;
 
 bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int character)
 {
-	if (!gLSPManager.isInitialized())
+#ifdef PLATFORM_WINDOWS
+	// Windows-specific initialization and file type checking
+	size_t dot_pos = filePath.find_last_of(".");
+	if (dot_pos == std::string::npos) {
+		return false; // No extension
+	}
+	std::string ext = filePath.substr(dot_pos + 1);
+	if (ext != "py") {
+		return false; // Only support Python files for now on Windows
+	}
+
+	// Select adapter and auto-initialize if needed
+	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath)) {
+		std::cout << "\033[33mLSP GotoDef:\033[0m No adapter available for file: " << filePath << std::endl;
+		return false;
+	}
+
+	if (!CURRENT_LSP_MANAGER.isInitialized()) {
+		// Extract workspace path from file path
+		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
+		if (!CURRENT_LSP_MANAGER.initialize(workspacePath)) {
+			std::cout << "\033[31mLSP GotoDef:\033[0m Failed to initialize LSP" << std::endl;
+			return false;
+		}
+	}
+#else
+	// Linux/macOS LSP initialization
+	if (!CURRENT_LSP_MANAGER.isInitialized())
 	{
 		std::cout << "\033[31mLSP GotoDef:\033[0m Not initialized" << std::endl;
 		return false;
 	}
 
-	if (!gLSPManager.selectAdapterForFile(filePath))
+	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath))
 	{
 		std::cout << "\033[31mLSP GotoDef:\033[0m No LSP adapter available for file: "
 				  << filePath << std::endl;
 		return false;
 	}
+#endif
 
 	int requestId = getNextRequestId();
 	std::cout << "\033[35mLSP GotoDef:\033[0m Requesting definition at line " << line
 			  << ", char " << character << " (ID: " << requestId << ")" << std::endl;
+
+#ifdef PLATFORM_WINDOWS
+	// Windows: Convert path to proper URI format and handle didOpen
+	std::string fileURI = "file:///" + filePath;
+	for (char &c : fileURI) {
+		if (c == '\\') c = '/';
+	}
+
+	// Send didOpen notification if needed
+	static std::set<std::string> openedFiles;
+	if (openedFiles.find(fileURI) == openedFiles.end()) {
+		std::ifstream fileStream(filePath);
+		if (fileStream.is_open()) {
+			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
+									std::istreambuf_iterator<char>());
+			fileStream.close();
+
+			// Escape content for JSON
+			std::string escapedContent;
+			for (char c : fileContent) {
+				switch (c) {
+					case '"': escapedContent += "\\\""; break;
+					case '\\': escapedContent += "\\\\"; break;
+					case '\n': escapedContent += "\\n"; break;
+					case '\r': escapedContent += "\\r"; break;
+					case '\t': escapedContent += "\\t"; break;
+					default: escapedContent += c; break;
+				}
+			}
+
+			std::string didOpenRequest = R"({
+				"jsonrpc": "2.0",
+				"method": "textDocument/didOpen",
+				"params": {
+					"textDocument": {
+						"uri": ")" + fileURI + R"(",
+						"languageId": "python",
+						"version": 1,
+						"text": ")" + escapedContent + R"("
+					}
+				}
+			})";
+
+			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
+			openedFiles.insert(fileURI);
+			Sleep(100);
+		}
+	}
+	
+	std::string uriForRequest = fileURI;
+#else
+	std::string uriForRequest = "file://" + filePath;
+#endif
 
 	std::string request = std::string(R"({
             "jsonrpc": "2.0",
@@ -45,9 +146,7 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
             "method": "textDocument/definition",
             "params": {
                 "textDocument": {
-                    "uri": "file://)" +
-									  filePath +
-									  R"("
+                    "uri": ")" + uriForRequest + R"("
                 },
                 "position": {
                     "line": )" + std::to_string(line) +
@@ -58,7 +157,7 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
             }
         })");
 
-	if (!gLSPManager.sendRequest(request))
+	if (!CURRENT_LSP_MANAGER.sendRequest(request))
 	{
 		std::cout << "\033[31mLSP GotoDef:\033[0m Failed to send request" << std::endl;
 		return false;
@@ -72,7 +171,7 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 				  << (attempt + 1) << ")" << std::endl;
 
 		int contentLength = 0;
-		std::string response = gLSPManager.readResponse(&contentLength);
+		std::string response = CURRENT_LSP_MANAGER.readResponse(&contentLength);
 
 		if (response.empty())
 		{
@@ -249,10 +348,40 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 			if (item["targetUri"].is_string() && item["targetRange"].is_object())
 			{
 				std::string fullUri = item["targetUri"].get<std::string>();
+#ifdef PLATFORM_WINDOWS
+				// Windows uses file:/// format
+				if (fullUri.rfind("file:///", 0) == 0) {
+					uri = fullUri.substr(8); // Remove file:///
+					
+					// Decode URL-encoded characters (e.g., %3A -> :)
+					std::string decodedPath;
+					for (size_t i = 0; i < uri.length(); ++i) {
+						if (uri[i] == '%' && i + 2 < uri.length()) {
+							// Convert hex to character
+							std::string hexStr = uri.substr(i + 1, 2);
+							char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+							decodedPath += decodedChar;
+							i += 2; // Skip the hex digits
+						} else {
+							decodedPath += uri[i];
+						}
+					}
+					uri = decodedPath;
+					
+					// Convert forward slashes back to backslashes for Windows
+					for (char &c : uri) {
+						if (c == '/') c = '\\';
+					}
+				} else {
+					uri = fullUri;
+				}
+#else
+				// Linux/macOS uses file:// format
 				if (fullUri.rfind("file://", 0) == 0)
 					uri = fullUri.substr(7);
 				else
 					uri = fullUri;
+#endif
 
 				const auto &range_json = item["targetRange"];
 				// Check the *inner* structure of targetRange as well
@@ -283,10 +412,40 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 			if (item["uri"].is_string() && item["range"].is_object())
 			{
 				std::string fullUri = item["uri"].get<std::string>();
+#ifdef PLATFORM_WINDOWS
+				// Windows uses file:/// format
+				if (fullUri.rfind("file:///", 0) == 0) {
+					uri = fullUri.substr(8); // Remove file:///
+					
+					// Decode URL-encoded characters (e.g., %3A -> :)
+					std::string decodedPath;
+					for (size_t i = 0; i < uri.length(); ++i) {
+						if (uri[i] == '%' && i + 2 < uri.length()) {
+							// Convert hex to character
+							std::string hexStr = uri.substr(i + 1, 2);
+							char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+							decodedPath += decodedChar;
+							i += 2; // Skip the hex digits
+						} else {
+							decodedPath += uri[i];
+						}
+					}
+					uri = decodedPath;
+					
+					// Convert forward slashes back to backslashes for Windows
+					for (char &c : uri) {
+						if (c == '/') c = '\\';
+					}
+				} else {
+					uri = fullUri;
+				}
+#else
+				// Linux/macOS uses file:// format
 				if (fullUri.rfind("file://", 0) == 0)
 					uri = fullUri.substr(7);
 				else
 					uri = fullUri;
+#endif
 
 				const auto &range_json = item["range"];
 				// Check the *inner* structure of range as well

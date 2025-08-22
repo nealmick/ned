@@ -2,12 +2,74 @@
 #include "../editor/editor.h"
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <set>
+
+#ifdef PLATFORM_WINDOWS
+#include <windows.h>
+#endif
+
+// Platform-specific LSP manager includes
+#ifdef PLATFORM_WINDOWS
+#include "lsp_manager_windows.h"
+#else
+#include "lsp_manager.h"
+#endif
+
+// Platform-specific LSP manager selection
+#ifdef PLATFORM_WINDOWS
+#define CURRENT_LSP_MANAGER gLSPManagerWindows
+#else
+#define CURRENT_LSP_MANAGER gLSPManager
+#endif
+
 LSPSymbolInfo gLSPSymbolInfo;
 
 LSPSymbolInfo::LSPSymbolInfo() = default;
 
 void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 {
+	// Clear any previous symbol info to ensure we can process new requests
+	currentSymbolInfo.clear();
+	showSymbolInfo = false;
+
+#ifdef PLATFORM_WINDOWS
+	// Windows-specific file type checking - only support Python for now
+	size_t dot_pos = filePath.find_last_of(".");
+	if (dot_pos == std::string::npos) {
+		return; // No extension
+	}
+	std::string ext = filePath.substr(dot_pos + 1);
+	if (ext != "py") {
+		// Only support Python files for now on Windows
+		return;
+	}
+
+	// Select adapter and auto-initialize if needed on Windows
+	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath)) {
+		std::cout << "\033[33mLSP SymbolInfo:\033[0m No adapter available for file: " << filePath << std::endl;
+		return;
+	}
+
+	if (!CURRENT_LSP_MANAGER.isInitialized()) {
+		// Extract workspace path from file path
+		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
+		std::cout << "\033[35mLSP SymbolInfo:\033[0m Auto-initializing with workspace: " << workspacePath << std::endl;
+		
+		if (!CURRENT_LSP_MANAGER.initialize(workspacePath)) {
+			std::cout << "\033[31mLSP SymbolInfo:\033[0m Failed to initialize LSP" << std::endl;
+			return;
+		}
+	}
+#else
+	// Linux/macOS: Just check if initialized
+	if (!CURRENT_LSP_MANAGER.isInitialized())
+	{
+		std::cout << "\033[31mLSP SymbolInfo:\033[0m LSP not initialized\n";
+		return;
+	}
+#endif
+
 	// Get current cursor position in editor
 	int cursor_pos = editor_state.cursor_index;
 
@@ -24,21 +86,73 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 			  << "Line: " << lsp_line << " (" << current_line + 1 << "), "
 			  << "Char: " << lsp_char << " (abs pos: " << cursor_pos << ")\n";
 
-	if (!gLSPManager.isInitialized())
-	{
-		std::cout << "\033[31mLSP SymbolInfo:\033[0m LSP not initialized\n";
-		return;
+	static int requestId = 5000;
+	int currentRequestId = requestId++;
+
+#ifdef PLATFORM_WINDOWS
+	// Convert Windows path to proper URI format
+	std::string fileURI = "file:///" + filePath;
+	// Replace backslashes with forward slashes
+	for (char &c : fileURI) {
+		if (c == '\\') c = '/';
 	}
 
-	static int requestId = 5000;
+	// Send didOpen notification if needed (same logic as goto definition)
+	static std::set<std::string> openedFiles;
+	if (openedFiles.find(fileURI) == openedFiles.end()) {
+		// Read the file content
+		std::ifstream fileStream(filePath);
+		if (fileStream.is_open()) {
+			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
+									std::istreambuf_iterator<char>());
+			fileStream.close();
+
+			// Escape content for JSON
+			std::string escapedContent;
+			for (char c : fileContent) {
+				switch (c) {
+					case '"': escapedContent += "\\\""; break;
+					case '\\': escapedContent += "\\\\"; break;
+					case '\n': escapedContent += "\\n"; break;
+					case '\r': escapedContent += "\\r"; break;
+					case '\t': escapedContent += "\\t"; break;
+					default: escapedContent += c; break;
+				}
+			}
+
+			std::string didOpenRequest = R"({
+				"jsonrpc": "2.0",
+				"method": "textDocument/didOpen",
+				"params": {
+					"textDocument": {
+						"uri": ")" + fileURI + R"(",
+						"languageId": "python",
+						"version": 1,
+						"text": ")" + escapedContent + R"("
+					}
+				}
+			})";
+
+			std::cout << "\033[35mLSP SymbolInfo:\033[0m Sending didOpen notification for file" << std::endl;
+			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
+			openedFiles.insert(fileURI);
+			Sleep(100); // Wait a bit for the file to be processed
+		}
+	}
+
+	std::string uriForRequest = fileURI;
+#else
+	std::string uriForRequest = "file://" + filePath;
+#endif
+
 	std::string request = std::string(R"({
         "jsonrpc": "2.0",
-        "id": )" + std::to_string(requestId++) +
+        "id": )" + std::to_string(currentRequestId) +
 									  R"(,
         "method": "textDocument/hover",
         "params": {
             "textDocument": {
-                "uri": "file://)" + filePath +
+                "uri": ")" + uriForRequest +
 									  R"("
             },
             "position": {
@@ -52,7 +166,7 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 
 	std::cout << "\033[36mLSP SymbolInfo Request:\033[0m\n" << request << "\n";
 
-	if (!gLSPManager.sendRequest(request))
+	if (!CURRENT_LSP_MANAGER.sendRequest(request))
 	{
 		std::cout << "\033[31mLSP SymbolInfo:\033[0m Failed to send hover request\n";
 		return;
@@ -67,14 +181,14 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
 		int contentLength = 0;
-		std::string response = gLSPManager.readResponse(&contentLength);
+		std::string response = CURRENT_LSP_MANAGER.readResponse(&contentLength);
 
 		if (!response.empty())
 		{
 			std::cout << "\033[36mLSP SymbolInfo Response:\033[0m\n" << response << "\n";
 		}
 
-		if (response.find("\"id\":" + std::to_string(requestId - 1)) != std::string::npos)
+		if (response.find("\"id\":" + std::to_string(currentRequestId)) != std::string::npos)
 		{
 			parseHoverResponse(response);
 			return;

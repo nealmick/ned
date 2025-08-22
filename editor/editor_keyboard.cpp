@@ -1141,11 +1141,11 @@ void EditorKeyboard::handleEditorKeyboardInput()
 
 		if (ctrl_pressed)
 		{
-			// Handle Ctrl+R for reloading files with external changes
-			if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-			{
-				gFileExplorer.reloadCurrentFile();
-			}
+			// Handle Ctrl+R for reloading files with external changes - TEMPORARILY DISABLED
+			// if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+			// {
+			// 	gFileExplorer.reloadCurrentFile();
+			// }
 
 			ImGuiKey ai_completions = gKeybinds.getActionKey("ai_completion");
 
