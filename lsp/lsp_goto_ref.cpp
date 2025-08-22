@@ -286,9 +286,14 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 							if (uri[i] == '%' && i + 2 < uri.length()) {
 								// Convert hex to character
 								std::string hexStr = uri.substr(i + 1, 2);
-								char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
-								decodedPath += decodedChar;
-								i += 2; // Skip the hex digits
+								try {
+									char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+									decodedPath += decodedChar;
+									i += 2; // Skip the hex digits
+								} catch (const std::exception& e) {
+									// If hex parsing fails, just keep the original characters
+									decodedPath += uri[i];
+								}
 							} else {
 								decodedPath += uri[i];
 							}
@@ -661,15 +666,27 @@ void LSPGotoRef::handleReferenceSelection()
 		int currentLine = 0;
 		const std::string &content = editor_state.fileContent;
 
-		while (currentLine < selected.startLine && index < content.length())
+		// Find the start of the target line
+		while (currentLine < selected.startLine && index < static_cast<int>(content.length()))
 		{
 			if (content[index] == '\n')
 				currentLine++;
 			index++;
 		}
 
-		index += selected.startChar;
-		index = std::min(index, static_cast<int>(content.length()));
+		// Add character offset within the line, but make sure we don't go past the line end
+		int lineStart = index;
+		int lineEnd = index;
+		while (lineEnd < static_cast<int>(content.length()) && content[lineEnd] != '\n') {
+			lineEnd++;
+		}
+		
+		// Clamp character position to be within the line bounds
+		int charOffset = std::min(selected.startChar, lineEnd - lineStart);
+		index = lineStart + charOffset;
+		
+		// Final bounds check
+		index = std::max(0, std::min(index, static_cast<int>(content.length())));
 
 		editor_state.cursor_index = index;
 		editor_state.center_cursor_vertical = true;

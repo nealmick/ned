@@ -4,6 +4,7 @@
 #include <sstream>
 #include <fstream>
 #include <set>
+#include <algorithm>
 
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
@@ -75,8 +76,29 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 
 	// Convert to line number and character offset
 	int current_line = gEditor.getLineFromPos(cursor_pos);
+	
+	// Validate line number
+	if (current_line < 0 || current_line >= static_cast<int>(editor_state.editor_content_lines.size())) {
+		std::cout << "\033[31mLSP SymbolInfo:\033[0m Invalid cursor line: " << current_line << std::endl;
+		return;
+	}
+	
 	int line_start = editor_state.editor_content_lines[current_line];
 	int character = cursor_pos - line_start;
+
+	// Ensure character offset is non-negative (same as goto def/ref)
+	character = std::max(0, character);
+	
+	// Additional validation: ensure character doesn't exceed line length
+	if (current_line + 1 < static_cast<int>(editor_state.editor_content_lines.size())) {
+		int next_line_start = editor_state.editor_content_lines[current_line + 1];
+		int line_length = next_line_start - line_start - 1; // -1 for newline
+		character = std::min(character, line_length);
+	} else {
+		// Last line - check against file content length
+		int line_length = static_cast<int>(editor_state.fileContent.length()) - line_start;
+		character = std::min(character, line_length);
+	}
 
 	// LSP uses 0-based line numbers
 	int lsp_line = current_line;
@@ -136,7 +158,7 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 			std::cout << "\033[35mLSP SymbolInfo:\033[0m Sending didOpen notification for file" << std::endl;
 			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
 			openedFiles.insert(fileURI);
-			Sleep(100); // Wait a bit for the file to be processed
+			Sleep(150); // Wait a bit longer for the file to be processed
 		}
 	}
 
@@ -192,6 +214,16 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 		{
 			parseHoverResponse(response);
 			return;
+		}
+
+		// Add small delay between attempts (same as goto def/ref)
+		if (response.empty())
+		{
+#ifdef PLATFORM_WINDOWS
+			Sleep(50);
+#else
+			usleep(50000);
+#endif
 		}
 	}
 }
@@ -272,9 +304,30 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 					size_t end = currentSymbolInfo.find("```", pos + 3);
 					if (end != std::string::npos)
 					{
-						currentSymbolInfo.erase(pos, end - pos + 3);
+						// Find the start of actual content (after language identifier)
+						size_t content_start = currentSymbolInfo.find("\n", pos + 3);
+						if (content_start != std::string::npos)
+						{
+							content_start++; // Move past the newline
+							// Extract the content between the code blocks
+							std::string content = currentSymbolInfo.substr(content_start, end - content_start);
+							// Replace the entire code block with just the content
+							currentSymbolInfo.replace(pos, end - pos + 3, content);
+							pos += content.length();
+						}
+						else
+						{
+							// No newline found, just remove the opening ```
+							currentSymbolInfo.erase(pos, 3);
+							end = currentSymbolInfo.find("```", pos);
+							if (end != std::string::npos)
+							{
+								currentSymbolInfo.erase(end, 3);
+							}
+						}
 					} else
 					{
+						// Only opening ```, remove it
 						currentSymbolInfo.erase(pos, 3);
 					}
 				}

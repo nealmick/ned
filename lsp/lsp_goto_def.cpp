@@ -359,9 +359,14 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 						if (uri[i] == '%' && i + 2 < uri.length()) {
 							// Convert hex to character
 							std::string hexStr = uri.substr(i + 1, 2);
-							char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
-							decodedPath += decodedChar;
-							i += 2; // Skip the hex digits
+							try {
+								char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+								decodedPath += decodedChar;
+								i += 2; // Skip the hex digits
+							} catch (const std::exception& e) {
+								// If hex parsing fails, just keep the original characters
+								decodedPath += uri[i];
+							}
 						} else {
 							decodedPath += uri[i];
 						}
@@ -423,9 +428,14 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 						if (uri[i] == '%' && i + 2 < uri.length()) {
 							// Convert hex to character
 							std::string hexStr = uri.substr(i + 1, 2);
-							char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
-							decodedPath += decodedChar;
-							i += 2; // Skip the hex digits
+							try {
+								char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+								decodedPath += decodedChar;
+								i += 2; // Skip the hex digits
+							} catch (const std::exception& e) {
+								// If hex parsing fails, just keep the original characters
+								decodedPath += uri[i];
+							}
 						} else {
 							decodedPath += uri[i];
 						}
@@ -707,8 +717,9 @@ void LSPGotoDef::renderDefinitionOptions()
 					int currentLine = 0;
 					std::cout << "Calculating cursor position..." << std::endl;
 
+					// Find the start of the target line
 					while (currentLine < selected.startLine &&
-						   index < editor_state.fileContent.length())
+						   index < static_cast<int>(editor_state.fileContent.length()))
 					{
 						if (editor_state.fileContent[index] == '\n')
 						{
@@ -717,8 +728,20 @@ void LSPGotoDef::renderDefinitionOptions()
 						index++;
 					}
 
-					index += selected.startChar;
-					index = std::min(index, (int)editor_state.fileContent.length());
+					// Add character offset within the line, but make sure we don't go past the line end
+					int lineStart = index;
+					int lineEnd = index;
+					while (lineEnd < static_cast<int>(editor_state.fileContent.length()) && 
+						   editor_state.fileContent[lineEnd] != '\n') {
+						lineEnd++;
+					}
+					
+					// Clamp character position to be within the line bounds
+					int charOffset = std::min(selected.startChar, lineEnd - lineStart);
+					index = lineStart + charOffset;
+					
+					// Final bounds check
+					index = std::max(0, std::min(index, static_cast<int>(editor_state.fileContent.length())));
 					editor_state.cursor_index = index;
 					editor_state.center_cursor_vertical = true;
 					gEditorScroll.centerCursorVertically();
