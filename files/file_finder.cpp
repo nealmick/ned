@@ -60,13 +60,14 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 	{
 		// Add some debug output to see what's happening
 		std::cout << "[FileFinder] Scanning directory: " << projectDir << std::endl;
-		
+
 		auto directoryIterator = fs::recursive_directory_iterator(projectDir);
 		int fileCount = 0;
-		
+
 		for (const auto &entry : directoryIterator)
 		{
-			try {
+			try
+			{
 				if (entry.is_regular_file())
 				{
 					fs::path fullPath = entry.path();
@@ -77,9 +78,10 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 					auto u8fullPath = fullPath.u8string();
 					auto u8relativePath = relativePath.u8string();
 					auto u8filename = relativePath.filename().u8string();
-					
+
 					std::string fullPathStr(u8fullPath.begin(), u8fullPath.end());
-					std::string relativePathStr(u8relativePath.begin(), u8relativePath.end());
+					std::string relativePathStr(u8relativePath.begin(),
+												u8relativePath.end());
 					std::string filenameStr(u8filename.begin(), u8filename.end());
 #else
 					// On Unix systems, use normal string conversion
@@ -104,13 +106,15 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 						{fullPathStr, relativePathStr, fullPathLower, filenameLower});
 					fileCount++;
 				}
-			} catch (const std::exception &e) {
+			} catch (const std::exception &e)
+			{
 				// Skip files that cause Unicode conversion errors
-				std::cerr << "[FileFinder] Skipping file due to encoding error: " << e.what() << std::endl;
+				std::cerr << "[FileFinder] Skipping file due to encoding error: "
+						  << e.what() << std::endl;
 				continue;
 			}
 		}
-		
+
 		std::cout << "[FileFinder] Found " << fileCount << " files" << std::endl;
 
 		{
@@ -140,9 +144,10 @@ void FileFinder::updateFilteredList()
 		std::lock_guard<std::mutex> lock(fileListMutex);
 		localFileList = fileList;
 	}
-	
+
 	// Debug: Uncomment to see when filtering occurs
-	// std::cout << "[FileFinder] updateFilteredList: fileList size = " << localFileList.size() 
+	// std::cout << "[FileFinder] updateFilteredList: fileList size = " <<
+	// localFileList.size()
 	//		  << ", searchTerm = '" << searchTerm << "'" << std::endl;
 
 	for (const auto &file : localFileList)
@@ -462,8 +467,11 @@ void FileFinder::renderWindow()
 
 	// Update filtered list based on search input.
 	std::string currentSearchTerm(searchBuffer);
-	std::transform(currentSearchTerm.begin(), currentSearchTerm.end(), currentSearchTerm.begin(), ::tolower);
-	
+	std::transform(currentSearchTerm.begin(),
+				   currentSearchTerm.end(),
+				   currentSearchTerm.begin(),
+				   ::tolower);
+
 	// Only update filtered list if search term changed
 	if (currentSearchTerm != previousSearch)
 	{

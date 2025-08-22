@@ -14,15 +14,15 @@
 #ifndef PLATFORM_WINDOWS
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h> // For PATH_MAX (on Linux)
+#include <pwd.h>	// For getpwuid
 #include <signal.h>
+#include <stdlib.h> // For getenv, setenv, unsetenv, realpath
+#include <string.h> // For strrchr, strcpy, strncpy, strerror
 #include <sys/ioctl.h>
+#include <sys/types.h> // For getpwuid, uid_t
 #include <termios.h>
 #include <unistd.h>
-#include <limits.h>	   // For PATH_MAX (on Linux)
-#include <pwd.h>	   // For getpwuid
-#include <stdlib.h>	   // For getenv, setenv, unsetenv, realpath
-#include <string.h>	   // For strrchr, strcpy, strncpy, strerror
-#include <sys/types.h> // For getpwuid, uid_t
 #endif
 
 #ifndef PATH_MAX // Define a fallback if PATH_MAX is not found (e.g., on some
@@ -1123,7 +1123,8 @@ void Terminal::renderSelectionHighlight(ImDrawList *drawList,
 	}
 }
 
-void Terminal::toggleVisibility() {
+void Terminal::toggleVisibility()
+{
 #ifndef PLATFORM_WINDOWS
 	isVisible = !isVisible;
 #endif

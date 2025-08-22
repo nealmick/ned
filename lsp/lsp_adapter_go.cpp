@@ -1,16 +1,16 @@
 #include "lsp_adapter_go.h"
-#include <cerrno>	  // For errno
-#include <cstdio>	  // For FILE, fprintf, fgets, fread, sscanf, setvbuf, fclose
-#include <cstring>	  // For strncmp, strcmp, strerror
+#include <cerrno>  // For errno
+#include <cstdio>  // For FILE, fprintf, fgets, fread, sscanf, setvbuf, fclose
+#include <cstring> // For strncmp, strcmp, strerror
 #ifndef PLATFORM_WINDOWS
 #include <fcntl.h>	  // For open (if redirecting child's stderr to a file)
 #include <signal.h>	  // For kill, SIGTERM, SIGKILL
 #include <sys/wait.h> // For waitpid, WNOHANG, WIFEXITED, WEXITSTATUS, WIFSIGNALED, WTERMSIG
 #include <unistd.h>	  // For pipe, fork, dup2, execl, close, usleep, access, X_OK, R_OK
 #endif
-#include <iostream>	  // For std::cout, std::cerr
-#include <sstream>	  // For std::ostringstream
-#include <vector>	  // For std::vector<char> in readResponse
+#include <iostream> // For std::cout, std::cerr
+#include <sstream>	// For std::ostringstream
+#include <vector>	// For std::vector<char> in readResponse
 
 // PImpl class definition
 class LSPAdapterGo::GoImpl

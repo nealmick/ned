@@ -34,10 +34,7 @@ class LSPManagerWindows
 	std::unique_ptr<LSPAdapterPyrightWindows> pyrightAdapter;
 
 	// Simple adapter type
-	enum AdapterType {
-		NONE,
-		PYRIGHT
-	};
+	enum AdapterType { NONE, PYRIGHT };
 
 	AdapterType activeAdapter;
 	std::string workspacePath;

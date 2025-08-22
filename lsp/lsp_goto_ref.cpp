@@ -4,11 +4,11 @@
 #include "files.h"
 #include <algorithm> // For std::min
 #include <cstdio>
+#include <fstream>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
-#include <fstream>
-#include <set>
 
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
@@ -42,25 +42,32 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 #ifdef PLATFORM_WINDOWS
 	// Windows-specific initialization and file type checking
 	size_t dot_pos = filePath.find_last_of(".");
-	if (dot_pos == std::string::npos) {
+	if (dot_pos == std::string::npos)
+	{
 		return false; // No extension
 	}
 	std::string ext = filePath.substr(dot_pos + 1);
-	if (ext != "py") {
+	if (ext != "py")
+	{
 		return false; // Only support Python files for now on Windows
 	}
 
 	// Select adapter and auto-initialize if needed
-	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath)) {
-		std::cout << "\033[33mLSP FindRef:\033[0m No adapter available for file: " << filePath << std::endl;
+	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath))
+	{
+		std::cout << "\033[33mLSP FindRef:\033[0m No adapter available for file: "
+				  << filePath << std::endl;
 		return false;
 	}
 
-	if (!CURRENT_LSP_MANAGER.isInitialized()) {
+	if (!CURRENT_LSP_MANAGER.isInitialized())
+	{
 		// Extract workspace path from file path
 		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
-		if (!CURRENT_LSP_MANAGER.initialize(workspacePath)) {
-			std::cout << "\033[31mLSP FindRef:\033[0m Failed to initialize LSP" << std::endl;
+		if (!CURRENT_LSP_MANAGER.initialize(workspacePath))
+		{
+			std::cout << "\033[31mLSP FindRef:\033[0m Failed to initialize LSP"
+					  << std::endl;
 			return false;
 		}
 	}
@@ -87,29 +94,47 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 #ifdef PLATFORM_WINDOWS
 	// Convert Windows path to proper URI format and handle didOpen
 	std::string fileURI = "file:///" + filePath;
-	for (char &c : fileURI) {
-		if (c == '\\') c = '/';
+	for (char &c : fileURI)
+	{
+		if (c == '\\')
+			c = '/';
 	}
 
 	// Send didOpen notification if needed
 	static std::set<std::string> openedFiles;
-	if (openedFiles.find(fileURI) == openedFiles.end()) {
+	if (openedFiles.find(fileURI) == openedFiles.end())
+	{
 		std::ifstream fileStream(filePath);
-		if (fileStream.is_open()) {
+		if (fileStream.is_open())
+		{
 			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
 									std::istreambuf_iterator<char>());
 			fileStream.close();
 
 			// Escape content for JSON
 			std::string escapedContent;
-			for (char c : fileContent) {
-				switch (c) {
-					case '"': escapedContent += "\\\""; break;
-					case '\\': escapedContent += "\\\\"; break;
-					case '\n': escapedContent += "\\n"; break;
-					case '\r': escapedContent += "\\r"; break;
-					case '\t': escapedContent += "\\t"; break;
-					default: escapedContent += c; break;
+			for (char c : fileContent)
+			{
+				switch (c)
+				{
+				case '"':
+					escapedContent += "\\\"";
+					break;
+				case '\\':
+					escapedContent += "\\\\";
+					break;
+				case '\n':
+					escapedContent += "\\n";
+					break;
+				case '\r':
+					escapedContent += "\\r";
+					break;
+				case '\t':
+					escapedContent += "\\t";
+					break;
+				default:
+					escapedContent += c;
+					break;
 				}
 			}
 
@@ -118,15 +143,19 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 				"method": "textDocument/didOpen",
 				"params": {
 					"textDocument": {
-						"uri": ")" + fileURI + R"(",
+						"uri": ")" + fileURI +
+										 R"(",
 						"languageId": "python",
 						"version": 1,
-						"text": ")" + escapedContent + R"("
+						"text": ")" + escapedContent +
+										 R"("
 					}
 				}
 			})";
 
-			std::cout << "\033[35mLSP FindRef:\033[0m Sending didOpen notification for file" << std::endl;
+			std::cout
+				<< "\033[35mLSP FindRef:\033[0m Sending didOpen notification for file"
+				<< std::endl;
 			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
 			openedFiles.insert(fileURI);
 			Sleep(100);
@@ -277,34 +306,44 @@ void LSPGotoRef::parseReferenceResponse(const std::string &response)
 					std::string fullUri = loc_json["uri"].get<std::string>();
 #ifdef PLATFORM_WINDOWS
 					// Windows uses file:/// format
-					if (fullUri.rfind("file:///", 0) == 0) {
+					if (fullUri.rfind("file:///", 0) == 0)
+					{
 						uri = fullUri.substr(8); // Remove file:///
-						
+
 						// Decode URL-encoded characters (e.g., %3A -> :)
 						std::string decodedPath;
-						for (size_t i = 0; i < uri.length(); ++i) {
-							if (uri[i] == '%' && i + 2 < uri.length()) {
+						for (size_t i = 0; i < uri.length(); ++i)
+						{
+							if (uri[i] == '%' && i + 2 < uri.length())
+							{
 								// Convert hex to character
 								std::string hexStr = uri.substr(i + 1, 2);
-								try {
-									char decodedChar = static_cast<char>(std::stoi(hexStr, nullptr, 16));
+								try
+								{
+									char decodedChar =
+										static_cast<char>(std::stoi(hexStr, nullptr, 16));
 									decodedPath += decodedChar;
 									i += 2; // Skip the hex digits
-								} catch (const std::exception& e) {
+								} catch (const std::exception &e)
+								{
 									// If hex parsing fails, just keep the original characters
 									decodedPath += uri[i];
 								}
-							} else {
+							} else
+							{
 								decodedPath += uri[i];
 							}
 						}
 						uri = decodedPath;
-						
+
 						// Convert forward slashes back to backslashes for Windows
-						for (char &c : uri) {
-							if (c == '/') c = '\\';
+						for (char &c : uri)
+						{
+							if (c == '/')
+								c = '\\';
 						}
-					} else {
+					} else
+					{
 						uri = fullUri;
 					}
 #else
@@ -495,12 +534,18 @@ void LSPGotoRef::renderReferenceOptions()
 			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
 			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
 			   1.0f));
-
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
+	// Add ChildBg color to fix background rendering in child windows
+	ImGui::PushStyleColor(
+		ImGuiCol_ChildBg,
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+			   1.0f));
 
 	if (ImGui::Begin("##ReferenceOptions", nullptr, windowFlags))
 	{
@@ -631,7 +676,7 @@ void LSPGotoRef::renderReferenceOptions()
 	}
 
 	// Cleanup
-	ImGui::PopStyleColor(6);
+	ImGui::PopStyleColor(7); // Updated from 6 to 7 to include ChildBg
 	ImGui::PopStyleVar(4);
 
 	if (!showReferenceOptions)
@@ -667,7 +712,8 @@ void LSPGotoRef::handleReferenceSelection()
 		const std::string &content = editor_state.fileContent;
 
 		// Find the start of the target line
-		while (currentLine < selected.startLine && index < static_cast<int>(content.length()))
+		while (currentLine < selected.startLine &&
+			   index < static_cast<int>(content.length()))
 		{
 			if (content[index] == '\n')
 				currentLine++;
@@ -677,14 +723,15 @@ void LSPGotoRef::handleReferenceSelection()
 		// Add character offset within the line, but make sure we don't go past the line end
 		int lineStart = index;
 		int lineEnd = index;
-		while (lineEnd < static_cast<int>(content.length()) && content[lineEnd] != '\n') {
+		while (lineEnd < static_cast<int>(content.length()) && content[lineEnd] != '\n')
+		{
 			lineEnd++;
 		}
-		
+
 		// Clamp character position to be within the line bounds
 		int charOffset = std::min(selected.startChar, lineEnd - lineStart);
 		index = lineStart + charOffset;
-		
+
 		// Final bounds check
 		index = std::max(0, std::min(index, static_cast<int>(content.length())));
 

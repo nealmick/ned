@@ -977,7 +977,8 @@ void Settings::renderKeybindsSettings()
 	{
 		std::string keybindsPath =
 			(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-			"keybinds.json").string();
+			 "keybinds.json")
+				.string();
 		if (fs::exists(keybindsPath))
 		{
 			gFileExplorer.loadFileContent(keybindsPath);
@@ -994,10 +995,12 @@ void Settings::renderKeybindsSettings()
 	// Check if we're using default keybinds
 	std::string keybindsPath =
 		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"keybinds.json").string();
+		 "keybinds.json")
+			.string();
 	std::string defaultKeybindsPath =
 		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"default-keybinds.json").string();
+		 "default-keybinds.json")
+			.string();
 
 	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath))
 	{

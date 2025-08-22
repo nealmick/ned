@@ -1,10 +1,10 @@
 #include "lsp_symbol_info.h"
 #include "../editor/editor.h"
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <set>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <set>
+#include <sstream>
 
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
@@ -37,28 +37,36 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 #ifdef PLATFORM_WINDOWS
 	// Windows-specific file type checking - only support Python for now
 	size_t dot_pos = filePath.find_last_of(".");
-	if (dot_pos == std::string::npos) {
+	if (dot_pos == std::string::npos)
+	{
 		return; // No extension
 	}
 	std::string ext = filePath.substr(dot_pos + 1);
-	if (ext != "py") {
+	if (ext != "py")
+	{
 		// Only support Python files for now on Windows
 		return;
 	}
 
 	// Select adapter and auto-initialize if needed on Windows
-	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath)) {
-		std::cout << "\033[33mLSP SymbolInfo:\033[0m No adapter available for file: " << filePath << std::endl;
+	if (!CURRENT_LSP_MANAGER.selectAdapterForFile(filePath))
+	{
+		std::cout << "\033[33mLSP SymbolInfo:\033[0m No adapter available for file: "
+				  << filePath << std::endl;
 		return;
 	}
 
-	if (!CURRENT_LSP_MANAGER.isInitialized()) {
+	if (!CURRENT_LSP_MANAGER.isInitialized())
+	{
 		// Extract workspace path from file path
 		std::string workspacePath = filePath.substr(0, filePath.find_last_of("/\\"));
-		std::cout << "\033[35mLSP SymbolInfo:\033[0m Auto-initializing with workspace: " << workspacePath << std::endl;
-		
-		if (!CURRENT_LSP_MANAGER.initialize(workspacePath)) {
-			std::cout << "\033[31mLSP SymbolInfo:\033[0m Failed to initialize LSP" << std::endl;
+		std::cout << "\033[35mLSP SymbolInfo:\033[0m Auto-initializing with workspace: "
+				  << workspacePath << std::endl;
+
+		if (!CURRENT_LSP_MANAGER.initialize(workspacePath))
+		{
+			std::cout << "\033[31mLSP SymbolInfo:\033[0m Failed to initialize LSP"
+					  << std::endl;
 			return;
 		}
 	}
@@ -76,27 +84,33 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 
 	// Convert to line number and character offset
 	int current_line = gEditor.getLineFromPos(cursor_pos);
-	
+
 	// Validate line number
-	if (current_line < 0 || current_line >= static_cast<int>(editor_state.editor_content_lines.size())) {
-		std::cout << "\033[31mLSP SymbolInfo:\033[0m Invalid cursor line: " << current_line << std::endl;
+	if (current_line < 0 ||
+		current_line >= static_cast<int>(editor_state.editor_content_lines.size()))
+	{
+		std::cout << "\033[31mLSP SymbolInfo:\033[0m Invalid cursor line: "
+				  << current_line << std::endl;
 		return;
 	}
-	
+
 	int line_start = editor_state.editor_content_lines[current_line];
 	int character = cursor_pos - line_start;
 
 	// Ensure character offset is non-negative (same as goto def/ref)
 	character = std::max(0, character);
-	
+
 	// Additional validation: ensure character doesn't exceed line length
-	if (current_line + 1 < static_cast<int>(editor_state.editor_content_lines.size())) {
+	if (current_line + 1 < static_cast<int>(editor_state.editor_content_lines.size()))
+	{
 		int next_line_start = editor_state.editor_content_lines[current_line + 1];
 		int line_length = next_line_start - line_start - 1; // -1 for newline
 		character = std::min(character, line_length);
-	} else {
+	} else
+	{
 		// Last line - check against file content length
-		int line_length = static_cast<int>(editor_state.fileContent.length()) - line_start;
+		int line_length =
+			static_cast<int>(editor_state.fileContent.length()) - line_start;
 		character = std::min(character, line_length);
 	}
 
@@ -115,30 +129,48 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 	// Convert Windows path to proper URI format
 	std::string fileURI = "file:///" + filePath;
 	// Replace backslashes with forward slashes
-	for (char &c : fileURI) {
-		if (c == '\\') c = '/';
+	for (char &c : fileURI)
+	{
+		if (c == '\\')
+			c = '/';
 	}
 
 	// Send didOpen notification if needed (same logic as goto definition)
 	static std::set<std::string> openedFiles;
-	if (openedFiles.find(fileURI) == openedFiles.end()) {
+	if (openedFiles.find(fileURI) == openedFiles.end())
+	{
 		// Read the file content
 		std::ifstream fileStream(filePath);
-		if (fileStream.is_open()) {
+		if (fileStream.is_open())
+		{
 			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
 									std::istreambuf_iterator<char>());
 			fileStream.close();
 
 			// Escape content for JSON
 			std::string escapedContent;
-			for (char c : fileContent) {
-				switch (c) {
-					case '"': escapedContent += "\\\""; break;
-					case '\\': escapedContent += "\\\\"; break;
-					case '\n': escapedContent += "\\n"; break;
-					case '\r': escapedContent += "\\r"; break;
-					case '\t': escapedContent += "\\t"; break;
-					default: escapedContent += c; break;
+			for (char c : fileContent)
+			{
+				switch (c)
+				{
+				case '"':
+					escapedContent += "\\\"";
+					break;
+				case '\\':
+					escapedContent += "\\\\";
+					break;
+				case '\n':
+					escapedContent += "\\n";
+					break;
+				case '\r':
+					escapedContent += "\\r";
+					break;
+				case '\t':
+					escapedContent += "\\t";
+					break;
+				default:
+					escapedContent += c;
+					break;
 				}
 			}
 
@@ -147,15 +179,19 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 				"method": "textDocument/didOpen",
 				"params": {
 					"textDocument": {
-						"uri": ")" + fileURI + R"(",
+						"uri": ")" + fileURI +
+										 R"(",
 						"languageId": "python",
 						"version": 1,
-						"text": ")" + escapedContent + R"("
+						"text": ")" + escapedContent +
+										 R"("
 					}
 				}
 			})";
 
-			std::cout << "\033[35mLSP SymbolInfo:\033[0m Sending didOpen notification for file" << std::endl;
+			std::cout
+				<< "\033[35mLSP SymbolInfo:\033[0m Sending didOpen notification for file"
+				<< std::endl;
 			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
 			openedFiles.insert(fileURI);
 			Sleep(150); // Wait a bit longer for the file to be processed
@@ -210,7 +246,8 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 			std::cout << "\033[36mLSP SymbolInfo Response:\033[0m\n" << response << "\n";
 		}
 
-		if (response.find("\"id\":" + std::to_string(currentRequestId)) != std::string::npos)
+		if (response.find("\"id\":" + std::to_string(currentRequestId)) !=
+			std::string::npos)
 		{
 			parseHoverResponse(response);
 			return;
@@ -310,12 +347,13 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 						{
 							content_start++; // Move past the newline
 							// Extract the content between the code blocks
-							std::string content = currentSymbolInfo.substr(content_start, end - content_start);
+							std::string content =
+								currentSymbolInfo.substr(content_start,
+														 end - content_start);
 							// Replace the entire code block with just the content
 							currentSymbolInfo.replace(pos, end - pos + 3, content);
 							pos += content.length();
-						}
-						else
+						} else
 						{
 							// No newline found, just remove the opening ```
 							currentSymbolInfo.erase(pos, 3);

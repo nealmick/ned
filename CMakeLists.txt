@@ -190,9 +190,13 @@ if(WIN32)
         lsp/lsp_symbol_info.cpp
     )
 else()
-    # On Unix systems, use real LSP implementation (exclude Windows stubs)
+    # On Unix systems, use real LSP implementation (exclude Windows files)
     file(GLOB_RECURSE LSP_SOURCES "lsp/*.cpp")
-    list(REMOVE_ITEM LSP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_stubs_windows.cpp")
+    list(REMOVE_ITEM LSP_SOURCES 
+        "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_stubs_windows.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_manager_windows.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_adapter_pyright_windows.cpp"
+    )
 endif()
 file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")

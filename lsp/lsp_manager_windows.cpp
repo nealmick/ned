@@ -17,7 +17,9 @@ bool LSPManagerWindows::initialize(const std::string &path)
 	// Defensive check - don't initialize if path is empty or invalid
 	if (path.empty())
 	{
-		std::cerr << "\033[33mLSP Manager Windows:\033[0m Cannot initialize with empty path" << std::endl;
+		std::cerr
+			<< "\033[33mLSP Manager Windows:\033[0m Cannot initialize with empty path"
+			<< std::endl;
 		return false;
 	}
 
@@ -34,24 +36,31 @@ bool LSPManagerWindows::initialize(const std::string &path)
 			success = pyrightAdapter->initialize(workspacePath);
 			if (success)
 			{
-				std::cout << "\033[32mLSP Manager Windows:\033[0m Initialized pyright adapter for " << workspacePath << std::endl;
-			}
-			else
+				std::cout << "\033[32mLSP Manager Windows:\033[0m Initialized pyright "
+							 "adapter for "
+						  << workspacePath << std::endl;
+			} else
 			{
-				std::cout << "\033[33mLSP Manager Windows:\033[0m Pyright adapter initialization failed - LSP support will be disabled for Python files" << std::endl;
+				std::cout << "\033[33mLSP Manager Windows:\033[0m Pyright adapter "
+							 "initialization failed - LSP support will be disabled for "
+							 "Python files"
+						  << std::endl;
 				success = false;
 			}
-		}
-		else
+		} else
 		{
-			std::cout << "\033[32mLSP Manager Windows:\033[0m Pyright adapter already initialized." << std::endl;
+			std::cout << "\033[32mLSP Manager Windows:\033[0m Pyright adapter already "
+						 "initialized."
+					  << std::endl;
 			success = true;
 		}
 		break;
 
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot initialize, no active adapter selected" << std::endl;
+		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot initialize, no active "
+					 "adapter selected"
+				  << std::endl;
 		return false;
 	}
 
@@ -90,14 +99,18 @@ bool LSPManagerWindows::selectAdapterForFile(const std::string &filePath)
 	{
 		if (activeAdapter != newAdapter)
 		{
-			std::cout << "\033[35mLSP Manager Windows:\033[0m Switching active adapter to: " << newAdapter << " for file: " << filePath << std::endl;
+			std::cout
+				<< "\033[35mLSP Manager Windows:\033[0m Switching active adapter to: "
+				<< newAdapter << " for file: " << filePath << std::endl;
 			activeAdapter = newAdapter;
 		}
 		return true;
 	}
 
 	// No specific adapter found
-	std::cout << "\033[33mLSP Manager Windows:\033[0m No specific adapter found for extension '" << ext << "'." << std::endl;
+	std::cout
+		<< "\033[33mLSP Manager Windows:\033[0m No specific adapter found for extension '"
+		<< ext << "'." << std::endl;
 	return false;
 }
 
@@ -111,7 +124,9 @@ bool LSPManagerWindows::sendRequest(const std::string &request)
 				   : false;
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot send request, no active adapter" << std::endl;
+		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot send request, no active "
+					 "adapter"
+				  << std::endl;
 		return false;
 	}
 }
@@ -129,7 +144,9 @@ std::string LSPManagerWindows::readResponse(int *contentLength)
 				   : "";
 	case NONE:
 	default:
-		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot read response, no active adapter" << std::endl;
+		std::cerr << "\033[31mLSP Manager Windows:\033[0m Cannot read response, no "
+					 "active adapter"
+				  << std::endl;
 		return "";
 	}
 }

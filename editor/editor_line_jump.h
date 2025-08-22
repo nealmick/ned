@@ -30,26 +30,47 @@ class LineJump
 	// Helper: Render window header (setup and title)
 	inline void renderHeader()
 	{
-		// Window setup (size, position, flags)
-		ImGui::SetNextWindowSize(ImVec2(400, 120), ImGuiCond_Always);
+		// Calculate dynamic window size based on text content
+		float titleTextWidth = ImGui::CalcTextSize("Jump to line:").x;
+		float footerTextWidth = ImGui::CalcTextSize("Type line number then Enter").x;
+		float maxTextWidth = std::max(titleTextWidth, footerTextWidth);
+
+		// Add padding for input field and general padding
+		float padding = 32.0f; // 16.0f on each side
+		float inputHeight =
+			ImGui::GetTextLineHeightWithSpacing() + 16.0f; // padding for input
+		float windowWidth =
+			std::max(maxTextWidth + padding, 300.0f); // minimum 300px width
+
+		// Calculate height: title + spacing + input + spacing + footer + padding
+		float itemSpacing = ImGui::GetStyle().ItemSpacing.y;
+		float windowHeight = ImGui::GetTextLineHeightWithSpacing() + // title
+							 itemSpacing * 2 +						 // two spacing calls
+							 inputHeight +							 // input field
+							 ImGui::GetTextLineHeightWithSpacing() + // footer text
+							 padding;								 // top/bottom padding
+
+		ImVec2 windowSize(windowWidth, windowHeight);
+		ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
 		// Center within the current editor window bounds (like LSP goto def)
 		ImVec2 editorPanePos = ImGui::GetWindowPos();
 		ImVec2 editorPaneSize = ImGui::GetWindowSize();
 
 		// Position the popup within the editor pane bounds
-		ImVec2 windowPos = ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - 200.0f,
-								  editorPanePos.y + editorPaneSize.y * 0.35f - 60.0f);
+		ImVec2 windowPos =
+			ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
+				   editorPanePos.y + editorPaneSize.y * 0.35f - windowSize.y * 0.5f);
 
 		// Ensure the popup stays within the editor pane bounds
 		if (windowPos.x < editorPanePos.x)
 			windowPos.x = editorPanePos.x;
-		if (windowPos.x + 400 > editorPanePos.x + editorPaneSize.x)
-			windowPos.x = editorPanePos.x + editorPaneSize.x - 400;
+		if (windowPos.x + windowSize.x > editorPanePos.x + editorPaneSize.x)
+			windowPos.x = editorPanePos.x + editorPaneSize.x - windowSize.x;
 		if (windowPos.y < editorPanePos.y)
 			windowPos.y = editorPanePos.y;
-		if (windowPos.y + 120 > editorPanePos.y + editorPaneSize.y)
-			windowPos.y = editorPanePos.y + editorPaneSize.y - 120;
+		if (windowPos.y + windowSize.y > editorPanePos.y + editorPaneSize.y)
+			windowPos.y = editorPanePos.y + editorPaneSize.y - windowSize.y;
 
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 		ImGuiWindowFlags windowFlags =

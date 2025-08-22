@@ -1,32 +1,41 @@
 #include "lsp_adapter_pyright_windows.h"
-#include <iostream>
-#include <vector>
 #include <fstream>
+#include <iostream>
 #include <sstream>
+#include <vector>
 
 // Windows-specific implementation details
 class LSPAdapterPyrightWindows::PyrightImplWindows
 {
   public:
-	PyrightImplWindows() : hProcess(INVALID_HANDLE_VALUE),
-						   hInputRead(INVALID_HANDLE_VALUE), hInputWrite(INVALID_HANDLE_VALUE),
-						   hOutputRead(INVALID_HANDLE_VALUE), hOutputWrite(INVALID_HANDLE_VALUE) {}
+	PyrightImplWindows()
+		: hProcess(INVALID_HANDLE_VALUE), hInputRead(INVALID_HANDLE_VALUE),
+		  hInputWrite(INVALID_HANDLE_VALUE), hOutputRead(INVALID_HANDLE_VALUE),
+		  hOutputWrite(INVALID_HANDLE_VALUE)
+	{
+	}
 
 	~PyrightImplWindows()
 	{
-		if (hInputRead != INVALID_HANDLE_VALUE) CloseHandle(hInputRead);
-		if (hInputWrite != INVALID_HANDLE_VALUE) CloseHandle(hInputWrite);
-		if (hOutputRead != INVALID_HANDLE_VALUE) CloseHandle(hOutputRead);
-		if (hOutputWrite != INVALID_HANDLE_VALUE) CloseHandle(hOutputWrite);
-		if (hProcess != INVALID_HANDLE_VALUE) CloseHandle(hProcess);
+		if (hInputRead != INVALID_HANDLE_VALUE)
+			CloseHandle(hInputRead);
+		if (hInputWrite != INVALID_HANDLE_VALUE)
+			CloseHandle(hInputWrite);
+		if (hOutputRead != INVALID_HANDLE_VALUE)
+			CloseHandle(hOutputRead);
+		if (hOutputWrite != INVALID_HANDLE_VALUE)
+			CloseHandle(hOutputWrite);
+		if (hProcess != INVALID_HANDLE_VALUE)
+			CloseHandle(hProcess);
 	}
 
 	HANDLE hProcess;
-	HANDLE hInputRead, hInputWrite;   // To LSP server (stdin)
+	HANDLE hInputRead, hInputWrite;	  // To LSP server (stdin)
 	HANDLE hOutputRead, hOutputWrite; // From LSP server (stdout)
 };
 
-LSPAdapterPyrightWindows::LSPAdapterPyrightWindows() : impl(new PyrightImplWindows()), initialized(false)
+LSPAdapterPyrightWindows::LSPAdapterPyrightWindows()
+	: impl(new PyrightImplWindows()), initialized(false)
 {
 	// Will find pyright path during initialization
 }
@@ -39,23 +48,28 @@ std::string LSPAdapterPyrightWindows::findPyrightPath()
 	std::string username = getenv("USERNAME") ? getenv("USERNAME") : "Default";
 	std::vector<std::string> possiblePaths = {
 		"C:\\Users\\" + username + "\\AppData\\Roaming\\npm\\pyright-langserver.cmd",
-		"pyright-langserver.cmd",  // In PATH
-		"pyright-langserver",      // In PATH without .cmd
-		"C:\\Users\\" + username + "\\AppData\\Roaming\\npm\\pyright-langserver"
-	};
+		"pyright-langserver.cmd", // In PATH
+		"pyright-langserver",	  // In PATH without .cmd
+		"C:\\Users\\" + username + "\\AppData\\Roaming\\npm\\pyright-langserver"};
 
-	for (const auto& path : possiblePaths) {
+	for (const auto &path : possiblePaths)
+	{
 		// Test if the file exists
 		std::ifstream file(path);
-		if (file.good()) {
-			std::cout << "\033[35mPyright Windows:\033[0m Found pyright at: " << path << std::endl;
+		if (file.good())
+		{
+			std::cout << "\033[35mPyright Windows:\033[0m Found pyright at: " << path
+					  << std::endl;
 			return path;
 		}
 	}
 
 	// Also try just checking if pyright is available
-	if (system("pyright --help >nul 2>&1") == 0) {
-		std::cout << "\033[35mPyright Windows:\033[0m Found pyright, using pyright-langserver.cmd" << std::endl;
+	if (system("pyright --help >nul 2>&1") == 0)
+	{
+		std::cout << "\033[35mPyright Windows:\033[0m Found pyright, using "
+					 "pyright-langserver.cmd"
+				  << std::endl;
 		return "pyright-langserver.cmd";
 	}
 
@@ -66,8 +80,11 @@ bool LSPAdapterPyrightWindows::startPyrightProcess()
 {
 	// Find pyright-langserver path
 	lspPath = findPyrightPath();
-	if (lspPath.empty()) {
-		std::cerr << "\033[31mPyright Windows:\033[0m pyright-langserver not found. Install with: npm install -g pyright" << std::endl;
+	if (lspPath.empty())
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m pyright-langserver not found. "
+					 "Install with: npm install -g pyright"
+				  << std::endl;
 		return false;
 	}
 
@@ -78,8 +95,10 @@ bool LSPAdapterPyrightWindows::startPyrightProcess()
 	sa.lpSecurityDescriptor = NULL;
 
 	if (!CreatePipe(&impl->hInputRead, &impl->hInputWrite, &sa, 0) ||
-		!CreatePipe(&impl->hOutputRead, &impl->hOutputWrite, &sa, 0)) {
-		std::cerr << "\033[31mPyright Windows:\033[0m Failed to create pipes" << std::endl;
+		!CreatePipe(&impl->hOutputRead, &impl->hOutputWrite, &sa, 0))
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m Failed to create pipes"
+				  << std::endl;
 		return false;
 	}
 
@@ -104,9 +123,12 @@ bool LSPAdapterPyrightWindows::startPyrightProcess()
 
 	std::cout << "\033[35mPyright Windows:\033[0m Executing: " << cmdLine << std::endl;
 
-	if (!CreateProcess(NULL, cmdLineBuf.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+	if (!CreateProcess(NULL, cmdLineBuf.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+	{
 		DWORD error = GetLastError();
-		std::cerr << "\033[31mPyright Windows:\033[0m Failed to start process. Error code: " << error << std::endl;
+		std::cerr
+			<< "\033[31mPyright Windows:\033[0m Failed to start process. Error code: "
+			<< error << std::endl;
 		return false;
 	}
 
@@ -115,7 +137,8 @@ bool LSPAdapterPyrightWindows::startPyrightProcess()
 	CloseHandle(impl->hInputRead);
 	CloseHandle(impl->hOutputWrite);
 
-	std::cout << "\033[35mPyright Windows:\033[0m Started pyright process successfully" << std::endl;
+	std::cout << "\033[35mPyright Windows:\033[0m Started pyright process successfully"
+			  << std::endl;
 	return true;
 }
 
@@ -124,10 +147,12 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 	// Convert Windows path to proper URI format
 	std::string workspaceUri = workspacePath;
 	// Replace backslashes with forward slashes for URI
-	for (char &c : workspaceUri) {
-		if (c == '\\') c = '/';
+	for (char &c : workspaceUri)
+	{
+		if (c == '\\')
+			c = '/';
 	}
-	
+
 	// Create the initialize request
 	std::string initRequest = R"({
 		"jsonrpc": "2.0",
@@ -135,7 +160,8 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 		"method": "initialize",
 		"params": {
 			"processId": null,
-			"rootUri": "file:///)" + workspaceUri + R"(",
+			"rootUri": "file:///)" +
+							  workspaceUri + R"(",
 			"capabilities": {
 				"textDocument": {
 					"hover": {
@@ -156,32 +182,49 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 		}
 	})";
 
-	std::cout << "\033[35mPyright Windows:\033[0m Sending initialize request for workspace: " << workspacePath << std::endl;
-	std::cout << "\033[36mPyright Windows Init Request:\033[0m\n" << initRequest << "\n" << std::endl;
+	std::cout
+		<< "\033[35mPyright Windows:\033[0m Sending initialize request for workspace: "
+		<< workspacePath << std::endl;
+	std::cout << "\033[36mPyright Windows Init Request:\033[0m\n"
+			  << initRequest << "\n"
+			  << std::endl;
 
-	if (!sendRequest(initRequest)) {
-		std::cerr << "\033[31mPyright Windows:\033[0m Failed to send initialize request" << std::endl;
+	if (!sendRequest(initRequest))
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m Failed to send initialize request"
+				  << std::endl;
 		return false;
 	}
 
-	// Wait for initialization response - pyright sends log messages first, then the actual response
-	const int MAX_ATTEMPTS = 30; // Increased attempts since pyright sends multiple log messages first
-	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-		std::cout << "\033[35mPyright Windows:\033[0m Waiting for initialization response (attempt " << (attempt + 1) << ")" << std::endl;
+	// Wait for initialization response - pyright sends log messages first, then the
+	// actual response
+	const int MAX_ATTEMPTS =
+		30; // Increased attempts since pyright sends multiple log messages first
+	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
+	{
+		std::cout << "\033[35mPyright Windows:\033[0m Waiting for initialization "
+					 "response (attempt "
+				  << (attempt + 1) << ")" << std::endl;
 
 		std::string response = readResponse(nullptr);
-		if (response.empty()) {
-			std::cout << "\033[31mPyright Windows:\033[0m Empty response received" << std::endl;
+		if (response.empty())
+		{
+			std::cout << "\033[31mPyright Windows:\033[0m Empty response received"
+					  << std::endl;
 			Sleep(100); // Shorter sleep for faster response
 			continue;
 		}
 
-		std::cout << "\033[36mPyright Windows:\033[0m Received response: " << response.substr(0, 200) << "..." << std::endl;
+		std::cout << "\033[36mPyright Windows:\033[0m Received response: "
+				  << response.substr(0, 200) << "..." << std::endl;
 
 		// Check if this is the initialization response (has id:1 AND result field)
 		if (response.find("\"id\":1") != std::string::npos &&
-			response.find("\"result\":") != std::string::npos) {
-			std::cout << "\033[32mPyright Windows:\033[0m Received initialization response" << std::endl;
+			response.find("\"result\":") != std::string::npos)
+		{
+			std::cout
+				<< "\033[32mPyright Windows:\033[0m Received initialization response"
+				<< std::endl;
 
 			// Send the initialized notification
 			std::string initializedNotification = R"({
@@ -190,68 +233,90 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 				"params": {}
 			})";
 			sendRequest(initializedNotification);
-			std::cout << "\033[32mPyright Windows:\033[0m Sent initialized notification" << std::endl;
+			std::cout << "\033[32mPyright Windows:\033[0m Sent initialized notification"
+					  << std::endl;
 
 			return true;
 		}
 
 		// Check for error responses
 		if (response.find("\"id\":1") != std::string::npos &&
-			response.find("\"error\":") != std::string::npos) {
-			std::cerr << "\033[31mPyright Windows:\033[0m Initialization error: " << response << std::endl;
+			response.find("\"error\":") != std::string::npos)
+		{
+			std::cerr << "\033[31mPyright Windows:\033[0m Initialization error: "
+					  << response << std::endl;
 			return false;
 		}
 
 		// Log messages and other notifications are normal - keep waiting
-		if (response.find("window/logMessage") != std::string::npos) {
-			std::cout << "\033[33mPyright Windows:\033[0m Received log message, continuing..." << std::endl;
-		} else {
-			std::cout << "\033[33mPyright Windows:\033[0m Received other message, continuing..." << std::endl;
+		if (response.find("window/logMessage") != std::string::npos)
+		{
+			std::cout
+				<< "\033[33mPyright Windows:\033[0m Received log message, continuing..."
+				<< std::endl;
+		} else
+		{
+			std::cout
+				<< "\033[33mPyright Windows:\033[0m Received other message, continuing..."
+				<< std::endl;
 		}
-		
+
 		Sleep(100); // Shorter sleep for faster response
 	}
 
-	std::cerr << "\033[31mPyright Windows:\033[0m Failed to receive initialization response after " << MAX_ATTEMPTS << " attempts" << std::endl;
+	std::cerr << "\033[31mPyright Windows:\033[0m Failed to receive initialization "
+				 "response after "
+			  << MAX_ATTEMPTS << " attempts" << std::endl;
 	return false;
 }
 
 bool LSPAdapterPyrightWindows::initialize(const std::string &workspacePath)
 {
-	if (initialized) {
+	if (initialized)
+	{
 		std::cout << "\033[35mPyright Windows:\033[0m Already initialized" << std::endl;
 		return true;
 	}
 
 	// Start the pyright process
-	if (!startPyrightProcess()) {
+	if (!startPyrightProcess())
+	{
 		return false;
 	}
 
 	// Send initialize request and wait for response
-	if (!sendInitializeRequest(workspacePath)) {
+	if (!sendInitializeRequest(workspacePath))
+	{
 		return false;
 	}
 
 	initialized = true;
-	std::cout << "\033[32mPyright Windows:\033[0m Initialization completed successfully" << std::endl;
+	std::cout << "\033[32mPyright Windows:\033[0m Initialization completed successfully"
+			  << std::endl;
 	return true;
 }
 
 bool LSPAdapterPyrightWindows::sendRequest(const std::string &request)
 {
-	if (!impl || impl->hInputWrite == INVALID_HANDLE_VALUE) {
-		std::cerr << "\033[31mPyright Windows:\033[0m Cannot send request - server not initialized" << std::endl;
+	if (!impl || impl->hInputWrite == INVALID_HANDLE_VALUE)
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m Cannot send request - server not "
+					 "initialized"
+				  << std::endl;
 		return false;
 	}
 
 	// Format LSP message with Content-Length header
-	std::string message = "Content-Length: " + std::to_string(request.length()) + "\r\n\r\n" + request;
+	std::string message =
+		"Content-Length: " + std::to_string(request.length()) + "\r\n\r\n" + request;
 
 	DWORD bytesWritten;
-	if (!WriteFile(impl->hInputWrite, message.c_str(), message.length(), &bytesWritten, NULL)) {
+	if (!WriteFile(
+			impl->hInputWrite, message.c_str(), message.length(), &bytesWritten, NULL))
+	{
 		DWORD error = GetLastError();
-		std::cerr << "\033[31mPyright Windows:\033[0m Failed to write to pipe. Error: " << error << std::endl;
+		std::cerr << "\033[31mPyright Windows:\033[0m Failed to write to pipe. Error: "
+				  << error << std::endl;
 		return false;
 	}
 
@@ -261,8 +326,11 @@ bool LSPAdapterPyrightWindows::sendRequest(const std::string &request)
 
 std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 {
-	if (!impl || impl->hOutputRead == INVALID_HANDLE_VALUE) {
-		std::cerr << "\033[31mPyright Windows:\033[0m Cannot read response - server not initialized" << std::endl;
+	if (!impl || impl->hOutputRead == INVALID_HANDLE_VALUE)
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m Cannot read response - server not "
+					 "initialized"
+				  << std::endl;
 		return "";
 	}
 
@@ -274,34 +342,43 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 	DWORD startTime = GetTickCount();
 
 	// Read until we get the Content-Length line
-	while (true) {
+	while (true)
+	{
 		// Check for timeout
-		if (GetTickCount() - startTime > TIMEOUT_MS) {
-			std::cerr << "\033[31mPyright Windows:\033[0m Timeout reading header" << std::endl;
+		if (GetTickCount() - startTime > TIMEOUT_MS)
+		{
+			std::cerr << "\033[31mPyright Windows:\033[0m Timeout reading header"
+					  << std::endl;
 			return "";
 		}
 
 		// Check if data is available before reading
 		DWORD bytesAvailable = 0;
-		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL)) {
+		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL))
+		{
 			Sleep(10); // Brief pause if no data available
 			continue;
 		}
-		if (bytesAvailable == 0) {
+		if (bytesAvailable == 0)
+		{
 			Sleep(10); // Brief pause if no data available
 			continue;
 		}
 
-		if (!ReadFile(impl->hOutputRead, &ch, 1, &bytesRead, NULL) || bytesRead == 0) {
-			std::cerr << "\033[31mPyright Windows:\033[0m Failed to read header" << std::endl;
+		if (!ReadFile(impl->hOutputRead, &ch, 1, &bytesRead, NULL) || bytesRead == 0)
+		{
+			std::cerr << "\033[31mPyright Windows:\033[0m Failed to read header"
+					  << std::endl;
 			return "";
 		}
 
 		header += ch;
-		if (header.find("Content-Length:") == 0 && ch == '\n') {
+		if (header.find("Content-Length:") == 0 && ch == '\n')
+		{
 			break;
 		}
-		if (header.length() > 100) {
+		if (header.length() > 100)
+		{
 			// Reset if header gets too long
 			header.clear();
 		}
@@ -310,36 +387,46 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 	// Parse content length
 	int length = 0;
 	size_t colonPos = header.find(':');
-	if (colonPos != std::string::npos) {
+	if (colonPos != std::string::npos)
+	{
 		std::string lengthStr = header.substr(colonPos + 1);
 		length = std::stoi(lengthStr);
 	}
 
-	if (length <= 0) {
-		std::cerr << "\033[31mPyright Windows:\033[0m Invalid content length: " << length << std::endl;
+	if (length <= 0)
+	{
+		std::cerr << "\033[31mPyright Windows:\033[0m Invalid content length: " << length
+				  << std::endl;
 		return "";
 	}
 
 	// Skip the empty line after headers with timeout
 	DWORD skipStartTime = GetTickCount();
-	while (true) {
+	while (true)
+	{
 		// Check for timeout
-		if (GetTickCount() - skipStartTime > TIMEOUT_MS) {
-			std::cerr << "\033[31mPyright Windows:\033[0m Timeout skipping header line" << std::endl;
+		if (GetTickCount() - skipStartTime > TIMEOUT_MS)
+		{
+			std::cerr << "\033[31mPyright Windows:\033[0m Timeout skipping header line"
+					  << std::endl;
 			return "";
 		}
 
 		// Check if data is available
 		DWORD bytesAvailable = 0;
-		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) || bytesAvailable == 0) {
+		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) ||
+			bytesAvailable == 0)
+		{
 			Sleep(10);
 			continue;
 		}
 
-		if (!ReadFile(impl->hOutputRead, &ch, 1, &bytesRead, NULL) || bytesRead == 0) {
+		if (!ReadFile(impl->hOutputRead, &ch, 1, &bytesRead, NULL) || bytesRead == 0)
+		{
 			break;
 		}
-		if (ch == '\n') {
+		if (ch == '\n')
+		{
 			break;
 		}
 	}
@@ -348,24 +435,35 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 	std::vector<char> buffer(length + 1);
 	DWORD totalBytesRead = 0;
 	DWORD contentStartTime = GetTickCount();
-	
-	while (totalBytesRead < length) {
+
+	while (totalBytesRead < length)
+	{
 		// Check for timeout
-		if (GetTickCount() - contentStartTime > TIMEOUT_MS * 2) { // Double timeout for content
-			std::cerr << "\033[31mPyright Windows:\033[0m Timeout reading content" << std::endl;
+		if (GetTickCount() - contentStartTime > TIMEOUT_MS * 2)
+		{ // Double timeout for content
+			std::cerr << "\033[31mPyright Windows:\033[0m Timeout reading content"
+					  << std::endl;
 			break;
 		}
 
 		// Check if data is available
 		DWORD bytesAvailable = 0;
-		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) || bytesAvailable == 0) {
+		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) ||
+			bytesAvailable == 0)
+		{
 			Sleep(10);
 			continue;
 		}
 
 		DWORD currentBytesRead;
 		DWORD bytesToRead = std::min(bytesAvailable, (DWORD)(length - totalBytesRead));
-		if (!ReadFile(impl->hOutputRead, buffer.data() + totalBytesRead, bytesToRead, &currentBytesRead, NULL) || currentBytesRead == 0) {
+		if (!ReadFile(impl->hOutputRead,
+					  buffer.data() + totalBytesRead,
+					  bytesToRead,
+					  &currentBytesRead,
+					  NULL) ||
+			currentBytesRead == 0)
+		{
 			break;
 		}
 		totalBytesRead += currentBytesRead;
@@ -373,7 +471,8 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 
 	buffer[totalBytesRead] = '\0';
 
-	if (contentLength) {
+	if (contentLength)
+	{
 		*contentLength = length;
 	}
 
@@ -384,14 +483,16 @@ std::string LSPAdapterPyrightWindows::getLanguageId(const std::string &filePath)
 {
 	// Get file extension
 	size_t dot_pos = filePath.find_last_of(".");
-	if (dot_pos == std::string::npos) {
+	if (dot_pos == std::string::npos)
+	{
 		return "plaintext";
 	}
 
 	std::string ext = filePath.substr(dot_pos + 1);
 
 	// Map Python extensions to language IDs
-	if (ext == "py") {
+	if (ext == "py")
+	{
 		return "python";
 	}
 
