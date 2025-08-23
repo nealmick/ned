@@ -148,7 +148,8 @@ std::string LSPClient::findServerPath(const std::string &language) const
 					   "/usr/bin/clangd",
 					   "/usr/local/bin/clangd",
 					   "/opt/homebrew/bin/clangd",
-					   "C:/Program Files/LLVM/bin/clangd.exe"};
+					   "C:/Program Files/LLVM/bin/clangd.exe",
+					   "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"};
 	} else if (language == "typescript")
 	{
 		// TypeScript language server
