@@ -4,6 +4,7 @@
 #include "editor_scroll.h"
 #include "files.h"	 // Access to gFileExplorer
 #include <algorithm> // For std::min, std::max
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -34,23 +35,51 @@ using json = nlohmann::json;
 LSPGotoDef gLSPGotoDef;
 
 LSPGotoDef::LSPGotoDef()
-	: currentRequestId(2000), showDefinitionOptions(false), selectedDefinitionIndex(0)
+	: currentRequestId(2000), showDefinitionOptions(false), selectedDefinitionIndex(0), inProgress(false)
 {
 }
 LSPGotoDef::~LSPGotoDef() = default;
 
 bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int character)
 {
+	// Simple time-based cooldown to prevent rapid successive calls
+	static auto lastCallTime = std::chrono::steady_clock::now();
+	auto currentTime = std::chrono::steady_clock::now();
+	auto timeSinceLastCall = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastCallTime);
+	
+	if (timeSinceLastCall.count() < 1000) // 1 second cooldown
+	{
+		std::cout << "\033[31mLSP GotoDef:\033[0m COOLDOWN: Only " << timeSinceLastCall.count() << "ms since last call, ignoring (need 1000ms)\n";
+		return false;
+	}
+	
+	lastCallTime = currentTime;
+	
+	// Simple in-progress guard
+	if (inProgress)
+	{
+		std::cout << "\033[33mLSP GotoDef:\033[0m Already in progress, ignoring\n";
+		return false;
+	}
+	
+	inProgress = true;
+	
+	std::cout << "\033[35mLSP GotoDef:\033[0m Starting new request for: " << filePath 
+			  << " at line " << line << ", char " << character << std::endl;
 #ifdef PLATFORM_WINDOWS
 	// Windows-specific initialization and file type checking
 	size_t dot_pos = filePath.find_last_of(".");
 	if (dot_pos == std::string::npos)
 	{
+		std::cout << "\033[33mLSP GotoDef:\033[0m Setting inProgress = false due to no file extension\n";
+		inProgress = false;
 		return false; // No extension
 	}
 	std::string ext = filePath.substr(dot_pos + 1);
 	if (ext != "py")
 	{
+		std::cout << "\033[33mLSP GotoDef:\033[0m Setting inProgress = false due to unsupported file type: " << ext << std::endl;
+		inProgress = false;
 		return false; // Only support Python files for now on Windows
 	}
 
@@ -59,6 +88,8 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 	{
 		std::cout << "\033[33mLSP GotoDef:\033[0m No adapter available for file: "
 				  << filePath << std::endl;
+		std::cout << "\033[33mLSP GotoDef:\033[0m Setting inProgress = false due to no adapter\n";
+		inProgress = false;
 		return false;
 	}
 
@@ -70,6 +101,8 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 		{
 			std::cout << "\033[31mLSP GotoDef:\033[0m Failed to initialize LSP"
 					  << std::endl;
+			std::cout << "\033[31mLSP GotoDef:\033[0m Setting inProgress = false due to init failure\n";
+			inProgress = false;
 			return false;
 		}
 	}
@@ -102,65 +135,6 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
 			c = '/';
 	}
 
-	// Send didOpen notification if needed
-	static std::set<std::string> openedFiles;
-	if (openedFiles.find(fileURI) == openedFiles.end())
-	{
-		std::ifstream fileStream(filePath);
-		if (fileStream.is_open())
-		{
-			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
-									std::istreambuf_iterator<char>());
-			fileStream.close();
-
-			// Escape content for JSON
-			std::string escapedContent;
-			for (char c : fileContent)
-			{
-				switch (c)
-				{
-				case '"':
-					escapedContent += "\\\"";
-					break;
-				case '\\':
-					escapedContent += "\\\\";
-					break;
-				case '\n':
-					escapedContent += "\\n";
-					break;
-				case '\r':
-					escapedContent += "\\r";
-					break;
-				case '\t':
-					escapedContent += "\\t";
-					break;
-				default:
-					escapedContent += c;
-					break;
-				}
-			}
-
-			std::string didOpenRequest = R"({
-				"jsonrpc": "2.0",
-				"method": "textDocument/didOpen",
-				"params": {
-					"textDocument": {
-						"uri": ")" + fileURI +
-										 R"(",
-						"languageId": "python",
-						"version": 1,
-						"text": ")" + escapedContent +
-										 R"("
-					}
-				}
-			})";
-
-			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
-			openedFiles.insert(fileURI);
-			Sleep(100);
-		}
-	}
-
 	std::string uriForRequest = fileURI;
 #else
 	std::string uriForRequest = "file://" + filePath;
@@ -185,70 +159,89 @@ bool LSPGotoDef::gotoDefinition(const std::string &filePath, int line, int chara
             }
         })");
 
+	std::cout << "\033[36mLSP GotoDef:\033[0m About to send request...\n";
 	if (!CURRENT_LSP_MANAGER.sendRequest(request))
 	{
 		std::cout << "\033[31mLSP GotoDef:\033[0m Failed to send request" << std::endl;
+		std::cout << "\033[31mLSP GotoDef:\033[0m Setting inProgress = false due to send failure\n";
+		inProgress = false;
 		return false;
 	}
+	std::cout << "\033[32mLSP GotoDef:\033[0m Request sent successfully, waiting for response...\n";
 
-	const int MAX_ATTEMPTS = 15;
+	const int MAX_ATTEMPTS = 2; // Further reduced to prevent hanging
+	const int MAX_TOTAL_TIME_MS = 500; // Maximum 500ms total time
+	auto startTime = std::chrono::steady_clock::now();
+	
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
-		std::cout << "\033[35mLSP GotoDef:\033[0m Waiting for definition "
-					 "response (attempt "
-				  << (attempt + 1) << ")" << std::endl;
-
+		std::cout << "\033[36mLSP GotoDef:\033[0m Attempt " << (attempt + 1) << " of " << MAX_ATTEMPTS << "\n";
+		
+		// Check total time elapsed
+		auto currentTime = std::chrono::steady_clock::now();
+		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime);
+		if (elapsed.count() > MAX_TOTAL_TIME_MS)
+		{
+			std::cout << "\033[31mLSP GotoDef:\033[0m Total time limit exceeded, aborting\n";
+			inProgress = false;
+			return false;
+		}
+		
+		std::cout << "\033[36mLSP GotoDef:\033[0m About to read response...\n";
 		int contentLength = 0;
 		std::string response = CURRENT_LSP_MANAGER.readResponse(&contentLength);
+		std::cout << "\033[36mLSP GotoDef:\033[0m Response read complete, length: " << contentLength << "\n";
 
-		if (response.empty())
+		if (!response.empty())
 		{
-			std::cout << "\033[31mLSP GotoDef:\033[0m Empty response received"
+			std::cout << "\033[36mLSP GotoDef Response:\033[0m\n" << response << "\n";
+
+			// Check if this response is for our request
+			if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
+			{
+				std::cout << "\033[32mLSP GotoDef:\033[0m Received response for "
+							 "request ID "
+						  << requestId << std::endl;
+
+				parseDefinitionResponse(response); // Pass the raw response
+				
+				std::cout << "\033[32mLSP GotoDef:\033[0m Request completed successfully, setting inProgress = false\n";
+				inProgress = false;
+				if (showDefinitionOptions)
+				{
+					return true;
+				} else if (response.find("\"error\":") != std::string::npos)
+				{
+					std::cout << "\033[31mLSP GotoDef:\033[0m Error reported in "
+								 "server response."
+							  << std::endl;
+					return false; // Error from server
+				} else
+				{
+					std::cout << "\033[33mLSP GotoDef:\033[0m No definition "
+								 "locations found or parsed from the response."
+							  << std::endl;
+					return true;
+				}
+			}
+
+			std::cout << "\033[33mLSP GotoDef:\033[0m Received unrelated response. "
+						 "Continuing..."
 					  << std::endl;
-			if (attempt == MAX_ATTEMPTS - 1)
-			{
-				std::cout << "\033[31mLSP GotoDef:\033[0m Timeout waiting for "
-							 "response."
-						  << std::endl;
-				return false;
-			}
-			continue;
 		}
 
-		if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
-		{
-			std::cout << "\033[32mLSP GotoDef:\033[0m Received response for "
-						 "request ID "
-					  << requestId << std::endl;
-
-			parseDefinitionResponse(response); // Pass the raw response
-
-			if (showDefinitionOptions)
-			{
-				return true;
-			} else if (response.find("\"error\":") != std::string::npos)
-			{
-				std::cout << "\033[31mLSP GotoDef:\033[0m Error reported in "
-							 "server response."
-						  << std::endl;
-				return false; // Error from server
-			} else
-			{
-				std::cout << "\033[33mLSP GotoDef:\033[0m No definition "
-							 "locations found or parsed from the response."
-						  << std::endl;
-				return true;
-			}
-		}
-
-		std::cout << "\033[33mLSP GotoDef:\033[0m Received unrelated response. "
-					 "Continuing..."
-				  << std::endl;
+		// Add delay between attempts - much shorter delays to minimize UI blocking
+#ifdef PLATFORM_WINDOWS
+		Sleep(response.empty() ? 20 : 10); // Reduced from 100/50 to 20/10ms
+#else
+		usleep(response.empty() ? 20000 : 10000); // Reduced from 100000/50000 to 20000/10000us
+#endif
 	}
 
-	std::cout << "\033[31mLSP GotoDef:\033[0m Exceeded maximum attempts "
-				 "waiting for response ID "
-			  << requestId << std::endl;
+	std::cout << "\033[33mLSP GotoDef:\033[0m Timeout waiting for definition response after "
+			  << MAX_ATTEMPTS << " attempts\n";
+	std::cout << "\033[33mLSP GotoDef:\033[0m Setting inProgress = false due to timeout\n";
+	inProgress = false;
 	return false;
 }
 
@@ -396,7 +389,7 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 									static_cast<char>(std::stoi(hexStr, nullptr, 16));
 								decodedPath += decodedChar;
 								i += 2; // Skip the hex digits
-							} catch (const std::exception &e)
+							} catch (const std::exception &)
 							{
 								// If hex parsing fails, just keep the original characters
 								decodedPath += uri[i];
@@ -475,7 +468,7 @@ void LSPGotoDef::parseDefinitionArray(const json &results_array)
 									static_cast<char>(std::stoi(hexStr, nullptr, 16));
 								decodedPath += decodedChar;
 								i += 2; // Skip the hex digits
-							} catch (const std::exception &e)
+							} catch (const std::exception &)
 							{
 								// If hex parsing fails, just keep the original characters
 								decodedPath += uri[i];
@@ -747,17 +740,34 @@ void LSPGotoDef::renderDefinitionOptions()
 			if (selectedDefinitionIndex >= 0 &&
 				selectedDefinitionIndex < definitionLocations.size())
 			{ // Check bounds
+				
 				const auto &selected = definitionLocations[selectedDefinitionIndex];
 				std::cout << "Selected definition at " << selected.uri << " line "
 						  << (selected.startLine + 1) << " char "
 						  << (selected.startChar + 1) << std::endl;
 
+				// Close the options window immediately to prevent re-triggering
+				showDefinitionOptions = false;
+				editor_state.block_input = false;
+
 				if (selected.uri != gFileExplorer.currentFile)
 				{
+					std::cout << "\033[35mLSP GotoDef:\033[0m Loading file: " << selected.uri << std::endl;
+					// Set a flag to prevent any automatic LSP operations during file loading
+					static bool fileLoadingInProgress = false;
+					if (fileLoadingInProgress)
+					{
+						std::cout << "\033[31mLSP GotoDef:\033[0m File loading already in progress, skipping\n";
+						return;
+					}
+					fileLoadingInProgress = true;
+					
 					gFileExplorer.loadFileContent(selected.uri, [selected]() {
+						std::cout << "\033[35mLSP GotoDef:\033[0m File loaded, setting cursor position\n";
 						gEditorScroll.pending_cursor_centering = true;
 						gEditorScroll.pending_cursor_line = selected.startLine;
 						gEditorScroll.pending_cursor_char = selected.startChar;
+						fileLoadingInProgress = false;
 					});
 				} else
 				{

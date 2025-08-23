@@ -199,7 +199,7 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 	// Wait for initialization response - pyright sends log messages first, then the
 	// actual response
 	const int MAX_ATTEMPTS =
-		30; // Increased attempts since pyright sends multiple log messages first
+		10; // Reduced from 30 to minimize UI blocking
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
 		std::cout << "\033[35mPyright Windows:\033[0m Waiting for initialization "
@@ -211,7 +211,7 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 		{
 			std::cout << "\033[31mPyright Windows:\033[0m Empty response received"
 					  << std::endl;
-			Sleep(100); // Shorter sleep for faster response
+			Sleep(20); // Reduced from 100ms to minimize UI blocking
 			continue;
 		}
 
@@ -261,7 +261,7 @@ bool LSPAdapterPyrightWindows::sendInitializeRequest(const std::string &workspac
 				<< std::endl;
 		}
 
-		Sleep(100); // Shorter sleep for faster response
+		Sleep(20); // Reduced from 100ms to minimize UI blocking
 	}
 
 	std::cerr << "\033[31mPyright Windows:\033[0m Failed to receive initialization "
@@ -356,12 +356,12 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 		DWORD bytesAvailable = 0;
 		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL))
 		{
-			Sleep(10); // Brief pause if no data available
+			Sleep(5); // Reduced from 10ms to minimize UI blocking
 			continue;
 		}
 		if (bytesAvailable == 0)
 		{
-			Sleep(10); // Brief pause if no data available
+			Sleep(5); // Reduced from 10ms to minimize UI blocking
 			continue;
 		}
 
@@ -417,7 +417,7 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) ||
 			bytesAvailable == 0)
 		{
-			Sleep(10);
+			Sleep(5); // Reduced from 10ms to minimize UI blocking
 			continue;
 		}
 
@@ -451,7 +451,7 @@ std::string LSPAdapterPyrightWindows::readResponse(int *contentLength)
 		if (!PeekNamedPipe(impl->hOutputRead, NULL, 0, NULL, &bytesAvailable, NULL) ||
 			bytesAvailable == 0)
 		{
-			Sleep(10);
+			Sleep(5); // Reduced from 10ms to minimize UI blocking
 			continue;
 		}
 

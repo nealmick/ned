@@ -3,6 +3,7 @@
 #include "../editor/editor_line_jump.h"
 #include "files.h"
 #include <algorithm> // For std::min
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -31,7 +32,7 @@
 LSPGotoRef gLSPGotoRef;
 
 LSPGotoRef::LSPGotoRef()
-	: currentRequestId(3000), showReferenceOptions(false), selectedReferenceIndex(0)
+	: currentRequestId(3000), showReferenceOptions(false), selectedReferenceIndex(0), inProgress(false)
 {
 }
 
@@ -39,16 +40,25 @@ LSPGotoRef::~LSPGotoRef() = default;
 
 bool LSPGotoRef::findReferences(const std::string &filePath, int line, int character)
 {
+	// Instance-based guard against cascading calls
+	if (inProgress)
+	{
+		std::cout << "\033[33mLSP FindRef:\033[0m Already in progress, ignoring\n";
+		return false;
+	}
+	inProgress = true;
 #ifdef PLATFORM_WINDOWS
 	// Windows-specific initialization and file type checking
 	size_t dot_pos = filePath.find_last_of(".");
 	if (dot_pos == std::string::npos)
 	{
+		inProgress = false;
 		return false; // No extension
 	}
 	std::string ext = filePath.substr(dot_pos + 1);
 	if (ext != "py")
 	{
+		inProgress = false;
 		return false; // Only support Python files for now on Windows
 	}
 
@@ -57,6 +67,7 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 	{
 		std::cout << "\033[33mLSP FindRef:\033[0m No adapter available for file: "
 				  << filePath << std::endl;
+		inProgress = false;
 		return false;
 	}
 
@@ -68,6 +79,7 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 		{
 			std::cout << "\033[31mLSP FindRef:\033[0m Failed to initialize LSP"
 					  << std::endl;
+			inProgress = false;
 			return false;
 		}
 	}
@@ -76,6 +88,7 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 	if (!CURRENT_LSP_MANAGER.isInitialized())
 	{
 		std::cout << "\033[31mLSP FindRef:\033[0m Not initialized" << std::endl;
+		inProgress = false;
 		return false;
 	}
 
@@ -83,6 +96,7 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 	{
 		std::cout << "\033[31mLSP FindRef:\033[0m No LSP adapter available for file: "
 				  << filePath << std::endl;
+		inProgress = false;
 		return false;
 	}
 #endif
@@ -98,68 +112,6 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 	{
 		if (c == '\\')
 			c = '/';
-	}
-
-	// Send didOpen notification if needed
-	static std::set<std::string> openedFiles;
-	if (openedFiles.find(fileURI) == openedFiles.end())
-	{
-		std::ifstream fileStream(filePath);
-		if (fileStream.is_open())
-		{
-			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
-									std::istreambuf_iterator<char>());
-			fileStream.close();
-
-			// Escape content for JSON
-			std::string escapedContent;
-			for (char c : fileContent)
-			{
-				switch (c)
-				{
-				case '"':
-					escapedContent += "\\\"";
-					break;
-				case '\\':
-					escapedContent += "\\\\";
-					break;
-				case '\n':
-					escapedContent += "\\n";
-					break;
-				case '\r':
-					escapedContent += "\\r";
-					break;
-				case '\t':
-					escapedContent += "\\t";
-					break;
-				default:
-					escapedContent += c;
-					break;
-				}
-			}
-
-			std::string didOpenRequest = R"({
-				"jsonrpc": "2.0",
-				"method": "textDocument/didOpen",
-				"params": {
-					"textDocument": {
-						"uri": ")" + fileURI +
-										 R"(",
-						"languageId": "python",
-						"version": 1,
-						"text": ")" + escapedContent +
-										 R"("
-					}
-				}
-			})";
-
-			std::cout
-				<< "\033[35mLSP FindRef:\033[0m Sending didOpen notification for file"
-				<< std::endl;
-			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
-			openedFiles.insert(fileURI);
-			Sleep(100);
-		}
 	}
 
 	std::string uriForRequest = fileURI;
@@ -192,78 +144,78 @@ bool LSPGotoRef::findReferences(const std::string &filePath, int line, int chara
 	if (!CURRENT_LSP_MANAGER.sendRequest(request))
 	{
 		std::cout << "\033[31mLSP FindRef:\033[0m Failed to send request" << std::endl;
+		inProgress = false;
 		return false;
 	}
 
-	const int MAX_ATTEMPTS = 15;
+	const int MAX_ATTEMPTS = 5; // Reduced from 20 to minimize UI blocking
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
-		std::cout << "\033[35mLSP FindRef:\033[0m Waiting for references "
-					 "response (attempt "
-				  << (attempt + 1) << ")" << std::endl;
-
 		int contentLength = 0;
 		std::string response = CURRENT_LSP_MANAGER.readResponse(&contentLength);
 
-		if (response.empty())
+		if (!response.empty())
 		{
-			std::cout << "\033[31mLSP FindRef:\033[0m Empty response received"
+			std::cout << "\033[36mLSP FindRef Response:\033[0m\n" << response << "\n";
+
+			// Check if this response is for our request
+			if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
+			{
+				std::cout << "\033[32mLSP FindRef:\033[0m Received response for "
+							 "request ID "
+						  << requestId << std::endl;
+
+				if (response.find("\"result\":[") != std::string::npos)
+				{
+					std::cout << "\033[32mLSP FindRef:\033[0m Found result array."
+							  << std::endl;
+					parseReferenceResponse(response); // Parse the array
+					inProgress = false;
+					return true;
+				} else if (response.find("\"result\":null") != std::string::npos)
+				{
+					std::cout << "\033[33mLSP FindRef:\033[0m No references found "
+								 "(result is null)."
+							  << std::endl;
+					referenceLocations.clear(); // Ensure list is empty
+					showReferenceOptions = false;
+					inProgress = false;
+					return true; // Successfully processed the response (no results)
+				} else if (response.find("\"error\":") != std::string::npos)
+				{
+					std::cout << "\033[31mLSP FindRef:\033[0m Error in response: " << response
+							  << std::endl;
+					referenceLocations.clear();
+					showReferenceOptions = false;
+					inProgress = false;
+					return false; // Indicate error
+				} else
+				{
+					std::cout << "\033[31mLSP FindRef:\033[0m Response for ID " << requestId
+							  << " has unexpected format: " << response << std::endl;
+					referenceLocations.clear();
+					showReferenceOptions = false;
+					inProgress = false;
+					return false; // Indicate unexpected format
+				}
+			}
+
+			std::cout << "\033[33mLSP FindRef:\033[0m Received unrelated response. "
+						 "Continuing..."
 					  << std::endl;
-			if (attempt == MAX_ATTEMPTS - 1)
-			{
-				std::cout << "\033[31mLSP FindRef:\033[0m Timeout waiting for "
-							 "response."
-						  << std::endl;
-				return false;
-			}
-			continue;
 		}
 
-		if (response.find("\"id\":" + std::to_string(requestId)) != std::string::npos)
-		{
-			std::cout << "\033[32mLSP FindRef:\033[0m Received response for "
-						 "request ID "
-					  << requestId << std::endl;
-
-			if (response.find("\"result\":[") != std::string::npos)
-			{
-				std::cout << "\033[32mLSP FindRef:\033[0m Found result array."
-						  << std::endl;
-				parseReferenceResponse(response); // Parse the array
-				return true;
-			} else if (response.find("\"result\":null") != std::string::npos)
-			{
-				std::cout << "\033[33mLSP FindRef:\033[0m No references found "
-							 "(result is null)."
-						  << std::endl;
-				referenceLocations.clear(); // Ensure list is empty
-				showReferenceOptions = false;
-				return true; // Successfully processed the response (no results)
-			} else if (response.find("\"error\":") != std::string::npos)
-			{
-				std::cout << "\033[31mLSP FindRef:\033[0m Error in response: " << response
-						  << std::endl;
-				referenceLocations.clear();
-				showReferenceOptions = false;
-				return false; // Indicate error
-			} else
-			{
-				std::cout << "\033[31mLSP FindRef:\033[0m Response for ID " << requestId
-						  << " has unexpected format: " << response << std::endl;
-				referenceLocations.clear();
-				showReferenceOptions = false;
-				return false; // Indicate unexpected format
-			}
-		}
-
-		std::cout << "\033[33mLSP FindRef:\033[0m Received unrelated response. "
-					 "Continuing..."
-				  << std::endl;
+		// Add delay between attempts - much shorter delays to minimize UI blocking
+#ifdef PLATFORM_WINDOWS
+		Sleep(response.empty() ? 20 : 10); // Reduced from 100/50 to 20/10ms
+#else
+		usleep(response.empty() ? 20000 : 10000); // Reduced from 100000/50000 to 20000/10000us
+#endif
 	}
 
-	std::cout << "\033[31mLSP FindRef:\033[0m Exceeded maximum attempts "
-				 "waiting for response ID "
-			  << requestId << std::endl;
+	std::cout << "\033[33mLSP FindRef:\033[0m Timeout waiting for references response after "
+			  << MAX_ATTEMPTS << " attempts\n";
+	inProgress = false;
 	return false;
 }
 void LSPGotoRef::parseReferenceResponse(const std::string &response)
@@ -693,10 +645,10 @@ void LSPGotoRef::handleReferenceSelection()
 	const auto &selected = referenceLocations[selectedReferenceIndex];
 	std::cout << "Selected reference at " << selected.uri << " line "
 			  << (selected.startLine + 1) << std::endl;
-	std::cout << "Input Block... " << editor_state.block_input << std::endl;
 
-	// Close window first
+	// Close window first and clear state to prevent multiple calls
 	showReferenceOptions = false;
+	editor_state.block_input = false;
 
 	if (selected.uri != gFileExplorer.currentFile)
 	{

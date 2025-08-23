@@ -1,6 +1,7 @@
 #include "lsp_symbol_info.h"
 #include "../editor/editor.h"
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -127,78 +128,12 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 
 #ifdef PLATFORM_WINDOWS
 	// Convert Windows path to proper URI format
-	std::string fileURI = "file:///" + filePath;
-	// Replace backslashes with forward slashes
-	for (char &c : fileURI)
+	std::string uriForRequest = "file:///" + filePath;
+	for (char &c : uriForRequest)
 	{
 		if (c == '\\')
 			c = '/';
 	}
-
-	// Send didOpen notification if needed (same logic as goto definition)
-	static std::set<std::string> openedFiles;
-	if (openedFiles.find(fileURI) == openedFiles.end())
-	{
-		// Read the file content
-		std::ifstream fileStream(filePath);
-		if (fileStream.is_open())
-		{
-			std::string fileContent((std::istreambuf_iterator<char>(fileStream)),
-									std::istreambuf_iterator<char>());
-			fileStream.close();
-
-			// Escape content for JSON
-			std::string escapedContent;
-			for (char c : fileContent)
-			{
-				switch (c)
-				{
-				case '"':
-					escapedContent += "\\\"";
-					break;
-				case '\\':
-					escapedContent += "\\\\";
-					break;
-				case '\n':
-					escapedContent += "\\n";
-					break;
-				case '\r':
-					escapedContent += "\\r";
-					break;
-				case '\t':
-					escapedContent += "\\t";
-					break;
-				default:
-					escapedContent += c;
-					break;
-				}
-			}
-
-			std::string didOpenRequest = R"({
-				"jsonrpc": "2.0",
-				"method": "textDocument/didOpen",
-				"params": {
-					"textDocument": {
-						"uri": ")" + fileURI +
-										 R"(",
-						"languageId": "python",
-						"version": 1,
-						"text": ")" + escapedContent +
-										 R"("
-					}
-				}
-			})";
-
-			std::cout
-				<< "\033[35mLSP SymbolInfo:\033[0m Sending didOpen notification for file"
-				<< std::endl;
-			CURRENT_LSP_MANAGER.sendRequest(didOpenRequest);
-			openedFiles.insert(fileURI);
-			Sleep(150); // Wait a bit longer for the file to be processed
-		}
-	}
-
-	std::string uriForRequest = fileURI;
 #else
 	std::string uriForRequest = "file://" + filePath;
 #endif
@@ -235,7 +170,7 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 	displayPosition.x += 20;
 
 	// Response handling with timeout
-	const int MAX_ATTEMPTS = 15;
+	const int MAX_ATTEMPTS = 5; // Reduced from 20 to minimize UI blocking
 	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
 	{
 		int contentLength = 0;
@@ -244,25 +179,35 @@ void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
 		if (!response.empty())
 		{
 			std::cout << "\033[36mLSP SymbolInfo Response:\033[0m\n" << response << "\n";
+
+			// Check if this response is for our request
+			if (response.find("\"id\":" + std::to_string(currentRequestId)) !=
+				std::string::npos)
+			{
+				parseHoverResponse(response);
+				return;
+			}
+
+			// Check for error responses to our request
+			if (response.find("\"id\":" + std::to_string(currentRequestId)) !=
+					std::string::npos &&
+				response.find("\"error\":") != std::string::npos)
+			{
+				std::cout << "\033[33mLSP SymbolInfo:\033[0m Server returned error for hover request\n";
+				return;
+			}
 		}
 
-		if (response.find("\"id\":" + std::to_string(currentRequestId)) !=
-			std::string::npos)
-		{
-			parseHoverResponse(response);
-			return;
-		}
-
-		// Add small delay between attempts (same as goto def/ref)
-		if (response.empty())
-		{
+		// Add delay between attempts - much shorter delays to minimize UI blocking
 #ifdef PLATFORM_WINDOWS
-			Sleep(50);
+		Sleep(response.empty() ? 20 : 10); // Reduced from 100/50 to 20/10ms
 #else
-			usleep(50000);
+		usleep(response.empty() ? 20000 : 10000); // Reduced from 100000/50000 to 20000/10000us
 #endif
-		}
 	}
+
+	std::cout << "\033[33mLSP SymbolInfo:\033[0m Timeout waiting for hover response after "
+			  << MAX_ATTEMPTS << " attempts\n";
 }
 
 void LSPSymbolInfo::parseHoverResponse(const std::string &response)
@@ -387,9 +332,17 @@ void LSPSymbolInfo::parseHoverResponse(const std::string &response)
 		if (j.contains("error"))
 		{
 			std::cerr << "\033[31mLSP Error:\033[0m " << j["error"].dump() << "\n";
+			return;
 		}
 
-		std::cout << "\033[33mNo hover information found in response\033[0m\n";
+		// Check if result is explicitly null (normal case for no hover info)
+		if (j.contains("result") && j["result"].is_null())
+		{
+			std::cout << "\033[33mLSP SymbolInfo:\033[0m No hover information available for this symbol\n";
+			return;
+		}
+
+		std::cout << "\033[33mLSP SymbolInfo:\033[0m No hover information found in response\n";
 	} catch (const json::exception &e)
 	{
 		std::cerr << "\033[31mJSON Parsing Error:\033[0m " << e.what()

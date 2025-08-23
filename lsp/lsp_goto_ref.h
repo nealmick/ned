@@ -48,6 +48,9 @@ class LSPGotoRef
 	int selectedReferenceIndex = 0;
 	bool showReferenceOptions = false;
 	bool isEmbedded = false;
+	
+	// Request state tracking
+	bool inProgress = false;
 };
 
 // Global instance

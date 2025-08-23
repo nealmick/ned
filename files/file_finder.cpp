@@ -61,11 +61,22 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 		// Add some debug output to see what's happening
 		std::cout << "[FileFinder] Scanning directory: " << projectDir << std::endl;
 
+		// Add safeguards against infinite loops and stuck iterators
+		int maxIterations = 10000; // Prevent infinite loops
+		int iterationCount = 0;
+		
 		auto directoryIterator = fs::recursive_directory_iterator(projectDir);
 		int fileCount = 0;
 
 		for (const auto &entry : directoryIterator)
 		{
+			// Prevent infinite loops
+			if (++iterationCount > maxIterations)
+			{
+				std::cerr << "[FileFinder] Warning: Reached maximum iteration limit, stopping scan" << std::endl;
+				break;
+			}
+
 			try
 			{
 				if (entry.is_regular_file())

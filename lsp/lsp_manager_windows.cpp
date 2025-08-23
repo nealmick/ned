@@ -107,7 +107,7 @@ bool LSPManagerWindows::selectAdapterForFile(const std::string &filePath)
 		return true;
 	}
 
-	// No specific adapter found
+	// No specific adapter found - don't change the active adapter
 	std::cout
 		<< "\033[33mLSP Manager Windows:\033[0m No specific adapter found for extension '"
 		<< ext << "'." << std::endl;

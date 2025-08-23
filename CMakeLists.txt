@@ -180,7 +180,7 @@ set(APP_SOURCES
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
 if(WIN32)
-    # On Windows, use cross-platform LSP support with Windows adapters
+    # On Windows, use simplified Windows-only LSP implementation
     set(LSP_SOURCES
         lsp/lsp_stubs_windows.cpp
         lsp/lsp_manager_windows.cpp

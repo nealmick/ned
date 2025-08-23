@@ -52,6 +52,9 @@ class LSPGotoDef
 	int selectedDefinitionIndex = 0;
 	bool showDefinitionOptions = false;
 	bool isEmbedded = false;
+	
+	// Request state tracking
+	bool inProgress = false;
 };
 
 // Global instance (remains the same)
