@@ -5,6 +5,9 @@
 #include "../lib/lsp-framework/lsp/error.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"
 #include "../lib/lsp-framework/lsp/process.h"
+#include "imgui.h"
+#include "lsp_goto_def.h"
+#include "lsp_symbol_info.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -60,46 +63,6 @@ bool LSPClient::init(const std::string &filePath)
 
 	std::cout << "LSP: Failed to start server for " << detectedLanguage << std::endl;
 	return false;
-}
-
-void LSPClient::shutdown()
-{
-	if (initialized)
-	{
-		std::cout << "LSP: Beginning shutdown sequence..." << std::endl;
-
-		// First send proper LSP shutdown to server
-		stopServer();
-
-		// Stop message processing loop
-		running = false;
-
-		// Give thread a chance to exit gracefully, but don't wait forever
-		if (processingThread.joinable())
-		{
-			std::cout << "LSP: Waiting for message processing thread to exit..."
-					  << std::endl;
-			if (processingThread.joinable())
-			{
-				// Try to join with timeout - if it doesn't respond, we'll detach
-				std::thread timeoutThread([this]() {
-					std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-					if (processingThread.joinable())
-					{
-						std::cout << "LSP: Thread didn't exit gracefully, detaching..."
-								  << std::endl;
-						processingThread.detach();
-					}
-				});
-
-				processingThread.join();
-				timeoutThread.detach(); // Cancel timeout if join succeeded
-			}
-		}
-
-		initialized = false;
-		std::cout << "LSP: Shutdown complete" << std::endl;
-	}
 }
 
 std::string LSPClient::detectLanguageFromFile(const std::string &filePath) const
@@ -233,7 +196,13 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 	{
 		args = {"--stdio"};
 	}
-	// clangd and gopls work in stdio mode by default
+	// gopls works in stdio mode by default
+
+	// Add flags for all servers
+	if (!serverArgs.empty())
+	{
+		args.push_back(serverArgs);
+	}
 
 	try
 	{
@@ -266,6 +235,45 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 	}
 }
 
+void LSPClient::shutdown()
+{
+	if (initialized)
+	{
+		std::cout << "LSP: Beginning shutdown sequence..." << std::endl;
+
+		// First send proper LSP shutdown to server
+		stopServer();
+
+		// Stop message processing loop
+		running = false;
+
+		// Give thread a chance to exit gracefully, but don't wait forever
+		if (processingThread.joinable())
+		{
+			std::cout << "LSP: Waiting for message processing thread to exit..."
+					  << std::endl;
+			if (processingThread.joinable())
+			{
+				// Try to join with timeout - if it doesn't respond, we'll detach
+				std::thread timeoutThread([this]() {
+					std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+					if (processingThread.joinable())
+					{
+						std::cout << "LSP: Thread didn't exit gracefully, detaching..."
+								  << std::endl;
+						processingThread.detach();
+					}
+				});
+
+				processingThread.join();
+				timeoutThread.detach(); // Cancel timeout if join succeeded
+			}
+		}
+
+		initialized = false;
+		std::cout << "LSP: Shutdown complete" << std::endl;
+	}
+}
 void LSPClient::stopServer()
 {
 	if (messageHandler)
@@ -391,6 +399,34 @@ void LSPClient::didOpen(const std::string &filePath, const std::string &content)
 	}
 }
 
+void LSPClient::didEdit(const std::string &filePath, const std::string &content)
+{
+	if (!initialized || !messageHandler)
+		return;
+
+	try
+	{
+		// Create didChange notification
+		lsp::DidChangeTextDocumentParams params;
+		params.textDocument.uri = lsp::FileUri::fromPath(filePath);
+		params.textDocument.version = 2; // Increment version for changes
+
+		// Create a content change that replaces the entire document
+		lsp::TextDocumentContentChangeEvent_Text change;
+		change.text = content;
+		params.contentChanges.push_back(change);
+
+		// Send the notification
+		messageHandler->sendNotification<lsp::notifications::TextDocument_DidChange>(
+			std::move(params));
+
+		// std::cout << "LSP: Sending didChange for file: " << filePath << std::endl;
+	} catch (const std::exception &e)
+	{
+		std::cerr << "LSP: Failed to send didChange: " << e.what() << std::endl;
+	}
+}
+
 void LSPClient::startMessageProcessingLoop()
 {
 	if (!messageHandler || running)
@@ -417,4 +453,38 @@ void LSPClient::messageProcessingThread()
 	}
 
 	std::cout << "LSP: Message processing thread exiting" << std::endl;
+}
+
+bool LSPClient::keybinds()
+{
+	if (!initialized)
+		return false;
+
+	bool modPressed = ImGui::GetIO().KeyCtrl;
+	if (!modPressed)
+		return false;
+
+	bool shortcutPressed = false;
+
+	// LSP Symbol Info keybind (Ctrl+i)
+	if (ImGui::IsKeyPressed(ImGuiKey_I, false))
+	{
+		gLSPSymbolInfo.get();
+		shortcutPressed = true;
+	}
+
+	// LSP Goto Definition keybind (Ctrl+d)
+	if (ImGui::IsKeyPressed(ImGuiKey_D, false))
+	{
+		gLSPGotoDef.get();
+		shortcutPressed = true;
+	}
+
+	return shortcutPressed;
+}
+
+void LSPClient::render()
+{
+	gLSPSymbolInfo.render();
+	gLSPGotoDef.render();
 }

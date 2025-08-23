@@ -188,6 +188,7 @@ add_subdirectory(lib/lsp-framework)
 set(LSP_SOURCES
   lsp/lsp_client.cpp
   lsp/lsp_symbol_info.cpp
+  lsp/lsp_goto_def.cpp
 )
 
 # Find GLFW headers

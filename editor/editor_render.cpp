@@ -7,7 +7,7 @@
 #include "editor_render.h"
 #include "../files/file_finder.h"
 
-#include "../lsp/lsp_symbol_info.h"
+#include "../lsp/lsp_client.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_cursor.h"
@@ -32,8 +32,8 @@ void EditorRender::renderEditorFrame()
 
 	gFileFinder.renderWindow();
 
-	// Render LSP symbol info
-	gLSPSymbolInfo.render();
+	// Render all LSP UI components
+	gLSPClient.render();
 
 	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + editor_state.total_height +
 						 editor_state.editor_top_margin);
