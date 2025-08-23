@@ -64,7 +64,8 @@ class LSPClient
 	bool running;
 	std::string workspacePath;
 	std::string currentLanguage;
-	std::string serverArgs = "--log=error";
+	// std::string serverArgs = "--log=error";
+	std::string serverArgs = "";
 
 	// LSP framework objects
 	std::unique_ptr<lsp::Process> serverProcess;
