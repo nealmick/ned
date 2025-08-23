@@ -21,6 +21,7 @@ Description: Main application class implementation for NED text editor.
 #include "editor/editor_highlight.h"
 #include "editor/editor_scroll.h"
 #include "files/files.h"
+#include "lsp/lsp_client.h"
 #include "util/debug_console.h"
 #include "util/init.h"
 #include "util/keybinds.h"
@@ -113,4 +114,12 @@ void Ned::run()
 					lastBlurEnabled);
 }
 
-void Ned::cleanup() { app.cleanupAll(quad, shaderManager, fb, accum); }
+void Ned::cleanup()
+{
+	// Shutdown LSP first to avoid hanging
+	std::cout << "App: Shutting down LSP client..." << std::endl;
+	gLSPClient.shutdown();
+
+	// Then cleanup other components
+	app.cleanupAll(quad, shaderManager, fb, accum);
+}

@@ -1,201 +1,85 @@
 #include "lsp_symbol_info.h"
+#include "../.build/lib/lsp-framework/generated/lsp/messages.h"
+#include "../.build/lib/lsp-framework/generated/lsp/types.h"
 #include "../editor/editor.h"
+#include "../files/files.h"
+#include "../lib/lsp-framework/lsp/error.h"
+#include "../lib/lsp-framework/lsp/messagehandler.h"
+#include "../lsp/lsp_client.h"
 #include <iostream>
-#include <sstream>
+
+// Global instance
 LSPSymbolInfo gLSPSymbolInfo;
 
-LSPSymbolInfo::LSPSymbolInfo() = default;
+LSPSymbolInfo::LSPSymbolInfo() : show(false), pending(false) {}
 
-void LSPSymbolInfo::fetchSymbolInfo(const std::string &filePath)
+LSPSymbolInfo::~LSPSymbolInfo() = default;
+
+void LSPSymbolInfo::get()
 {
-	// Get current cursor position in editor
-	int cursor_pos = editor_state.cursor_index;
-
-	// Convert to line number and character offset
-	int current_line = gEditor.getLineFromPos(cursor_pos);
-	int line_start = editor_state.editor_content_lines[current_line];
-	int character = cursor_pos - line_start;
-
-	// LSP uses 0-based line numbers
-	int lsp_line = current_line;
-	int lsp_char = character;
-
-	std::cout << "\033[35mLSP SymbolInfo:\033[0m Requesting hover at "
-			  << "Line: " << lsp_line << " (" << current_line + 1 << "), "
-			  << "Char: " << lsp_char << " (abs pos: " << cursor_pos << ")\n";
-
-	if (!gLSPManager.isInitialized())
-	{
-		std::cout << "\033[31mLSP SymbolInfo:\033[0m LSP not initialized\n";
+	if (!gLSPClient.isInitialized())
 		return;
-	}
 
-	static int requestId = 5000;
-	std::string request = std::string(R"({
-        "jsonrpc": "2.0",
-        "id": )" + std::to_string(requestId++) +
-									  R"(,
-        "method": "textDocument/hover",
-        "params": {
-            "textDocument": {
-                "uri": "file://)" + filePath +
-									  R"("
-            },
-            "position": {
-                "line": )" + std::to_string(lsp_line) +
-									  R"(,
-                "character": )" + std::to_string(lsp_char) +
-									  R"(
-            }
-        }
-    })");
+	// Get current cursor position
+	int row = gEditor.getLineFromPos(editor_state.cursor_index);
+	int line_start = editor_state.editor_content_lines[row];
+	int column = editor_state.cursor_index - line_start;
 
-	std::cout << "\033[36mLSP SymbolInfo Request:\033[0m\n" << request << "\n";
+	// Set pending state
+	pending = true;
 
-	if (!gLSPManager.sendRequest(request))
-	{
-		std::cout << "\033[31mLSP SymbolInfo:\033[0m Failed to send hover request\n";
-		return;
-	}
-
-	// Store display position
-	displayPosition = ImGui::GetMousePos();
-	displayPosition.x += 20;
-
-	// Response handling with timeout
-	const int MAX_ATTEMPTS = 15;
-	for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
-	{
-		int contentLength = 0;
-		std::string response = gLSPManager.readResponse(&contentLength);
-
-		if (!response.empty())
+	// Request symbol info
+	request(row, column, [this](const std::string &result) {
+		symbolInfo = result;
+		pending = false;
+		if (symbolInfo != "No hover info")
 		{
-			std::cout << "\033[36mLSP SymbolInfo Response:\033[0m\n" << response << "\n";
+			show = true;
 		}
-
-		if (response.find("\"id\":" + std::to_string(requestId - 1)) != std::string::npos)
-		{
-			parseHoverResponse(response);
-			return;
-		}
-	}
+	});
 }
 
-void LSPSymbolInfo::parseHoverResponse(const std::string &response)
+void LSPSymbolInfo::request(int line,
+							int character,
+							std::function<void(const std::string &)> callback)
 {
-	currentSymbolInfo.clear();
-	showSymbolInfo = false;
-
 	try
 	{
-		json j = json::parse(response);
-		std::cout << "\033[36mRaw JSON Response:\033[0m\n" << j.dump(4) << "\n";
+		// Create the hover request parameters
+		lsp::HoverParams params;
+		params.textDocument.uri = lsp::FileUri::fromPath(gFileExplorer.currentFile);
+		params.position.line = line;
+		params.position.character = character;
 
-		if (j.contains("result") && !j["result"].is_null())
-		{
-			auto result = j["result"];
-
-			// Handle different LSP server implementations
-			if (result.is_object())
-			{
-				// Clangd style: {"contents":{"kind":"markdown","value":"..."}}
-				if (result.contains("contents"))
+		gLSPClient.getMessageHandler()->sendRequest<lsp::requests::TextDocument_Hover>(
+			std::move(params),
+			[callback](auto &&result) {
+				if (!result.isNull())
 				{
-					auto contents = result["contents"];
-
-					// Handle markdown content
-					if (contents.is_object() && contents.contains("value"))
+					auto &contents = result.value().contents;
+					if (std::holds_alternative<lsp::MarkupContent>(contents))
 					{
-						currentSymbolInfo = contents["value"].get<std::string>();
-					}
-					// Handle plain string
-					else if (contents.is_string())
-					{
-						currentSymbolInfo = contents.get<std::string>();
-					}
-					// Handle array of content objects
-					else if (contents.is_array())
-					{
-						for (auto &item : contents)
-						{
-							if (item.is_object() && item.contains("value"))
-							{
-								currentSymbolInfo +=
-									item["value"].get<std::string>() + "\n";
-							} else if (item.is_string())
-							{
-								currentSymbolInfo += item.get<std::string>() + "\n";
-							}
-						}
-					}
-				}
-			}
-			// Handle Python LSP servers (pyright/pylsp)
-			else if (result.is_string())
-			{
-				currentSymbolInfo = result.get<std::string>();
-			}
-
-			// Clean up Markdown formatting and special symbols
-			if (!currentSymbolInfo.empty())
-			{
-				// Replace Unicode right arrow (→) with text arrow
-				size_t arrow_pos = 0;
-				while ((arrow_pos = currentSymbolInfo.find("→", arrow_pos)) !=
-					   std::string::npos)
-				{
-					currentSymbolInfo.replace(arrow_pos,
-											  3,
-											  "->"); // Unicode arrow is 3 bytes
-					arrow_pos += 2;					 // Move past the replacement
-				}
-
-				// Remove code blocks but keep content
-				size_t pos = 0;
-				while ((pos = currentSymbolInfo.find("```", pos)) != std::string::npos)
-				{
-					size_t end = currentSymbolInfo.find("```", pos + 3);
-					if (end != std::string::npos)
-					{
-						currentSymbolInfo.erase(pos, end - pos + 3);
+						callback(std::get<lsp::MarkupContent>(contents).value);
 					} else
 					{
-						currentSymbolInfo.erase(pos, 3);
+						callback("Got hover data");
 					}
-				}
-
-				// Remove excess newlines
-				pos = 0;
-				while ((pos = currentSymbolInfo.find("\n\n\n", pos)) != std::string::npos)
+				} else
 				{
-					currentSymbolInfo.replace(pos, 3, "\n\n");
+					callback("No hover info");
 				}
+			},
+			[callback](auto &error) { callback("LSP error"); });
 
-				showSymbolInfo = true;
-				std::cout << "\033[32mProcessed Hover Content:\033[0m\n"
-						  << currentSymbolInfo << "\n";
-				return;
-			}
-		}
-
-		if (j.contains("error"))
-		{
-			std::cerr << "\033[31mLSP Error:\033[0m " << j["error"].dump() << "\n";
-		}
-
-		std::cout << "\033[33mNo hover information found in response\033[0m\n";
-	} catch (const json::exception &e)
+	} catch (const std::exception &e)
 	{
-		std::cerr << "\033[31mJSON Parsing Error:\033[0m " << e.what()
-				  << "\nResponse Data:\n"
-				  << response << "\n";
+		callback("Error sending hover request: " + std::string(e.what()));
 	}
 }
 
-void LSPSymbolInfo::renderSymbolInfo()
+void LSPSymbolInfo::render()
 {
-	if (!hasSymbolInfo())
+	if (!show)
 		return;
 
 	// Calculate cursor position in screen space
@@ -210,7 +94,7 @@ void LSPSymbolInfo::renderSymbolInfo()
 	cursor_screen_pos.y += cursor_line * editor_state.line_height;
 
 	// Set initial display position relative to cursor
-	displayPosition = cursor_screen_pos;
+	ImVec2 displayPosition = cursor_screen_pos;
 	displayPosition.y += editor_state.line_height + 5.0f; // Position below cursor line
 	displayPosition.x += 5.0f;							  // Small horizontal offset
 
@@ -240,7 +124,7 @@ void LSPSymbolInfo::renderSymbolInfo()
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 
 	if (ImGui::Begin("SymbolInfoWindow",
-					 &showSymbolInfo,
+					 &show,
 					 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
 						 ImGuiWindowFlags_AlwaysAutoResize |
 						 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
@@ -277,7 +161,7 @@ void LSPSymbolInfo::renderSymbolInfo()
 			clamped_pos.y = std::max(clamped_pos.y, screen_padding);
 		}
 
-		// FIXED: Compare ImVec2 components individually
+		// Compare ImVec2 components individually
 		if (clamped_pos.x != window_pos.x || clamped_pos.y != window_pos.y)
 		{
 			ImGui::SetWindowPos(clamped_pos);
@@ -302,40 +186,30 @@ void LSPSymbolInfo::renderSymbolInfo()
 		{
 			if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
 			{
-				showSymbolInfo = false;
+				show = false;
 			}
 		}
 
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
-			showSymbolInfo = false;
+			show = false;
 		}
 
-		// Content rendering with fixed wrapping
+		// Content rendering
 		ImGui::PushTextWrapPos(max_width - text_wrap_padding);
-		std::istringstream iss(currentSymbolInfo);
-		std::string line;
 
-		while (std::getline(iss, line))
+		if (pending)
 		{
-			if (line.empty())
-				continue;
-
-			// Style different parts
-			if (line.find("Type:") == 0)
-			{
-				ImGui::TextUnformatted(line.c_str());
-			} else if (line.find("File:") == 0)
-			{
-				ImGui::TextUnformatted(line.c_str());
-			} else if (line.find("//") == 0)
-			{
-				ImGui::TextUnformatted(line.c_str());
-			} else
-			{
-				ImGui::TextWrapped("%s", line.c_str());
-			}
+			ImGui::Text("Loading symbol info...");
+		} else if (symbolInfo.empty())
+		{
+			ImGui::Text("No symbol info available");
+		} else
+		{
+			// Display the hover content with proper wrapping
+			ImGui::TextWrapped("%s", symbolInfo.c_str());
 		}
+
 		ImGui::PopTextWrapPos();
 
 		ImGui::End();

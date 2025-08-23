@@ -1,26 +1,33 @@
 #pragma once
-#include "../lib/json.hpp"
-#include "editor_types.h"
-#include "imgui.h"
-#include "lsp_manager.h"
-#include <string>
 
-using json = nlohmann::json;
+#include "imgui.h"
+#include <future>
+#include <string>
 
 class LSPSymbolInfo
 {
   public:
 	LSPSymbolInfo();
-	void fetchSymbolInfo(const std::string &filePath);
-	void renderSymbolInfo();
-	bool hasSymbolInfo() const { return showSymbolInfo && !currentSymbolInfo.empty(); }
+	~LSPSymbolInfo();
+
+	// Check keybind and trigger symbol info if conditions are met
+	void get();
+
+	// Request hover information from LSP
+	void
+	request(int line, int character, std::function<void(const std::string &)> callback);
+
+	// Render the symbol info UI
+	void render();
 
   private:
-	void parseHoverResponse(const std::string &response);
+	// State
+	bool show;
+	std::string symbolInfo;
 
-	std::string currentSymbolInfo;
-	bool showSymbolInfo = false;
-	ImVec2 displayPosition;
+	// Async request handling
+	bool pending;
 };
 
+// Global instance
 extern LSPSymbolInfo gLSPSymbolInfo;
