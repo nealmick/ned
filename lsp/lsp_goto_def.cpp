@@ -1,6 +1,11 @@
 #include "lsp_goto_def.h"
+#ifdef _WIN32
+#include "../build/lib/lsp-framework/generated/lsp/messages.h"
+#include "../build/lib/lsp-framework/generated/lsp/types.h"
+#else
 #include "../.build/lib/lsp-framework/generated/lsp/messages.h"
 #include "../.build/lib/lsp-framework/generated/lsp/types.h"
+#endif
 #include "../editor/editor.h"
 #include "../files/files.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"

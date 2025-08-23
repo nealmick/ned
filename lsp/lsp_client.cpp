@@ -1,6 +1,11 @@
 #include "lsp_client.h"
+#ifdef _WIN32
+#include "../build/lib/lsp-framework/generated/lsp/messages.h"
+#include "../build/lib/lsp-framework/generated/lsp/types.h"
+#else
 #include "../.build/lib/lsp-framework/generated/lsp/messages.h"
 #include "../.build/lib/lsp-framework/generated/lsp/types.h"
+#endif
 #include "../lib/lsp-framework/lsp/connection.h"
 #include "../lib/lsp-framework/lsp/error.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"
@@ -101,6 +106,36 @@ std::string LSPClient::detectLanguageFromFile(const std::string &filePath) const
 	return "";
 }
 
+std::string LSPClient::expandEnvironmentVariables(const std::string &path) const
+{
+#ifdef _WIN32
+	// Expand Windows environment variables like %USERNAME%
+	std::string result = path;
+	size_t pos = 0;
+	while ((pos = result.find('%', pos)) != std::string::npos)
+	{
+		size_t end = result.find('%', pos + 1);
+		if (end == std::string::npos)
+			break;
+		
+		std::string varName = result.substr(pos + 1, end - pos - 1);
+		char* envVar = getenv(varName.c_str());
+		if (envVar != nullptr)
+		{
+			result.replace(pos, end - pos + 1, envVar);
+			pos += strlen(envVar);
+		}
+		else
+		{
+			pos = end + 1;
+		}
+	}
+	return result;
+#else
+	return path;
+#endif
+}
+
 std::string LSPClient::findServerPath(const std::string &language) const
 {
 	// Cross-platform server path detection
@@ -130,7 +165,8 @@ std::string LSPClient::findServerPath(const std::string &language) const
 					   "/usr/bin/pyright-langserver",
 					   "/usr/local/bin/pyright-langserver",
 					   "/opt/homebrew/bin/pyright-langserver",
-					   "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd"};
+					   "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd",
+					   "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver"};
 	} else if (language == "go")
 	{
 		// Go language server
@@ -145,13 +181,14 @@ std::string LSPClient::findServerPath(const std::string &language) const
 	// Check if any of the paths exist and are executable
 	for (const auto &path : searchPaths)
 	{
-		std::cout << "LSP:   Checking: " << path;
-		if (std::filesystem::exists(path))
+		std::string expandedPath = expandEnvironmentVariables(path);
+		std::cout << "LSP:   Checking: " << expandedPath;
+		if (std::filesystem::exists(expandedPath))
 		{
-			if (std::filesystem::is_regular_file(path))
+			if (std::filesystem::is_regular_file(expandedPath))
 			{
 				std::cout << " - FOUND!" << std::endl;
-				return path;
+				return expandedPath;
 			} else
 			{
 				std::cout << " - exists but not a file" << std::endl;
