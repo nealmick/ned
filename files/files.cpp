@@ -878,9 +878,9 @@ void FileExplorer::saveCurrentFile()
 			// Notify LSP about the file change
 			if (gLSPClient.isInitialized())
 			{
-				std::cout << "LSP: File saved, would send didChange: " << currentFile
-						  << " (v" << version << ")" << std::endl;
-				// TODO: Re-add didChange when needed
+				// std::cout << "LSP: File saved, sending didChange: " << currentFile
+				//		  << " (v" << version << ")" << std::endl;
+				gLSPClient.didEdit(currentFile, editor_state.fileContent);
 			}
 		} else
 		{

@@ -36,9 +36,16 @@ class LSPClient
 
 	// Document management
 	void didOpen(const std::string &filePath, const std::string &content);
+	void didEdit(const std::string &filePath, const std::string &content);
 
 	// Direct access to message handler
 	lsp::MessageHandler *getMessageHandler() { return messageHandler.get(); }
+
+	// Handle all LSP keybinds
+	bool keybinds();
+
+	// Render all LSP UI elements
+	void render();
 
 	// Server management
 	bool startServer(const std::string &language, const std::string &serverPath);
@@ -57,6 +64,7 @@ class LSPClient
 	bool running;
 	std::string workspacePath;
 	std::string currentLanguage;
+	std::string serverArgs = "--log=error";
 
 	// LSP framework objects
 	std::unique_ptr<lsp::Process> serverProcess;

@@ -2,7 +2,6 @@
 #include "../editor/editor.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
-#include "../lsp/lsp_symbol_info.h"
 #include "../util/close_popper.h"
 #include "../util/settings.h"
 #include "../util/splitter.h"
@@ -624,11 +623,9 @@ bool KeybindsManager::handleKeyboardShortcuts()
 		shortcutPressed = true;
 	}
 
-	// LSP Symbol Info keybind (Ctrl+i)
-	ImGuiKey lspSymbolInfo = getActionKey("lsp_symbol_info");
-	if (modPressed && ImGui::IsKeyPressed(lspSymbolInfo, false))
+	// Handle all LSP keybinds
+	if (gLSPClient.keybinds())
 	{
-		gLSPSymbolInfo.get();
 		shortcutPressed = true;
 	}
 
