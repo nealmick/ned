@@ -5,8 +5,10 @@
 #include "../lib/lsp-framework/lsp/error.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"
 #include "../lib/lsp-framework/lsp/process.h"
+#include "../util/keybinds.h"
 #include "imgui.h"
 #include "lsp_goto_def.h"
+#include "lsp_goto_ref.h"
 #include "lsp_symbol_info.h"
 
 #include <algorithm>
@@ -466,17 +468,27 @@ bool LSPClient::keybinds()
 
 	bool shortcutPressed = false;
 
-	// LSP Symbol Info keybind (Ctrl+i)
-	if (ImGui::IsKeyPressed(ImGuiKey_I, false))
+	// LSP Symbol Info keybind
+	ImGuiKey symbolInfoKey = gKeybinds.getActionKey("lsp_symbol_info");
+	if (symbolInfoKey != ImGuiKey_None && ImGui::IsKeyPressed(symbolInfoKey, false))
 	{
 		gLSPSymbolInfo.get();
 		shortcutPressed = true;
 	}
 
-	// LSP Goto Definition keybind (Ctrl+d)
-	if (ImGui::IsKeyPressed(ImGuiKey_D, false))
+	// LSP Goto Definition keybind
+	ImGuiKey gotoDefKey = gKeybinds.getActionKey("lsp_find_def");
+	if (gotoDefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoDefKey, false))
 	{
 		gLSPGotoDef.get();
+		shortcutPressed = true;
+	}
+
+	// LSP Goto References keybind
+	ImGuiKey gotoRefKey = gKeybinds.getActionKey("lsp_find_ref");
+	if (gotoRefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoRefKey, false))
+	{
+		gLSPGotoRef.get();
 		shortcutPressed = true;
 	}
 
@@ -487,4 +499,5 @@ void LSPClient::render()
 {
 	gLSPSymbolInfo.render();
 	gLSPGotoDef.render();
+	gLSPGotoRef.render();
 }
