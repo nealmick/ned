@@ -54,6 +54,7 @@ class LSPClient
   private:
 	// Helper functions
 	std::string findServerPath(const std::string &language) const;
+	std::string expandEnvironmentVariables(const std::string &path) const;
 	std::string detectLanguageFromFile(const std::string &filePath) const;
 	bool sendLSPInitialize();
 	void startMessageProcessingLoop();

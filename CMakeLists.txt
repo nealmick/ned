@@ -31,6 +31,16 @@ elseif(WIN32)
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
     add_compile_definitions(NOMINMAX)
     add_compile_definitions(_WIN32_WINNT=0x0601) # Windows 7+
+    # MSVC-specific flags from lsp-framework documentation
+    if(MSVC)
+        add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+        add_compile_definitions(UTF_CPP_CPLUSPLUS=202002L)
+        add_compile_options(/std:c++20)
+        # Only add essential C++20 recognition flag
+        add_compile_options(/Zc:__cplusplus)
+        # Enable parallel compilation for faster builds
+        add_compile_options(/MP)
+    endif()
 elseif(UNIX)
     add_compile_definitions(PLATFORM_LINUX)
     # Ensure proper feature test macros for Linux to expose le16toh/be16toh functions
@@ -183,8 +193,22 @@ file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
-# Add lsp-framework subdirectory
+# Add lsp-framework subdirectory (enabled on all platforms including Windows)
 add_subdirectory(lib/lsp-framework)
+
+# Apply MSVC-specific flags only to lsp-framework on Windows
+if(WIN32 AND MSVC)
+    # Remove problematic permissive flag and use strict mode instead
+    target_compile_options(lsp PRIVATE /permissive-)
+    target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
+    
+    # Replace problematic connection.cpp with our patched version for Windows
+    get_target_property(LSP_SOURCES lsp SOURCES)
+    list(REMOVE_ITEM LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
+    list(APPEND LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
+    set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES}")
+endif()
+
 set(LSP_SOURCES
   lsp/lsp_client.cpp
   lsp/lsp_symbol_info.cpp
