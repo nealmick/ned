@@ -31,6 +31,7 @@ using json = nlohmann::json;
 
 #include "../ai/ai_agent.h"
 #include "../editor/editor_git.h"
+#include "../lsp/lsp_client.h"
 #include "file_tree.h"
 extern AIAgent gAIAgent;
 
@@ -287,6 +288,9 @@ bool FileExplorer::handleFileDialogWorkflow()
 	// If a folder was selected, initialize the file tree
 	if (!selectedFolder.empty())
 	{
+		// Set LSP workspace to the selected folder
+		gLSPClient.setWorkspace(selectedFolder);
+
 		// Initialize the file tree with the selected folder
 		auto &rootNode = gFileTree.rootNode;
 		rootNode.name = fs::path(selectedFolder).filename().string();
@@ -473,7 +477,15 @@ void FileExplorer::loadFileContent(const std::string &path,
 		// Set current file path for line numbers
 		gEditorLineNumbers.setCurrentFilePath(path);
 
-		notifyLSPFileOpen(path);
+		// Try to initialize LSP from this file if not already initialized
+		gLSPClient.init(path);
+
+		// Notify LSP about the opened file
+		if (gLSPClient.isInitialized())
+		{
+			std::cout << "LSP: Sending didOpen for file: " << path << std::endl;
+			gLSPClient.didOpen(path, editor_state.fileContent);
+		}
 
 		if (afterLoadCallback)
 		{
@@ -862,16 +874,19 @@ void FileExplorer::saveCurrentFile()
 			// external change detection
 			_fileMonitor.addFileToMonitoring(currentFile);
 			_fileMonitor.refreshFileState(currentFile);
+
+			// Notify LSP about the file change
+			if (gLSPClient.isInitialized())
+			{
+				std::cout << "LSP: File saved, would send didChange: " << currentFile
+						  << " (v" << version << ")" << std::endl;
+				// TODO: Re-add didChange when needed
+			}
 		} else
 		{
 			std::cerr << "Unable to save file: " << currentFile << std::endl;
 		}
 	}
-}
-
-void FileExplorer::notifyLSPFileOpen(const std::string &filePath)
-{
-	gEditorLSP.didOpen(filePath, editor_state.fileContent);
 }
 
 void FileExplorer::forceSaveUndoState()

@@ -15,8 +15,7 @@ Description: Implementation of the embeddable NED editor wrapper.
 #include "files/file_finder.h"
 #include "files/file_tree.h"
 #include "files/files.h"
-#include "lsp/lsp_goto_def.h"
-#include "lsp/lsp_goto_ref.h"
+
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/font.h"
@@ -235,10 +234,6 @@ void NedEmbed::render()
 	gSettings.setEmbedded(true);
 	gSettings.renderSettingsWindow();
 	gSettings.setEmbedded(false); // Reset for standalone app
-
-	// Set embedded flag for LSP popups to constrain them to editor pane
-	gLSPGotoRef.setEmbedded(true);
-	gLSPGotoDef.setEmbedded(true);
 
 	// Set embedded flag for FileFinder to constrain it to editor pane
 	gFileFinder.setEmbedded(true);

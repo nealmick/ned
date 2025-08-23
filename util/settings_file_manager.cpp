@@ -373,7 +373,7 @@ void SettingsFileManager::loadSettings(json &settings, std::string &settingsPath
 		{"fontSize", 20.0f},
 		{"git_changed_lines", true},
 		{"jitter_intensity", 2.809999942779541},
-		{"lsp_autocomplete", true},
+
 		{"pixel_width", 5000.0},
 		{"pixelation_intensity", -0.10999999940395355},
 		{"rainbow", true},
@@ -735,7 +735,7 @@ void SettingsFileManager::applyDefaultSettings(json &settings)
 		{"fontSize", 20.0f},
 		{"git_changed_lines", true},
 		{"jitter_intensity", 2.809999942779541},
-		{"lsp_autocomplete", true},
+
 		{"pixel_width", 5000.0},
 		{"pixelation_intensity", -0.10999999940395355},
 		{"rainbow", true},

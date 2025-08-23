@@ -31,7 +31,8 @@
 #include "../ai/ai_tab.h"
 #include "../files/file_finder.h"
 #include "../files/files.h"
-#include "../lsp/lsp_autocomplete.h"
+#include "../lsp/lsp_symbol_info.h"
+
 #include "../util/settings.h"
 
 #include <algorithm>
@@ -44,7 +45,6 @@ EditorState editor_state;
 void Editor::textEditor()
 {
 	// process auto complete before edtior input....
-	gLSPAutocomplete.renderCompletions();
 	gAITab.update();
 
 	setupEditorDisplay();

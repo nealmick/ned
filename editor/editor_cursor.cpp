@@ -1,18 +1,6 @@
 #include "editor_cursor.h"
 #include "../files/files.h"
-#ifdef _WIN32
-// Fix for Windows UTF-8 library assert macro conflict
-#include <cassert>
-#ifdef assert
-#undef assert
-#endif
 #include "../lib/utfcpp/source/utf8.h"
-#ifdef _WIN32
-#define assert(expr) ((void)0)
-#endif
-#else
-#include "../lib/utfcpp/source/utf8.h"
-#endif
 #include "../util/settings.h"
 #include "editor.h"
 #include "editor/utf8_utils.h"
@@ -730,17 +718,6 @@ float EditorCursor::getCursorXPosition(const ImVec2 &text_pos,
 		if (text[i] == '\n')
 		{
 			x = text_pos.x;
-			i++;
-		} else if (text[i] == '\t')
-		{
-			// Handle tab characters specially to match rendering logic
-			float space_width = ImGui::CalcTextSize(" ").x;
-			const int TAB_SIZE = 4;
-			float current_column_pixels = x - text_pos.x;
-			int current_column = static_cast<int>(current_column_pixels / space_width);
-			int next_tab_stop = ((current_column / TAB_SIZE) + 1) * TAB_SIZE;
-			float tab_width = (next_tab_stop - current_column) * space_width;
-			x += tab_width;
 			i++;
 		} else
 		{
