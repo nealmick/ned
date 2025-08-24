@@ -28,8 +28,12 @@ void LSPGotoDef::get()
 	request(row,
 			column,
 			[this](const std::vector<std::map<std::string, std::string>> &results) {
-				definitions = results;
-				pending = false;
+				// Only update if we have real results or if we're not pending
+				if (!results.empty() || !pending)
+				{
+					definitions = results;
+					pending = false;
+				}
 
 				// Print the structured results object
 				printResponse(results);
@@ -124,7 +128,4 @@ void LSPGotoDef::printResponse(
 	std::cout << "]" << std::endl;
 }
 
-void LSPGotoDef::render()
-{
-	gLSPUriOptions.render("Goto Definition", definitions, show);
-}
+void LSPGotoDef::render() { gLSPUriOptions.render("Goto Definition", definitions, show); }

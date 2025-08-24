@@ -1,14 +1,14 @@
 #include "lsp_client.h"
-#include "lsp_includes.h"
 #include "../util/keybinds.h"
+#include "lsp_includes.h"
 
 #include "lsp_goto_def.h"
 #include "lsp_goto_ref.h"
 #include "lsp_symbol_info.h"
 
+#include "imgui.h"
 #include <algorithm>
 #include <filesystem>
-#include "imgui.h"
 
 // Global instance
 LSPClient gLSPClient;

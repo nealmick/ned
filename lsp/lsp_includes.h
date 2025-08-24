@@ -17,16 +17,17 @@
 
 // Common project includes used by LSP classes
 #include "../editor/editor.h"
+#include "../editor/editor_scroll.h"
 #include "../files/files.h"
 #include "lsp_client.h"
 
 // Standard includes commonly used by LSP classes
 #include <chrono>
-#include <iostream>
-#include <thread>
 #include <functional>
 #include <future>
+#include <iostream>
+#include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
-#include <map>
