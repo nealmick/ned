@@ -193,113 +193,20 @@ file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
-# Handle LSP framework build with special handling for GCC 11
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
-	# For GCC 11: Build LSP framework manually without lspgen to avoid forward declaration issues
-	message(STATUS "GCC 11 detected: Building LSP framework manually without code generation")
-	
-	set(LSP_FRAMEWORK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework)
-	set(LSP_GENERATED_FILES_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated)
-	set(LSP_PREGENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp-framework-pregenerated)
-	
-	file(MAKE_DIRECTORY ${LSP_GENERATED_FILES_DIR}/lsp)
-	
-	# Copy pre-generated files
-	file(COPY ${LSP_PREGENERATED_DIR}/lsp/types.h DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
-	file(COPY ${LSP_PREGENERATED_DIR}/lsp/types.cpp DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
-	file(COPY ${LSP_PREGENERATED_DIR}/lsp/messages.h DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
-	
-	# Manually create LSP library without including the problematic subdirectory
-	set(LSP_SRC_DIR ${LSP_FRAMEWORK_DIR}/lsp/)
-	
-	set(LSP_HEADERS_MANUAL
-		${LSP_SRC_DIR}concepts.h
-		${LSP_SRC_DIR}enumeration.h
-		${LSP_SRC_DIR}error.h
-		${LSP_SRC_DIR}exception.h
-		${LSP_SRC_DIR}fileuri.h
-		${LSP_SRC_DIR}messagebase.h
-		${LSP_SRC_DIR}messagehandler.h
-		${LSP_SRC_DIR}nullable.h
-		${LSP_SRC_DIR}process.h
-		${LSP_SRC_DIR}requestresult.h
-		${LSP_SRC_DIR}serialization.h
-		${LSP_SRC_DIR}strmap.h
-		${LSP_SRC_DIR}threadpool.h
-		${LSP_SRC_DIR}uri.h
-		${LSP_SRC_DIR}io/socket.h
-		${LSP_SRC_DIR}io/standardio.h
-		${LSP_SRC_DIR}io/stream.h
-		${LSP_SRC_DIR}json/json.h
-		${LSP_SRC_DIR}jsonrpc/jsonrpc.h
-	)
-	
-	set(LSP_SOURCES_MANUAL
-		${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp
-		${LSP_SRC_DIR}fileuri.cpp
-		${LSP_SRC_DIR}messagehandler.cpp
-		${LSP_SRC_DIR}process.cpp
-		${LSP_SRC_DIR}threadpool.cpp
-		${LSP_SRC_DIR}uri.cpp
-		${LSP_SRC_DIR}io/socket.cpp
-		${LSP_SRC_DIR}io/standardio.cpp
-		${LSP_SRC_DIR}json/json.cpp
-		${LSP_SRC_DIR}jsonrpc/jsonrpc.cpp
-	)
-	
-	set(LSP_GENERATED_HEADERS_MANUAL
-		${LSP_GENERATED_FILES_DIR}/lsp/types.h
-		${LSP_GENERATED_FILES_DIR}/lsp/messages.h
-	)
-	
-	set(LSP_GENERATED_SOURCES_MANUAL
-		${LSP_GENERATED_FILES_DIR}/lsp/types.cpp
-	)
-	
-	add_library(lsp STATIC
-		${LSP_HEADERS_MANUAL}
-		${LSP_SOURCES_MANUAL}
-		${LSP_GENERATED_HEADERS_MANUAL}
-		${LSP_GENERATED_SOURCES_MANUAL}
-	)
-	
-	target_include_directories(lsp PUBLIC
-		${LSP_FRAMEWORK_DIR}
-		${LSP_GENERATED_FILES_DIR}
-	)
-	
-	# Set proper C++20 standard and compiler flags matching the framework
-	set_target_properties(lsp PROPERTIES
-		CXX_STANDARD 20
-		CXX_STANDARD_REQUIRED YES
-		CXX_EXTENSIONS NO
-	)
-	target_compile_options(lsp PRIVATE -Wall -Wextra -pedantic)
-	
-	# Add platform-specific definitions and libraries
-	if(WIN32)
-		target_compile_definitions(lsp PRIVATE _CRT_SECURE_NO_WARNINGS)
-		target_link_libraries(lsp PUBLIC Ws2_32)
-	endif()
-	
-else()
-	# For other compilers: Use normal subdirectory approach
-	message(STATUS "Using standard LSP framework build")
-	set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
-	add_subdirectory(lib/lsp-framework)
-	
-	# Apply MSVC-specific flags only to lsp-framework on Windows
-	if(WIN32 AND MSVC)
-		target_compile_options(lsp PRIVATE /permissive-)
-		target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
-	endif()
-	
-	# Replace problematic connection.cpp with our patched version
-	get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
-	list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
-	list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
-	set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
+set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
+add_subdirectory(lib/lsp-framework)
+
+# Apply MSVC-specific flags only to lsp-framework on Windows
+if(WIN32 AND MSVC)
+    target_compile_options(lsp PRIVATE /permissive-)
+    target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
+
+# Replace problematic connection.cpp with our patched version
+get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
+list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
+list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
+set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
 
 set(LSP_SOURCES
   lsp/lsp_client.cpp
