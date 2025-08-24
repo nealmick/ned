@@ -193,6 +193,7 @@ file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
+# Add lsp-framework subdirectory with sanitizers disabled
 set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
 add_subdirectory(lib/lsp-framework)
 
@@ -202,7 +203,7 @@ if(WIN32 AND MSVC)
     target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
 
-# Replace problematic connection.cpp with our patched version
+# Replace problematic connection.cpp with our patched version for all platforms
 get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
 list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
 list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
