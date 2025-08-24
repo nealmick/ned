@@ -48,6 +48,15 @@ elseif(UNIX)
     add_compile_definitions(_DEFAULT_SOURCE)
 endif()
 
+# =======================
+# Sanitizer Configuration
+# =======================
+# Disable sanitizers by default to prevent CI/local environment conflicts
+# CI environments often enable sanitizers via environment variables which can
+# cause linking issues with missing sanitizer runtime libraries
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize=all")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-sanitize=all")
+
 # ==============
 # Dependencies
 # ==============
