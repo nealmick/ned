@@ -1,4 +1,3 @@
-#include <lsp/json/json.h>
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -6,6 +5,7 @@
 #include <ios>
 #include <lsp/connection.h>
 #include <lsp/io/stream.h>
+#include <lsp/json/json.h>
 #include <optional>
 #include <string_view>
 #include <system_error>
