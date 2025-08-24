@@ -7,26 +7,7 @@ LSPGotoDef gLSPGotoDef;
 
 LSPGotoDef::LSPGotoDef() : show(false), pending(false) {}
 
-LSPGotoDef::~LSPGotoDef() 
-{
-	// Wait for any pending async operation to complete, but with a timeout
-	if (asyncResponse && asyncResponse->valid())
-	{
-		try 
-		{
-			// Wait max 100ms for completion, then give up
-			auto status = asyncResponse->wait_for(std::chrono::milliseconds(100));
-			if (status == std::future_status::timeout)
-			{
-				std::cout << "LSP GotoDef: Async operation timed out during shutdown" << std::endl;
-			}
-		}
-		catch (...)
-		{
-			// Ignore any exceptions during shutdown
-		}
-	}
-}
+LSPGotoDef::~LSPGotoDef() = default;
 
 void LSPGotoDef::get()
 {
