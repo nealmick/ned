@@ -196,11 +196,9 @@ file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 # Add lsp-framework subdirectory (enabled on all platforms including Windows)
 # Disable sanitizers in lsp-framework to prevent CI/local environment conflicts
 set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
-add_subdirectory(lib/lsp-framework)
 
-# Fix GCC 11 compilation issues with lspgen on Linux by using pre-generated files
+# Pre-create generated files for GCC 11 before adding subdirectory
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
-    # Copy pre-generated files instead of building lspgen
     set(LSP_PREGENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp-framework-pregenerated)
     set(LSP_GENERATED_FILES_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated)
     
@@ -211,11 +209,25 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_G
     file(COPY ${LSP_PREGENERATED_DIR}/lsp/types.cpp DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp) 
     file(COPY ${LSP_PREGENERATED_DIR}/lsp/messages.h DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
     
-    # Remove lspgen dependency from lsp target
-    get_target_property(LSP_DEPS lsp DEPENDENCIES)
-    if(LSP_DEPS)
-        list(REMOVE_ITEM LSP_DEPS lspgen)
-        set_target_properties(lsp PROPERTIES DEPENDENCIES "${LSP_DEPS}")
+    # Skip building lspgen by setting a flag that the LSP framework will check
+    set(SKIP_LSPGEN TRUE CACHE BOOL "Skip building lspgen executable" FORCE)
+endif()
+
+add_subdirectory(lib/lsp-framework)
+
+# Fix GCC 11 lspgen build issues by excluding it from the build
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
+    # Exclude lspgen from the default build targets
+    set_target_properties(lspgen PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    # Remove custom command dependency so lsp builds without lspgen
+    if(TARGET lsp)
+        # The generated files already exist from our pre-copy step
+        set_source_files_properties(
+            ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated/lsp/types.h
+            ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated/lsp/types.cpp  
+            ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated/lsp/messages.h
+            PROPERTIES GENERATED TRUE
+        )
     endif()
 endif()
 
