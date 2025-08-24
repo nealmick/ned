@@ -203,13 +203,14 @@ if(WIN32 AND MSVC)
     # Remove problematic permissive flag and use strict mode instead
     target_compile_options(lsp PRIVATE /permissive-)
     target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
-    
-    # Replace problematic connection.cpp with our patched version for Windows
-    get_target_property(LSP_SOURCES lsp SOURCES)
-    list(REMOVE_ITEM LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
-    list(APPEND LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
-    set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES}")
 endif()
+
+# Replace problematic connection.cpp with our patched version for compatibility
+# This fixes missing std::streamsize includes and other platform-specific issues
+get_target_property(LSP_SOURCES lsp SOURCES)
+list(REMOVE_ITEM LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
+list(APPEND LSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
+set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES}")
 
 set(LSP_SOURCES
   lsp/lsp_client.cpp
