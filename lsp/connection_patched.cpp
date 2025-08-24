@@ -3,9 +3,9 @@
 #include <charconv>
 #include <cstring>
 #include <ios>
+#include <lsp/json/json.h>
 #include <lsp/connection.h>
 #include <lsp/io/stream.h>
-#include <lsp/json/json.h>
 #include <optional>
 #include <string_view>
 #include <system_error>
