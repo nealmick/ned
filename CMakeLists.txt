@@ -200,9 +200,21 @@ add_subdirectory(lib/lsp-framework)
 
 # Fix GCC 11 compilation issues with lspgen on Linux
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
-    # Use C++17 instead of C++20 for lspgen to work around template instantiation issues
-    set_target_properties(lspgen PROPERTIES CXX_STANDARD 17)
-    target_compile_options(lspgen PRIVATE -std=c++17)
+    # Try to use clang++ instead of g++ for lspgen if available
+    find_program(CLANG_EXECUTABLE clang++)
+    if(CLANG_EXECUTABLE)
+        set_target_properties(lspgen PROPERTIES 
+            CXX_COMPILER_LAUNCHER ""
+            CXX_COMPILER ${CLANG_EXECUTABLE}
+        )
+    else()
+        # Fall back to aggressive error suppression
+        target_compile_options(lspgen PRIVATE 
+            -Wno-error
+            -fpermissive
+            -ftemplate-backtrace-limit=0
+        )
+    endif()
 endif()
 
 # Apply MSVC-specific flags only to lsp-framework on Windows
