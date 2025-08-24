@@ -2,6 +2,7 @@
 #pragma once
 #include "imgui.h"
 #include <deque>
+#include <ios>
 #include <sstream>
 #include <streambuf>
 #include <string>
