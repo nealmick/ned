@@ -198,22 +198,24 @@ file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
 add_subdirectory(lib/lsp-framework)
 
-# Fix GCC 11 compilation issues with lspgen on Linux
+# Fix GCC 11 compilation issues with lspgen on Linux by using pre-generated files
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
-    # Try to use clang++ instead of g++ for lspgen if available
-    find_program(CLANG_EXECUTABLE clang++)
-    if(CLANG_EXECUTABLE)
-        set_target_properties(lspgen PROPERTIES 
-            CXX_COMPILER_LAUNCHER ""
-            CXX_COMPILER ${CLANG_EXECUTABLE}
-        )
-    else()
-        # Fall back to aggressive error suppression
-        target_compile_options(lspgen PRIVATE 
-            -Wno-error
-            -fpermissive
-            -ftemplate-backtrace-limit=0
-        )
+    # Copy pre-generated files instead of building lspgen
+    set(LSP_PREGENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp-framework-pregenerated)
+    set(LSP_GENERATED_FILES_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated)
+    
+    file(MAKE_DIRECTORY ${LSP_GENERATED_FILES_DIR}/lsp)
+    
+    # Copy pre-generated files during configure time
+    file(COPY ${LSP_PREGENERATED_DIR}/lsp/types.h DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
+    file(COPY ${LSP_PREGENERATED_DIR}/lsp/types.cpp DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp) 
+    file(COPY ${LSP_PREGENERATED_DIR}/lsp/messages.h DESTINATION ${LSP_GENERATED_FILES_DIR}/lsp)
+    
+    # Remove lspgen dependency from lsp target
+    get_target_property(LSP_DEPS lsp DEPENDENCIES)
+    if(LSP_DEPS)
+        list(REMOVE_ITEM LSP_DEPS lspgen)
+        set_target_properties(lsp PROPERTIES DEPENDENCIES "${LSP_DEPS}")
     endif()
 endif()
 
