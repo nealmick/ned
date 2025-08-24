@@ -1,19 +1,6 @@
 #include "lsp_goto_ref.h"
-#ifdef _WIN32
-#include "../build/lib/lsp-framework/generated/lsp/messages.h"
-#include "../build/lib/lsp-framework/generated/lsp/types.h"
-#else
-#include "../.build/lib/lsp-framework/generated/lsp/messages.h"
-#include "../.build/lib/lsp-framework/generated/lsp/types.h"
-#endif
-#include "../editor/editor.h"
-#include "../files/files.h"
-#include "../lib/lsp-framework/lsp/messagehandler.h"
-#include "../lsp/lsp_client.h"
+#include "lsp_includes.h"
 #include "lsp_uri_options.h"
-#include <chrono>
-#include <iostream>
-#include <thread>
 
 // Global instance
 LSPGotoRef gLSPGotoRef;
