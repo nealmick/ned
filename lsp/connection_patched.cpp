@@ -1,9 +1,9 @@
+#include <lsp/json/json.h>
 #include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cstring>
 #include <ios>
-#include <lsp/json/json.h>
 #include <lsp/connection.h>
 #include <lsp/io/stream.h>
 #include <optional>
