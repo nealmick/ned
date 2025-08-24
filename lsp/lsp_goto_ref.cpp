@@ -10,6 +10,7 @@
 #include "../files/files.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"
 #include "../lsp/lsp_client.h"
+#include "lsp_uri_options.h"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -139,37 +140,5 @@ void LSPGotoRef::printResponse(
 
 void LSPGotoRef::render()
 {
-	if (!show)
-		return;
-
-	ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiCond_FirstUseEver);
-
-	if (ImGui::Begin("Goto References", &show))
-	{
-		ImGui::Text("Rendering goto references");
-
-		if (pending)
-		{
-			ImGui::Text("Loading references...");
-		} else if (references.empty())
-		{
-			ImGui::Text("No references available");
-		} else
-		{
-			for (size_t i = 0; i < references.size(); ++i)
-			{
-				const auto &result = references[i];
-				std::string display = std::to_string(i + 1) + ". " + result.at("file") +
-									  " (line " + result.at("row") + ", col " +
-									  result.at("col") + ")";
-				ImGui::TextWrapped("%s", display.c_str());
-			}
-		}
-
-		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-		{
-			show = false;
-		}
-	}
-	ImGui::End();
+	gLSPUriOptions.render("Goto References", references, show);
 }

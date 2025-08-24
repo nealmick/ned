@@ -10,6 +10,7 @@
 #include "../files/files.h"
 #include "../lib/lsp-framework/lsp/messagehandler.h"
 #include "../lsp/lsp_client.h"
+#include "lsp_uri_options.h"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -138,37 +139,5 @@ void LSPGotoDef::printResponse(
 
 void LSPGotoDef::render()
 {
-	if (!show)
-		return;
-
-	ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiCond_FirstUseEver);
-
-	if (ImGui::Begin("Goto Definition", &show))
-	{
-		ImGui::Text("Rendering goto def");
-
-		if (pending)
-		{
-			ImGui::Text("Loading goto definition...");
-		} else if (definitions.empty())
-		{
-			ImGui::Text("No goto definition available");
-		} else
-		{
-			for (size_t i = 0; i < definitions.size(); ++i)
-			{
-				const auto &result = definitions[i];
-				std::string display = std::to_string(i + 1) + ". " + result.at("file") +
-									  " (line " + result.at("row") + ", col " +
-									  result.at("col") + ")";
-				ImGui::TextWrapped("%s", display.c_str());
-			}
-		}
-
-		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-		{
-			show = false;
-		}
-	}
-	ImGui::End();
+	gLSPUriOptions.render("Goto Definition", definitions, show);
 }
