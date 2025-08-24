@@ -1,24 +1,14 @@
 #include "lsp_client.h"
-#ifdef _WIN32
-#include "../build/lib/lsp-framework/generated/lsp/messages.h"
-#include "../build/lib/lsp-framework/generated/lsp/types.h"
-#else
-#include "../.build/lib/lsp-framework/generated/lsp/messages.h"
-#include "../.build/lib/lsp-framework/generated/lsp/types.h"
-#endif
-#include "../lib/lsp-framework/lsp/connection.h"
-#include "../lib/lsp-framework/lsp/error.h"
-#include "../lib/lsp-framework/lsp/messagehandler.h"
-#include "../lib/lsp-framework/lsp/process.h"
+#include "lsp_includes.h"
 #include "../util/keybinds.h"
-#include "imgui.h"
+
 #include "lsp_goto_def.h"
 #include "lsp_goto_ref.h"
 #include "lsp_symbol_info.h"
 
 #include <algorithm>
 #include <filesystem>
-#include <iostream>
+#include "imgui.h"
 
 // Global instance
 LSPClient gLSPClient;
