@@ -198,6 +198,12 @@ file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
 add_subdirectory(lib/lsp-framework)
 
+# Fix GCC 11 compilation issues with lspgen on Linux
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
+    # Add more permissive flags to lspgen target to work around forward declaration issues
+    target_compile_options(lspgen PRIVATE -fpermissive -Wno-error)
+endif()
+
 # Apply MSVC-specific flags only to lsp-framework on Windows
 if(WIN32 AND MSVC)
     # Remove problematic permissive flag and use strict mode instead
