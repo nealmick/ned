@@ -117,15 +117,14 @@ std::string LSPClient::expandEnvironmentVariables(const std::string &path) const
 		size_t end = result.find('%', pos + 1);
 		if (end == std::string::npos)
 			break;
-		
+
 		std::string varName = result.substr(pos + 1, end - pos - 1);
-		char* envVar = getenv(varName.c_str());
+		char *envVar = getenv(varName.c_str());
 		if (envVar != nullptr)
 		{
 			result.replace(pos, end - pos + 1, envVar);
 			pos += strlen(envVar);
-		}
-		else
+		} else
 		{
 			pos = end + 1;
 		}
@@ -149,7 +148,8 @@ std::string LSPClient::findServerPath(const std::string &language) const
 					   "/usr/local/bin/clangd",
 					   "/opt/homebrew/bin/clangd",
 					   "C:/Program Files/LLVM/bin/clangd.exe",
-					   "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"};
+					   "C:/Users/%USERNAME%/source/"
+					   "clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"};
 	} else if (language == "typescript")
 	{
 		// TypeScript language server
