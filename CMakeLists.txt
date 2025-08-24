@@ -48,15 +48,6 @@ elseif(UNIX)
     add_compile_definitions(_DEFAULT_SOURCE)
 endif()
 
-# =======================
-# Sanitizer Configuration
-# =======================
-# Disable sanitizers by default to prevent CI/local environment conflicts
-# CI environments often enable sanitizers via environment variables which can
-# cause linking issues with missing sanitizer runtime libraries
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize=all")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-sanitize=all")
-
 # ==============
 # Dependencies
 # ==============
@@ -203,6 +194,8 @@ file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
 # Add lsp-framework subdirectory (enabled on all platforms including Windows)
+# Disable sanitizers in lsp-framework to prevent CI/local environment conflicts
+set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
 add_subdirectory(lib/lsp-framework)
 
 # Apply MSVC-specific flags only to lsp-framework on Windows
