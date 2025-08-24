@@ -2,6 +2,7 @@
 #include <cctype>
 #include <charconv>
 #include <cstring>
+#include <ios>
 #include <lsp/connection.h>
 #include <lsp/io/stream.h>
 #include <lsp/json/json.h>
