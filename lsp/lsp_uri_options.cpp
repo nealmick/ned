@@ -98,7 +98,8 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
-	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+						  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Disable hover highlighting
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
 
 	if (ImGui::Begin("##LSPUriOptions", nullptr, windowFlags))
@@ -182,7 +183,8 @@ void LSPUriOptions::render(const std::string &title,
 				if (ImGui::Selectable(label.c_str(),
 									  is_selected,
 									  ImGuiSelectableFlags_AllowDoubleClick |
-										  ImGuiSelectableFlags_SpanAllColumns))
+										  ImGuiSelectableFlags_SpanAllColumns |
+										  ImGuiSelectableFlags_DontClosePopups))
 				{
 					selectedIndex = i;
 					if (ImGui::IsMouseDoubleClicked(0))
@@ -234,7 +236,8 @@ void LSPUriOptions::render(const std::string &title,
 	}
 
 	// Cleanup
-	ImGui::PopStyleColor(7); // Now we have 7 colors (added ChildBg)
+	ImGui::PopStyleColor(7); // Original 7 colors (WindowBg, ChildBg, Border, FrameBg,
+							 // Header, HeaderHovered, HeaderActive)
 	ImGui::PopStyleVar(4);
 
 	if (!show)

@@ -72,25 +72,66 @@ std::string LSPClient::detectLanguageFromFile(const std::string &filePath) const
 
 	if (extension == ".cpp" || extension == ".cxx" || extension == ".cc" ||
 		extension == ".c" || extension == ".h" || extension == ".hpp" ||
-		extension == ".hxx")
+		extension == ".hxx" || extension == ".c++" || extension == ".h++")
 	{
 		return "cpp";
 	}
 
 	if (extension == ".ts" || extension == ".tsx" || extension == ".js" ||
-		extension == ".jsx")
+		extension == ".jsx" || extension == ".mjs" || extension == ".cjs")
 	{
 		return "typescript";
 	}
 
-	if (extension == ".py" || extension == ".pyx")
+	if (extension == ".py" || extension == ".pyx" || extension == ".pyi" ||
+		extension == ".pyw")
 	{
 		return "python";
 	}
 
-	if (extension == ".go")
+	if (extension == ".go" || extension == ".mod")
 	{
 		return "go";
+	}
+
+	if (extension == ".rs")
+	{
+		return "rust";
+	}
+
+	if (extension == ".java")
+	{
+		return "java";
+	}
+
+	if (extension == ".cs")
+	{
+		return "csharp";
+	}
+
+	if (extension == ".php")
+	{
+		return "php";
+	}
+
+	if (extension == ".rb")
+	{
+		return "ruby";
+	}
+
+	if (extension == ".swift")
+	{
+		return "swift";
+	}
+
+	if (extension == ".kt" || extension == ".kts")
+	{
+		return "kotlin";
+	}
+
+	if (extension == ".scala" || extension == ".sc")
+	{
+		return "scala";
 	}
 
 	return "";
@@ -127,7 +168,7 @@ std::string LSPClient::expandEnvironmentVariables(const std::string &path) const
 
 std::string LSPClient::findServerPath(const std::string &language) const
 {
-	// Cross-platform server path detection
+	// Cross-platform server path detectionas
 	std::vector<std::string> searchPaths;
 
 	if (language == "cpp")
@@ -166,6 +207,69 @@ std::string LSPClient::findServerPath(const std::string &language) const
 					   "/usr/local/bin/gopls",
 					   "/opt/homebrew/bin/gopls",
 					   "C:/Users/%USERNAME%/go/bin/gopls.exe"};
+	} else if (language == "rust")
+	{
+		// Rust analyzer
+		searchPaths = {"rust-analyzer",
+					   "/usr/bin/rust-analyzer",
+					   "/usr/local/bin/rust-analyzer",
+					   "/opt/homebrew/bin/rust-analyzer",
+					   "C:/Users/%USERNAME%/.cargo/bin/rust-analyzer.exe"};
+	} else if (language == "java")
+	{
+		// Eclipse JDT Language Server
+		searchPaths = {
+			"jdtls", "/usr/bin/jdtls", "/usr/local/bin/jdtls", "/opt/homebrew/bin/jdtls"};
+	} else if (language == "csharp")
+	{
+		// OmniSharp language server
+		searchPaths = {"omnisharp",
+					   "/usr/bin/omnisharp",
+					   "/usr/local/bin/omnisharp",
+					   "/opt/homebrew/bin/omnisharp",
+					   "C:/Users/%USERNAME%/.dotnet/tools/omnisharp.exe"};
+	} else if (language == "php")
+	{
+		// PHP language server
+		searchPaths = {"phpactor",
+					   "/usr/bin/phpactor",
+					   "/usr/local/bin/phpactor",
+					   "/opt/homebrew/bin/phpactor",
+					   "intelephense",
+					   "/usr/bin/intelephense",
+					   "/usr/local/bin/intelephense",
+					   "/opt/homebrew/bin/intelephense"};
+	} else if (language == "ruby")
+	{
+		// Ruby language server
+		searchPaths = {"solargraph",
+					   "/usr/bin/solargraph",
+					   "/usr/local/bin/solargraph",
+					   "/opt/homebrew/bin/solargraph",
+					   "C:/Ruby32-x64/bin/solargraph.bat"};
+	} else if (language == "swift")
+	{
+		// Swift language server
+		searchPaths = {"sourcekit-lsp",
+					   "/usr/bin/sourcekit-lsp",
+					   "/usr/local/bin/sourcekit-lsp",
+					   "/opt/homebrew/bin/sourcekit-lsp",
+					   "/Applications/Xcode.app/Contents/Developer/Toolchains/"
+					   "XcodeDefault.xctoolchain/usr/bin/sourcekit-lsp"};
+	} else if (language == "kotlin")
+	{
+		// Kotlin language server
+		searchPaths = {"kotlin-language-server",
+					   "/usr/bin/kotlin-language-server",
+					   "/usr/local/bin/kotlin-language-server",
+					   "/opt/homebrew/bin/kotlin-language-server"};
+	} else if (language == "scala")
+	{
+		// Metals language server
+		searchPaths = {"metals",
+					   "/usr/bin/metals",
+					   "/usr/local/bin/metals",
+					   "/opt/homebrew/bin/metals"};
 	}
 
 	std::cout << "LSP: Checking paths for " << language << " server:" << std::endl;
