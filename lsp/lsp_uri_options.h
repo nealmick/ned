@@ -14,8 +14,13 @@ class LSPUriOptions
 				bool &show);
 
   private:
+	void handleSelection();
+
 	std::string currentTitle;
 	std::vector<std::map<std::string, std::string>> currentOptions;
+	size_t selectedIndex;
+
+	bool isEmbedded;
 };
 
 extern LSPUriOptions gLSPUriOptions;

@@ -28,8 +28,12 @@ void LSPGotoRef::get()
 	request(row,
 			column,
 			[this](const std::vector<std::map<std::string, std::string>> &results) {
-				references = results;
-				pending = false;
+				// Only update if we have real results or if we're not pending
+				if (!results.empty() || !pending)
+				{
+					references = results;
+					pending = false;
+				}
 
 				// Print the structured results object
 				printResponse(results);
@@ -125,7 +129,4 @@ void LSPGotoRef::printResponse(
 	std::cout << "]" << std::endl;
 }
 
-void LSPGotoRef::render()
-{
-	gLSPUriOptions.render("Goto References", references, show);
-}
+void LSPGotoRef::render() { gLSPUriOptions.render("Goto Reference", references, show); }
