@@ -15,6 +15,7 @@ Description: Render and frame management class implementation for NED text edito
 #include "editor/editor_scroll.h"
 #include "files/file_tree.h"
 #include "files/files.h"
+#include "lsp/lsp_dashboard.h"
 #include "util/app.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
@@ -379,6 +380,7 @@ void Render::renderFrame(GLFWwindow *window,
 	renderMainWindow(window, splitter, windowResize);
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
+	gLSPDashboard.render();
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
 	windowResize.renderResizeOverlay(gFont.largeFont);

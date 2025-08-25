@@ -22,6 +22,15 @@ class Stream;
 }
 } // namespace lsp
 
+// Structure to hold language server information
+struct LanguageServerInfo
+{
+	std::string language;
+	std::vector<std::string> fileExtensions;
+	std::vector<std::string> serverPaths;
+	std::vector<std::string> serverArgs;
+};
+
 class LSPClient
 {
   public:
@@ -33,6 +42,14 @@ class LSPClient
 	bool init(const std::string &filePath);
 	void shutdown();
 	bool isInitialized() const { return initialized; }
+	std::string getCurrentLanguage() const { return currentLanguage; }
+
+	// Language server information access
+	const std::vector<LanguageServerInfo> &getLanguageServers() const
+	{
+		return languageServers;
+	}
+	std::vector<std::string> getSupportedLanguages() const;
 
 	// Document management
 	void didOpen(const std::string &filePath, const std::string &content);
@@ -59,6 +76,7 @@ class LSPClient
 	bool sendLSPInitialize();
 	void startMessageProcessingLoop();
 	void messageProcessingThread();
+	void initializeLanguageServers();
 
 	// State
 	bool initialized;
@@ -67,6 +85,9 @@ class LSPClient
 	std::string currentLanguage;
 	// std::string serverArgs = "--log=error";
 	std::string serverArgs = "";
+
+	// Language server configurations
+	std::vector<LanguageServerInfo> languageServers;
 
 	// LSP framework objects
 	std::unique_ptr<lsp::Process> serverProcess;

@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
+#include "../lsp/lsp_dashboard.h"
 #include "../util/font.h"
 #include "../util/keybinds.h"
 #include "../util/splitter.h"
@@ -1001,6 +1002,18 @@ void Settings::renderKeybindsSettings()
 		ImGui::SameLine();
 		ImGui::TextDisabled("(Reset to default configuration)");
 	}
+
+	// LSP Dashboard section
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	if (ImGui::Button("LSP Dashboard"))
+	{
+		gLSPDashboard.setShow(true);
+		showSettingsWindow = false; // Close settings window when opening LSP dashboard
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(View LSP server status)");
 }
 
 void Settings::handleWindowInput()

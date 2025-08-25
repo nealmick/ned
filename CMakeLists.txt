@@ -215,6 +215,7 @@ set(LSP_SOURCES
   lsp/lsp_goto_def.cpp
   lsp/lsp_goto_ref.cpp
   lsp/lsp_uri_options.cpp
+  lsp/lsp_dashboard.cpp
 )
 
 # Find GLFW headers
