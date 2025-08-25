@@ -1,4 +1,5 @@
 #include "lsp_dashboard.h"
+#include "../util/settings.h"
 #include "imgui.h"
 #include "lsp_client.h"
 #include <filesystem>
@@ -45,6 +46,18 @@ void LSPDashboard::render()
 		if (ImGui::Button("Refresh Server Status"))
 		{
 			refreshServerInfo();
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Reload LSP.json"))
+		{
+			gLSPClient.initializeLanguageServers();
+			refreshServerInfo();
+
+			// Show notification with server count
+			extern Settings gSettings;
+			std::string message = "LSP Servers: " + std::to_string(serverInfos.size());
+			gSettings.renderNotification(message, 2.0f);
 		}
 
 		ImGui::SameLine();
@@ -200,7 +213,6 @@ void LSPDashboard::handleWindowInput()
 
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
-		std::cout << " got click otuside" << std::endl;
 		ImVec2 mousePos = ImGui::GetMousePos();
 		ImVec2 windowPos = ImGui::GetWindowPos();
 		ImVec2 windowSize = ImGui::GetWindowSize();

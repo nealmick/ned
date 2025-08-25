@@ -23,7 +23,14 @@ class LSPDashboard
 	// Main interface
 	void render();
 	void toggleShow() { show = !show; }
-	void setShow(bool visible) { show = visible; }
+	void setShow(bool visible)
+	{
+		show = visible;
+		if (visible)
+		{
+			refreshServerInfo();
+		}
+	}
 	bool isVisible() const { return show; }
 
 	// Update server information
