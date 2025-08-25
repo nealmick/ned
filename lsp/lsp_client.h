@@ -68,6 +68,9 @@ class LSPClient
 	bool startServer(const std::string &language, const std::string &serverPath);
 	void stopServer();
 
+	// Configuration management
+	void initializeLanguageServers();
+
   private:
 	// Helper functions
 	std::string findServerPath(const std::string &language) const;
@@ -76,7 +79,6 @@ class LSPClient
 	bool sendLSPInitialize();
 	void startMessageProcessingLoop();
 	void messageProcessingThread();
-	void initializeLanguageServers();
 
 	// State
 	bool initialized;
