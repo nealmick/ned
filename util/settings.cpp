@@ -948,7 +948,6 @@ void Settings::renderShaderSlider(const char *label,
 void Settings::renderKeybindsSettings()
 {
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Keybinds");
 	ImGui::Separator();
 	ImGui::Spacing();
 
