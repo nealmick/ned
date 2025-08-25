@@ -20,7 +20,7 @@ void LSPDashboard::render()
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
 
-	bool windowOpen = true; // Always start with true like settings window
+	bool windowOpen = true;
 	bool windowCreated =
 		ImGui::Begin("LSP Server Dashboard", &windowOpen, ImGuiWindowFlags_NoCollapse);
 
@@ -29,6 +29,12 @@ void LSPDashboard::render()
 		// Store current window position and size
 		windowPos = ImGui::GetWindowPos();
 		windowSize = ImGui::GetWindowSize();
+
+		// If window was closed via X button, hide the dashboard
+		if (!windowOpen)
+		{
+			show = false;
+		}
 
 		// Header
 		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f),
@@ -54,12 +60,6 @@ void LSPDashboard::render()
 	}
 
 	ImGui::End();
-
-	// If window was closed, hide the dashboard (like settings window)
-	if (!windowOpen)
-	{
-		show = false;
-	}
 }
 
 void LSPDashboard::renderServerList()
@@ -198,15 +198,12 @@ void LSPDashboard::handleWindowInput()
 		show = false;
 	}
 
-	// Handle click outside window to close (copied from settings window)
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered() &&
-		!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow |
-								ImGuiHoveredFlags_AllowWhenBlockedByPopup))
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
+		std::cout << " got click otuside" << std::endl;
 		ImVec2 mousePos = ImGui::GetMousePos();
 		ImVec2 windowPos = ImGui::GetWindowPos();
 		ImVec2 windowSize = ImGui::GetWindowSize();
-
 		if (mousePos.x < windowPos.x || mousePos.x > windowPos.x + windowSize.x ||
 			mousePos.y < windowPos.y || mousePos.y > windowPos.y + windowSize.y)
 		{
