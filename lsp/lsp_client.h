@@ -71,10 +71,12 @@ class LSPClient
 	// Configuration management
 	void initializeLanguageServers();
 
+	// Path utilities
+	std::string expandEnvironmentVariables(const std::string &path) const;
+
   private:
 	// Helper functions
 	std::string findServerPath(const std::string &language) const;
-	std::string expandEnvironmentVariables(const std::string &path) const;
 	std::string detectLanguageFromFile(const std::string &filePath) const;
 	bool sendLSPInitialize();
 	void startMessageProcessingLoop();
