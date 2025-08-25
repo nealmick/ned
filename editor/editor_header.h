@@ -24,7 +24,7 @@ class EditorHeader
   private:
 	// File path truncation utility
 	std::string truncateFilePath(const std::string &path, float maxWidth, ImFont *font);
-	
+
 	// Helper function to normalize path separators for display
 	std::string normalizePathForDisplay(const std::string &path);
 

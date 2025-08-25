@@ -165,7 +165,8 @@ void SettingsFileManager::loadSettings(json &settings, std::string &settingsPath
 				  << " not found.\n";
 
 		std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-		std::vector<std::string> filesToCopy = {"ned.json",
+		std::vector<std::string> filesToCopy = {"lsp.json",
+												"ned.json",
 												"amber.json",
 												"test.json",
 												"solarized.json",
@@ -373,7 +374,7 @@ void SettingsFileManager::loadSettings(json &settings, std::string &settingsPath
 		{"fontSize", 20.0f},
 		{"git_changed_lines", true},
 		{"jitter_intensity", 2.809999942779541},
-		{"lsp_autocomplete", true},
+
 		{"pixel_width", 5000.0},
 		{"pixelation_intensity", -0.10999999940395355},
 		{"rainbow", true},
@@ -462,7 +463,8 @@ void SettingsFileManager::createSettingsDirectory(const fs::path &dir)
 void SettingsFileManager::copyDefaultSettingsFiles(const fs::path &destDir)
 {
 	std::string bundleSettingsDir = getAppResourcesPath() + "/settings";
-	std::vector<std::string> filesToCopy = {"ned.json",
+	std::vector<std::string> filesToCopy = {"lsp.json",
+											"ned.json",
 											"amber.json",
 											"test.json",
 											"solarized.json",
@@ -680,7 +682,7 @@ std::vector<std::string> SettingsFileManager::getAvailableProfileFiles()
 				std::string filename = entry.path().filename().string();
 				// Exclude "keybinds.json"
 				if (filename == "keybinds.json" || filename == "open_router_key.json" ||
-					filename == "default-keybinds.json" ||
+					filename == "default-keybinds.json" || filename == "lsp.json" ||
 					filename == ".undo-redo-ned.json")
 				{
 				} else
@@ -735,7 +737,7 @@ void SettingsFileManager::applyDefaultSettings(json &settings)
 		{"fontSize", 20.0f},
 		{"git_changed_lines", true},
 		{"jitter_intensity", 2.809999942779541},
-		{"lsp_autocomplete", true},
+
 		{"pixel_width", 5000.0},
 		{"pixelation_intensity", -0.10999999940395355},
 		{"rainbow", true},

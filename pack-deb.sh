@@ -76,7 +76,7 @@ Priority: optional
 Depends: libglfw3, libglew2.2, libcurl4, libgtk-3-0
 Homepage: https://github.com/nealmick/ned
 Description: Modern code editor with AI integration
- Ned is a lightweight, cross-platform code editor with built-in LSP support
+ Ned is a lightweight, cross-platform code editor
  and AI-powered features.
 EOF
 

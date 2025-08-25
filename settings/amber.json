@@ -14,7 +14,7 @@
     "colorshift_intensity": 1.659999966621399,
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.0,
-    "font": "VT100",
+    "font": "SourceCodePro-Regular",
     "fontSize": 25.0,
     "fps_target": 59.0,
     "fps_target_unfocused": 30.0,

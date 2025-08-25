@@ -15,6 +15,7 @@ Description: Render and frame management class implementation for NED text edito
 #include "editor/editor_scroll.h"
 #include "files/file_tree.h"
 #include "files/files.h"
+#include "lsp/lsp_dashboard.h"
 #include "util/app.h"
 #include "util/keybinds.h"
 #include "util/settings.h"
@@ -85,16 +86,19 @@ void Render::handleFrameTiming(std::chrono::high_resolution_clock::time_point fr
 	{
 		fpsTarget = settings.getSettings()["fps_target"].get<float>();
 	}
-	
+
 	// Simple busy waiting - the only thing that works reliably on Windows
 	if (fpsTarget > MIN_FPS_TARGET && fpsTarget < MAX_FPS_TARGET)
 	{
 		auto targetFrameTime = std::chrono::duration<double>(1.0 / fpsTarget);
 		auto frame_duration_seconds = std::chrono::duration<double>(frame_duration);
-		
+
 		if (frame_duration_seconds < targetFrameTime)
 		{
-			auto endTime = frame_start + std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(targetFrameTime);
+			auto endTime =
+				frame_start +
+				std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
+					targetFrameTime);
 			while (std::chrono::high_resolution_clock::now() < endTime)
 			{
 				// Busy wait for precise timing
@@ -376,6 +380,7 @@ void Render::renderFrame(GLFWwindow *window,
 	renderMainWindow(window, splitter, windowResize);
 	gBookmarks.renderBookmarksWindow();
 	gSettings.renderSettingsWindow();
+	gLSPDashboard.render();
 	gSettings.renderNotification("");
 	gKeybinds.checkKeybindsFile();
 	windowResize.renderResizeOverlay(gFont.largeFont);

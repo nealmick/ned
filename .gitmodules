@@ -64,3 +64,6 @@
 [submodule "lib/libgit2"]
 	path = lib/libgit2
 	url = https://github.com/libgit2/libgit2.git
+[submodule "lib/lsp-framework"]
+	path = lib/lsp-framework
+	url = https://github.com/leon-bckl/lsp-framework.git

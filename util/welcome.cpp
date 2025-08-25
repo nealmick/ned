@@ -215,7 +215,6 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 		// Add blue border on hover (only if not showing click animation)
 		if (isHovered && !showClickAnimation)
 		{
-			std::cout << "Hovered: " << welcomeImages[i].name << std::endl;
 			draw_list->AddRect(p_min, p_max, IM_COL32(0, 123, 255, 200), 12.0f, 0, 2.5f);
 
 			// Create tooltip with theme background color (force opacity to 1.0)

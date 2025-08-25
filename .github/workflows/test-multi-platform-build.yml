@@ -73,9 +73,12 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y cmake libglfw3-dev libglew-dev libgtk-3-dev \
-            pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
+            pkg-config clang libcurl4-openssl-dev clang-format mesa-utils
       - name: Build
-        run: ./build.sh
+        run: |
+          export CC=clang
+          export CXX=clang++
+          ./build.sh
       - name: Package
         run: |
           chmod +x pack-deb.sh

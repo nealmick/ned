@@ -16,10 +16,7 @@
 #else
 #include "../lib/utfcpp/source/utf8.h"
 #endif
-#include "../lsp/lsp_autocomplete.h"
-#include "../lsp/lsp_goto_def.h"
-#include "../lsp/lsp_goto_ref.h"
-#include "../lsp/lsp_symbol_info.h"
+
 #include "editor.h"
 #include "editor/utf8_utils.h"
 #include "editor_bookmarks.h"
@@ -119,11 +116,12 @@ void EditorKeyboard::handleBackspaceKey()
 				if (prev != editor_state.fileContent.begin())
 				{
 					utf8::unchecked::prior(prev);
-					
+
 #ifdef PLATFORM_WINDOWS
 					// Special handling for Windows line endings (\r\n)
 					// If we're about to delete \n and the previous char is \r, delete both
-					if (*prev == '\n' && prev != editor_state.fileContent.begin() && *(prev - 1) == '\r')
+					if (*prev == '\n' && prev != editor_state.fileContent.begin() &&
+						*(prev - 1) == '\r')
 					{
 						--prev; // Move back to include the \r as well
 					}
@@ -469,13 +467,9 @@ void EditorKeyboard::handleCharacterInput()
 	editor_state.text_changed = true;
 	gEditor.updateLineStarts();
 
-	// After processing the input, trigger LSP completion only if there was no space
+	// After processing the input, trigger AI completion if enabled
 	if (!inputText.empty() && !shouldCloseCompletion)
 	{
-		if (gSettings.getSettings()["lsp_autocomplete"])
-		{
-			editor_state.get_autocomplete = true;
-		}
 		// Trigger AI completion if enabled
 		if (gSettings.getSettings()["ai_autocomplete"])
 		{
@@ -943,9 +937,8 @@ void EditorKeyboard::handleDeleteKey()
 }
 void EditorKeyboard::handleTextInput()
 {
-	if (gLSPAutocomplete.blockEnter || editor_state.block_input)
+	if (editor_state.block_input)
 	{
-		gLSPAutocomplete.blockEnter = false;
 		return;
 	}
 	int input_start = editor_state.cursor_index;
@@ -1051,10 +1044,8 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	bool shift_pressed = ImGui::GetIO().KeyShift;
 
 	// block input if searching for file...
-	if (gFileFinder.showFFWindow || gLineJump.showLineJumpWindow ||
-		gLSPAutocomplete.blockTab)
+	if (gFileFinder.showFFWindow || gLineJump.showLineJumpWindow)
 	{
-		gLSPAutocomplete.blockTab = false;
 		return;
 	}
 
@@ -1141,11 +1132,14 @@ void EditorKeyboard::handleEditorKeyboardInput()
 
 		if (ctrl_pressed)
 		{
+			/*
+			dissabled for now
 			// Handle Ctrl+R for reloading files with external changes
 			if (ImGui::IsKeyPressed(ImGuiKey_R, false))
 			{
 				gFileExplorer.reloadCurrentFile();
 			}
+			*/
 
 			ImGuiKey ai_completions = gKeybinds.getActionKey("ai_completion");
 
@@ -1158,82 +1152,9 @@ void EditorKeyboard::handleEditorKeyboardInput()
 			gBookmarks.handleBookmarkInput(gFileExplorer);
 			gEditorCursor.processCursorJump(editor_state.fileContent,
 											editor_state.ensure_cursor_visible);
-			ImGuiKey lsp_symbol_info = gKeybinds.getActionKey("lsp_symbol_info");
-
-			if (ImGui::IsKeyPressed(lsp_symbol_info, false))
-			{
-				gLSPSymbolInfo.fetchSymbolInfo(gFileExplorer.currentFile);
-			}
-			ImGuiKey lsp_find_ref = gKeybinds.getActionKey("lsp_find_ref");
-
-			if (ImGui::IsKeyPressed(lsp_find_ref, false))
-			{
-				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-				// Get character offset in current line (same as above)
-				int line_start = 0; // Default to 0
-				if (current_line >= 0 &&
-					current_line < editor_state.editor_content_lines.size())
-				{
-					line_start = editor_state.editor_content_lines[current_line];
-				}
-				int char_offset = editor_state.cursor_index - line_start;
-				char_offset = std::max(0, char_offset); // Ensure non-negative
-
-				// Call LSP find references using the new global instance
-				gLSPGotoRef.findReferences(gFileExplorer.currentFile,
-										   current_line,
-										   char_offset);
-			}
-			ImGuiKey lsp_find_def = gKeybinds.getActionKey("lsp_find_def");
-
-			if (ImGui::IsKeyPressed(lsp_find_def, false))
-			{
-				// Get current line number from editor_state
-				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-				// Get character offset in current line
-				int line_start = editor_state.editor_content_lines[current_line];
-				int char_offset = editor_state.cursor_index - line_start;
-
-				// Call LSP goto definition
-				gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile,
-										   current_line,
-										   char_offset);
-			}
-			ImGuiKey lsp_completion = gKeybinds.getActionKey("lsp_completion");
-
-			if (ImGui::IsKeyPressed(lsp_completion, false))
-			{
-				editor_state.get_autocomplete = false;
-				// Get current line number from editor_state
-				int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-				// Get character offset in current line
-				int line_start = editor_state.editor_content_lines[current_line];
-				int char_offset = editor_state.cursor_index - line_start;
-
-				gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile,
-												   current_line,
-												   char_offset);
-			}
 		}
 	}
 	handleTextInput();
-
-	if (editor_state.get_autocomplete)
-	{
-		editor_state.get_autocomplete = false;
-		// Get current line number from editor_state
-		int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-
-		// Get character offset in current line
-		int line_start = editor_state.editor_content_lines[current_line];
-		int char_offset = editor_state.cursor_index - line_start;
-
-		gLSPAutocomplete.requestCompletion(gFileExplorer.currentFile,
-										   current_line,
-										   char_offset);
-	}
 
 	// Handle arrow key visibility
 	handleArrowKeyVisibility();
@@ -1251,9 +1172,6 @@ void EditorKeyboard::handleEditorKeyboardInput()
 	ImGuiIO &io = ImGui::GetIO();
 	if (io.KeyCtrl || io.KeySuper)
 	{
-		// Close autocomplete when using keyboard shortcuts
-		gLSPAutocomplete.showCompletions = false;
-		gLSPAutocomplete.wasShowingLastFrame = false;
 		editor_state.block_input = false;
 
 		gEditorCopyPaste.processClipboardShortcuts();

@@ -7,7 +7,7 @@
 #pragma once
 
 #ifdef _WIN32
-#pragma warning(disable: 4066) // Disable wide-character constant warnings on Windows
+#pragma warning(disable : 4066) // Disable wide-character constant warnings on Windows
 #endif
 
 #include "imgui.h"

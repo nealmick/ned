@@ -1,22 +1,19 @@
 #pragma once
-#include "../lib/json.hpp"
-#include "editor_types.h"
+
 #include "imgui.h"
-#include "lsp_manager.h"
+#include <functional>
+#include <future>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-struct ReferenceLocation
-{
-	std::string uri;
-	int startLine;
-	int startChar;
-	int endLine;
-	int endChar;
-};
-
-using json = nlohmann::json;
+// Need the actual LSP types for the function signature
+#ifdef _WIN32
+#include "../build/lib/lsp-framework/generated/lsp/types.h"
+#else
+#include "../.build/lib/lsp-framework/generated/lsp/types.h"
+#endif
 
 class LSPGotoRef
 {
@@ -24,30 +21,35 @@ class LSPGotoRef
 	LSPGotoRef();
 	~LSPGotoRef();
 
-	// Core find references functionality
-	bool findReferences(const std::string &filePath, int line, int character);
+	// response data structure
+	std::vector<std::map<std::string, std::string>> references;
 
-	// Reference options window rendering
-	void renderReferenceOptions();
-	bool hasReferenceOptions() const;
+	// Check keybind and trigger goto references if conditions are met
+	void get();
 
-	// Embedded mode methods
-	void setEmbedded(bool embedded) { isEmbedded = embedded; }
-	bool getEmbedded() const { return isEmbedded; }
+	// Render the goto references UI
+	void render();
+
+	// Send LSP goto references request
+	void
+	request(int line,
+			int character,
+			std::function<void(const std::vector<std::map<std::string, std::string>> &)>
+				callback);
 
   private:
-	// Helper methods
-	void parseReferenceResponse(const std::string &response);
-	int getNextRequestId() { return ++currentRequestId; }
-	void handleReferenceSelection();
-	// Request tracking (using a different range than LSPGotoDef)
-	int currentRequestId = 3000;
+	// Helper function to process the LSP response
+	std::vector<std::map<std::string, std::string>>
+	processResponse(const lsp::TextDocument_ReferencesResult &result);
 
-	// Reference options state
-	std::vector<ReferenceLocation> referenceLocations;
-	int selectedReferenceIndex = 0;
-	bool showReferenceOptions = false;
-	bool isEmbedded = false;
+	// Helper function to print structured results
+	void printResponse(const std::vector<std::map<std::string, std::string>> &results);
+
+	bool show;
+
+	// Async request handling
+	bool pending;
+	std::shared_ptr<std::future<void>> asyncResponse;
 };
 
 // Global instance

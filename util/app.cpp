@@ -524,8 +524,8 @@ bool App::initializeGLEW()
 	glfwMakeContextCurrent(window);
 #ifdef PLATFORM_WINDOWS
 	// On Windows, try different VSync disable approaches for better compatibility
-	glfwSwapInterval(-1);  // Try adaptive VSync first
-	glfwSwapInterval(0);   // Then disable completely
+	glfwSwapInterval(-1); // Try adaptive VSync first
+	glfwSwapInterval(0);  // Then disable completely
 #else
 	glfwSwapInterval(0);
 #endif
