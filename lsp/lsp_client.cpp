@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <future>
 
 // Global instance
 LSPClient gLSPClient;
@@ -251,27 +252,37 @@ void LSPClient::shutdown()
 		// Stop message processing loop
 		running = false;
 
-		// Give thread a chance to exit gracefully, but don't wait forever
+		// Give thread a chance to exit gracefully, but don't wait forever on Windows
 		if (processingThread.joinable())
 		{
 			std::cout << "LSP: Waiting for message processing thread to exit..."
 					  << std::endl;
-			if (processingThread.joinable())
-			{
-				// Try to join with timeout - if it doesn't respond, we'll detach
-				std::thread timeoutThread([this]() {
-					std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-					if (processingThread.joinable())
-					{
-						std::cout << "LSP: Thread didn't exit gracefully, detaching..."
-								  << std::endl;
-						processingThread.detach();
-					}
-				});
 
-				processingThread.join();
-				timeoutThread.detach(); // Cancel timeout if join succeeded
+#ifdef _WIN32
+			// On Windows, just detach immediately to avoid hanging
+			std::cout << "LSP: Detaching thread on Windows to prevent hang..."
+					  << std::endl;
+			processingThread.detach();
+#else
+			// On Unix systems, try to join with a reasonable timeout
+			auto future = std::async(std::launch::async, [this]() {
+				if (processingThread.joinable())
+				{
+					processingThread.join();
+				}
+			});
+
+			if (future.wait_for(std::chrono::milliseconds(1000)) ==
+				std::future_status::timeout)
+			{
+				std::cout << "LSP: Thread didn't exit gracefully, detaching..."
+						  << std::endl;
+				if (processingThread.joinable())
+				{
+					processingThread.detach();
+				}
 			}
+#endif
 		}
 
 		initialized = false;
