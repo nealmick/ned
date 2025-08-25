@@ -1,5 +1,7 @@
 #include "lsp_dashboard.h"
+#include "../files/files.h"
 #include "../util/settings.h"
+#include "../util/settings_file_manager.h"
 #include "imgui.h"
 #include "lsp_client.h"
 #include <filesystem>
@@ -61,8 +63,25 @@ void LSPDashboard::render()
 		}
 
 		ImGui::SameLine();
-		ImGui::Text("(%zu servers configured)", serverInfos.size());
+		if (ImGui::Button("Open LSP.json"))
+		{
+			std::string lspJsonPath =
+				(std::filesystem::path(SettingsFileManager::getUserSettingsPath())
+					 .parent_path() /
+				 "lsp.json")
+					.string();
+			if (std::filesystem::exists(lspJsonPath))
+			{
+				gFileExplorer.loadFileContent(lspJsonPath);
+				show = false; // Close LSP dashboard after opening file
+			} else
+			{
+				std::cerr << "[LSP Dashboard] LSP.json file not found at: " << lspJsonPath
+						  << std::endl;
+			}
+		}
 
+		ImGui::Text("%zu servers configured", serverInfos.size());
 		ImGui::Spacing();
 
 		// Render server list
