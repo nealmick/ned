@@ -1,6 +1,7 @@
 #include "keybinds.h"
 #include "../editor/editor.h"
 #include "../files/files.h"
+#include "../lsp/lsp_client.h"
 #include "../util/close_popper.h"
 #include "../util/settings.h"
 #include "../util/splitter.h"
@@ -619,6 +620,12 @@ bool KeybindsManager::handleKeyboardShortcuts()
 		ClosePopper::closeAll();
 		gFileExplorer.saveCurrentFile();
 		gFileExplorer._showFileDialog = true;
+		shortcutPressed = true;
+	}
+
+	// Handle all LSP keybinds
+	if (gLSPClient.keybinds())
+	{
 		shortcutPressed = true;
 	}
 

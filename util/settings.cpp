@@ -3,6 +3,7 @@
 #include "../editor/editor.h"
 #include "../editor/editor_highlight.h"
 #include "../files/files.h"
+#include "../lsp/lsp_dashboard.h"
 #include "../util/font.h"
 #include "../util/keybinds.h"
 #include "../util/splitter.h"
@@ -843,32 +844,10 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Highlight changed lines in git)");
 
-	bool lspAutocomplete = settings.value("lsp_autocomplete", true);
 	bool aiAutocomplete = settings.value("ai_autocomplete", true);
-
-	if (ImGui::Checkbox("LSP Completion", &lspAutocomplete))
-	{
-		// If LSP is being toggled ON, turn off AI completion
-		if (lspAutocomplete)
-		{
-			aiAutocomplete = false;
-			settings["ai_autocomplete"] = false;
-		}
-		settings["lsp_autocomplete"] = lspAutocomplete;
-		settingsChanged = true;
-		saveSettings();
-	}
-	ImGui::SameLine();
-	ImGui::TextDisabled("(Code completion & suggestions)");
 
 	if (ImGui::Checkbox("AI Completion", &aiAutocomplete))
 	{
-		// If AI is being toggled ON, turn off LSP completion
-		if (aiAutocomplete)
-		{
-			lspAutocomplete = false;
-			settings["lsp_autocomplete"] = false;
-		}
 		settings["ai_autocomplete"] = aiAutocomplete;
 		settingsChanged = true;
 		saveSettings();
@@ -969,7 +948,6 @@ void Settings::renderShaderSlider(const char *label,
 void Settings::renderKeybindsSettings()
 {
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Keybinds");
 	ImGui::Separator();
 	ImGui::Spacing();
 
@@ -977,7 +955,8 @@ void Settings::renderKeybindsSettings()
 	{
 		std::string keybindsPath =
 			(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-			"keybinds.json").string();
+			 "keybinds.json")
+				.string();
 		if (fs::exists(keybindsPath))
 		{
 			gFileExplorer.loadFileContent(keybindsPath);
@@ -994,10 +973,12 @@ void Settings::renderKeybindsSettings()
 	// Check if we're using default keybinds
 	std::string keybindsPath =
 		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"keybinds.json").string();
+		 "keybinds.json")
+			.string();
 	std::string defaultKeybindsPath =
 		(fs::path(settingsFileManager.getUserSettingsPath()).parent_path() /
-		"default-keybinds.json").string();
+		 "default-keybinds.json")
+			.string();
 
 	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath))
 	{
@@ -1020,6 +1001,18 @@ void Settings::renderKeybindsSettings()
 		ImGui::SameLine();
 		ImGui::TextDisabled("(Reset to default configuration)");
 	}
+
+	// LSP Dashboard section
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	if (ImGui::Button("LSP Dashboard"))
+	{
+		gLSPDashboard.setShow(true);
+		showSettingsWindow = false; // Close settings window when opening LSP dashboard
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(View LSP server status)");
 }
 
 void Settings::handleWindowInput()

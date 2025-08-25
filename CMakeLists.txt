@@ -31,6 +31,16 @@ elseif(WIN32)
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
     add_compile_definitions(NOMINMAX)
     add_compile_definitions(_WIN32_WINNT=0x0601) # Windows 7+
+    # MSVC-specific flags from lsp-framework documentation
+    if(MSVC)
+        add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+        add_compile_definitions(UTF_CPP_CPLUSPLUS=202002L)
+        add_compile_options(/std:c++20)
+        # Only add essential C++20 recognition flag
+        add_compile_options(/Zc:__cplusplus)
+        # Enable parallel compilation for faster builds
+        add_compile_options(/MP)
+    endif()
 elseif(UNIX)
     add_compile_definitions(PLATFORM_LINUX)
     # Ensure proper feature test macros for Linux to expose le16toh/be16toh functions
@@ -179,19 +189,34 @@ set(APP_SOURCES
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
-if(WIN32)
-    # On Windows, use stub implementations only
-    set(LSP_SOURCES
-        lsp/lsp_stubs_windows.cpp
-    )
-else()
-    # On Unix systems, use real LSP implementation (exclude Windows stubs)
-    file(GLOB_RECURSE LSP_SOURCES "lsp/*.cpp")
-    list(REMOVE_ITEM LSP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lsp/lsp_stubs_windows.cpp")
-endif()
 file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
 file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
+
+# Add lsp-framework subdirectory with sanitizers disabled
+set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
+add_subdirectory(lib/lsp-framework)
+
+# Apply MSVC-specific flags only to lsp-framework on Windows
+if(WIN32 AND MSVC)
+    target_compile_options(lsp PRIVATE /permissive-)
+    target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
+endif()
+
+# Replace problematic connection.cpp with our patched version for all platforms
+get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
+list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
+list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
+set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
+
+set(LSP_SOURCES
+  lsp/lsp_client.cpp
+  lsp/lsp_symbol_info.cpp
+  lsp/lsp_goto_def.cpp
+  lsp/lsp_goto_ref.cpp
+  lsp/lsp_uri_options.cpp
+  lsp/lsp_dashboard.cpp
+)
 
 # Find GLFW headers
 find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h
@@ -379,6 +404,7 @@ target_link_libraries(ned PRIVATE
   llhttp
   xdiff
   pcre
+  lsp
   $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
   $<$<PLATFORM_ID:Darwin>:z>
   $<$<PLATFORM_ID:Linux>:z>
@@ -408,6 +434,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     llhttp
     xdiff
     pcre
+    lsp
     $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
   $<$<PLATFORM_ID:Darwin>:z>
   $<$<PLATFORM_ID:Linux>:z>
@@ -422,7 +449,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 else()
   # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
   # Note: imgui is compiled directly into the parent executable, so we don't link against it
-  target_link_libraries(ned_embed PUBLIC
+    target_link_libraries(ned_embed PUBLIC
     OpenGL::GL
     glfw
     nfd
@@ -437,15 +464,16 @@ else()
     llhttp
     xdiff
     pcre
+    lsp
     $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
   $<$<PLATFORM_ID:Darwin>:z>
   $<$<PLATFORM_ID:Linux>:z>
-    $<$<PLATFORM_ID:Darwin>:iconv>
-    $<$<PLATFORM_ID:Linux>:pthread>
-    $<$<PLATFORM_ID:Linux>:ssl>
-    $<$<PLATFORM_ID:Linux>:crypto>
-    $<$<PLATFORM_ID:Linux>:pcre>
-    $<$<PLATFORM_ID:Linux>:rt>
+  $<$<PLATFORM_ID:Darwin>:iconv>
+  $<$<PLATFORM_ID:Linux>:pthread>
+  $<$<PLATFORM_ID:Linux>:ssl>
+  $<$<PLATFORM_ID:Linux>:crypto>
+  $<$<PLATFORM_ID:Linux>:pcre>
+  $<$<PLATFORM_ID:Linux>:rt>
   )
   add_dependencies(ned_embed libgit2 util llhttp xdiff)
 endif()

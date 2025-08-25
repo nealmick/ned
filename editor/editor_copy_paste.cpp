@@ -1,7 +1,7 @@
 #include "editor_copy_paste.h"
 #include "../ai/ai_tab.h"
 #include "../files/files.h"
-#include "../lsp/lsp_autocomplete.h"
+
 #include "editor.h"
 #include "editor_highlight.h"
 #include "editor_tree_sitter.h"

@@ -13,8 +13,7 @@
 #else
 #include "../lib/utfcpp/source/utf8.h"
 #endif
-#include "../lsp/lsp_goto_def.h"
-#include "../lsp/lsp_goto_ref.h"
+
 #include "editor.h"
 #include "editor/utf8_utils.h"
 #include "editor_copy_paste.h"
@@ -471,38 +470,6 @@ void EditorMouse::handleContextMenu()
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::Separator();
-
-		// Go to Definition
-		if (ImGui::MenuItem("Goto Def", nullptr, nullptr, true))
-		{
-			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-			int line_start = editor_state.editor_content_lines[current_line];
-			int char_offset = editor_state.cursor_index - line_start;
-			gLSPGotoDef.gotoDefinition(gFileExplorer.currentFile,
-									   current_line,
-									   char_offset);
-			show_context_menu = false;
-			ImGui::CloseCurrentPopup();
-		}
-
-		// Find References
-		if (ImGui::MenuItem("Find Ref", nullptr, nullptr, true))
-		{
-			int current_line = gEditor.getLineFromPos(editor_state.cursor_index);
-			int line_start = 0;
-			if (current_line >= 0 &&
-				current_line < editor_state.editor_content_lines.size())
-			{
-				line_start = editor_state.editor_content_lines[current_line];
-			}
-			int char_offset = editor_state.cursor_index - line_start;
-			char_offset = std::max(0, char_offset);
-			gLSPGotoRef.findReferences(gFileExplorer.currentFile,
-									   current_line,
-									   char_offset);
-			show_context_menu = false;
-			ImGui::CloseCurrentPopup();
-		}
 
 		ImGui::EndPopup();
 	} else

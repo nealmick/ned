@@ -1,24 +1,19 @@
 #pragma once
-#include "../lib/json.hpp"
-#include "editor_types.h" // Assuming this includes necessary editor state/types
+
 #include "imgui.h"
-#include "lsp_manager.h" // Include your LSP Manager
+#include <functional>
+#include <future>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-// Use the nlohmann::json namespace
-using json = nlohmann::json;
-
-// Structure to hold location information (remains the same)
-struct DefinitionLocation
-{
-	std::string uri;
-	int startLine;
-	int startChar;
-	int endLine; // Keep these, might be useful later
-	int endChar;
-};
+// Need the actual LSP types for the function signature
+#ifdef _WIN32
+#include "../build/lib/lsp-framework/generated/lsp/types.h"
+#else
+#include "../.build/lib/lsp-framework/generated/lsp/types.h"
+#endif
 
 class LSPGotoDef
 {
@@ -26,33 +21,36 @@ class LSPGotoDef
 	LSPGotoDef();
 	~LSPGotoDef();
 
-	// Core goto definition functionality
-	bool gotoDefinition(const std::string &filePath, int line, int character);
+	// response data structure
+	std::vector<std::map<std::string, std::string>> definitions;
 
-	// Definition options window (no changes needed in declaration)
-	void renderDefinitionOptions();
-	bool hasDefinitionOptions() const;
+	// Check keybind and trigger goto definition if conditions are met
+	void get();
 
-	// Embedded mode methods
-	void setEmbedded(bool embedded) { isEmbedded = embedded; }
-	bool getEmbedded() const { return isEmbedded; }
+	// Render the goto definition UI
+	void render();
+
+	// Send LSP goto definition request
+	void
+	request(int line,
+			int character,
+			std::function<void(const std::vector<std::map<std::string, std::string>> &)>
+				callback);
 
   private:
-	// Helper methods
-	void parseDefinitionResponse(const std::string &response);
-	// New helper to parse the array part of the response
-	void parseDefinitionArray(const json &results_array); // <<< ADDED DECLARATION
-	int getNextRequestId() { return ++currentRequestId; }
+	// Helper function to process the LSP response
+	std::vector<std::map<std::string, std::string>>
+	processResponse(const lsp::TextDocument_ReferencesResult &result);
 
-	// Request tracking
-	int currentRequestId = 2000; // Start at different value than EditorLSP
+	// Helper function to print structured results
+	void printResponse(const std::vector<std::map<std::string, std::string>> &results);
 
-	// Definition options state (remains the same)
-	std::vector<DefinitionLocation> definitionLocations;
-	int selectedDefinitionIndex = 0;
-	bool showDefinitionOptions = false;
-	bool isEmbedded = false;
+	bool show;
+
+	// Async request handling
+	bool pending;
+	std::shared_ptr<std::future<void>> asyncResponse;
 };
 
-// Global instance (remains the same)
+// Global instance
 extern LSPGotoDef gLSPGotoDef;

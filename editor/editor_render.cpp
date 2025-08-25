@@ -6,11 +6,8 @@
 
 #include "editor_render.h"
 #include "../files/file_finder.h"
-#include "../lsp/lsp.h"
-#include "../lsp/lsp_autocomplete.h"
-#include "../lsp/lsp_goto_def.h"
-#include "../lsp/lsp_goto_ref.h"
-#include "../lsp/lsp_symbol_info.h"
+
+#include "../lsp/lsp_client.h"
 #include "editor.h"
 #include "editor_bookmarks.h"
 #include "editor_cursor.h"
@@ -35,6 +32,9 @@ void EditorRender::renderEditorFrame()
 
 	gFileFinder.renderWindow();
 
+	// Render all LSP UI components
+	gLSPClient.render();
+
 	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + editor_state.total_height +
 						 editor_state.editor_top_margin);
 	ImGui::Dummy(ImVec2(0, 0)); // Required by ImGui 1.92+ to extend parent boundaries
@@ -47,16 +47,6 @@ void EditorRender::renderEditorFrame()
 	gEditorScroll.setScrollPosition(ImVec2(scrollX, scrollY));
 	gEditorScroll.setScrollX(scrollX);
 
-	if (gLSPGotoDef.hasDefinitionOptions())
-	{
-		gLSPGotoDef.renderDefinitionOptions();
-	}
-	if (gLSPGotoRef.hasReferenceOptions())
-	{
-		gLSPGotoRef.renderReferenceOptions();
-	}
-
-	gLSPSymbolInfo.renderSymbolInfo();
 	// End the editor child window
 	ImGui::EndChild();
 	ImGui::PopStyleColor(4);

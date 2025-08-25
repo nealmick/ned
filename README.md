@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/74af4120-7cf7-4e8c-9b60-7e2aa3228be0
 ## Build from source
 #### Prerequisites
 CMake (version 3.10 or higher)
-C++17 compatible compiler
+C++20 compatible compiler
 OpenGL
 GLFW3
 Glew
@@ -50,11 +50,11 @@ cd ned
 git submodule init
 git submodule update
 
-# macOS (Intel and ARM)
+# macOS Intel/ARM)
 brew install clang-format cmake llvm glfw glew pkg-config curl
 
-# Ubuntu (may require patching logic, currently un-tested)
-sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-essential libcurl4-openssl-dev clang-format mesa-utils
+# Ubuntu/Debian
+sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config clang libcurl4-openssl-dev clang-format mesa-utils
 
 # For Windows, the dependencies are installed using the build script
 ```
@@ -62,7 +62,7 @@ sudo apt install cmake libglfw3-dev libglew-dev libgtk-3-dev pkg-config build-es
 ## Building the Project
 
 
-### macOS/Linux
+### MacOS and Linux (ubuntu/debian)
 ```sh
 ./build.sh
 ```

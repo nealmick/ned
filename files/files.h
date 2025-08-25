@@ -8,7 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include "../editor/editor.h"
-#include "../lsp/lsp.h"
+
 #include "file_content_search.h"
 #include "file_monitor.h"
 #include "file_tree.h"
@@ -128,8 +128,6 @@ class FileExplorer
 
 	// Dialog state
 	bool showFileDialog() const { return _showFileDialog; }
-
-	void notifyLSPFileOpen(const std::string &filePath);
 
 	bool _unsavedChanges = false;
 	std::string selectedFolder;
