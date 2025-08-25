@@ -104,8 +104,9 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, windowBg);
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
-	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-						  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Disable hover highlighting
+	ImGui::PushStyleColor(
+		ImGuiCol_HeaderHovered,
+		ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Default transparent hover (overridden per-item)
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
 
 	if (ImGui::Begin("##LSPUriOptions", nullptr, windowFlags))
@@ -186,6 +187,22 @@ void LSPUriOptions::render(const std::string &title,
 				std::string label =
 					filename + ":" + option.at("row") + ":" + option.at("col");
 
+				// For selected items, override hover color to maintain selection visibility
+				if (is_selected)
+				{
+					ImGui::PushStyleColor(
+						ImGuiCol_HeaderHovered,
+						ImVec4(1.0f,
+							   0.1f,
+							   0.7f,
+							   0.3f)); // Same as selection color to avoid color change
+				} else
+				{
+					ImGui::PushStyleColor(
+						ImGuiCol_HeaderHovered,
+						ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Transparent for non-selected
+				}
+
 				if (ImGui::Selectable(label.c_str(),
 									  is_selected,
 									  ImGuiSelectableFlags_AllowDoubleClick |
@@ -200,6 +217,9 @@ void LSPUriOptions::render(const std::string &title,
 						editor_state.block_input = false;
 					}
 				}
+
+				// Always pop the hover style color we pushed
+				ImGui::PopStyleColor();
 
 				if (is_selected && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) ||
 									ImGui::IsKeyPressed(ImGuiKey_DownArrow)))
