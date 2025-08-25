@@ -175,11 +175,11 @@ void LSPDashboard::refreshServerInfo()
 		std::string serverPath = "";
 		for (const auto &path : serverConfig.serverPaths)
 		{
-			// Note: We could use expandEnvironmentVariables here if we made it public
-			// For now, we'll do basic path checking
-			if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path))
+			// Expand environment variables like %USERNAME% on Windows
+			std::string expandedPath = gLSPClient.expandEnvironmentVariables(path);
+			if (std::filesystem::exists(expandedPath) && std::filesystem::is_regular_file(expandedPath))
 			{
-				serverPath = path;
+				serverPath = expandedPath;
 				break;
 			}
 		}
