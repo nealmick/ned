@@ -13,7 +13,10 @@
 // Global instance
 LSPClient gLSPClient;
 
-LSPClient::LSPClient() : initialized(false), running(false) {}
+LSPClient::LSPClient() : initialized(false), running(false)
+{
+	initializeLanguageServers();
+}
 
 LSPClient::~LSPClient() { shutdown(); }
 
@@ -70,68 +73,16 @@ std::string LSPClient::detectLanguageFromFile(const std::string &filePath) const
 	// Convert to lowercase
 	std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
-	if (extension == ".cpp" || extension == ".cxx" || extension == ".cc" ||
-		extension == ".c" || extension == ".h" || extension == ".hpp" ||
-		extension == ".hxx" || extension == ".c++" || extension == ".h++")
+	// Search through configured language servers
+	for (const auto &server : languageServers)
 	{
-		return "cpp";
-	}
-
-	if (extension == ".ts" || extension == ".tsx" || extension == ".js" ||
-		extension == ".jsx" || extension == ".mjs" || extension == ".cjs")
-	{
-		return "typescript";
-	}
-
-	if (extension == ".py" || extension == ".pyx" || extension == ".pyi" ||
-		extension == ".pyw")
-	{
-		return "python";
-	}
-
-	if (extension == ".go" || extension == ".mod")
-	{
-		return "go";
-	}
-
-	if (extension == ".rs")
-	{
-		return "rust";
-	}
-
-	if (extension == ".java")
-	{
-		return "java";
-	}
-
-	if (extension == ".cs")
-	{
-		return "csharp";
-	}
-
-	if (extension == ".php")
-	{
-		return "php";
-	}
-
-	if (extension == ".rb")
-	{
-		return "ruby";
-	}
-
-	if (extension == ".swift")
-	{
-		return "swift";
-	}
-
-	if (extension == ".kt" || extension == ".kts")
-	{
-		return "kotlin";
-	}
-
-	if (extension == ".scala" || extension == ".sc")
-	{
-		return "scala";
+		for (const auto &ext : server.fileExtensions)
+		{
+			if (extension == ext)
+			{
+				return server.language;
+			}
+		}
 	}
 
 	return "";
@@ -168,113 +119,27 @@ std::string LSPClient::expandEnvironmentVariables(const std::string &path) const
 
 std::string LSPClient::findServerPath(const std::string &language) const
 {
-	// Cross-platform server path detectionas
-	std::vector<std::string> searchPaths;
+	// Find the language server configuration
+	const LanguageServerInfo *serverInfo = nullptr;
+	for (const auto &server : languageServers)
+	{
+		if (server.language == language)
+		{
+			serverInfo = &server;
+			break;
+		}
+	}
 
-	if (language == "cpp")
+	if (!serverInfo)
 	{
-		// Common clangd paths
-		searchPaths = {"clangd",
-					   "/usr/bin/clangd",
-					   "/usr/local/bin/clangd",
-					   "/opt/homebrew/bin/clangd",
-					   "C:/Program Files/LLVM/bin/clangd.exe",
-					   "C:/Users/%USERNAME%/source/"
-					   "clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"};
-	} else if (language == "typescript")
-	{
-		// TypeScript language server
-		searchPaths = {
-			"typescript-language-server",
-			"/usr/bin/typescript-language-server",
-			"/usr/local/bin/typescript-language-server",
-			"/opt/homebrew/bin/typescript-language-server",
-			"C:/Users/%USERNAME%/AppData/Roaming/npm/typescript-language-server.cmd"};
-	} else if (language == "python")
-	{
-		// Pyright language server
-		searchPaths = {"pyright-langserver",
-					   "/usr/bin/pyright-langserver",
-					   "/usr/local/bin/pyright-langserver",
-					   "/opt/homebrew/bin/pyright-langserver",
-					   "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd",
-					   "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver"};
-	} else if (language == "go")
-	{
-		// Go language server
-		searchPaths = {"gopls",
-					   "/usr/bin/gopls",
-					   "/usr/local/bin/gopls",
-					   "/opt/homebrew/bin/gopls",
-					   "C:/Users/%USERNAME%/go/bin/gopls.exe"};
-	} else if (language == "rust")
-	{
-		// Rust analyzer
-		searchPaths = {"rust-analyzer",
-					   "/usr/bin/rust-analyzer",
-					   "/usr/local/bin/rust-analyzer",
-					   "/opt/homebrew/bin/rust-analyzer",
-					   "C:/Users/%USERNAME%/.cargo/bin/rust-analyzer.exe"};
-	} else if (language == "java")
-	{
-		// Eclipse JDT Language Server
-		searchPaths = {
-			"jdtls", "/usr/bin/jdtls", "/usr/local/bin/jdtls", "/opt/homebrew/bin/jdtls"};
-	} else if (language == "csharp")
-	{
-		// OmniSharp language server
-		searchPaths = {"omnisharp",
-					   "/usr/bin/omnisharp",
-					   "/usr/local/bin/omnisharp",
-					   "/opt/homebrew/bin/omnisharp",
-					   "C:/Users/%USERNAME%/.dotnet/tools/omnisharp.exe"};
-	} else if (language == "php")
-	{
-		// PHP language server
-		searchPaths = {"phpactor",
-					   "/usr/bin/phpactor",
-					   "/usr/local/bin/phpactor",
-					   "/opt/homebrew/bin/phpactor",
-					   "intelephense",
-					   "/usr/bin/intelephense",
-					   "/usr/local/bin/intelephense",
-					   "/opt/homebrew/bin/intelephense"};
-	} else if (language == "ruby")
-	{
-		// Ruby language server
-		searchPaths = {"solargraph",
-					   "/usr/bin/solargraph",
-					   "/usr/local/bin/solargraph",
-					   "/opt/homebrew/bin/solargraph",
-					   "C:/Ruby32-x64/bin/solargraph.bat"};
-	} else if (language == "swift")
-	{
-		// Swift language server
-		searchPaths = {"sourcekit-lsp",
-					   "/usr/bin/sourcekit-lsp",
-					   "/usr/local/bin/sourcekit-lsp",
-					   "/opt/homebrew/bin/sourcekit-lsp",
-					   "/Applications/Xcode.app/Contents/Developer/Toolchains/"
-					   "XcodeDefault.xctoolchain/usr/bin/sourcekit-lsp"};
-	} else if (language == "kotlin")
-	{
-		// Kotlin language server
-		searchPaths = {"kotlin-language-server",
-					   "/usr/bin/kotlin-language-server",
-					   "/usr/local/bin/kotlin-language-server",
-					   "/opt/homebrew/bin/kotlin-language-server"};
-	} else if (language == "scala")
-	{
-		// Metals language server
-		searchPaths = {"metals",
-					   "/usr/bin/metals",
-					   "/usr/local/bin/metals",
-					   "/opt/homebrew/bin/metals"};
+		std::cout << "LSP: No server configuration found for " << language << std::endl;
+		return "";
 	}
 
 	std::cout << "LSP: Checking paths for " << language << " server:" << std::endl;
+
 	// Check if any of the paths exist and are executable
-	for (const auto &path : searchPaths)
+	for (const auto &path : serverInfo->serverPaths)
 	{
 		std::string expandedPath = expandEnvironmentVariables(path);
 		std::cout << "LSP:   Checking: " << expandedPath;
@@ -323,16 +188,18 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	// Create server process with appropriate arguments
 	std::vector<std::string> args;
-	if (language == "python")
-	{
-		args = {"--stdio"};
-	} else if (language == "typescript")
-	{
-		args = {"--stdio"};
-	}
-	// gopls works in stdio mode by default
 
-	// Add flags for all servers
+	// Find server configuration and use its arguments
+	for (const auto &server : languageServers)
+	{
+		if (server.language == language)
+		{
+			args = server.serverArgs; // Copy the server-specific args
+			break;
+		}
+	}
+
+	// Add global flags for all servers
 	if (!serverArgs.empty())
 	{
 		args.push_back(serverArgs);
@@ -632,4 +499,93 @@ void LSPClient::render()
 	gLSPSymbolInfo.render();
 	gLSPGotoDef.render();
 	gLSPGotoRef.render();
+}
+
+void LSPClient::initializeLanguageServers()
+{
+	languageServers.clear();
+
+	// C++
+	languageServers.push_back({
+		"cpp",
+		{".cpp", ".cxx", ".cc", ".c", ".h", ".hpp", ".hxx", ".c++", ".h++"},
+		{"clangd",
+		 "/usr/bin/clangd",
+		 "/usr/local/bin/clangd",
+		 "/opt/homebrew/bin/clangd",
+		 "C:/Program Files/LLVM/bin/clangd.exe",
+		 "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/"
+		 "clangd.exe"},
+		{} // No special args for C++
+	});
+
+	// TypeScript/JavaScript
+	languageServers.push_back(
+		{"typescript",
+		 {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"},
+		 {"typescript-language-server",
+		  "/usr/bin/typescript-language-server",
+		  "/usr/local/bin/typescript-language-server",
+		  "/opt/homebrew/bin/typescript-language-server",
+		  "C:/Users/%USERNAME%/AppData/Roaming/npm/typescript-language-server.cmd"},
+		 {"--stdio"}});
+
+	// Python
+	languageServers.push_back(
+		{"python",
+		 {".py", ".pyx", ".pyi", ".pyw"},
+		 {"pyright-langserver",
+		  "/usr/bin/pyright-langserver",
+		  "/usr/local/bin/pyright-langserver",
+		  "/opt/homebrew/bin/pyright-langserver",
+		  "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd",
+		  "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver"},
+		 {"--stdio"}});
+
+	// Go
+	languageServers.push_back({"go",
+							   {".go", ".mod"},
+							   {"gopls",
+								"/usr/bin/gopls",
+								"/usr/local/bin/gopls",
+								"/opt/homebrew/bin/gopls",
+								"C:/Users/%USERNAME%/go/bin/gopls.exe"},
+							   {}});
+
+	// Rust
+	languageServers.push_back({"rust",
+							   {".rs"},
+							   {"rust-analyzer",
+								"/usr/bin/rust-analyzer",
+								"/usr/local/bin/rust-analyzer",
+								"/opt/homebrew/bin/rust-analyzer",
+								"C:/Users/%USERNAME%/.cargo/bin/rust-analyzer.exe"},
+							   {}});
+
+	// Java
+	languageServers.push_back(
+		{"java",
+		 {".java"},
+		 {"jdtls", "/usr/bin/jdtls", "/usr/local/bin/jdtls", "/opt/homebrew/bin/jdtls"},
+		 {}});
+
+	// C#
+	languageServers.push_back({"csharp",
+							   {".cs"},
+							   {"omnisharp",
+								"/usr/bin/omnisharp",
+								"/usr/local/bin/omnisharp",
+								"/opt/homebrew/bin/omnisharp",
+								"C:/Users/%USERNAME%/.dotnet/tools/omnisharp.exe"},
+							   {}});
+}
+
+std::vector<std::string> LSPClient::getSupportedLanguages() const
+{
+	std::vector<std::string> languages;
+	for (const auto &server : languageServers)
+	{
+		languages.push_back(server.language);
+	}
+	return languages;
 }
