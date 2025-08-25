@@ -238,7 +238,7 @@ void LSPUriOptions::render(const std::string &title,
 		// Fixed footer
 		ImGui::BeginChild("##Footer", ImVec2(0, footerHeight), false);
 		ImGui::Separator();
-		ImGui::Text("Up/Down arrows, Enter to select, Escape to close");
+		ImGui::Text("Up/Down Enter");
 		ImGui::EndChild();
 
 		// Handle Enter key
