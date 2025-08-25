@@ -1,4 +1,5 @@
 #include "lsp_uri_options.h"
+#include "../util/settings.h"
 #include "imgui.h"
 #include "lsp_includes.h"
 #include <algorithm>
@@ -90,13 +91,18 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
-	// Theme colors (simplified - we can get from settings later)
-	ImVec4 windowBg = ImVec4(0.1f, 0.1f, 0.1f, 0.95f);
+	// Theme colors from settings
+	extern Settings gSettings;
+	ImVec4 windowBg =
+		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
+			   gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
+			   gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
+			   1.0f);
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, windowBg);
 	ImGui::PushStyleColor(ImGuiCol_ChildBg,
 						  windowBg); // Match child background to window background
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, windowBg);
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
 						  ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Disable hover highlighting
