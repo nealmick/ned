@@ -1,0 +1,82 @@
+{
+  "languages": [
+    {
+      "language_name": "cpp",
+      "language_file_extensions": [".cpp", ".cxx", ".cc", ".c", ".h", ".hpp", ".hxx", ".c++", ".h++"],
+      "language_server_paths": [
+        "clangd",
+        "/usr/bin/clangd",
+        "/usr/local/bin/clangd",
+        "/opt/homebrew/bin/clangd",
+        "C:/Program Files/LLVM/bin/clangd.exe",
+        "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"
+      ]
+    },
+    {
+      "language_name": "typescript",
+      "language_file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "language_server_paths": [
+        "typescript-language-server",
+        "/usr/bin/typescript-language-server",
+        "/usr/local/bin/typescript-language-server",
+        "/opt/homebrew/bin/typescript-language-server",
+        "C:/Users/%USERNAME%/AppData/Roaming/npm/typescript-language-server.cmd"
+      ]
+    },
+    {
+      "language_name": "python",
+      "language_file_extensions": [".py", ".pyx", ".pyi", ".pyw"],
+      "language_server_paths": [
+        "pyright-langserver",
+        "/usr/bin/pyright-langserver",
+        "/usr/local/bin/pyright-langserver",
+        "/opt/homebrew/bin/pyright-langserver",
+        "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd",
+        "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver"
+      ]
+    },
+    {
+      "language_name": "go",
+      "language_file_extensions": [".go", ".mod"],
+      "language_server_paths": [
+        "gopls",
+        "/usr/bin/gopls",
+        "/usr/local/bin/gopls",
+        "/opt/homebrew/bin/gopls",
+        "C:/Users/%USERNAME%/go/bin/gopls.exe"
+      ]
+    },
+    {
+      "language_name": "rust",
+      "language_file_extensions": [".rs"],
+      "language_server_paths": [
+        "rust-analyzer",
+        "/usr/bin/rust-analyzer",
+        "/usr/local/bin/rust-analyzer",
+        "/opt/homebrew/bin/rust-analyzer",
+        "C:/Users/%USERNAME%/.cargo/bin/rust-analyzer.exe"
+      ]
+    },
+    {
+      "language_name": "java",
+      "language_file_extensions": [".java"],
+      "language_server_paths": [
+        "jdtls",
+        "/usr/bin/jdtls",
+        "/usr/local/bin/jdtls",
+        "/opt/homebrew/bin/jdtls"
+      ]
+    },
+    {
+      "language_name": "csharp",
+      "language_file_extensions": [".cs"],
+      "language_server_paths": [
+        "omnisharp",
+        "/usr/bin/omnisharp",
+        "/usr/local/bin/omnisharp",
+        "/opt/homebrew/bin/omnisharp",
+        "C:/Users/%USERNAME%/.dotnet/tools/omnisharp.exe"
+      ]
+    }
+  ]
+}

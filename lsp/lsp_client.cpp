@@ -6,9 +6,12 @@
 #include "lsp_goto_ref.h"
 #include "lsp_symbol_info.h"
 
+#include "../lib/json.hpp"
+#include "../util/settings_file_manager.h"
 #include "imgui.h"
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 
 // Global instance
 LSPClient gLSPClient;
@@ -505,79 +508,63 @@ void LSPClient::initializeLanguageServers()
 {
 	languageServers.clear();
 
-	// C++
-	languageServers.push_back({
-		"cpp",
-		{".cpp", ".cxx", ".cc", ".c", ".h", ".hpp", ".hxx", ".c++", ".h++"},
-		{"clangd",
-		 "/usr/bin/clangd",
-		 "/usr/local/bin/clangd",
-		 "/opt/homebrew/bin/clangd",
-		 "C:/Program Files/LLVM/bin/clangd.exe",
-		 "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/"
-		 "clangd.exe"},
-		{} // No special args for C++
-	});
+	std::string lspJsonPath =
+		(std::filesystem::path(SettingsFileManager::getUserSettingsPath()).parent_path() /
+		 "lsp.json")
+			.string();
+	std::ifstream file(lspJsonPath);
+	if (!file.is_open())
+	{
+		std::cerr << "[LSP] Failed to open lsp.json file: " << lspJsonPath << std::endl;
+		return;
+	}
 
-	// TypeScript/JavaScript
-	languageServers.push_back(
-		{"typescript",
-		 {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"},
-		 {"typescript-language-server",
-		  "/usr/bin/typescript-language-server",
-		  "/usr/local/bin/typescript-language-server",
-		  "/opt/homebrew/bin/typescript-language-server",
-		  "C:/Users/%USERNAME%/AppData/Roaming/npm/typescript-language-server.cmd"},
-		 {"--stdio"}});
+	nlohmann::json jsonData;
+	try
+	{
+		file >> jsonData;
+	} catch (const std::exception &e)
+	{
+		std::cerr << "[LSP] Failed to parse lsp.json: " << e.what() << std::endl;
+		return;
+	}
 
-	// Python
-	languageServers.push_back(
-		{"python",
-		 {".py", ".pyx", ".pyi", ".pyw"},
-		 {"pyright-langserver",
-		  "/usr/bin/pyright-langserver",
-		  "/usr/local/bin/pyright-langserver",
-		  "/opt/homebrew/bin/pyright-langserver",
-		  "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver.cmd",
-		  "C:/Users/%USERNAME%/AppData/Roaming/npm/pyright-langserver"},
-		 {"--stdio"}});
+	if (!jsonData.contains("languages") || !jsonData["languages"].is_array())
+	{
+		std::cerr << "[LSP] Invalid lsp.json format: missing 'languages' array"
+				  << std::endl;
+		return;
+	}
 
-	// Go
-	languageServers.push_back({"go",
-							   {".go", ".mod"},
-							   {"gopls",
-								"/usr/bin/gopls",
-								"/usr/local/bin/gopls",
-								"/opt/homebrew/bin/gopls",
-								"C:/Users/%USERNAME%/go/bin/gopls.exe"},
-							   {}});
+	for (const auto &lang : jsonData["languages"])
+	{
+		if (!lang.contains("language_name") ||
+			!lang.contains("language_file_extensions") ||
+			!lang.contains("language_server_paths"))
+		{
+			std::cerr << "[LSP] Skipping invalid language entry in lsp.json" << std::endl;
+			continue;
+		}
 
-	// Rust
-	languageServers.push_back({"rust",
-							   {".rs"},
-							   {"rust-analyzer",
-								"/usr/bin/rust-analyzer",
-								"/usr/local/bin/rust-analyzer",
-								"/opt/homebrew/bin/rust-analyzer",
-								"C:/Users/%USERNAME%/.cargo/bin/rust-analyzer.exe"},
-							   {}});
+		LanguageServerInfo serverInfo;
+		serverInfo.language = lang["language_name"];
+		serverInfo.fileExtensions = lang["language_file_extensions"];
+		serverInfo.serverPaths = lang["language_server_paths"];
 
-	// Java
-	languageServers.push_back(
-		{"java",
-		 {".java"},
-		 {"jdtls", "/usr/bin/jdtls", "/usr/local/bin/jdtls", "/opt/homebrew/bin/jdtls"},
-		 {}});
+		// Default args based on language
+		if (serverInfo.language == "typescript" || serverInfo.language == "python")
+		{
+			serverInfo.serverArgs = {"--stdio"};
+		} else
+		{
+			serverInfo.serverArgs = {};
+		}
 
-	// C#
-	languageServers.push_back({"csharp",
-							   {".cs"},
-							   {"omnisharp",
-								"/usr/bin/omnisharp",
-								"/usr/local/bin/omnisharp",
-								"/opt/homebrew/bin/omnisharp",
-								"C:/Users/%USERNAME%/.dotnet/tools/omnisharp.exe"},
-							   {}});
+		languageServers.push_back(serverInfo);
+	}
+
+	std::cout << "[LSP] Loaded " << languageServers.size()
+			  << " language servers from lsp.json" << std::endl;
 }
 
 std::vector<std::string> LSPClient::getSupportedLanguages() const
