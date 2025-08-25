@@ -177,7 +177,8 @@ void LSPDashboard::refreshServerInfo()
 		{
 			// Expand environment variables like %USERNAME% on Windows
 			std::string expandedPath = gLSPClient.expandEnvironmentVariables(path);
-			if (std::filesystem::exists(expandedPath) && std::filesystem::is_regular_file(expandedPath))
+			if (std::filesystem::exists(expandedPath) &&
+				std::filesystem::is_regular_file(expandedPath))
 			{
 				serverPath = expandedPath;
 				break;
