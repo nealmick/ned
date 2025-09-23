@@ -31,7 +31,7 @@ void LSPClient::setWorkspace(const std::string &workspacePath)
 		// New workspace, reset everything
 		shutdown();
 		this->workspacePath = workspacePath;
-		std::cout << "LSP: Set workspace to: " << workspacePath << std::endl;
+		// std::cout << "LSP: Set workspace to: " << workspacePath << std::endl;
 	}
 }
 
@@ -54,14 +54,14 @@ bool LSPClient::init(const std::string &filePath)
 		return false;
 	}
 
-	std::cout << "LSP: First recognized file: " << filePath
-			  << " (language: " << detectedLanguage << ")" << std::endl;
+	// std::cout << "LSP: First recognized file: " << filePath
+	//	<< " (language: " << detectedLanguage << ")" << std::endl;
 
 	if (startServer(detectedLanguage, ""))
 	{
 		initialized = true;
-		std::cout << "LSP: Successfully initialized for " << detectedLanguage
-				  << std::endl;
+		// std::cout << "LSP: Successfully initialized for " << detectedLanguage
+		//	<< std::endl;
 		return true;
 	}
 
@@ -140,13 +140,13 @@ std::string LSPClient::findServerPath(const std::string &language) const
 		return "";
 	}
 
-	std::cout << "LSP: Checking paths for " << language << " server:" << std::endl;
+	// std::cout << "LSP: Checking paths for " << language << " server:" << std::endl;
 
 	// Check if any of the paths exist and are executable
 	for (const auto &path : serverInfo->serverPaths)
 	{
 		std::string expandedPath = expandEnvironmentVariables(path);
-		std::cout << "LSP:   Checking: " << expandedPath;
+		// std::cout << "LSP:   Checking: " << expandedPath;
 		if (std::filesystem::exists(expandedPath))
 		{
 			if (std::filesystem::is_regular_file(expandedPath))
@@ -171,8 +171,8 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 {
 	if (initialized)
 	{
-		std::cout << "LSP: Server already initialized for language: " << language
-				  << std::endl;
+		// std::cout << "LSP: Server already initialized for language: " << language
+		//			  << std::endl;
 		return true;
 	}
 
@@ -180,9 +180,9 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 	std::string actualServerPath =
 		serverPath.empty() ? findServerPath(language) : serverPath;
 
-	std::cout << "LSP: Looking for server for language: " << language << std::endl;
-	std::cout << "LSP: Server path: "
-			  << (actualServerPath.empty() ? "not found" : actualServerPath) << std::endl;
+	// std::cout << "LSP: Looking for server for language: " << language << std::endl;
+	// std::cout << "LSP: Server path: "
+	//	<< (actualServerPath.empty() ? "not found" : actualServerPath) << std::endl;
 
 	if (actualServerPath.empty())
 	{
@@ -211,13 +211,13 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	try
 	{
-		std::cout << "LSP: Creating server process..." << std::endl;
+		// std::cout << "LSP: Creating server process..." << std::endl;
 		serverProcess = std::make_unique<lsp::Process>(actualServerPath, args);
 
-		std::cout << "LSP: Creating connection..." << std::endl;
+		// std::cout << "LSP: Creating connection..." << std::endl;
 		connection = std::make_unique<lsp::Connection>(serverProcess->stdIO());
 
-		std::cout << "LSP: Creating message handler..." << std::endl;
+		// std::cout << "LSP: Creating message handler..." << std::endl;
 		messageHandler = std::make_unique<lsp::MessageHandler>(*connection);
 
 		// Send LSP initialize request
@@ -230,7 +230,7 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 		// Start message processing loop
 		startMessageProcessingLoop();
 
-		std::cout << "LSP: Server started successfully for " << language << std::endl;
+		// std::cout << "LSP: Server started successfully for " << language << std::endl;
 		return true;
 
 	} catch (const std::exception &e)
@@ -343,7 +343,7 @@ bool LSPClient::sendLSPInitialize()
 
 	try
 	{
-		std::cout << "LSP: Sending initialize request..." << std::endl;
+		// std::cout << "LSP: Sending initialize request..." << std::endl;
 
 		// Create initialize params
 		lsp::InitializeParams params;
@@ -363,15 +363,15 @@ bool LSPClient::sendLSPInitialize()
 			try
 			{
 				auto result = future.get();
-				std::cout << "LSP: Initialize request completed successfully"
-						  << std::endl;
+				// std::cout << "LSP: Initialize request completed successfully"
+				//	<< std::endl;
 
 				// Send initialized notification
 				lsp::InitializedParams initParams;
 				messageHandler->sendNotification<lsp::notifications::Initialized>(
 					std::move(initParams));
 
-				std::cout << "LSP: Server is now initialized and ready" << std::endl;
+				// std::cout << "LSP: Server is now initialized and ready" << std::endl;
 			} catch (const std::exception &e)
 			{
 				std::cerr << "LSP: Initialize response failed: " << e.what() << std::endl;
@@ -405,9 +405,9 @@ void LSPClient::didOpen(const std::string &filePath, const std::string &content)
 		messageHandler->sendNotification<lsp::notifications::TextDocument_DidOpen>(
 			std::move(params));
 
-		std::cout << "LSP: Sending didOpen for file: " << filePath << std::endl;
-		std::cout << "LSP: Document opened: " << filePath
-				  << " (content length: " << content.length() << ")" << std::endl;
+		// std::cout << "LSP: Sending didOpen for file: " << filePath << std::endl;
+		// std::cout << "LSP: Document opened: " << filePath
+		//			  << " (content length: " << content.length() << ")" << std::endl;
 	} catch (const std::exception &e)
 	{
 		std::cerr << "LSP: Failed to send didOpen: " << e.what() << std::endl;
@@ -449,12 +449,12 @@ void LSPClient::startMessageProcessingLoop()
 
 	running = true;
 	processingThread = std::thread(&LSPClient::messageProcessingThread, this);
-	std::cout << "LSP: Message processing thread started" << std::endl;
+	// std::cout << "LSP: Message processing thread started" << std::endl;
 }
 
 void LSPClient::messageProcessingThread()
 {
-	std::cout << "LSP: Message processing thread running" << std::endl;
+	// std::cout << "LSP: Message processing thread running" << std::endl;
 
 	try
 	{
@@ -467,7 +467,7 @@ void LSPClient::messageProcessingThread()
 		std::cerr << "LSP: Message processing thread error: " << e.what() << std::endl;
 	}
 
-	std::cout << "LSP: Message processing thread exiting" << std::endl;
+	// std::cout << "LSP: Message processing thread exiting" << std::endl;
 }
 
 bool LSPClient::keybinds()

@@ -115,7 +115,7 @@ LSPGotoDef::processResponse(const lsp::TextDocument_ReferencesResult &result)
 void LSPGotoDef::printResponse(
 	const std::vector<std::map<std::string, std::string>> &results)
 {
-	std::cout << "LSP GotoDef: [" << std::endl;
+	// std::cout << "LSP GotoDef: [" << std::endl;
 	for (const auto &result : results)
 	{
 		std::cout << "  {";
