@@ -82,10 +82,17 @@ void FileMonitor::checkForExternalFileChanges()
 	{
 		try
 		{
+			std::string filename = fs::path(filePath).filename().string();
+
+			// Skip files that should be ignored
+			if (shouldIgnoreFile(filename))
+			{
+				continue;
+			}
+
 			if (!fs::exists(filePath))
 			{
 				// File was deleted externally
-				std::string filename = fs::path(filePath).filename().string();
 				std::cout << "[FileMonitor] File was deleted externally: " << filename
 						  << std::endl;
 				filesToRemove.push_back(filePath);
@@ -124,8 +131,25 @@ void FileMonitor::checkForExternalFileChanges()
 		}
 	}
 
-	// Remove deleted files
+	// Remove deleted files and files that should be ignored
 	for (const auto &filePath : filesToRemove)
+	{
+		_monitoredFiles.erase(filePath);
+		_fileModificationTimes.erase(filePath);
+		_fileContentHashes.erase(filePath);
+	}
+
+	// Also remove any files that should be ignored (cleanup for existing monitored files)
+	std::vector<std::string> ignoredFilesToRemove;
+	for (const auto &filePath : _monitoredFiles)
+	{
+		std::string filename = fs::path(filePath).filename().string();
+		if (shouldIgnoreFile(filename))
+		{
+			ignoredFilesToRemove.push_back(filePath);
+		}
+	}
+	for (const auto &filePath : ignoredFilesToRemove)
 	{
 		_monitoredFiles.erase(filePath);
 		_fileModificationTimes.erase(filePath);
@@ -219,10 +243,8 @@ void FileMonitor::scanProjectFilesForMonitoring()
 					std::string filePath = entry.path().string();
 					std::string filename = entry.path().filename().string();
 
-					// Skip specific files
-					if (filename == ".undo-redo-ned.json" ||
-						filename == ".ned-agent-history.json" ||
-						filename == "open_router_key.json")
+					// Skip files that should be ignored
+					if (shouldIgnoreFile(filename))
 					{
 						continue;
 					}
@@ -286,4 +308,10 @@ std::string FileMonitor::calculateFileHash(const std::string &content)
 	std::stringstream ss;
 	ss << std::hex << hasher(content);
 	return ss.str();
+}
+
+bool FileMonitor::shouldIgnoreFile(const std::string &filename)
+{
+	return filename == ".undo-redo-ned.json" || filename == ".ned-agent-history.json" ||
+		   filename == "open_router_key.json";
 }
