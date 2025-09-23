@@ -392,9 +392,9 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     [containerView setWantsLayer:YES];
 
     // Use appropriate corner radius based on macOS version
-    // macOS 15.2+ (Tahoe) uses 26pt, earlier versions use 12pt
+    // macOS Tahoe (16.0+) uses 26pt, earlier versions use 12pt
     CGFloat cornerRadius = 12.0f; // Default for older versions
-    if (@available(macOS 15.2, *)) {
+    if (@available(macOS 16.0, *)) {
         cornerRadius = 26.0f; // Tahoe liquid glass design
     }
     containerView.layer.cornerRadius = cornerRadius;
