@@ -152,7 +152,18 @@ void FileContentSearch::handleFindBoxActivation()
 		ClosePopper::closeAllExcept(ClosePopper::Type::LineJump);
 		editor_state.active_find_box = true;
 		editor_state.block_input = true;
-		findText = "";
+
+		// Check if there's an active selection and use it as search text
+		if (editor_state.selection_active &&
+			editor_state.selection_start != editor_state.selection_end)
+		{
+			int start =
+				std::min(editor_state.selection_start, editor_state.selection_end);
+			int end = std::max(editor_state.selection_start, editor_state.selection_end);
+			findText = editor_state.fileContent.substr(start, end - start);
+		}
+		// If no selection, keep the existing findText (don't clear it)
+
 		findBoxShouldFocus = true; // force focus on activation
 	}
 	// If Escape is pressed, deactivate the find box.
@@ -224,6 +235,9 @@ void FileContentSearch::renderFindBox()
 		static char inputBuffer[256] = "";
 		if (findBoxShouldFocus)
 		{
+			// Copy findText to input buffer when focusing
+			strncpy(inputBuffer, findText.c_str(), sizeof(inputBuffer) - 1);
+			inputBuffer[sizeof(inputBuffer) - 1] = '\0';
 			ImGui::SetKeyboardFocusHere();
 			findBoxShouldFocus = false;
 		}

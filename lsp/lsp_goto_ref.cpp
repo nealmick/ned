@@ -116,7 +116,7 @@ LSPGotoRef::processResponse(const lsp::TextDocument_ReferencesResult &result)
 void LSPGotoRef::printResponse(
 	const std::vector<std::map<std::string, std::string>> &results)
 {
-	std::cout << "LSP GotoRef: [" << std::endl;
+	// std::cout << "LSP GotoRef: [" << std::endl;
 	for (const auto &result : results)
 	{
 		std::cout << "  {";

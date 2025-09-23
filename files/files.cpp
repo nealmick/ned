@@ -483,7 +483,7 @@ void FileExplorer::loadFileContent(const std::string &path,
 		// Notify LSP about the opened file
 		if (gLSPClient.isInitialized())
 		{
-			std::cout << "LSP: Sending didOpen for file: " << path << std::endl;
+			// std::cout << "LSP: Sending didOpen for file: " << path << std::endl;
 			gLSPClient.didOpen(path, editor_state.fileContent);
 		}
 

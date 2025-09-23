@@ -58,8 +58,7 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 
 	try
 	{
-		// Add some debug output to see what's happening
-		std::cout << "[FileFinder] Scanning directory: " << projectDir << std::endl;
+		// std::cout << "[FileFinder] Scanning directory: " << projectDir << std::endl;
 
 		auto directoryIterator = fs::recursive_directory_iterator(projectDir);
 		int fileCount = 0;
@@ -115,7 +114,7 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 			}
 		}
 
-		std::cout << "[FileFinder] Found " << fileCount << " files" << std::endl;
+		// std::cout << "[FileFinder] Found " << fileCount << " files" << std::endl;
 
 		{
 			std::lock_guard<std::mutex> lock(fileListMutex);

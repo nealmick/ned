@@ -55,7 +55,7 @@ void LSPSymbolInfo::request(int line,
 						callback(std::get<lsp::MarkupContent>(contents).value);
 					} else
 					{
-						callback("Got hover data");
+						callback("Got hover data, but failed to process");
 					}
 				} else
 				{

@@ -390,7 +390,14 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     NSRect contentRect = [nswindow.contentView bounds];
     NSView* containerView = [[NSView alloc] initWithFrame:contentRect];
     [containerView setWantsLayer:YES];
-    containerView.layer.cornerRadius = 12.0f;
+
+    // Use appropriate corner radius based on macOS version
+    // macOS Tahoe (16.0+) uses 26pt, earlier versions use 12pt
+    CGFloat cornerRadius = 12.0f; // Default for older versions
+    if (@available(macOS 16.0, *)) {
+        cornerRadius = 26.0f; // Tahoe liquid glass design
+    }
+    containerView.layer.cornerRadius = cornerRadius;
     containerView.layer.masksToBounds = YES;
     containerView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 

@@ -48,6 +48,7 @@ class FileMonitor
 	// File change detection helpers
 	bool shouldReloadFile(const std::string &filePath);
 	std::string calculateFileHash(const std::string &content);
+	bool shouldIgnoreFile(const std::string &filename);
 
 	// Member variables
 	std::string _projectFolder;
