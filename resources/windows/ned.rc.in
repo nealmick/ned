@@ -1,10 +1,7 @@
-// Fallback / hand-edit copy. CMake configures resources/windows/ned.rc.in into the
-// build tree with an absolute path to ned.ico — that generated file is what gets
-// linked. Keep this in sync if you edit icons by hand without reconfiguring.
-//
-// Application icon: ID 1 is the shell's primary .exe icon.
-// Path is relative to this .rc file (resources/windows/ → resources/icons/).
-1 ICON "../icons/ned.ico"
+// Generated from ned.rc.in — do not edit the configured copy in the build tree.
+// Application icon: resource ID 1 is what Explorer / the shell use for the .exe.
+// Path is absolute so rc.exe does not depend on cwd vs .rc location.
+1 ICON "@NED_ICON_PATH@"
 
 // Version information
 1 VERSIONINFO

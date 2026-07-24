@@ -590,53 +590,79 @@ TreeSitter::detectLanguageAndQuery(const std::string &languageId)
 	if (!id.empty() && id[0] == '.')
 		id.erase(0, 1);
 
-	const std::filesystem::path resources = Settings::getAppResourcesPath();
-	const std::string query_prefix = std::filesystem::exists(resources / "queries")
-										 ? "queries/"
-										 : "editor/services/highlight/queries/";
+	// query file base name only; loadQueryFromCacheOrFile resolves the directory.
+	auto q = [](const char *name) { return std::string(name); };
 
 	if (id == "c")
-		return {tree_sitter_c(), query_prefix + "c.scm"};
+		return {tree_sitter_c(), q("c.scm")};
 	if (id == "cpp" || id == "h" || id == "hpp" || id == "mm" || id == "cc" || id == "cxx")
-		return {tree_sitter_cpp(), query_prefix + "cpp.scm"};
+		return {tree_sitter_cpp(), q("cpp.scm")};
 	if (id == "js" || id == "jsx")
-		return {tree_sitter_javascript(), query_prefix + "jsx.scm"};
+		return {tree_sitter_javascript(), q("jsx.scm")};
 	if (id == "py")
-		return {tree_sitter_python(), query_prefix + "python.scm"};
+		return {tree_sitter_python(), q("python.scm")};
 	if (id == "cs")
-		return {tree_sitter_c_sharp(), query_prefix + "csharp.scm"};
+		return {tree_sitter_c_sharp(), q("csharp.scm")};
 	if (id == "html" || id == "cshtml")
-		return {tree_sitter_html(), query_prefix + "html.scm"};
+		return {tree_sitter_html(), q("html.scm")};
 	if (id == "tsx" || id == "ts")
-		return {tree_sitter_tsx(), query_prefix + "tsx.scm"};
+		return {tree_sitter_tsx(), q("tsx.scm")};
 	if (id == "css")
-		return {tree_sitter_css(), query_prefix + "css.scm"};
+		return {tree_sitter_css(), q("css.scm")};
 	if (id == "java")
-		return {tree_sitter_java(), query_prefix + "java.scm"};
+		return {tree_sitter_java(), q("java.scm")};
 	if (id == "go")
-		return {tree_sitter_go(), query_prefix + "go.scm"};
+		return {tree_sitter_go(), q("go.scm")};
 	if (id == "tf" || id == "hcl")
-		return {tree_sitter_hcl(), query_prefix + "hcl.scm"};
+		return {tree_sitter_hcl(), q("hcl.scm")};
 	if (id == "json")
-		return {tree_sitter_json(), query_prefix + "json.scm"};
+		return {tree_sitter_json(), q("json.scm")};
 	if (id == "sh" || id == "bash")
-		return {tree_sitter_bash(), query_prefix + "sh.scm"};
+		return {tree_sitter_bash(), q("sh.scm")};
 	if (id == "kt" || id == "kts")
-		return {tree_sitter_kotlin(), query_prefix + "kotlin.scm"};
+		return {tree_sitter_kotlin(), q("kotlin.scm")};
 	if (id == "rs")
-		return {tree_sitter_rust(), query_prefix + "rs.scm"};
+		return {tree_sitter_rust(), q("rs.scm")};
 	if (id == "toml")
-		return {tree_sitter_toml(), query_prefix + "toml.scm"};
+		return {tree_sitter_toml(), q("toml.scm")};
 	if (id == "rb")
-		return {tree_sitter_ruby(), query_prefix + "rb.scm"};
+		return {tree_sitter_ruby(), q("rb.scm")};
 	return {};
 }
+
+namespace {
+
+// Packaged apps put queries next to resources (Windows portable, macOS Resources,
+// or /usr/lib/Ned on Debian). Dev trees keep them under editor/services/highlight.
+std::filesystem::path resolveQueryFile(const std::string &queryFile)
+{
+	namespace fs = std::filesystem;
+	const fs::path res = Settings::getAppResourcesPath();
+	const fs::path candidates[] = {
+		res / "queries" / queryFile,
+		res / "editor" / "services" / "highlight" / "queries" / queryFile,
+		fs::path("queries") / queryFile,
+		fs::path("editor") / "services" / "highlight" / "queries" / queryFile,
+#ifdef __linux__
+		// Deb: binary in /usr/lib/Ned (queries), assets often in /usr/share/Ned
+		fs::path("/usr/lib/Ned/queries") / queryFile,
+#endif
+	};
+	for (const fs::path &p : candidates)
+	{
+		if (fs::exists(p))
+			return p;
+	}
+	return candidates[0];
+}
+
+} // namespace
 
 TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
 											  const std::string &query_path)
 {
-	const std::string full_path =
-		(std::filesystem::path(Settings::getAppResourcesPath()) / query_path).string();
+	// query_path is a bare filename (e.g. "cpp.scm") after detectLanguageAndQuery.
+	const std::string full_path = resolveQueryFile(query_path).string();
 
 	if (auto it = queryCache.find(full_path); it != queryCache.end())
 		return it->second;

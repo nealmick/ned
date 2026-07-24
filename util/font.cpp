@@ -15,7 +15,9 @@ Description: Font management class implementation for NED text editor.
 
 std::string Font::fontResourcePath(const std::string &filename) const
 {
-	return Settings::getAppResourcesPath() + "/resources/fonts/" + filename;
+	return (std::filesystem::path(Settings::getAppResourcesPath()) / "resources" /
+			"fonts" / filename)
+		.string();
 }
 
 const ImWchar *Font::mainGlyphRanges() const

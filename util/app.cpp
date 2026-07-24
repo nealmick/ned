@@ -21,10 +21,24 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 #include "util/settings.h"
 #include "util/splitter.h"
 #include "util/welcome.h"
+#include <filesystem>
 #include <iostream>
+#include <vector>
+
+// PNG decode only — STB_IMAGE_IMPLEMENTATION lives in welcome.cpp
+#include "../lib/stb_image.h"
 
 #ifdef __APPLE__
 #include "macos_window.h"
+#endif
+
+#ifdef PLATFORM_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 #endif
 
 App::App(Settings &settings,
@@ -239,7 +253,67 @@ bool App::createWindow()
 			return false;
 		}
 	}
+
+	// Taskbar / title-bar icon. The .rc resource only covers Explorer's .exe icon;
+	// GLFW creates its own window class and does not pick that up automatically.
+	setWindowIcon();
 	return true;
+}
+
+void App::setWindowIcon()
+{
+	if (!window)
+		return;
+
+	namespace fs = std::filesystem;
+
+	// Prefer resources next to the packaged binary; fall back to cwd/dev layout.
+	const std::vector<fs::path> candidates = {
+		fs::path(Settings::getAppResourcesPath()) / "resources" / "icons" / "ned.png",
+		fs::path("resources") / "icons" / "ned.png",
+		fs::path("..") / "resources" / "icons" / "ned.png",
+	};
+
+	int width = 0;
+	int height = 0;
+	int channels = 0;
+	unsigned char *pixels = nullptr;
+	for (const fs::path &path : candidates)
+	{
+		pixels = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+		if (pixels)
+			break;
+	}
+
+	if (pixels && width > 0 && height > 0)
+	{
+		GLFWimage image;
+		image.width = width;
+		image.height = height;
+		image.pixels = pixels;
+		glfwSetWindowIcon(window, 1, &image);
+		stbi_image_free(pixels);
+	}
+
+#ifdef PLATFORM_WINDOWS
+	// Also apply the icon embedded in ned.exe (resource ID 1 from ned.rc).
+	// Covers cases where the PNG path is missing and helps Win32 title-bar chrome.
+	HICON hIcon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),
+												MAKEINTRESOURCEW(1),
+												IMAGE_ICON,
+												0,
+												0,
+												LR_DEFAULTSIZE | LR_SHARED));
+	if (hIcon)
+	{
+		HWND hwnd = glfwGetWin32Window(window);
+		if (hwnd)
+		{
+			SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hIcon));
+			SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hIcon));
+		}
+	}
+#endif
 }
 
 bool App::initializeGLEW()

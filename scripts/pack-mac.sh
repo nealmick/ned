@@ -1,36 +1,34 @@
 #!/bin/bash
+# Build Ned.app + Ned.zip for distribution.
+# Bundles Homebrew dylibs next to the binary using the *actual* sonames from otool
+# (do not hardcode GLEW 2.2 — CI may have 2.3+).
+set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Detect architecture and set proper paths
 if [[ $(uname -m) == 'arm64' ]]; then
-    # Apple Silicon
-    HOMEBREW_PREFIX="/opt/homebrew"
+	HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
 else
-    # Intel
-    HOMEBREW_PREFIX="/usr/local"
+	HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/usr/local}"
 fi
 
-echo -e "${BLUE}📦 Creating macOS app bundle...${NC}"
+echo -e "${BLUE}Creating macOS app bundle...${NC}"
 
-# Check if we're building with the right deployment target
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    export MACOSX_DEPLOYMENT_TARGET=11.0
-    echo -e "${BLUE}🍎 Setting macOS deployment target to 11.0${NC}"
+	export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+	echo -e "${BLUE}macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}${NC}"
 fi
 
-# Ensure the app exists
 if [ ! -f ".build/ned" ]; then
-    echo -e "${RED}❌ Application not found. Run scripts/build.sh first.${NC}"
-    exit 1
+	echo -e "${RED}Application not found. Run scripts/build.sh first.${NC}"
+	exit 1
 fi
 
-# App bundle structure
 APP_NAME="Ned"
 APP_BUNDLE="$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
@@ -38,24 +36,18 @@ MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 FRAMEWORKS="$CONTENTS/Frameworks"
 
-# Create directory structure
-mkdir -p "$MACOS"
-mkdir -p "$RESOURCES"
-mkdir -p "$FRAMEWORKS"
+rm -rf "$APP_BUNDLE"
+mkdir -p "$MACOS" "$RESOURCES" "$FRAMEWORKS"
 
-echo "Copying resources..."
+echo "Copying binary and resources..."
 cp .build/ned "$MACOS/$APP_NAME"
-cp -r resources "$RESOURCES/"
-cp -r shaders "$RESOURCES/"
-cp -r editor/services/highlight/queries "$RESOURCES/"
-# ImGui-Terminal X11 color database (looked up next to the executable)
-cp lib/imgui-terminal/rgb.txt "$MACOS/rgb.txt"
+cp -R resources "$RESOURCES/"
+cp -R shaders "$RESOURCES/"
+cp -R editor/services/highlight/queries "$RESOURCES/"
+# Data files live under Resources (not MacOS/) so codesign is happy.
+cp lib/imgui-terminal/rgb.txt "$RESOURCES/rgb.txt"
+cp resources/icons/ned.icns "$RESOURCES/ned.icns"
 
-
-echo "Adding app icon..."
-cp -r resources/icons/ned.icns "$RESOURCES/ned.icns"
-
-# Create Info.plist
 cat > "$CONTENTS/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -85,183 +77,149 @@ cat > "$CONTENTS/Info.plist" << EOF
 </plist>
 EOF
 
-# Copy required libraries - with error handling
-echo "Copying libraries..."
+BINARY="$MACOS/$APP_NAME"
 
-copy_lib() {
-    local source="$1"
-    local dest="$2"
-    
-    if [ -f "$source" ]; then
-        cp "$source" "$dest"
-        echo "✅ Copied: $source"
-    else
-        echo "⚠️  Warning: Could not find $source"
-        local lib_name
-        lib_name=$(basename "$source")
-        local alt_paths=(
-            "$HOMEBREW_PREFIX/lib/$lib_name"
-            "/usr/local/lib/$lib_name"
-            "/usr/lib/$lib_name"
-        )
-        for alt_path in "${alt_paths[@]}"; do
-            if [ -f "$alt_path" ]; then
-                cp "$alt_path" "$dest"
-                echo "✅ Found alternative: $alt_path"
-                return 0
-            fi
-        done
-        echo "❌ Could not find $lib_name in any standard location"
-    fi
+# Resolve a dylib path on disk (Homebrew layouts vary).
+find_dylib() {
+	local name="$1"
+	local candidates=(
+		"$HOMEBREW_PREFIX/lib/$name"
+		"$HOMEBREW_PREFIX/opt/glew/lib/$name"
+		"$HOMEBREW_PREFIX/opt/glfw/lib/$name"
+		"$HOMEBREW_PREFIX/opt/freetype/lib/$name"
+		"$HOMEBREW_PREFIX/opt/libpng/lib/$name"
+		"$HOMEBREW_PREFIX/opt/curl/lib/$name"
+		"/usr/local/lib/$name"
+	)
+	local c
+	for c in "${candidates[@]}"; do
+		if [ -f "$c" ]; then
+			echo "$c"
+			return 0
+		fi
+	done
+	# Cellar glob last
+	local found
+	found=$(ls "$HOMEBREW_PREFIX"/Cellar/*/*/lib/"$name" 2>/dev/null | head -1 || true)
+	if [ -n "$found" ] && [ -f "$found" ]; then
+		echo "$found"
+		return 0
+	fi
+	return 1
 }
 
-# GLEW Library - find the correct versioned library
-GLEW_LIBS=(
-    "$HOMEBREW_PREFIX/lib/libGLEW.2.2.dylib"
-    "$HOMEBREW_PREFIX/Cellar/glew/*/lib/libGLEW.2.2.dylib"
-    "$HOMEBREW_PREFIX/opt/glew/lib/libGLEW.2.2.dylib"
-)
+# Copy one library into Frameworks (by absolute path or basename search).
+bundle_dylib() {
+	local src="$1"
+	local base
+	base=$(basename "$src")
+	if [ ! -f "$src" ]; then
+		if ! src=$(find_dylib "$base"); then
+			echo -e "${YELLOW}Warning: could not find $base${NC}"
+			return 1
+		fi
+	fi
+	# Prefer the real file if this is a symlink (versioned soname).
+	local real
+	real=$(python3 -c "import os; print(os.path.realpath('$src'))" 2>/dev/null || echo "$src")
+	cp -f "$real" "$FRAMEWORKS/$base"
+	# If basename differs from real file name, still store under the soname the app expects.
+	if [ "$(basename "$real")" != "$base" ]; then
+		cp -f "$real" "$FRAMEWORKS/$base"
+	fi
+	chmod u+w "$FRAMEWORKS/$base" 2>/dev/null || true
+	echo "Bundled: $base  (from $real)"
+}
 
-for glew_path in "${GLEW_LIBS[@]}"; do
-    if [ -f $glew_path ]; then
-        copy_lib "$glew_path" "$FRAMEWORKS/"
-        break
-    fi
-done
+echo "Collecting linked Homebrew libraries from binary..."
+# Absolute paths into homebrew / usr/local that the binary actually needs.
+# (Avoid mapfile — macOS ships Bash 3.2.)
+APP_LIBS=$(otool -L "$BINARY" | awk '/^\t/ {print $1}' | grep -E '/(opt/homebrew|usr/local)/' || true)
 
-# GLFW Library
-GLFW_LIBS=(
-    "$HOMEBREW_PREFIX/lib/libglfw.3.dylib"
-    "$HOMEBREW_PREFIX/Cellar/glfw/*/lib/libglfw.3.dylib"
-    "$HOMEBREW_PREFIX/opt/glfw/lib/libglfw.3.dylib"
-)
-
-for glfw_path in "${GLFW_LIBS[@]}"; do
-    if [ -f $glfw_path ]; then
-        copy_lib "$glfw_path" "$FRAMEWORKS/"
-        break
-    fi
-done
-
-# FreeType Library
-FREETYPE_LIBS=(
-    "$HOMEBREW_PREFIX/lib/libfreetype.6.dylib"
-    "$HOMEBREW_PREFIX/Cellar/freetype/*/lib/libfreetype.6.dylib"
-    "$HOMEBREW_PREFIX/opt/freetype/lib/libfreetype.6.dylib"
-)
-
-for freetype_path in "${FREETYPE_LIBS[@]}"; do
-    if [ -f $freetype_path ]; then
-        copy_lib "$freetype_path" "$FRAMEWORKS/"
-        break
-    fi
-done
-
-# PNG Library (needed by FreeType)
-PNG_LIBS=(
-    "$HOMEBREW_PREFIX/lib/libpng16.16.dylib"
-    "$HOMEBREW_PREFIX/Cellar/libpng/*/lib/libpng16.16.dylib"
-    "$HOMEBREW_PREFIX/opt/libpng/lib/libpng16.16.dylib"
-)
-
-for png_path in "${PNG_LIBS[@]}"; do
-    if [ -f $png_path ]; then
-        copy_lib "$png_path" "$FRAMEWORKS/"
-        break
-    fi
-done
-
-echo "Fixing library paths..."
-
-# Get the actual library paths from the binary
-CURRENT_GLEW=$(otool -L "$MACOS/$APP_NAME" | grep GLEW | awk '{print $1}' | head -1)
-CURRENT_GLFW=$(otool -L "$MACOS/$APP_NAME" | grep glfw | awk '{print $1}' | head -1)
-
-if [ -n "$CURRENT_GLEW" ]; then
-    install_name_tool -change "$CURRENT_GLEW" "@executable_path/../Frameworks/libGLEW.2.2.dylib" "$MACOS/$APP_NAME"
-    echo "Fixed GLEW path: $CURRENT_GLEW -> @executable_path/../Frameworks/libGLEW.2.2.dylib"
+if [ -z "$APP_LIBS" ]; then
+	echo -e "${YELLOW}No Homebrew/usr local dylibs found on binary (fully static?)${NC}"
 fi
 
-if [ -n "$CURRENT_GLFW" ]; then
-    install_name_tool -change "$CURRENT_GLFW" "@executable_path/../Frameworks/libglfw.3.dylib" "$MACOS/$APP_NAME"
-    echo "Fixed GLFW path: $CURRENT_GLFW -> @executable_path/../Frameworks/libglfw.3.dylib"
+# Use for-loop so set -e / exit work (pipe+while runs in subshell on bash 3).
+OLD_IFS=$IFS
+IFS=$'\n'
+for lib in $APP_LIBS; do
+	IFS=$OLD_IFS
+	[ -z "$lib" ] && continue
+	base=$(basename "$lib")
+	if [ ! -f "$FRAMEWORKS/$base" ]; then
+		bundle_dylib "$lib" || true
+	fi
+	if [ -f "$FRAMEWORKS/$base" ]; then
+		install_name_tool -change "$lib" "@executable_path/../Frameworks/$base" "$BINARY"
+		echo "Rewrote app link: $base"
+	else
+		echo -e "${RED}Missing required library: $base (linked as $lib)${NC}"
+		exit 1
+	fi
+done
+IFS=$OLD_IFS
+
+# Pull transitive deps (freetype → libpng, etc.) and fix @rpath / absolute refs.
+echo "Bundling transitive dependencies..."
+changed=1
+pass=0
+while [ "$changed" -eq 1 ] && [ "$pass" -lt 8 ]; do
+	changed=0
+	pass=$((pass + 1))
+	for lib in "$FRAMEWORKS"/*.dylib; do
+		[ -e "$lib" ] || continue
+		while IFS= read -r dep; do
+			[ -z "$dep" ] && continue
+			dep_base=$(basename "$dep")
+			if [ ! -f "$FRAMEWORKS/$dep_base" ]; then
+				if bundle_dylib "$dep"; then
+					changed=1
+				fi
+			fi
+			if [ -f "$FRAMEWORKS/$dep_base" ]; then
+				install_name_tool -change "$dep" "@loader_path/$dep_base" "$lib" 2>/dev/null || true
+			fi
+		done < <(otool -L "$lib" | awk '/^\t/ {print $1}' | grep -E '/(opt/homebrew|usr/local)/' || true)
+		# Normalize install name of the dylib itself
+		install_name_tool -id "@loader_path/$(basename "$lib")" "$lib" 2>/dev/null || true
+	done
+done
+
+# Fail hard if the main binary still points outside the bundle.
+LEFTOVER=$(otool -L "$BINARY" | awk '/^\t/ {print $1}' | grep -E '/(opt/homebrew|usr/local)/' || true)
+if [ -n "$LEFTOVER" ]; then
+	echo -e "${RED}Binary still has unbundled absolute library paths:${NC}"
+	echo "$LEFTOVER"
+	exit 1
 fi
 
-# Get FreeType path from binary
-CURRENT_FREETYPE=$(otool -L "$MACOS/$APP_NAME" | grep freetype | awk '{print $1}' | head -1)
+# Verify every @executable_path Frameworks reference exists.
+while IFS= read -r ref; do
+	name=$(basename "$ref")
+	if [ ! -f "$FRAMEWORKS/$name" ]; then
+		echo -e "${RED}Binary expects Frameworks/$name but it is missing${NC}"
+		exit 1
+	fi
+done < <(otool -L "$BINARY" | awk '/@executable_path\/\.\.\/Frameworks\// {print $1}')
 
-if [ -n "$CURRENT_FREETYPE" ]; then
-    install_name_tool -change "$CURRENT_FREETYPE" "@executable_path/../Frameworks/libfreetype.6.dylib" "$MACOS/$APP_NAME"
-    echo "Fixed FreeType path: $CURRENT_FREETYPE -> @executable_path/../Frameworks/libfreetype.6.dylib"
-fi
+echo "Frameworks contents:"
+ls -la "$FRAMEWORKS"
 
-# Fix dependencies within the bundled libraries themselves
-echo "Fixing internal library dependencies..."
-
-# Fix dependencies within the bundled libraries themselves
+echo "Signing..."
 for lib in "$FRAMEWORKS"/*.dylib; do
-    echo "Checking dependencies for $(basename "$lib")..."
-    
-    # Get all homebrew/usr/local dependencies for this library
-    LIB_DEPS=$(otool -L "$lib" | grep -E "(homebrew|usr/local)" | awk '{print $1}')
-    
-    for dep_path in $LIB_DEPS; do
-        dep_name=$(basename "$dep_path")
-        
-        # If we have this dependency in our Frameworks, fix the path
-        if [ -f "$FRAMEWORKS/$dep_name" ]; then
-            install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$lib"
-            echo "Fixed internal dependency: $dep_path -> @loader_path/$dep_name in $(basename "$lib")"
-        else
-            echo "⚠️  Missing dependency for $(basename "$lib"): $dep_name"
-            # Try to copy the missing dependency
-            copy_lib "$dep_path" "$FRAMEWORKS/"
-            if [ -f "$FRAMEWORKS/$dep_name" ]; then
-                install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$lib"
-                echo "Fixed newly copied dependency: $dep_path -> @loader_path/$dep_name"
-            fi
-        fi
-    done
+	[ -e "$lib" ] || continue
+	codesign --force --sign - "$lib" 2>/dev/null || true
 done
+# Ad-hoc sign binary then bundle (avoid --deep; rgb.txt and resources are not code).
+codesign --force --sign - "$BINARY"
+codesign --force --sign - "$APP_BUNDLE"
 
-echo "Final check for any remaining missing libraries..."
-MISSING_LIBS=$(otool -L "$MACOS/$APP_NAME" | grep -E "(homebrew|usr/local)" | awk '{print $1}')
+echo "Architectures: $(file "$BINARY" | grep -o 'x86_64\|arm64' | tr '\n' ' ')"
 
-for lib_path in $MISSING_LIBS; do
-    lib_name=$(basename "$lib_path")
-    if [ ! -f "$FRAMEWORKS/$lib_name" ]; then
-        echo "⚠️  Still missing: $lib_name"
-        copy_lib "$lib_path" "$FRAMEWORKS/"
-        
-        if [ -f "$FRAMEWORKS/$lib_name" ]; then
-            install_name_tool -change "$lib_path" "@executable_path/../Frameworks/$lib_name" "$MACOS/$APP_NAME"
-            echo "Fixed main app dependency: $lib_path -> @executable_path/../Frameworks/$lib_name"
-        fi
-    fi
-done
-
-# Sign the libs
-echo "Signing libraries..."
-for lib in "$FRAMEWORKS"/*.dylib; do
-    codesign --force --sign - "$lib"
-done
-
-# Sign the main executable
-echo "Signing executable..."
-codesign --force --sign - "$MACOS/$APP_NAME"
-
-# Sign the entire .app
-echo "Signing app bundle..."
-codesign --force --deep --sign - "$APP_BUNDLE"
-
-# Verify the app bundle structure
-echo "Verifying app bundle..."
-echo "Minimum system version: $(plutil -p "$CONTENTS/Info.plist" | grep LSMinimumSystemVersion)"
-echo "Architectures: $(file "$MACOS/$APP_NAME" | grep -o 'x86_64\|arm64' | tr '\n' ' ')"
-
-# Instead of creating a DMG, create a ZIP
-echo "Creating ZIP archive of the .app..."
 ZIP_NAME="$APP_NAME.zip"
+rm -f "$ZIP_NAME"
 zip -r "$ZIP_NAME" "$APP_BUNDLE"
 
-echo -e "${GREEN}✅ Package created: $ZIP_NAME${NC}"
+echo -e "${GREEN}Package created: $ZIP_NAME${NC}"
+echo -e "${YELLOW}Tip: if Gatekeeper blocks the download: xattr -dr com.apple.quarantine Ned.app${NC}"

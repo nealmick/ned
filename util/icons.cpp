@@ -1,4 +1,5 @@
 #include "icons.h"
+#include "settings.h"
 
 #include <GL/glew.h>
 #include <filesystem>
@@ -228,14 +229,21 @@ const std::vector<std::string> ICON_FILES = {
 
 std::string resolveIconPath(const std::string &iconFile)
 {
-	const std::string local = "resources/icons/" + iconFile;
-	if (fs::exists(local))
-		return local;
+	// Prefer app resource root (works when cwd is not the package root — Windows
+	// shortcuts, Linux /usr/share layout). Fall back to cwd-relative for dev.
+	const fs::path roots[] = {
+		fs::path(Settings::getAppResourcesPath()) / "resources" / "icons",
+		fs::path("resources") / "icons",
 #ifndef __APPLE__
-	const std::string packaged = "/usr/share/Ned/resources/icons/" + iconFile;
-	if (fs::exists(packaged))
-		return packaged;
+		fs::path("/usr/share/Ned/resources/icons"),
 #endif
+	};
+	for (const fs::path &dir : roots)
+	{
+		const fs::path full = dir / iconFile;
+		if (fs::exists(full))
+			return full.string();
+	}
 	return {};
 }
 

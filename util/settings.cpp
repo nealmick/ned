@@ -21,26 +21,55 @@
 #include <linux/limits.h>
 #include <unistd.h>
 #endif
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace fs = std::filesystem;
 
 // ---- paths & JSON ----
 
+namespace {
+
+// Dev tree, portable zip, and installed layouts all look like this.
+bool looksLikeResourceRoot(const fs::path &path)
+{
+	std::error_code ec;
+	return fs::exists(path / "resources" / "fonts", ec) &&
+		   fs::exists(path / "resources" / "config", ec);
+}
+
+std::string firstResourceRoot(std::initializer_list<fs::path> candidates)
+{
+	for (const fs::path &path : candidates)
+	{
+		std::error_code ec;
+		const fs::path abs = fs::weakly_canonical(path, ec);
+		const fs::path &check = ec ? path : abs;
+		if (looksLikeResourceRoot(check))
+			return check.string();
+	}
+	return {};
+}
+
+} // namespace
+
 std::string Settings::getAppResourcesPath()
 {
 	const fs::path cwd = fs::current_path();
-	// cwd first: embed/demo often runs from build/ with resources/ beside the binary.
-	for (const fs::path &path : {cwd,
-								 cwd / "ned",
-								 cwd / "../ned",
-								 cwd / "../../ned",
-								 cwd / "../ImGui_Ned_Embed/ned",
-								 cwd / "ned/ned",
-								 cwd / "../ned/ned"})
-	{
-		if (fs::exists(path / "resources/fonts") && fs::exists(path / "resources/config"))
-			return path.string();
-	}
+	// cwd first: embed/demo and portable packages often run with resources/ nearby.
+	if (std::string found = firstResourceRoot({cwd,
+											   cwd / "ned",
+											   cwd / ".." / "ned",
+											   cwd / ".." / ".." / "ned",
+											   cwd / ".." / "ImGui_Ned_Embed" / "ned",
+											   cwd / "ned" / "ned",
+											   cwd / ".." / "ned" / "ned"});
+		!found.empty())
+		return found;
 
 #ifdef __APPLE__
 	char executable[MAXPATHLEN];
@@ -49,9 +78,28 @@ std::string Settings::getAppResourcesPath()
 	{
 		char resolved[MAXPATHLEN];
 		const fs::path binary = realpath(executable, resolved) ? resolved : executable;
-		const fs::path app = binary.parent_path().parent_path();
-		const fs::path resources = app / "Resources";
-		return fs::exists(resources) ? resources.string() : app.string();
+		// .app/Contents/MacOS/Ned → Contents/Resources (pack-mac layout)
+		const fs::path contents = binary.parent_path().parent_path();
+		const fs::path resources = contents / "Resources";
+		if (looksLikeResourceRoot(resources))
+			return resources.string();
+		if (fs::is_directory(resources))
+			return resources.string();
+		if (std::string found = firstResourceRoot({binary.parent_path()}); !found.empty())
+			return found;
+	}
+#elif defined(_WIN32)
+	// Portable zip: resources/ and shaders/ sit next to ned.exe
+	wchar_t modulePath[MAX_PATH];
+	const DWORD n = GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+	if (n > 0 && n < MAX_PATH)
+	{
+		const fs::path exeDir = fs::path(modulePath).parent_path();
+		if (std::string found = firstResourceRoot({exeDir, exeDir / ".."}); !found.empty())
+			return found;
+		// Still prefer exe dir if it at least has resources/ (partial install).
+		if (fs::exists(exeDir / "resources"))
+			return exeDir.string();
 	}
 #elif defined(__linux__)
 	char executable[PATH_MAX];
@@ -60,11 +108,15 @@ std::string Settings::getAppResourcesPath()
 	{
 		executable[length] = '\0';
 		const fs::path binaryDir = fs::path(executable).parent_path();
-		for (const fs::path &path : {binaryDir / "../share/Ned", binaryDir})
-		{
-			if (fs::is_directory(path))
-				return path.string();
-		}
+		// Deb: binary in /usr/lib/Ned, assets in /usr/share/Ned
+		if (std::string found =
+				firstResourceRoot({binaryDir / ".." / "share" / "Ned", binaryDir});
+			!found.empty())
+			return found;
+		if (fs::is_directory(binaryDir / ".." / "share" / "Ned"))
+			return fs::weakly_canonical(binaryDir / ".." / "share" / "Ned").string();
+		if (fs::is_directory(binaryDir))
+			return binaryDir.string();
 	}
 #endif
 	return ".";
@@ -72,13 +124,32 @@ std::string Settings::getAppResourcesPath()
 
 std::string Settings::getUserConfigDir()
 {
-	const char *home = std::getenv("HOME");
-	if (!home)
+	// ~/ned/config on Unix; %USERPROFILE%\ned\config on Windows.
+	const char *home = nullptr;
+#ifdef _WIN32
+	home = std::getenv("USERPROFILE");
+	if (!home || !*home)
 	{
-		std::cerr << "[Settings] HOME is not set" << std::endl;
+		const char *drive = std::getenv("HOMEDRIVE");
+		const char *path = std::getenv("HOMEPATH");
+		if (drive && path && *drive && *path)
+			return (fs::path(drive) / path / "ned" / "config").string();
+	}
+#else
+	home = std::getenv("HOME");
+#endif
+	if (!home || !*home)
+	{
+		// Git Bash / some shells set HOME on Windows too.
+		home = std::getenv("HOME");
+	}
+	if (!home || !*home)
+	{
+		std::cerr << "[Settings] home directory is not set (USERPROFILE/HOME)"
+				  << std::endl;
 		return {};
 	}
-	return (fs::path(home) / "ned/config").string();
+	return (fs::path(home) / "ned" / "config").string();
 }
 
 std::string Settings::primaryPath()

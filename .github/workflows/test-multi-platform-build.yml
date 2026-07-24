@@ -42,35 +42,6 @@ jobs:
           name: Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}
           path: Ned-macOS-ARM64-*.zip
 
-  macos-intel:
-    runs-on: macos-13
-    needs: create-tag
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Install dependencies
-        run: brew install cmake llvm glfw glew pkg-config freetype fontconfig curl
-      - name: Build
-        run: |
-          export MACOSX_DEPLOYMENT_TARGET=11.0
-          ./scripts/build.sh --no-run --skip-format
-        env:
-          CI: true
-      - name: Test
-        run: ./scripts/test.sh
-        env:
-          CI: true
-      - name: Package
-        run: |
-          ./scripts/pack-mac.sh
-          mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
-      - name: Upload macOS Intel Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}
-          path: Ned-macOS-Intel-*.zip
-
   debian:
     runs-on: ubuntu-22.04
     needs: create-tag

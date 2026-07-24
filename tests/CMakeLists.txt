@@ -63,7 +63,9 @@ if(GLFW_INCLUDE_DIR)
   target_include_directories(ned_editor_layer PUBLIC ${GLFW_INCLUDE_DIR})
 endif()
 find_package(Freetype REQUIRED)
-# libgit2 static needs its internal deps (same as main ned target).
+# libgit2 is linked as object targets (libgit2 + util + …), not libgit2package.
+# Consumers must supply zlib + platform HTTPS/network libs the same way the
+# main `ned` target does — otherwise Windows link fails on deflate*/WinHttp*.
 target_link_libraries(ned_editor_layer PUBLIC
   libgit2
   util
@@ -75,12 +77,33 @@ target_link_libraries(ned_editor_layer PUBLIC
   $<$<PLATFORM_ID:Darwin>:iconv>
   $<$<PLATFORM_ID:Linux>:z>
   $<$<PLATFORM_ID:Linux>:pthread>
+  $<$<PLATFORM_ID:Linux>:ssl>
+  $<$<PLATFORM_ID:Linux>:crypto>
 )
 if(APPLE)
   target_link_libraries(ned_editor_layer PUBLIC
     "-framework Security"
     "-framework GSS"
     "-framework CoreFoundation"
+  )
+endif()
+if(WIN32)
+  # zlib: prefer bundled objects (USE_BUNDLED_ZLIB) so symbols match libgit2.
+  # Fall back to vcpkg/system ZLIB (same as main `ned` target).
+  if(TARGET zlib)
+    target_sources(ned_editor_layer PRIVATE $<TARGET_OBJECTS:zlib>)
+  else()
+    find_package(ZLIB REQUIRED)
+    target_link_libraries(ned_editor_layer PUBLIC ZLIB::ZLIB)
+  endif()
+  # libgit2 winhttp HTTPS backend + socket deps (mirror main ned Windows set).
+  target_link_libraries(ned_editor_layer PUBLIC
+    winhttp
+    secur32
+    crypt32
+    rpcrt4
+    ws2_32
+    advapi32
   )
 endif()
 target_compile_features(ned_editor_layer PUBLIC cxx_std_20)

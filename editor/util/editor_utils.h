@@ -17,7 +17,8 @@ inline ImVec4 GetRainbowColor(float timeScale = 2.0f)
 	double currentTime = glfwGetTime();
 	if (currentTime > lastUpdateTime)
 	{
-		sharedBlinkTime += (currentTime - lastUpdateTime) * timeScale;
+		sharedBlinkTime +=
+			static_cast<float>((currentTime - lastUpdateTime) * timeScale);
 		lastUpdateTime = currentTime;
 	}
 
