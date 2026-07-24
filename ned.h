@@ -1,8 +1,7 @@
 /*
 	File: ned.h
 	Description: Main application class for NED text editor.
-	This encapsulates the core application logic, initialization, and render
-   loop.
+	Composition root owns shared shell state (projectRoot, icons) then Editor.
 */
 
 #pragma once
@@ -12,18 +11,19 @@
 #include <chrono>
 #include <string>
 
-#include "ai/ai_agent.h"
 #include "editor/editor.h"
-#include "editor/editor_bookmarks.h"
 #include "files/file_tree.h"
 #include "files/files.h"
+#include "lsp/lsp_client.h"
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #include "util/app.h"
-#include "util/font.h"
-#include "util/render.h"
+#include "util/icons.h"
+#include "util/ned_terminal.h"
+#include "util/project_undo.h"
+#include "util/settings.h"
 #include "util/splitter.h"
-#include "util/window_resize.h"
+#include "util/welcome.h"
 
 struct GLFWwindow;
 class ImFont;
@@ -38,20 +38,24 @@ class Ned
 	void run();
 	void cleanup();
 
-  private:
-	App app;
-	ShaderManager shaderManager;
+	Settings settings;
+	std::string projectRoot;
+	Icons icons;
+	ProjectUndo projectUndo;
+	Editor editor;
+	FileExplorer fileExplorer;
+	LSPClient lspClient;
+	Welcome welcome;
+	Splitter splitter;
 	FramebufferState fb;
 	ShaderQuad quad;
-	Splitter splitter;
-	Render render;
+	AccumulationBuffers accum;
+	ShaderManager shaderManager;
+	NedTerminal terminal;
+	App app;
+
+  private:
 	bool initialized;
 
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
-
-	AccumulationBuffers accum;
-
-	WindowResize windowResize;
 };
-
-extern Bookmarks gBookmarks;

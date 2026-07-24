@@ -5,7 +5,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ========================
 # Configuration & Settings
 # ========================
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/util/config.h.in" "${CMAKE_BINARY_DIR}/config.h")
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -112,16 +111,18 @@ target_include_directories(nfd PUBLIC
 )
 
 # =================
-# Tree-Sitter Setup
+# Tree-Sitter Setup (vendored under lib/treesitter/)
 # =================
+set(TS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/lib/treesitter)
+
 # Core library
 add_library(tree-sitter-lib STATIC
-  lib/tree-sitter/lib/src/lib.c
-  lib/tree-sitter/lib/src/query.c 
+  ${TS_ROOT}/tree-sitter/lib/src/lib.c
+  ${TS_ROOT}/tree-sitter/lib/src/query.c
 )
 target_include_directories(tree-sitter-lib PUBLIC
-  lib/tree-sitter/lib/include
-  lib/tree-sitter/lib/src
+  ${TS_ROOT}/tree-sitter/lib/include
+  ${TS_ROOT}/tree-sitter/lib/src
 )
 
 # Manually define grammars with non-standard structures
@@ -129,26 +130,26 @@ set(TS_GRAMMAR_LIBS)
 
 # TypeScript
 add_library(tree-sitter-typescript-grammar STATIC
-  lib/tree-sitter-typescript/typescript/src/parser.c
-  lib/tree-sitter-typescript/typescript/src/scanner.c
+  ${TS_ROOT}/tree-sitter-typescript/typescript/src/parser.c
+  ${TS_ROOT}/tree-sitter-typescript/typescript/src/scanner.c
 )
 target_include_directories(tree-sitter-typescript-grammar PRIVATE
-  lib/tree-sitter-typescript/typescript/src
+  ${TS_ROOT}/tree-sitter-typescript/typescript/src
 )
 list(APPEND TS_GRAMMAR_LIBS tree-sitter-typescript-grammar)
 
 # TSX
 add_library(tree-sitter-tsx-grammar STATIC
-  lib/tree-sitter-typescript/tsx/src/parser.c
-  lib/tree-sitter-typescript/tsx/src/scanner.c
+  ${TS_ROOT}/tree-sitter-typescript/tsx/src/parser.c
+  ${TS_ROOT}/tree-sitter-typescript/tsx/src/scanner.c
 )
 target_include_directories(tree-sitter-tsx-grammar PRIVATE
-  lib/tree-sitter-typescript/tsx/src
+  ${TS_ROOT}/tree-sitter-typescript/tsx/src
 )
 list(APPEND TS_GRAMMAR_LIBS tree-sitter-tsx-grammar)
 
 # Other grammars with standard structure
-file(GLOB TS_GRAMMAR_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/lib/tree-sitter-*")
+file(GLOB TS_GRAMMAR_DIRS "${TS_ROOT}/tree-sitter-*")
 foreach(TS_DIR ${TS_GRAMMAR_DIRS})
   get_filename_component(LANG ${TS_DIR} NAME)
   
@@ -189,8 +190,6 @@ set(APP_SOURCES
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
-file(GLOB_RECURSE AI_SOURCES        "ai/*.cpp")
-file(GLOB_RECURSE AI_MM_SOURCES     "ai/*.mm")
 file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
 
 # Add lsp-framework subdirectory with sanitizers disabled
@@ -251,22 +250,71 @@ endif()
 # Custom ImGui configuration to avoid modifying the submodule
 add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
 
+# ================
+# ImGui-Terminal (widget only — lib/imgui-terminal submodule)
+# ================
+set(IMGUI_TERMINAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui-terminal)
+add_library(imgui_terminal_widget STATIC
+  ${IMGUI_TERMINAL_DIR}/terminal.cpp
+)
+target_include_directories(imgui_terminal_widget PUBLIC
+  ${IMGUI_TERMINAL_DIR}
+)
+target_include_directories(imgui_terminal_widget PRIVATE
+  ${IMGUI_INCLUDE_DIRS}
+  lib/imgui/misc/freetype
+  ${CMAKE_CURRENT_SOURCE_DIR} # ned_imgui_config.h via IMGUI_USER_CONFIG
+)
+target_compile_definitions(imgui_terminal_widget PRIVATE
+  IMGUI_USER_CONFIG="ned_imgui_config.h"
+)
+if(UNIX)
+  target_compile_definitions(imgui_terminal_widget PRIVATE _DEFAULT_SOURCE)
+endif()
+if(WIN32)
+  target_compile_definitions(imgui_terminal_widget PRIVATE
+    _WIN32_WINNT=0x0A00 WINVER=0x0A00 NTDDI_VERSION=0x0A000006
+    WIN32_LEAN_AND_MEAN)
+  if(MSVC)
+    target_compile_definitions(imgui_terminal_widget PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(imgui_terminal_widget PRIVATE /utf-8)
+  endif()
+endif()
+
+# Fontconfig (terminal glyph discovery) + FreeType
+if(MSVC)
+  find_package(Fontconfig REQUIRED)
+  target_link_libraries(imgui_terminal_widget PUBLIC
+    Fontconfig::Fontconfig Freetype::Freetype)
+else()
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+  target_link_libraries(imgui_terminal_widget PUBLIC
+    PkgConfig::FONTCONFIG Freetype::Freetype)
+endif()
+
+# openpty lives in libutil on Linux; on macOS it is in libSystem.
+if(UNIX AND NOT APPLE)
+  find_library(LIBUTIL_LIBRARY NAMES util libutil)
+  if(LIBUTIL_LIBRARY)
+    target_link_libraries(imgui_terminal_widget PUBLIC ${LIBUTIL_LIBRARY})
+  endif()
+endif()
+
+# rgb.txt next to the binary (and cwd) for X11 color-name lookup
+file(COPY ${IMGUI_TERMINAL_DIR}/rgb.txt DESTINATION ${CMAKE_BINARY_DIR})
+
 # Utility library
 add_library(ned_util STATIC
   util/settings.cpp
-  util/settings_file_manager.cpp
   util/keybinds.cpp
-  util/terminal.cpp
-  util/close_popper.cpp
   util/welcome.cpp
   util/app.cpp
-  util/debug_console.cpp
   util/font.cpp
-  util/window_resize.cpp
+  util/icons.cpp
   util/splitter.cpp
-  util/init.cpp
-  util/scroll.cpp
-  util/render.cpp
+  util/ned_terminal.cpp
+  util/project_undo.cpp
 )
 target_include_directories(ned_util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -274,42 +322,45 @@ target_include_directories(ned_util PUBLIC
   editor
   files
   ${CMAKE_BINARY_DIR}
+  # lsp-framework generates headers into <build>/lib/lsp-framework/generated
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
   lib/libgit2/include
+  lib/imgui/misc/freetype
+  lib/lsp-framework
+  ${IMGUI_TERMINAL_DIR}
 )
-target_link_libraries(ned_util PUBLIC ${OPENGL_LIBRARIES} glfw libgit2 util)
+target_link_libraries(ned_util PUBLIC
+  ${OPENGL_LIBRARIES} glfw libgit2 util imgui_terminal_widget)
+if(NOT WIN32)
+  target_link_libraries(ned_util PUBLIC Freetype::Freetype)
+endif()
 add_dependencies(ned_util libgit2 util)
 
 # ================
-# Main Executable (only in standalone mode)
+# Main Executable (only when ned is the top-level project)
 # ================
-# Add Windows resource file
-if(WIN32)
-  set(WINDOWS_RESOURCES ned.rc)
-endif()
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  if(WIN32)
+    set(WINDOWS_RESOURCES ned.rc)
+  endif()
 
-# Force ned executable to be built
-add_executable(ned
-  globals.cpp
-  ${APP_SOURCES}
-  ${EDITOR_SOURCES}
-  ${LSP_SOURCES}
-  ${AI_SOURCES}
-  ${AI_MM_SOURCES}
-  ${FILES_SOURCES}
-  ${IMGUI_SOURCES}
-  ${WINDOWS_RESOURCES}
-)
+  add_executable(ned
+    ${APP_SOURCES}
+    ${EDITOR_SOURCES}
+    ${LSP_SOURCES}
+    ${FILES_SOURCES}
+    ${IMGUI_SOURCES}
+    ${WINDOWS_RESOURCES}
+  )
+endif()
 
 # ================
 # Embeddable Library
 # ================
 add_library(ned_embed STATIC
-  globals.cpp
   ned_embed.cpp
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
-  ${AI_SOURCES}
-  ${AI_MM_SOURCES}
   ${FILES_SOURCES}
   ${IMGUI_SOURCES}
 )
@@ -328,11 +379,12 @@ if(APPLE)
   
   # Add Objective-C++ support
   set(CMAKE_OBJCXX_STANDARD 11)
-  add_library(macos_window OBJECT macos_window.mm)
+  add_library(macos_window OBJECT util/macos_window.mm)
   
   # Add GLFW includes with verified path
   target_include_directories(macos_window PRIVATE
     ${GLFW_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/util
   )
   
   if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -353,14 +405,12 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${CMAKE_CURRENT_SOURCE_DIR}
     editor
     files
-    ai
-    ai/mcp
     ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
     $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
-    lib/tree-sitter/lib/include
-    lib/tree-sitter/lib/src
-    lib/utfcpp/source
+    ${TS_ROOT}/tree-sitter/lib/include
+    ${TS_ROOT}/tree-sitter/lib/src
     lib/libgit2/include
     ${GLFW_INCLUDE_DIR}
   )
@@ -373,14 +423,12 @@ target_include_directories(ned_embed PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   editor
   files
-  ai
-  ai/mcp
   ${CMAKE_BINARY_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
   $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
-  lib/tree-sitter/lib/include
-  lib/tree-sitter/lib/src
-  lib/utfcpp/source
+  ${TS_ROOT}/tree-sitter/lib/include
+  ${TS_ROOT}/tree-sitter/lib/src
   lib/libgit2/include
   ${GLFW_INCLUDE_DIR}
 )
@@ -388,34 +436,35 @@ target_include_directories(ned_embed PUBLIC
 # ================
 # Linking
 # ================
-# Force standalone linking
-target_link_libraries(ned PRIVATE
-  ${OPENGL_LIBRARIES}
-  glfw
-  nfd
-  ned_util
-  GLEW::GLEW
-  Freetype::Freetype
-  CURL::libcurl 
-  tree-sitter-lib
-  ${TS_GRAMMAR_LIBS}
-  libgit2
-  util
-  llhttp
-  xdiff
-  pcre
-  lsp
-  $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
-  $<$<PLATFORM_ID:Darwin>:z>
-  $<$<PLATFORM_ID:Linux>:z>
-  $<$<PLATFORM_ID:Darwin>:iconv>
-  $<$<PLATFORM_ID:Linux>:pthread>
-  $<$<PLATFORM_ID:Linux>:ssl>
-  $<$<PLATFORM_ID:Linux>:crypto>
-  $<$<PLATFORM_ID:Linux>:pcre>
-  $<$<PLATFORM_ID:Linux>:rt>
-)
-add_dependencies(ned libgit2 util llhttp xdiff)
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  target_link_libraries(ned PRIVATE
+    ${OPENGL_LIBRARIES}
+    glfw
+    nfd
+    ned_util
+    GLEW::GLEW
+    Freetype::Freetype
+    CURL::libcurl
+    tree-sitter-lib
+    ${TS_GRAMMAR_LIBS}
+    libgit2
+    util
+    llhttp
+    xdiff
+    pcre
+    lsp
+    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+    $<$<PLATFORM_ID:Darwin>:z>
+    $<$<PLATFORM_ID:Linux>:z>
+    $<$<PLATFORM_ID:Darwin>:iconv>
+    $<$<PLATFORM_ID:Linux>:pthread>
+    $<$<PLATFORM_ID:Linux>:ssl>
+    $<$<PLATFORM_ID:Linux>:crypto>
+    $<$<PLATFORM_ID:Linux>:pcre>
+    $<$<PLATFORM_ID:Linux>:rt>
+  )
+  add_dependencies(ned libgit2 util llhttp xdiff)
+endif()
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   # Standalone: link to our own ImGui, FreeType, GLEW, etc.
@@ -520,11 +569,18 @@ endif()
 # ================
 # Resources
 # ================
-file(COPY 
-  ${CMAKE_CURRENT_SOURCE_DIR}/settings
-  ${CMAKE_CURRENT_SOURCE_DIR}/fonts
-  ${CMAKE_CURRENT_SOURCE_DIR}/icons
+file(COPY
+  ${CMAKE_CURRENT_SOURCE_DIR}/resources
   ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-  ${CMAKE_CURRENT_SOURCE_DIR}/editor/queries 
+  ${CMAKE_CURRENT_SOURCE_DIR}/editor/services/highlight/queries
   DESTINATION ${CMAKE_BINARY_DIR}
 )
+
+# ================
+# Unit tests (Monaco-shaped editor model suite)
+# ================
+option(NED_BUILD_TESTS "Build ned unit tests (Monaco model ports)" ON)
+if(NED_BUILD_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

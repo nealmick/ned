@@ -5,47 +5,57 @@ Description: Font management class for NED text editor.
 
 #pragma once
 
+#include "imgui.h"
 #include <string>
-
-struct ImFont;
-struct ImGuiIO;
-
-// Forward declaration
-class Frame;
+#include <vector>
 
 class Font
 {
   public:
-	// Load main font with emoji support and various character ranges
-	static ImFont *loadFont(const std::string &fontName, float fontSize);
+	Font() = default;
 
-	// Load large font for overlays and special displays
-	static ImFont *loadLargeFont(const std::string &fontName, float fontSize);
+	// clearAtlas=false re-adds editor fonts after another system (e.g. terminal)
+	// rebuilt the ImGui atlas without wiping its own glyphs.
+	void load(bool clearAtlas = true);
+	void setFont(const std::string &fontName, float fontSize);
 
-	// Font instances
-	ImFont *currentFont;
-	ImFont *largeFont;
-	bool needFontReload;
+	const std::vector<std::string> &availableFonts() const { return fontNames; }
+	const std::string &getFontName() const { return fontName; }
+	float getFontSize() const { return fontSize; }
 
-	Font();
-	~Font();
+	ImFont *getMainFont() const { return currentFont; }
+	ImFont *getLargeFont() const { return largeFont; }
 
-	// Initialize fonts
-	void initialize();
+  private:
+	ImFont *loadFont(const std::string &fontName, float fontSize);
+	ImFont *loadLargeFont(const std::string &fontName, float fontSize);
 
-	// Handle font reloading
-	void handleFontReload();
+	std::string fontName;
+	float fontSize = 0.0f;
 
-	// Handle font reloading with frame updates
-	void handleFontReloadWithFrameUpdates();
+	ImFont *currentFont = nullptr;
+	ImFont *largeFont = nullptr;
 
-	// Get current font
-	ImFont *getCurrentFont() const { return currentFont; }
+	std::vector<std::string> fontNames = {
+		"SourceCodePro-Regular",
+		"JetBrainsMonoNL-Regular",
+		"NotoSansMono-Regular",
+		"NotoSansMono-Thin",
+		"NotoSansMono-Light",
+		"VT323-Regular",
+		"IBM_MDA",
+		"VT100",
+	};
 
-	// Get font reload state
-	bool getNeedFontReload() const { return needFontReload; }
-	void setNeedFontReload(bool need) { needFontReload = need; }
+	const ImWchar *mainGlyphRanges() const;
+	const ImWchar *emojiGlyphRanges() const;
+	const ImWchar *brailleGlyphRanges() const;
+	const ImWchar *largeFontGlyphRanges() const;
+
+	void mergeBrailleFont(ImGuiIO &io, float fontSize) const;
+	void mergeEmojiFont(ImGuiIO &io, float fontSize) const;
+
+	std::string fontResourcePath(const std::string &filename) const;
+
+	void applyMainFontTweaks(ImFontConfig &config, const std::string &fontName) const;
 };
-
-// Global font instance
-extern Font gFont;

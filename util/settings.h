@@ -1,220 +1,73 @@
 #pragma once
 #include "../lib/json.hpp"
-#include "close_popper.h"
+#include "font.h"
 #include "imgui.h"
-#include "settings_file_manager.h"
+#include "keybinds.h"
 #include <filesystem>
-#include <functional>
 #include <string>
 #include <vector>
 
-// Forward declaration
-class ShaderManager;
+class EditorApi;
+class FileExplorer;
+class LSPClient;
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+// Owns the active profile JSON. Everyone reads/writes `settings` directly.
+// Menus mutate it; call requestApply() then apply() reloads fonts/style/theme.
+// Peers (editor / files / lsp) are arguments at call sites — no late attach.
 class Settings
 {
   public:
-	// --- STATIC HELPERS: publicly accessible ---
-	static std::string getAppResourcesPath()
-	{
-		return SettingsFileManager::getAppResourcesPath();
-	}
-	static std::string getUserSettingsPath()
-	{
-		return SettingsFileManager::getUserSettingsPath();
-	}
+	// Paths / JSON helpers used by keybinds, fonts, LSP, etc.
+	static std::string getAppResourcesPath();
+	static std::string getUserConfigDir(); // ~/ned/config
+	static bool readJson(const std::string &path, json &out);
+	static bool writeJson(const std::string &path, const json &data);
 
-	// --- Normal members & methods ---
 	Settings();
+
+	// The active profile — read and write this directly.
+	json settings;
+
 	void loadSettings();
 	void saveSettings();
-	void checkSettingsFile();
+	void checkSettingsFile(); // re-read profile if someone edited it on disk
+	void requestApply() { needsApply = true; }
+	// Returns true if fonts/style were reapplied (atlas may have been rebuilt).
+	bool apply(bool force, EditorApi &api);
 
-	json &getSettings() { return settings; }
+	void ApplySettings(ImGuiStyle &style);
 
-	float getSplitPos() const { return splitPos; }
-	void setSplitPos(float pos)
-	{
-		splitPos = pos;
-		settings["splitPos"] = pos;
-		settingsChanged = true;
-	}
-
-	float getAgentSplitPos() const { return agentSplitPos; }
-	void setAgentSplitPos(float pos)
-	{
-		agentSplitPos = pos;
-		settings["agent_split_pos"] = pos;
-		settingsChanged = true;
-	}
-
-	bool hasSettingsChanged() const { return settingsChanged; }
-	void resetSettingsChanged() { settingsChanged = false; }
-
-	std::string getCurrentTheme() const
-	{
-		if (settings.contains("theme") && settings["theme"].is_string())
-		{
-			return settings["theme"].get<std::string>();
-		}
-		return "default"; // Fallback
-	}
-	bool hasThemeChanged() const { return themeChanged; }
-	void resetThemeChanged() { themeChanged = false; }
-
-	std::string getCurrentFont() const
-	{
-		if (settings.contains("font") && settings["font"].is_string())
-		{
-			return settings["font"].get<std::string>();
-		}
-		return "SourceCodePro-Regular"; // Fallback
-	}
-	bool hasFontChanged() const { return fontChanged; }
-	void resetFontChanged() { fontChanged = false; }
-
-	float getFontSize() const { return currentFontSize; }
-	void setFontSize(float size)
-	{
-		if (size != currentFontSize)
-		{
-			settings["fontSize"] = size;
-			currentFontSize = size;
-			fontSizeChanged = true;
-			settingsChanged = true;
-		}
-	}
-	bool hasFontSizeChanged() const { return fontSizeChanged; }
-	void resetFontSizeChanged() { fontSizeChanged = false; }
-
-	bool isAgentSplitPosProcessed() const { return agentSplitPosProcessed; }
-
-	// Toggle functions for sidebar and agent pane
-	void toggleSidebar();
-	void toggleAgentPane();
+	KeybindsManager keybinds;
+	Font font;
 
 	bool showSettingsWindow = false;
-	bool isEmbedded = false; // Flag to indicate if running in embedded mode
-	void setEmbedded(bool embedded) { isEmbedded = embedded; }
+	// True only when running as NedEmbed inside a host app. Standalone Ned leaves false.
+	bool isEmbedded = false;
 
-	// Embedded settings window state (similar to terminal)
 	ImVec2 embeddedWindowPos{200.0f, 200.0f};
 	ImVec2 embeddedWindowSize{900.0f, 600.0f};
 	bool embeddedWindowCollapsed{false};
-	void renderSettingsWindow();
-	void renderSettingsContent(); // New method for rendering settings content
-	void toggleSettingsWindow();
-	bool isBlockingInput() const { return blockInput; }
 
-	// Public method to switch profile
+	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPClient &lsp);
+	void toggleSettingsWindow(EditorApi &api);
+	void toggleSidebar();
 	void switchToProfile(const std::string &profileName);
-
-	// Get current profile name
-	std::string getCurrentProfileName() const;
-
-	// Get current theme text color
-	ImVec4 getCurrentTextColor() const;
-
-	// Get current background color
-	ImVec4 getCurrentBackgroundColor() const;
-
-	bool getRainbowMode() const
-	{
-		if (settings.contains("rainbow") && settings["rainbow"].is_boolean())
-		{
-			return settings["rainbow"].get<bool>();
-		}
-		return true; // Fallback
-	}
-	bool getTreesitterMode() const
-	{
-		if (settings.contains("treesitter") && settings["treesitter"].is_boolean())
-		{
-			return settings["treesitter"].get<bool>();
-		}
-		return true; // Fallback
-	}
-
-	bool getAIAutocompleteMode() const
-	{
-		if (settings.contains("ai_autocomplete") &&
-			settings["ai_autocomplete"].is_boolean())
-		{
-			return settings["ai_autocomplete"].get<bool>();
-		}
-		return true; // Fallback
-	}
-
-	std::string getAgentModel() const
-	{
-		if (settings.contains("agent_model") && settings["agent_model"].is_string())
-		{
-			return settings["agent_model"].get<std::string>();
-		}
-		return "deepseek/deepseek-chat-v3-0324"; // Fallback
-	}
-
-	std::string getCompletionModel() const
-	{
-		if (settings.contains("completion_model") &&
-			settings["completion_model"].is_string())
-		{
-			return settings["completion_model"].get<std::string>();
-		}
-		return "meta-llama/llama-4-scout"; // Fallback
-	}
-
-	std::vector<std::string> fontNames = {
-		"SourceCodePro-Regular",
-		"JetBrainsMonoNL-Regular",
-		"NotoSansMono-Regular",
-		"NotoSansMono-Thin",
-		"NotoSansMono-Light",
-		"VT323-Regular",
-		"IBM_MDA",
-		"VT100",
-	};
-	std::string currentFontName;
-	bool profileJustSwitched = false; // Flag to indicate a settings profile was changed
-
 	void renderNotification(const std::string &message, float duration = 2.0f);
 
-	// Method to apply settings to ImGui style
-	void ApplySettings(ImGuiStyle &style);
-
-	void handleSettingsChanges(bool &needFontReload,
-							   bool &m_needsRedraw,
-							   int &m_framesToRender,
-							   std::function<void(bool)> setShaderEnabled,
-							   float &lastOpacity,
-							   bool &lastBlurEnabled,
-							   bool force = false);
-
   private:
-	json settings;				 // Holds the settings from the *active* file
-	std::string settingsPath;	 // Path to the *active* settings file (e.g.,
-								 // ned.json or test.json)
-	float splitPos = 0.3f;		 // Default, will be overwritten by loaded settings
-	float agentSplitPos = 0.75f; // Default, will be overwritten by loaded settings
+	bool needsApply = false;
+	std::string settingsPath; // e.g. ~/ned/config/amber.json
+	fs::file_time_type diskTime = fs::file_time_type::min();
 
-	bool settingsChanged = false;
-	bool themeChanged = false;
-	bool fontChanged = false;
-	bool fontSizeChanged = false;
-	bool blockInput = false;
-	bool agentSplitPosProcessed =
-		false; // Track if we've processed agent split pos for current file
+	void touchDiskTime();
+	std::vector<std::string> listProfiles() const;
+	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
 
-	float currentFontSize = 0.0f; // Will be set by loadSettings()
-	int settingsCheckFrameCounter = 0;
-
-	SettingsFileManager settingsFileManager; // Handles all file operations
-
-	// Helper functions for rendering different sections of the settings window
-	void renderWindowHeader();
+	void renderSettingsContent(EditorApi &api, FileExplorer &files, LSPClient &lsp);
+	void renderWindowHeader(EditorApi &api, FileExplorer &files);
 	void renderProfileSelector();
 	void renderMainSettings();
 	void renderMacSettings();
@@ -227,10 +80,10 @@ class Settings
 							float max_val,
 							const char *format,
 							float default_val);
-	void renderKeybindsSettings();
-	void handleWindowInput();
-	void applyImGuiStyles(); // New function for handling ImGui styles
-	void renderOpenRouterKeyInput();
-};
+	void renderKeybindsSettings(FileExplorer &files, LSPClient &lsp);
+	void handleWindowInput(EditorApi &api);
+	void applyImGuiStyles();
+	void closeSettingsWindow(EditorApi &api);
 
-extern Settings gSettings;
+	static std::string displayFontName(const std::string &fontFile);
+};

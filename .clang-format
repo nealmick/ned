@@ -21,8 +21,16 @@ BraceWrapping:
 BinPackParameters: false
 BinPackArguments: false
 
-# Encourage fewer line breaks for function parameters
-PenaltyBreakBeforeFirstCallParameter: 50
+# Constructor init lists: either all on one line, or one member per line.
+# Avoids packing short inits mid-line then mangling a long call (e.g. app(...)).
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+PackConstructorInitializers: NextLine
+ConstructorInitializerIndentWidth: 4
+AllowAllConstructorInitializersOnNextLine: false
+
+# Break after the open paren of a call rather than hanging args mid-line
+# after a long initializer.
+PenaltyBreakBeforeFirstCallParameter: 1
 PenaltyExcessCharacter: 50
 
 # Let short functions stay on one line if they fit

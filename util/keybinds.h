@@ -1,57 +1,43 @@
-// keybinds.h
 #pragma once
 #include "../lib/json.hpp"
-#include "imgui.h" // <<< ADD THIS for ImGuiKey
-#include "settings_file_manager.h"
+#include "imgui.h"
 #include <filesystem>
-#include <map> // <<< ADD THIS for std::map
+#include <map>
 #include <string>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+class EditorApi;
+class FileExplorer;
+class LSPClient;
+class NedTerminal;
+class Settings;
+
+// Loads ~/ned/config/keybinds.json into a map of action → ImGuiKey.
+// handleKeyboardShortcuts() runs the global app shortcuts; peers passed at call time.
 class KeybindsManager
 {
   public:
-	KeybindsManager();
+	explicit KeybindsManager(Settings &settings);
 
 	bool loadKeybinds();
-	void printKeybinds() const;
-	void checkKeybindsFile();
-
-	// Getter for the raw JSON keybinds (can still be useful for inspection)
-	const json &getRawKeybinds() const { return keybinds_; }
-
-	// Getter for the processed ImGuiKey map
-	// Returns ImGuiKey_None if the actionName is not found or key is unmapped
+	void checkKeybindsFile(); // re-read if the file changed on disk
 	ImGuiKey getActionKey(const std::string &actionName) const;
-
-	// Handle keyboard shortcuts - moved from Ned class
-	// Returns true if any shortcuts were pressed, false otherwise
-	bool handleKeyboardShortcuts();
+	bool handleKeyboardShortcuts(EditorApi &api,
+								 FileExplorer &files,
+								 LSPClient &lsp,
+								 NedTerminal &terminal);
 
   private:
-	std::string getUserKeybindsFilePath();
-	void ensureUserKeybindsFileExists();
-	bool loadKeybindsFromFile(const std::string &filePath);
-	void updateLastModificationTime();
+	void ensureFileExists();
+	void rebuildMap();
+	void touchDiskTime();
+	static ImGuiKey stringToImGuiKey(const std::string &keyString);
 
-	// Helper to convert string to ImGuiKey
-	static ImGuiKey stringToImGuiKey(const std::string &keyString); // <<< ADD THIS
-
-	void processKeybinds();
-
-	json keybinds_;
-	std::map<std::string, ImGuiKey> processedKeybinds_;
-
-	std::string keybindsFilePath_;
-	SettingsFileManager settingsFileManager_;
-	fs::file_time_type lastKeybindsModificationTime_;
-
-	int checkFrameCounter_ = 0;
-	static const int CHECK_INTERVAL_FRAMES = 60;
-
-	const std::string KEYBINDS_FILENAME_ = "keybinds.json";
+	Settings &settings;
+	json keybinds = json::object();
+	std::map<std::string, ImGuiKey> keys;
+	std::string path;
+	fs::file_time_type diskTime = fs::file_time_type::min();
 };
-
-extern KeybindsManager gKeybinds;

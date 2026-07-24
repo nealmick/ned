@@ -1,22 +1,31 @@
 #include "lsp_symbol_info.h"
+#include "../editor/editor_api.h"
+#include "../files/files.h"
+#include "../util/settings.h"
 #include "lsp_includes.h"
 
-// Global instance
-LSPSymbolInfo gLSPSymbolInfo;
-
-LSPSymbolInfo::LSPSymbolInfo() : show(false), pending(false) {}
+LSPSymbolInfo::LSPSymbolInfo(LSPClient &client,
+							 EditorApi &api,
+							 FileExplorer &fileExplorer,
+							 Settings &settings)
+	: show(false),
+	  client(&client),
+	  api(&api),
+	  fileExplorer(&fileExplorer),
+	  settings(&settings),
+	  pending(false)
+{
+}
 
 LSPSymbolInfo::~LSPSymbolInfo() = default;
 
 void LSPSymbolInfo::get()
 {
-	if (!gLSPClient.isInitialized())
+	if (!client || !api || !fileExplorer || !client->isInitialized())
 		return;
 
-	// Get current cursor position
-	int row = gEditor.getLineFromPos(editor_state.cursor_index);
-	int line_start = editor_state.editor_content_lines[row];
-	int column = editor_state.cursor_index - line_start;
+	int row = 0, column = 0;
+	api->getCaret(row, column);
 
 	// Set pending state
 	pending = true;
@@ -40,11 +49,11 @@ void LSPSymbolInfo::request(int line,
 	{
 		// Create the hover request parameters
 		lsp::HoverParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(gFileExplorer.currentFile);
+		params.textDocument.uri = lsp::FileUri::fromPath(fileExplorer->api->path());
 		params.position.line = line;
 		params.position.character = character;
 
-		gLSPClient.getMessageHandler()->sendRequest<lsp::requests::TextDocument_Hover>(
+		client->getMessageHandler()->sendRequest<lsp::requests::TextDocument_Hover>(
 			std::move(params),
 			[callback](auto &&result) {
 				if (!result.isNull())
@@ -72,24 +81,21 @@ void LSPSymbolInfo::request(int line,
 
 void LSPSymbolInfo::render()
 {
-	if (!show)
+	if (!show || !api || !fileExplorer || !settings)
 		return;
 
-	// Calculate cursor position in screen space
-	int cursor_line = gEditor.getLineFromPos(editor_state.cursor_index);
-	float cursor_x = gEditorCursor.getCursorXPosition(editor_state.text_pos,
-													  editor_state.fileContent,
-													  editor_state.cursor_index);
-
-	// Get the actual screen position of the text cursor
-	ImVec2 cursor_screen_pos = editor_state.text_pos;
+	const auto &layout = api->layout();
+	const float cursor_x = api->caretScreenX();
+	ImVec2 cursor_screen_pos = layout.textPos;
 	cursor_screen_pos.x = cursor_x;
-	cursor_screen_pos.y += cursor_line * editor_state.line_height;
+	int caretRow = 0, caretCol = 0;
+	api->getCaret(caretRow, caretCol);
+	cursor_screen_pos.y += caretRow * layout.lineHeight;
 
 	// Set initial display position relative to cursor
 	ImVec2 displayPosition = cursor_screen_pos;
-	displayPosition.y += editor_state.line_height + 5.0f; // Position below cursor line
-	displayPosition.x += 5.0f;							  // Small horizontal offset
+	displayPosition.y += layout.lineHeight + 5.0f; // Position below cursor line
+	displayPosition.x += 5.0f;					   // Small horizontal offset
 
 	// Width configuration
 	const float min_width = 450.0f;
@@ -110,9 +116,9 @@ void LSPSymbolInfo::render()
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
 	ImGui::PushStyleColor(
 		ImGuiCol_WindowBg,
-		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * .8,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>() * .8,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>() * .8,
+		ImVec4(settings->settings["backgroundColor"][0].get<float>() * .8,
+			   settings->settings["backgroundColor"][1].get<float>() * .8,
+			   settings->settings["backgroundColor"][2].get<float>() * .8,
 			   1.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
 

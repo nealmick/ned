@@ -1,13 +1,17 @@
 #include "lsp_uri_options.h"
+#include "../editor/editor_api.h"
+#include "../files/files.h"
 #include "../util/settings.h"
 #include "imgui.h"
 #include "lsp_includes.h"
 #include <algorithm>
 
-// Global instance
-LSPUriOptions gLSPUriOptions;
-
-LSPUriOptions::LSPUriOptions() : selectedIndex(0), isEmbedded(false) {}
+LSPUriOptions::LSPUriOptions(EditorApi &api,
+							 FileExplorer &fileExplorer,
+							 Settings &settings)
+	: api(&api), fileExplorer(&fileExplorer), settings(&settings)
+{
+}
 
 LSPUriOptions::~LSPUriOptions() {}
 
@@ -15,7 +19,7 @@ void LSPUriOptions::render(const std::string &title,
 						   const std::vector<std::map<std::string, std::string>> &options,
 						   bool &show)
 {
-	if (!show)
+	if (!show || !api || !fileExplorer || !settings)
 	{
 		return;
 	}
@@ -32,7 +36,7 @@ void LSPUriOptions::render(const std::string &title,
 		selectedIndex = 0;
 
 	// Block editor input while popup is shown
-	editor_state.block_input = true;
+	api->setBlockInput(true);
 
 	// Height calculations
 	float itemHeight = ImGui::GetTextLineHeightWithSpacing();
@@ -46,34 +50,30 @@ void LSPUriOptions::render(const std::string &title,
 
 	float desiredWidth = 600.0f;
 	desiredWidth = std::max(desiredWidth, 500.0f);
-	ImVec2 windowSize(desiredWidth,
-					  std::min(totalHeight, maxHeight) +
-						  (options.size() <= 1 ? 10.0f : 25.0f));
+	ImVec2 windowSize(
+		desiredWidth,
+		std::min(totalHeight, maxHeight) + (options.size() <= 1 ? 10.0f : 25.0f));
 	windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f);
 
 	ImVec2 windowPos;
-	if (isEmbedded)
+	if (settings && settings->isEmbedded)
 	{
-		// In embedded mode, position relative to the editor pane bounds
-		ImVec2 editorPanePos = ImGui::GetWindowPos();
-		ImVec2 editorPaneSize = ImGui::GetWindowSize();
+		const ImVec2 &panePos = api->layout().panePos;
+		const ImVec2 &paneSize = api->layout().paneSize;
 
-		windowPos =
-			ImVec2(editorPanePos.x + editorPaneSize.x * 0.5f - windowSize.x * 0.5f,
-				   editorPanePos.y + editorPaneSize.y * 0.35f - windowSize.y * 0.5f);
+		windowPos = ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
+						   panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);
 
-		// Ensure the popup stays within the editor pane bounds
-		if (windowPos.x < editorPanePos.x)
-			windowPos.x = editorPanePos.x;
-		if (windowPos.x + windowSize.x > editorPanePos.x + editorPaneSize.x)
-			windowPos.x = editorPanePos.x + editorPaneSize.x - windowSize.x;
-		if (windowPos.y < editorPanePos.y)
-			windowPos.y = editorPanePos.y;
-		if (windowPos.y + windowSize.y > editorPanePos.y + editorPaneSize.y)
-			windowPos.y = editorPanePos.y + editorPaneSize.y - windowSize.y;
+		if (windowPos.x < panePos.x)
+			windowPos.x = panePos.x;
+		if (windowPos.x + windowSize.x > panePos.x + paneSize.x)
+			windowPos.x = panePos.x + paneSize.x - windowSize.x;
+		if (windowPos.y < panePos.y)
+			windowPos.y = panePos.y;
+		if (windowPos.y + windowSize.y > panePos.y + paneSize.y)
+			windowPos.y = panePos.y + paneSize.y - windowSize.y;
 	} else
 	{
-		// In standalone mode, center on screen
 		windowPos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f - windowSize.x * 0.5f,
 						   ImGui::GetIO().DisplaySize.y * 0.35f - windowSize.y * 0.5f);
 	}
@@ -92,12 +92,10 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
 	// Theme colors from settings
-	extern Settings gSettings;
-	ImVec4 windowBg =
-		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>() * 0.8f,
-			   gSettings.getSettings()["backgroundColor"][1].get<float>() * 0.8f,
-			   gSettings.getSettings()["backgroundColor"][2].get<float>() * 0.8f,
-			   1.0f);
+	ImVec4 windowBg = ImVec4(settings->settings["backgroundColor"][0].get<float>() * 0.8f,
+							 settings->settings["backgroundColor"][1].get<float>() * 0.8f,
+							 settings->settings["backgroundColor"][2].get<float>() * 0.8f,
+							 1.0f);
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, windowBg);
 	ImGui::PushStyleColor(ImGuiCol_ChildBg,
 						  windowBg); // Match child background to window background
@@ -106,7 +104,8 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.3f));
 	ImGui::PushStyleColor(
 		ImGuiCol_HeaderHovered,
-		ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // Default transparent hover (overridden per-item)
+		ImVec4(
+			0.0f, 0.0f, 0.0f, 0.0f)); // Default transparent hover (overridden per-item)
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(1.0f, 0.1f, 0.7f, 0.5f));
 
 	if (ImGui::Begin("##LSPUriOptions", nullptr, windowFlags))
@@ -124,7 +123,7 @@ void LSPUriOptions::render(const std::string &title,
 				 mousePos.y > currentWindowPos.y + currentWindowSize.y))
 			{
 				show = false;
-				editor_state.block_input = false;
+				api->setBlockInput(false);
 			}
 		}
 
@@ -132,7 +131,7 @@ void LSPUriOptions::render(const std::string &title,
 		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
 			show = false;
-			editor_state.block_input = false;
+			api->setBlockInput(false);
 		}
 
 		// Fixed header
@@ -214,7 +213,7 @@ void LSPUriOptions::render(const std::string &title,
 					{
 						handleSelection();
 						show = false;
-						editor_state.block_input = false;
+						api->setBlockInput(false);
 					}
 				}
 
@@ -248,7 +247,7 @@ void LSPUriOptions::render(const std::string &title,
 		{
 			handleSelection();
 			show = false;
-			editor_state.block_input = false;
+			api->setBlockInput(false);
 		}
 
 		ImGui::End(); // End main window
@@ -257,7 +256,7 @@ void LSPUriOptions::render(const std::string &title,
 		if (show)
 		{
 			show = false;
-			editor_state.block_input = false;
+			api->setBlockInput(false);
 		}
 	}
 
@@ -268,7 +267,7 @@ void LSPUriOptions::render(const std::string &title,
 
 	if (!show)
 	{
-		editor_state.block_input = false;
+		api->setBlockInput(false);
 		selectedIndex = 0; // Reset selection when popup closes
 	}
 }
@@ -287,32 +286,12 @@ void LSPUriOptions::handleSelection()
 
 	// Use the file loading logic from the old system
 
-	if (filePath != gFileExplorer.currentFile)
+	if (filePath != fileExplorer->api->path())
 	{
-		gFileExplorer.loadFileContent(filePath, [line, col]() {
-			gEditorScroll.pending_cursor_centering = true;
-			gEditorScroll.pending_cursor_line = line;
-			gEditorScroll.pending_cursor_char = col;
-		});
+		fileExplorer->loadFileContent(
+			filePath, [this, line, col]() { api->requestCursorCenter(line, col); });
 	} else
 	{
-		// Same file - just move cursor
-		int index = 0;
-		int currentLine = 0;
-		const std::string &content = editor_state.fileContent;
-
-		while (currentLine < line && index < content.length())
-		{
-			if (content[index] == '\n')
-				currentLine++;
-			index++;
-		}
-
-		index += col;
-		index = std::min(index, static_cast<int>(content.length()));
-
-		editor_state.cursor_index = index;
-		editor_state.center_cursor_vertical = true;
-		gEditorScroll.centerCursorVertically();
+		api->centerOn(line, col);
 	}
 }

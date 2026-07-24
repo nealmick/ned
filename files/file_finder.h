@@ -1,80 +1,72 @@
-// file_finder.h
-
 #pragma once
-#include "files.h"
+
 #include "imgui.h"
+#include <atomic>
 #include <filesystem>
+#include <mutex>
+#include <string>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
+
+class FileExplorer;
+class Settings;
 
 struct FileEntry
 {
 	std::string fullPath;
 	std::string relativePath;
-	std::string fullPathLower; // Lower-case full path for searching
-	std::string filenameLower; // Lower-case file name (from relativePath.filename())
+	std::string relativePathLower; // precomputed for filtering
+	std::string filenameLower;	   // for dotfile skip rule
 };
 
+// Fuzzy-ish project file picker (Ctrl+P): background scan + filter.
+// Opens the selected file only on Enter (no live preview — embed multi-tab
+// would otherwise spawn a tab per arrow key).
 class FileFinder
 {
+  public:
+	FileExplorer *fileExplorer = nullptr;
+	Settings *settings = nullptr;
+
+	bool showFFWindow = false;
+
+	FileFinder();
+	~FileFinder();
+
+	void startBackgroundThread();
+	void toggleWindow();
+	void renderWindow();
+
   private:
-	char searchBuffer[256] = ""; // Buffer for the search input
-	bool wasKeyboardFocusSet = false;
+	static constexpr size_t INPUT_CAP = 256;
+	static constexpr int SCAN_INTERVAL_SEC = 3;
 
+	char searchBuffer[INPUT_CAP] = {};
 	std::string previousSearch;
-	std::string originalFile;
-	std::string currentlyLoadedFile;
 
-	std::vector<FileEntry> fileList;
-	std::vector<FileEntry> filteredList;
-	bool isInitialSelection = true; // Track if this is the first selection after opening
-
+	std::vector<FileEntry> fileList;	 // full project list (worker)
+	std::vector<FileEntry> filteredList; // search results (UI thread)
 	int selectedIndex = 0;
-	void updateFilteredList();
+
+	// Background scanner
 	std::thread workerThread;
 	std::mutex fileListMutex;
 	std::atomic<bool> stopThread{false};
 	std::string currentProjectDir;
+	bool workerStarted = false;
 
 	void backgroundRefresh();
 	void refreshFileListBackground(const std::string &projectDir);
-	// Helper functions to break up the renderWindow() logic:
+	void updateFilteredList();
+
+	void commitSelection(); // Enter: open selected file, close
+	void cancelAndClose();	// Esc / click-outside: close without opening
+
 	void renderHeader();
 	bool renderSearchInput();
 	void renderFileList();
 
-	void handleSelectionChange();
-	int orginal_cursor_index;
-
-	std::chrono::steady_clock::time_point lastSelectionTime;
-	std::string pendingFile;
-	bool hasPendingSelection = false;
-
-	void checkPendingSelection(); // Add this declaration
-
-	// Embedded mode support
-	bool isEmbedded = false;
-	ImVec2 editorPanePos;
-	ImVec2 editorPaneSize;
-
-  public:
-	bool showFFWindow = false;
-	// TODO: Add embedded positioning support when needed
-	void toggleWindow();
-	bool isWindowOpen() const;
-	void renderWindow();
-
-	// Embedded mode support
-	void setEmbedded(bool embedded) { isEmbedded = embedded; }
-	void setEditorPaneBounds(const ImVec2 &pos, const ImVec2 &size)
-	{
-		editorPanePos = pos;
-		editorPaneSize = size;
-	}
-
-	FileFinder();
-	~FileFinder();
+	ImVec4 dimmedBackground() const;
 };
-
-extern FileFinder gFileFinder;
