@@ -8,142 +8,67 @@ This class combines the functionality of ApplicationManager and GraphicsManager.
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <functional>
 
-// Forward declarations
-class ShaderManager;
-class Render;
-class Settings;
-class Splitter;
-class WindowResize;
-class ShaderQuad;
+struct TimingState
+{
+	double lastSettingsCheck = 0.0;
+	double lastFileTreeRefresh = 0.0;
+};
+
+class Editor;
 class FileExplorer;
+class LSPClient;
+class NedTerminal;
+class Settings;
+class ShaderManager;
+class Splitter;
+class Welcome;
 struct FramebufferState;
-struct AccumulationBuffers;
 
 class App
 {
   public:
-	App();
+	App(Settings &settings,
+		Editor &editor,
+		FileExplorer &fileExplorer,
+		LSPClient &lspClient,
+		ShaderManager &shaderManager,
+		Splitter &splitter,
+		Welcome &welcome,
+		FramebufferState &fb,
+		NedTerminal &terminal);
 	~App();
 
-	// Initialize graphics system
-	bool initialize(ShaderManager &shaderManager);
+	bool initialize();
+	void runMainLoop();
 
-	// Initialize application manager
-	bool initializeApp(ShaderManager &shaderManager,
-					   Render &render,
-					   Settings &settings,
-					   Splitter &splitter,
-					   WindowResize &windowResize,
-					   ShaderQuad &quad,
-					   FramebufferState &fb,
-					   AccumulationBuffers &accum);
+	void renderFrame();
+	void renderMainWindow();
+	void handleBackgroundUpdates();
 
-	// Main application loop
-	void runMainLoop(ShaderManager &shaderManager,
-					 Render &render,
-					 Settings &settings,
-					 Splitter &splitter,
-					 WindowResize &windowResize,
-					 ShaderQuad &quad,
-					 FramebufferState &fb,
-					 AccumulationBuffers &accum,
-					 bool &needFontReload,
-					 float &lastOpacity,
-					 bool &lastBlurEnabled);
+	static constexpr double SETTINGS_CHECK_INTERVAL = 2.0;
+	static constexpr double FILE_TREE_REFRESH_INTERVAL = 2.0;
 
-	// Graphics manager methods
-	GLFWwindow *getWindow() const { return window; }
-	void setScrollCallback(GLFWscrollfun callback);
-	void setAppScrollCallback(GLFWscrollfun callback);
-	void enableRawMouseMotion();
-	void setWindowUserPointer(void *pointer);
-	void makeContextCurrent();
-	void setSwapInterval(int interval);
-	void setWindowRefreshCallback(GLFWwindowrefreshfun callback);
-	bool shouldWindowClose() const;
-	void getFramebufferSize(int *width, int *height);
-	bool isWindowFocused() const;
-	void pollEvents(double currentTime, bool shaderEnabled, double lastActivityTime);
-	double calculateEventTimeout(double currentTime,
-								 bool shaderEnabled,
-								 double lastActivityTime);
-
-	// Window management methods
-	void initializeWindowManagement(GLFWwindow *window);
-	void handleWindowFocus(bool &windowFocused, FileExplorer &fileExplorer);
-	bool shouldTerminateApplication() const;
-	void setupMacOSApplicationDelegate();
-	void configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabled);
-	void updateMacOSWindowProperties(float opacity, bool blurEnabled);
-	void cleanupMacOSApplicationDelegate();
-	bool isWindowFocused(GLFWwindow *window) const;
-	void
-	handleSettingsChanges(Settings &settings, float &lastOpacity, bool &lastBlurEnabled);
-
-	// Cleanup resources
-	void cleanup();
-	void cleanupAll(ShaderQuad &quad,
-					ShaderManager &shaderManager,
-					FramebufferState &fb,
-					AccumulationBuffers &accum);
-
-	// Scroll accumulator getters
-	double getScrollXAccumulator() const { return scrollXAccumulator; }
-	double getScrollYAccumulator() const { return scrollYAccumulator; }
-	void setScrollXAccumulator(double x) { scrollXAccumulator = x; }
-	void setScrollYAccumulator(double y) { scrollYAccumulator = y; }
-
-	// macOS window management getters
-	float getLastOpacity() const { return lastOpacity; }
-	bool getLastBlurEnabled() const { return lastBlurEnabled; }
+	GLFWwindow *window = nullptr;
+	double scrollXAccumulator = 0.0;
+	double scrollYAccumulator = 0.0;
 
   private:
-	// Graphics manager members
-	GLFWwindow *window;
-	bool lastFocusState;
+	Settings &settings;
+	Editor &editor;
+	FileExplorer &fileExplorer;
+	LSPClient &lspClient;
+	ShaderManager &shaderManager;
+	Splitter &splitter;
+	Welcome &welcome;
+	FramebufferState &fb;
+	NedTerminal &terminal;
+
 	bool windowFocused;
+	TimingState timing;
 
-	// Window state tracking (used on macOS for opacity/blur)
-	float lastOpacity;
-	bool lastBlurEnabled;
-
-	// Application manager members
-	GLFWscrollfun scrollCallback;
-	double scrollXAccumulator;
-	double scrollYAccumulator;
-
-	// Graphics initialization methods
-	bool initializeGLFW();
+	bool initializeImGui();
 	bool createWindow();
 	bool initializeGLEW();
-	void initializeOpenGLState();
-	void setupWindowHints();
-
-	// Application loop helper methods
-	void handleEventPolling(ShaderManager &shaderManager, double currentTime);
-	void handleWindowManagement(GLFWwindow *window);
-	void handleScrollAccumulators(double &scrollXAccumulator, double &scrollYAccumulator);
-	void handleFramebufferSetup(ShaderManager &shaderManager,
-								FramebufferState &fb,
-								AccumulationBuffers &accum);
-	void handleFrameRendering(Render &render,
-							  GLFWwindow *window,
-							  ShaderManager &shaderManager,
-							  FramebufferState &fb,
-							  AccumulationBuffers &accum,
-							  ShaderQuad &quad,
-							  Settings &settings,
-							  Splitter &splitter,
-							  WindowResize &windowResize,
-							  double currentTime);
-	void handleFontReload(bool &needFontReload);
-
-	// Cleanup helper methods
-	void cleanupQuad(ShaderQuad &quad);
-	void cleanupFramebuffers(ShaderManager &shaderManager,
-							 FramebufferState &fb,
-							 AccumulationBuffers &accum);
-	void cleanupImGui();
+	void handleScrollAccumulators();
 };

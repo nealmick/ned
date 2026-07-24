@@ -1,6 +1,7 @@
 /*
 File: ned.cpp
-Description: Main application class implementation for NED text editor.
+Description: Composition root — constructs the object graph in the init list;
+ctor body only registers reactions (same pattern as Editor).
 */
 
 #include "imgui_impl_glfw.h"
@@ -10,71 +11,91 @@ Description: Main application class implementation for NED text editor.
 #include "misc/freetype/imgui_freetype.h"
 #endif
 #ifdef __APPLE__
-#include "macos_window.h"
+#include "util/macos_window.h"
 #endif
 
-#include "../ai/ai_tab.h"
 #include "ned.h"
 
-#include "editor/editor_bookmarks.h"
-#include "editor/editor_header.h"
-#include "editor/editor_highlight.h"
-#include "editor/editor_scroll.h"
+#include "editor/editor_events.h"
+#include "files/file_explorer_events.h"
 #include "files/files.h"
 #include "lsp/lsp_client.h"
-#include "util/debug_console.h"
-#include "util/init.h"
-#include "util/keybinds.h"
-#include "util/render.h"
-#include "util/scroll.h"
 #include "util/settings.h"
-#include "util/splitter.h"
-#include "util/terminal.h"
-#include "util/welcome.h"
 
-#include <cstdio>
-#include <filesystem>
 #include <iostream>
-#include <thread>
 
-#include "ai/ai_agent.h"
+Ned::Ned()
+	: projectUndo(projectRoot),
+	  editor(settings, projectRoot, icons, projectUndo),
+	  fileExplorer(editor.api, settings, projectRoot, icons),
+	  lspClient(editor.api, fileExplorer, settings),
+	  welcome(settings, fileExplorer),
+	  splitter(settings),
+	  shaderManager(settings, fb, accum, quad),
+	  app(settings,
+		  editor,
+		  fileExplorer,
+		  lspClient,
+		  shaderManager,
+		  splitter,
+		  welcome,
+		  fb,
+		  terminal),
+	  initialized(false)
+{
+	using Keep = EditorEvents::DidRequestExclusiveOverlay::Keep;
 
-// global scope
-// Note: gBookmarks and gAIAgent are now defined in globals.cpp
+	// Shell overlays (settings / file finder) — editor siblings handled in EditorApi.
+	editor.api.events().subscribeDidRequestExclusiveOverlay(
+		[this](const EditorEvents::DidRequestExclusiveOverlay &e) {
+			if (e.keep != Keep::Settings && !settings.isEmbedded)
+				settings.showSettingsWindow = false;
+			if (e.keep != Keep::FileFinder)
+				fileExplorer.fileFinder.showFFWindow = false;
+		});
 
-constexpr float kAgentSplitterWidth = 6.0f;
+	editor.api.events().subscribeDidSave([this](const EditorEvents::DidSave &e) {
+		if (lspClient.isInitialized())
+			lspClient.didEdit(e.path, editor.api.text(), e.version);
+	});
 
-Ned::Ned() : initialized(false) {}
+	fileExplorer.events.subscribeDidOpenProject(
+		[this](const FileExplorerEvents::DidOpenProject &e) {
+			projectUndo.loadProject(e.root);
+			editor.api.onProjectOpened(e.root);
+			lspClient.setWorkspace(e.root);
+		});
+
+	fileExplorer.events.subscribeDidOpenDocument(
+		[this](const FileExplorerEvents::DidOpenDocument &e) {
+			lspClient.init(e.path);
+			if (lspClient.isInitialized())
+				lspClient.didOpen(e.path,
+								  editor.api.text(),
+								  editor.api.version(),
+								  editor.api.languageId());
+		});
+
+	fileExplorer.events.subscribeDidCloseDocument(
+		[this](const FileExplorerEvents::DidCloseDocument &e) {
+			if (lspClient.isInitialized())
+				lspClient.didClose(e.path);
+		});
+}
 
 Ned::~Ned()
 {
 	if (initialized)
-	{
 		cleanup();
-	}
 }
 
 bool Ned::initialize()
 {
-	// Initialize all components using Init class (this will call app.initialize internally)
-	if (!Init::initializeAllComponents(
-			app, shaderManager, render, gSettings, splitter, windowResize, quad, fb, accum))
-	{
-		return false;
-	}
+	app.initialize();
+	quad.initialize();
 
-	// Initialize application manager
-	if (!app.initializeApp(
-			shaderManager, render, gSettings, splitter, windowResize, quad, fb, accum))
-	{
-		return false;
-	}
-
-	// Set up window user pointer
-	app.setWindowUserPointer(this);
-
-	// Set up scroll callback
-	app.setAppScrollCallback(Ned::scrollCallback);
+	glfwSetWindowUserPointer(app.window, this);
+	glfwSetScrollCallback(app.window, Ned::scrollCallback);
 
 	initialized = true;
 	return true;
@@ -82,11 +103,14 @@ bool Ned::initialize()
 
 void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
-	Scroll::scrollCallback(window, xoffset, yoffset, [window](double x, double y) {
-		App *app = static_cast<App *>(glfwGetWindowUserPointer(window));
-		app->setScrollXAccumulator(app->getScrollXAccumulator() + x);
-		app->setScrollYAccumulator(app->getScrollYAccumulator() + y);
-	});
+	double x = xoffset * 0.2;
+	double y = yoffset * 0.2;
+	Ned *ned = static_cast<Ned *>(glfwGetWindowUserPointer(window));
+	if (!ned)
+		return;
+
+	ned->app.scrollXAccumulator += x;
+	ned->app.scrollYAccumulator += y;
 }
 
 void Ned::run()
@@ -97,29 +121,23 @@ void Ned::run()
 		return;
 	}
 
-	// Run the main application loop using App
-	bool needFontReload = gFont.getNeedFontReload();
-	float lastOpacity = app.getLastOpacity();
-	bool lastBlurEnabled = app.getLastBlurEnabled();
-	app.runMainLoop(shaderManager,
-					render,
-					gSettings,
-					splitter,
-					windowResize,
-					quad,
-					fb,
-					accum,
-					needFontReload,
-					lastOpacity,
-					lastBlurEnabled);
+	app.runMainLoop();
 }
 
 void Ned::cleanup()
 {
-	// Shutdown LSP first to avoid hanging
-	std::cout << "App: Shutting down LSP client..." << std::endl;
-	gLSPClient.shutdown();
+	lspClient.shutdown();
+	terminal.shutdown();
 
-	// Then cleanup other components
-	app.cleanupAll(quad, shaderManager, fb, accum);
+	quad.cleanup();
+	shaderManager.cleanupFramebuffers();
+	settings.saveSettings();
+	editor.api.save();
+	projectUndo.flush();
+	if (app.window)
+		glfwDestroyWindow(app.window);
+	glfwTerminate();
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }

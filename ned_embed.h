@@ -1,81 +1,82 @@
 /*
-File: ned_embed.h
-Description: Embeddable NED editor wrapper for use within other ImGui projects.
-This provides the full NED editor functionality without window management.
+	File: ned_embed.h
+	Description: Embeddable NED — multi-tab editors via ImGui docking.
+	Standalone Ned remains single-buffer; only this host opens many tabs.
 */
 
 #pragma once
 
+#include "editor/editor.h"
+#include "files/files.h"
+#include "lsp/lsp_client.h"
+#include "util/icons.h"
+#include "util/ned_terminal.h"
+#include "util/project_undo.h"
+#include "util/settings.h"
+#include "util/splitter.h"
+#include "util/welcome.h"
+
 #include <imgui.h>
+
+#include <functional>
+#include <memory>
 #include <string>
+#include <vector>
 
-// Forward declarations
-class ImFont;
-class Settings;
-class Splitter;
-class WindowResize;
-class ShaderManager;
-class Render;
-class ShaderQuad;
-struct FramebufferState;
-struct AccumulationBuffers;
-
-// Embeddable NED Editor class
 class NedEmbed
 {
   public:
 	NedEmbed();
 	~NedEmbed();
 
-	// Initialize the embeddable editor (everything except GLFW window)
-	// Called automatically in constructor
 	bool initialize();
-
-	// Render the editor as an ImGui window/child
-	// This should be called within an ImGui window or child window
-	// Automatically gets the available content region size
 	void render();
-
-	// Check for font reloading (call this BEFORE ImGui::NewFrame())
-	void checkForFontReload();
-
-	// Handle input (call this before rendering if needed)
-	void handleInput();
-
-	// Cleanup resources
+	void applySettingsChanges();
 	void cleanup();
 
-	// Configuration methods
-	void setShowSidebar(bool show);
-	void setShowAgentPane(bool show);
-	void setShowLineNumbers(bool show);
-	void setShowWelcome(bool show);
+	Settings settings;
+	std::string projectRoot;
+	Icons icons;
+	// Shared across all tabs — single JSON writer for the project.
+	ProjectUndo projectUndo;
 
-	bool getShowSidebar() const { return showSidebar; }
-	bool getShowAgentPane() const { return showAgentPane; }
-	bool getShowLineNumbers() const { return showLineNumbers; }
+	// Heap-allocated so tabs can own Editors created after FileExplorer exists.
+	std::unique_ptr<FileExplorer> fileExplorer;
+	std::unique_ptr<LSPClient> lspClient;
+	std::unique_ptr<Welcome> welcome;
+	Splitter splitter;
+	NedTerminal terminal;
+
+	bool showWelcome = true;
+
+	// Active tab (nullptr if none).
+	Editor *activeEditor();
+	EditorApi *activeApi();
 
   private:
-	// Core components (reused from main NED)
-	Settings *settings;
-	Splitter *splitter;
-	WindowResize *windowResize;
+	struct Tab
+	{
+		std::string path; // absolute; empty = unused/untitled bootstrap
+		std::unique_ptr<Editor> editor;
+		bool wantFocus = false;
+	};
 
-	// Configuration
-	bool showSidebar;
-	bool showAgentPane;
-	bool showLineNumbers;
-	bool showWelcome;
-	bool isEmbedded;
-	bool initialized;
+	bool initialized = false;
+	bool dockLayoutBuilt = false;
+	bool dockLayoutHadSidebar = true;
+	ImGuiID editorDockNodeId = 0;
 
-	// Internal rendering methods
-	void renderEditor(float editorWidth);
-	void renderFileExplorer(float explorerWidth);
-	void renderAgentPane(float agentWidth);
-	void renderSplitter(float padding, float availableWidth);
+	std::vector<Tab> tabs;
+	int activeIndex = -1;
 
-	// Initialize core components (without GLFW window)
-	bool initializeComponents();
-	void cleanupComponents();
+	void ensureDockLayout(ImGuiID dockspaceId);
+	void renderDockedWorkspace(ImFont *font);
+	void openOrFocus(const std::string &path, std::function<void()> after = nullptr);
+	void closeTab(int index);
+	void ensureBootstrapTab();
+	void wireTabEditor(Editor &ed);
+	void setActiveIndex(int index);
+	void syncActiveBindings();
+	std::string tabWindowTitle(const Tab &tab, int index) const;
+	static std::string canonicalizePath(const std::string &path);
 };

@@ -1,345 +1,520 @@
 /*
-File: ned_embed.cpp
-Description: Implementation of the embeddable NED editor wrapper.
+	File: ned_embed.cpp
+	Description: Embeddable NED with multi-tab editors (ImGui docking).
+	Standalone Ned is unchanged (single buffer).
 */
 
-// Include GLEW first to avoid conflicts
 #include <GL/glew.h>
 
 #include "ned_embed.h"
 
-#include "ai/ai_agent.h"
-#include "ai/ai_agent.h" // Ensure AI agent is included
-#include "editor/editor.h"
-#include "editor/editor_bookmarks.h"
-#include "files/file_finder.h"
-#include "files/file_tree.h"
-#include "files/files.h"
-
-#include "shaders/shader_manager.h"
-#include "shaders/shader_types.h"
-#include "util/font.h"
-#include "util/init.h"
+#include "editor/editor_events.h"
+#include "files/file_explorer_events.h"
 #include "util/keybinds.h"
-#include "util/render.h"
-#include "util/settings.h"
-#include "util/splitter.h"
-#include "util/terminal.h"
-#include "util/welcome.h"
-#include "util/window_resize.h"
 
-// Include global variable declarations
-#include "globals.h"
+#include "imgui_internal.h"
 
-#include <algorithm> // for std::max
+#include <filesystem>
+#include <iostream>
 
-// Stub for macOS-specific function that's not needed in the embedded version
+namespace fs = std::filesystem;
+
 extern "C" void updateMacOSWindowProperties(float opacity, bool blurEnabled)
 {
-	// This function is not needed for the embedded app
 	(void)opacity;
 	(void)blurEnabled;
 }
 
-// Global variables are now defined in globals.cpp
+// ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
 
-// Constants
-constexpr float kAgentSplitterWidth = 6.0f;
-
-NedEmbed::NedEmbed()
-	: settings(nullptr), splitter(nullptr), windowResize(nullptr), showSidebar(true),
-	  showAgentPane(false), showLineNumbers(true), showWelcome(true), isEmbedded(true),
-	  initialized(false)
+std::string NedEmbed::canonicalizePath(const std::string &path)
 {
-	// Auto-initialize when constructed
+	std::error_code ec;
+	fs::path p = fs::weakly_canonical(path, ec);
+	if (ec)
+		p = fs::absolute(path, ec);
+	if (ec)
+		return path;
+	return p.string();
+}
+
+std::string NedEmbed::tabWindowTitle(const Tab &tab, int index) const
+{
+	const std::string name = tab.path.empty() ? std::string("Untitled")
+											  : fs::path(tab.path).filename().string();
+	// Stable ### id by slot so renaming the label (file name) keeps the dock tab.
+	return name + "###ned_tab_" + std::to_string(index);
+}
+
+// ---------------------------------------------------------------------------
+// Lifetime
+// ---------------------------------------------------------------------------
+
+NedEmbed::NedEmbed() : projectUndo(projectRoot), splitter(settings)
+{
+	// Bootstrap one editor so FileExplorer / LSP can bind an EditorApi.
+	tabs.push_back(
+		Tab{"", std::make_unique<Editor>(settings, projectRoot, icons, projectUndo)});
+	activeIndex = 0;
+
+	fileExplorer =
+		std::make_unique<FileExplorer>(tabs[0].editor->api, settings, projectRoot, icons);
+	lspClient = std::make_unique<LSPClient>(tabs[0].editor->api, *fileExplorer, settings);
+	welcome = std::make_unique<Welcome>(settings, *fileExplorer);
+
+	// Multi-tab open path (standalone FileExplorer keeps default single-buffer).
+	fileExplorer->openOverride = [this](const std::string &path,
+										std::function<void()> after) {
+		openOrFocus(path, std::move(after));
+	};
+	// Mute every open editor (not only the active tab's EditorApi).
+	fileExplorer->blockInputOverride = [this](bool blocked) {
+		for (auto &tab : tabs)
+			tab.editor->api.setBlockInput(blocked);
+	};
+
 	initialize();
 }
 
 NedEmbed::~NedEmbed() { cleanup(); }
 
+Editor *NedEmbed::activeEditor()
+{
+	if (activeIndex < 0 || activeIndex >= static_cast<int>(tabs.size()))
+		return nullptr;
+	return tabs[static_cast<size_t>(activeIndex)].editor.get();
+}
+
+EditorApi *NedEmbed::activeApi()
+{
+	Editor *ed = activeEditor();
+	return ed ? &ed->api : nullptr;
+}
+
+void NedEmbed::setActiveIndex(int index)
+{
+	if (index < 0 || index >= static_cast<int>(tabs.size()))
+		return;
+	if (activeIndex == index)
+		return;
+	activeIndex = index;
+	syncActiveBindings();
+}
+
+void NedEmbed::syncActiveBindings()
+{
+	EditorApi *api = activeApi();
+	if (!api || !fileExplorer || !lspClient)
+		return;
+	fileExplorer->api = api;
+	lspClient->bindEditorApi(*api);
+}
+
 bool NedEmbed::initialize()
 {
 	if (initialized)
-	{
 		return true;
-	}
 
-	if (!initializeComponents())
-	{
-		return false;
-	}
+	wireTabEditor(*tabs[0].editor);
+
+	fileExplorer->events.subscribeDidOpenProject(
+		[this](const FileExplorerEvents::DidOpenProject &e) {
+			// One shared undo store for the project (not per-tab load).
+			projectUndo.loadProject(e.root);
+			if (lspClient)
+				lspClient->setWorkspace(e.root);
+			// Per-editor git only.
+			for (auto &tab : tabs)
+				tab.editor->api.onProjectOpened(e.root);
+		});
+
+	fileExplorer->events.subscribeDidOpenDocument(
+		[this](const FileExplorerEvents::DidOpenDocument &e) {
+			if (!lspClient)
+				return;
+			// Prefer the tab that actually holds this path (not only activeIndex).
+			EditorApi *api = nullptr;
+			for (auto &tab : tabs)
+			{
+				if (!tab.editor)
+					continue;
+				if (tab.path == e.path || tab.editor->api.path() == e.path)
+				{
+					api = &tab.editor->api;
+					break;
+				}
+			}
+			if (!api)
+				api = activeApi();
+			if (!api)
+				return;
+			lspClient->init(e.path);
+			if (lspClient->isInitialized())
+				lspClient->didOpen(e.path, api->text(), api->version(), api->languageId());
+		});
+
+	fileExplorer->events.subscribeDidCloseDocument(
+		[this](const FileExplorerEvents::DidCloseDocument &e) {
+			if (lspClient && lspClient->isInitialized())
+				lspClient->didClose(e.path);
+		});
+
+	settings.isEmbedded = true;
+	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+	if (!settings.keybinds.loadKeybinds())
+		std::cerr << "Failed to load keybinds\n";
+
+	settings.apply(true, tabs[0].editor->api);
+	icons.load();
+	ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly = true;
 
 	initialized = true;
 	return true;
 }
 
-bool NedEmbed::initializeComponents()
+// ---------------------------------------------------------------------------
+// Open / focus / close tabs
+// ---------------------------------------------------------------------------
+
+void NedEmbed::wireTabEditor(Editor &ed)
 {
-	// Initialize settings
-	settings = &gSettings;
-
-	// Initialize splitter
-	splitter = new Splitter();
-
-	// Initialize window resize (without GLFW window)
-	windowResize = new WindowResize();
-
-	// Initialize settings and configuration
-	gSettings.loadSettings();
-	if (gKeybinds.loadKeybinds())
-	{
-		std::cout << "Initial keybinds loaded successfully." << std::endl;
-	}
-
-	// Load UI settings
-	Splitter::loadSidebarSettings();
-	Splitter::loadAgentPaneSettings();
-	Splitter::adjustAgentSplitPosition();
-
-	// Initialize fonts
-	gFont.initialize();
-
-	// Initialize file explorer
-	gFileExplorer.loadIcons();
-
-	// Configure ImGui to only allow window movement from title bar
-	// This prevents accidental window movement when clicking/dragging in content areas
-	ImGuiIO &io = ImGui::GetIO();
-	io.ConfigWindowsMoveFromTitleBarOnly = true;
-
-	// Apply initial background color settings to ImGui style
-	// This ensures the background color is set correctly on startup
-	ImGuiStyle &style = ImGui::GetStyle();
-
-	// Set the child window background color (for editor panes, file explorer, etc.)
-	// Use a proper alpha value (1.0) instead of the settings alpha which might be 0
-	style.Colors[ImGuiCol_ChildBg] =
-		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-			   1.0f); // Use full alpha for child windows
-
-	// Also set the main window background color for popups and settings windows
-	// but use a slightly different alpha to distinguish from child windows
-	style.Colors[ImGuiCol_WindowBg] =
-		ImVec4(gSettings.getSettings()["backgroundColor"][0].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][1].get<float>(),
-			   gSettings.getSettings()["backgroundColor"][2].get<float>(),
-			   0.95f); // Slightly transparent for main windows
-
-	// Set scrollbar background to transparent for embedded mode on startup
-	style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0); // Transparent track
-
-	return true;
+	ed.api.events().subscribeDidRequestExclusiveOverlay(
+		[this](const EditorEvents::DidRequestExclusiveOverlay &e) {
+			using Keep = EditorEvents::DidRequestExclusiveOverlay::Keep;
+			if (e.keep != Keep::Settings && !settings.isEmbedded)
+				settings.showSettingsWindow = false;
+			if (e.keep != Keep::FileFinder && fileExplorer)
+				fileExplorer->fileFinder.showFFWindow = false;
+		});
+	ed.api.events().subscribeDidSave([this](const EditorEvents::DidSave &ev) {
+		if (!lspClient || !lspClient->isInitialized())
+			return;
+		for (auto &t : tabs)
+		{
+			if (t.editor->api.path() == ev.path)
+			{
+				lspClient->didEdit(ev.path, t.editor->api.text(), ev.version);
+				break;
+			}
+		}
+	});
 }
 
-void NedEmbed::render()
+void NedEmbed::ensureBootstrapTab()
 {
-	if (!initialized || !settings || !splitter || !windowResize)
+	if (!tabs.empty())
+		return;
+	Tab tab;
+	tab.editor = std::make_unique<Editor>(settings, projectRoot, icons, projectUndo);
+	wireTabEditor(*tab.editor);
+	if (!projectRoot.empty())
+		tab.editor->api.onProjectOpened(projectRoot);
+	tabs.push_back(std::move(tab));
+	activeIndex = 0;
+	syncActiveBindings();
+}
+
+void NedEmbed::closeTab(int index)
+{
+	if (index < 0 || index >= static_cast<int>(tabs.size()))
+		return;
+
+	Tab &tab = tabs[static_cast<size_t>(index)];
+	// Persist before discard (no-op if clean / no path).
+	// Capture path before save/erase so LSP can didClose after any final didChange.
+	std::string pathToClose;
+	if (tab.editor)
 	{
+		pathToClose = !tab.path.empty() ? tab.path : tab.editor->api.path();
+		tab.editor->api.save();
+	}
+
+	if (!pathToClose.empty() && fileExplorer)
+		fileExplorer->events.emitDidCloseDocument({pathToClose});
+
+	tabs.erase(tabs.begin() + index);
+
+	if (tabs.empty())
+	{
+		ensureBootstrapTab();
 		return;
 	}
 
-	// Get the available content region size automatically
-	ImVec2 contentSize = ImGui::GetContentRegionAvail();
-	float width = contentSize.x;
-	float height = contentSize.y;
+	if (activeIndex == index)
+		activeIndex = std::min(index, static_cast<int>(tabs.size()) - 1);
+	else if (activeIndex > index)
+		--activeIndex;
 
-	// Handle input
-	handleInput();
+	if (activeIndex < 0 || activeIndex >= static_cast<int>(tabs.size()))
+		activeIndex = static_cast<int>(tabs.size()) - 1;
 
-	// Handle file dialog (this is what was missing!)
-	if (gFileExplorer.handleFileDialog())
+	syncActiveBindings();
+	tabs[static_cast<size_t>(activeIndex)].wantFocus = true;
+}
+
+void NedEmbed::openOrFocus(const std::string &path, std::function<void()> after)
+{
+	if (!fileExplorer || path.empty())
+		return;
+
+	const std::string abs = canonicalizePath(path);
+
+	// Already open → focus that tab.
+	for (int i = 0; i < static_cast<int>(tabs.size()); ++i)
 	{
-		// If a folder was selected, hide the welcome screen
-		if (showWelcome)
+		if (!tabs[static_cast<size_t>(i)].path.empty() &&
+			tabs[static_cast<size_t>(i)].path == abs)
 		{
-			showWelcome = false;
+			setActiveIndex(i);
+			tabs[static_cast<size_t>(i)].wantFocus = true;
+			// Dock window focus + document child keyboard (explorer click steals both).
+			tabs[static_cast<size_t>(i)].editor->api.requestFocus();
+			if (after)
+				after();
+			return;
 		}
 	}
 
-	// Set up the editor area - this is the key part where we extract from
-	// Render::renderMainWindow()
-	ImGui::PushFont(gFont.currentFont);
+	std::string raw;
+	const bool ok = fileExplorer->readFileRaw(path, raw);
+	if (!ok && raw.empty())
+		raw = "Error: Unable to open file.";
 
-	float padding = ImGui::GetStyle().WindowPadding.x;
-	float availableWidth =
-		width - padding * 3 - (showAgentPane ? kAgentSplitterWidth : 0.0f);
-
-	// Force agent pane to be hidden in embedded mode
-	Splitter::showAgentPane = false;
-
-	// Check if welcome screen should be shown (like in standalone app)
-	if (showWelcome)
+	// Reuse bootstrap untitled tab if still empty.
+	int index = -1;
+	if (tabs.size() == 1 && tabs[0].path.empty())
 	{
-		// Welcome screen takes over the entire window when visible
-		// Set the welcome screen's embedded flag based on our embedded state
-		gWelcome.setEmbedded(isEmbedded);
-		gWelcome.render();
-		// Add a dummy item to satisfy ImGui's boundary requirements ONLY in embedded mode
-		if (isEmbedded)
-		{
-			ImGui::Dummy(ImVec2(0, 0));
-		}
-		// Make sure we pop the font before returning to avoid font stack issues
-		ImGui::PopFont();
-		return; // Don't render editor when welcome screen is visible
+		index = 0;
+	} else
+	{
+		Tab tab;
+		tab.editor = std::make_unique<Editor>(settings, projectRoot, icons, projectUndo);
+		wireTabEditor(*tab.editor);
+		if (!projectRoot.empty())
+			tab.editor->api.onProjectOpened(projectRoot);
+		tabs.push_back(std::move(tab));
+		index = static_cast<int>(tabs.size()) - 1;
 	}
+
+	Tab &tab = tabs[static_cast<size_t>(index)];
+	tab.path = abs;
+	tab.wantFocus = true;
+
+	if (ok)
+	{
+		// Absolute path so editor/LSP/tab keys agree (documentKey-friendly).
+		tab.editor->api.openDocument(abs, raw);
+		// File-tree click leaves focus on the explorer; pull it into this document.
+		tab.editor->api.requestFocus();
+		setActiveIndex(index);
+		fileExplorer->events.emitDidOpenDocument({abs});
+	} else
+	{
+		tab.path.clear();
+		tab.editor->api.failOpen(raw);
+		tab.editor->api.requestFocus();
+		setActiveIndex(index);
+	}
+
+	if (after)
+		after();
+}
+
+// ---------------------------------------------------------------------------
+// Dock layout
+// ---------------------------------------------------------------------------
+
+void NedEmbed::ensureDockLayout(ImGuiID dockspaceId)
+{
+	const bool wantSidebar = Splitter::showSidebar;
+	if (dockLayoutBuilt && dockLayoutHadSidebar == wantSidebar)
+		return;
+
+	dockLayoutBuilt = true;
+	dockLayoutHadSidebar = wantSidebar;
+
+	ImGui::DockBuilderRemoveNode(dockspaceId);
+	ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+	ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetContentRegionAvail());
+
+	if (wantSidebar)
+	{
+		ImGuiID dockMain = dockspaceId;
+		ImGuiID dockLeft = 0;
+		ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.25f, &dockLeft, &dockMain);
+		editorDockNodeId = dockMain;
+		ImGui::DockBuilderDockWindow("File Explorer", dockLeft);
+	} else
+	{
+		editorDockNodeId = dockspaceId;
+	}
+
+	// All editor tabs share the right (or full) node → ImGui tab bar.
+	for (int i = 0; i < static_cast<int>(tabs.size()); ++i)
+	{
+		const Tab &tab = tabs[static_cast<size_t>(i)];
+		if (tab.path.empty() && tabs.size() > 1)
+			continue; // skip leftover empty bootstrap if we still have others
+		ImGui::DockBuilderDockWindow(tabWindowTitle(tab, i).c_str(), editorDockNodeId);
+	}
+
+	ImGui::DockBuilderFinish(dockspaceId);
+}
+
+void NedEmbed::renderDockedWorkspace(ImFont *font)
+{
+	const ImGuiID dockspaceId = ImGui::GetID("NedEmbedDock");
+	ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+	ensureDockLayout(dockspaceId);
 
 	if (Splitter::showSidebar)
 	{
-		// Render with sidebar: File Explorer + Editor (no agent pane)
-		float leftSplit = settings->getSplitPos();
-
-		// Ensure minimum widths and prevent negative values
-		float minWidth = 50.0f; // Minimum width for any component
-		float explorerWidth = std::max(availableWidth * leftSplit, minWidth);
-		float editorWidth =
-			std::max(availableWidth - explorerWidth - (padding * 2), minWidth);
-
-		// Render File Explorer
-		renderFileExplorer(explorerWidth);
-		ImGui::SameLine(0, 0);
-
-		// Render left splitter (only when sidebar is visible)
-		renderSplitter(padding, availableWidth);
-		ImGui::SameLine(0, 0);
-
-		// Render Editor
-		renderEditor(editorWidth);
-	} else
-	{
-		// No sidebar: just editor (no agent pane)
-		float editorWidth = availableWidth + 5.0f; // Full width for editor
-
-		renderEditor(editorWidth);
+		if (ImGui::Begin("File Explorer"))
+			fileExplorer->renderFileExplorer(/*fill*/ -1.0f);
+		ImGui::End();
 	}
 
-	// Render additional components that are called in the standalone app's renderFrame
-	// These are crucial for settings popup, notifications, and keybinds
+	// Close after the loop — erasing while iterating invalidates indices.
+	std::vector<int> toClose;
 
-	// Check if terminal should be rendered (like in standalone app)
-	if (gTerminal.isTerminalVisible())
+	for (int i = 0; i < static_cast<int>(tabs.size()); ++i)
 	{
-		// Terminal takes over the editor area when visible
-		// Set the terminal's embedded flag based on our embedded state
-		gTerminal.setEmbedded(isEmbedded);
-		// Don't pop the font here - let the terminal handle its own font management
-		gTerminal.render();
-		// Don't return early - allow settings window to render even when terminal is visible
+		Tab &tab = tabs[static_cast<size_t>(i)];
+		// Hide empty bootstrap once we have at least one real file tab.
+		if (tab.path.empty() && tabs.size() > 1)
+			continue;
+
+		const std::string title = tabWindowTitle(tab, i);
+		if (editorDockNodeId != 0)
+			ImGui::SetNextWindowDockID(editorDockNodeId, ImGuiCond_Once);
+
+		if (tab.wantFocus)
+		{
+			ImGui::SetNextWindowFocus();
+			tab.wantFocus = false;
+		}
+
+		// Non-null p_open → ImGui shows the dock tab close (X) button.
+		bool open = true;
+		if (ImGui::Begin(title.c_str(), &open))
+		{
+			// Prefer the window that actually received focus this frame so we
+			// don't thrash activeIndex while several editors are visible.
+			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
+				ImGui::IsWindowFocused(0))
+			{
+				if (activeIndex != i)
+					setActiveIndex(i);
+			}
+			tab.editor->renderEditor(font, /*fill*/ -1.0f);
+		}
+		ImGui::End();
+
+		if (!open)
+			toClose.push_back(i);
 	}
 
-	// Always render settings and other UI components, regardless of terminal visibility
-	// Set embedded flag for settings to constrain popup to editor pane
-	gSettings.setEmbedded(true);
-	gSettings.renderSettingsWindow();
-	gSettings.setEmbedded(false); // Reset for standalone app
+	for (int i = static_cast<int>(toClose.size()) - 1; i >= 0; --i)
+		closeTab(toClose[static_cast<size_t>(i)]);
+}
 
-	// Set embedded flag for FileFinder to constrain it to editor pane
-	gFileFinder.setEmbedded(true);
+// ---------------------------------------------------------------------------
+// Frame
+// ---------------------------------------------------------------------------
 
-	gSettings.renderNotification("");
-	gKeybinds.checkKeybindsFile();
+void NedEmbed::render()
+{
+	if (!initialized)
+		return;
+
+	EditorApi *api = activeApi();
+	if (!api)
+		return;
+
+	// Always handle app shortcuts while the host is drawing us.
+	// Skip editor-affecting keys while file finder owns the keyboard.
+	if (!fileExplorer->fileFinder.showFFWindow)
+	{
+		settings.keybinds.handleKeyboardShortcuts(
+			*api, *fileExplorer, *lspClient, terminal);
+	}
+
+	if (fileExplorer->handleFileDialog())
+		showWelcome = false;
+
+	terminal.setProjectRoot(projectRoot);
+
+	// Block all editor tabs *before* they process input this frame.
+	if (fileExplorer->fileFinder.showFFWindow)
+		fileExplorer->setEditorsBlockInput(true);
+
+	ImGui::PushFont(settings.font.getMainFont());
+
+	if (terminal.visible())
+	{
+		terminal.renderFullscreen();
+		settings.renderSettingsWindow(*api, *fileExplorer, *lspClient);
+		lspClient->dashboard.render();
+		settings.renderNotification("");
+		ImGui::PopFont();
+		return;
+	}
+
+	if (showWelcome || fileExplorer->showWelcomeScreen)
+	{
+		welcome->render();
+		ImGui::Dummy(ImVec2(0, 0));
+		settings.renderSettingsWindow(*api, *fileExplorer, *lspClient);
+		lspClient->dashboard.render();
+		settings.renderNotification("");
+		ImGui::PopFont();
+		return;
+	}
+
+	renderDockedWorkspace(settings.font.getMainFont());
+
+	lspClient->render();
+	fileExplorer->renderFileFinder();
+
+	settings.renderSettingsWindow(*api, *fileExplorer, *lspClient);
+	lspClient->dashboard.render();
+	settings.renderNotification("");
+	settings.keybinds.checkKeybindsFile();
 
 	ImGui::PopFont();
 }
 
-void NedEmbed::renderEditor(float editorWidth)
+void NedEmbed::applySettingsChanges()
 {
-	// Use the existing editor render function
-	gEditor.renderEditor(gFont.currentFont, editorWidth);
-}
-
-void NedEmbed::renderFileExplorer(float explorerWidth)
-{
-	// Use the existing file explorer render function
-	gFileExplorer.renderFileExplorer(explorerWidth);
-}
-
-void NedEmbed::renderAgentPane(float agentWidth)
-{
-	// Use the existing AI agent render function
-	gAIAgent.render(agentWidth, gFont.largeFont);
-}
-
-void NedEmbed::renderSplitter(float padding, float availableWidth)
-{
-	// Use the existing splitter render function
-	splitter->renderSplitter(padding, availableWidth);
-}
-
-void NedEmbed::setShowSidebar(bool show) { showSidebar = show; }
-
-void NedEmbed::setShowAgentPane(bool show) { showAgentPane = show; }
-
-void NedEmbed::setShowLineNumbers(bool show) { showLineNumbers = show; }
-
-void NedEmbed::setShowWelcome(bool show) { showWelcome = show; }
-
-void NedEmbed::handleInput()
-{
-	// Check if the editor pane is focused before processing keybinds
-	// This prevents keybinds from being processed when the app pane is not focused
-	bool isEditorPaneFocused =
-		ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-
-	// Only process keybinds if the editor pane is focused
-	if (isEditorPaneFocused)
-	{
-		// Handle keyboard shortcuts (like in standalone app)
-		if (gKeybinds.handleKeyboardShortcuts())
-		{
-			// Mark for redraw if needed
-		}
-	}
-}
-
-void NedEmbed::checkForFontReload()
-{
-	if (!initialized || !settings)
-	{
+	if (!initialized)
 		return;
-	}
 
-	// Handle font reloading automatically (like in standalone app)
-	// First check for settings changes to detect font size changes
-	gSettings.setEmbedded(true);
-	bool needFontReload = false;
-	bool needsRedraw = false;
-	int framesToRender = 0;
-	float lastOpacity = 0.0f;
-	bool lastBlurEnabled = false;
-	gSettings.handleSettingsChanges(
-		needFontReload,
-		needsRedraw,
-		framesToRender,
-		[](bool enabled) { /* shader not used in embedded mode */ },
-		lastOpacity,
-		lastBlurEnabled);
+	EditorApi *api = activeApi();
+	if (!api)
+		return;
 
-	// Handle font reloading BEFORE ImGui frame starts
-	if (needFontReload)
+	const bool settingsApplied = settings.apply(false, *api);
+	if (settingsApplied)
 	{
-		gFont.handleFontReloadWithFrameUpdates();
+		for (auto &tab : tabs)
+			tab.editor->api.forceColorUpdate();
+	}
+	// Font rebuilds apply to the shared atlas; re-sync terminal if needed.
+	if (terminal.isStarted() && (settingsApplied || terminal.consumeNeedsFontResync()))
+	{
+		terminal.reloadTerminalFonts(settings.font.getFontSize());
+		settings.font.load(/*clearAtlas=*/false);
 	}
 }
 
-void NedEmbed::cleanup() { cleanupComponents(); }
-
-void NedEmbed::cleanupComponents()
+void NedEmbed::cleanup()
 {
-	if (splitter)
-	{
-		delete splitter;
-		splitter = nullptr;
-	}
-
-	if (windowResize)
-	{
-		delete windowResize;
-		windowResize = nullptr;
-	}
-
-	settings = nullptr;
+	projectUndo.flush();
+	terminal.shutdown();
+	if (lspClient)
+		lspClient->shutdown();
 	initialized = false;
 }

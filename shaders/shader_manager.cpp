@@ -6,11 +6,16 @@
 #include "shaders/shader_manager.h"
 #include "util/settings.h"
 #include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
 
-ShaderManager::ShaderManager() {}
-
-ShaderManager::~ShaderManager() {}
+ShaderManager::ShaderManager(Settings &settings,
+							 FramebufferState &fb,
+							 AccumulationBuffers &accum,
+							 ShaderQuad &quad)
+	: settings(settings), fb(fb), accum(accum), quad(quad)
+{
+}
 
 bool ShaderManager::initializeShaders()
 {
@@ -31,13 +36,10 @@ bool ShaderManager::initializeShaders()
 	return true;
 }
 
-void ShaderManager::initializeFramebuffers(int width,
-										   int height,
-										   FramebufferState &fb,
-										   AccumulationBuffers &accum)
+void ShaderManager::initializeFramebuffers(int width, int height)
 {
 	auto initFB = [](FramebufferState &fb, int w, int h) {
-		if (fb.initialized && w == fb.last_display_w && h == fb.last_display_h)
+		if (fb.initialized && w == fb.lastDisplayW && h == fb.lastDisplayH)
 			return;
 
 		// Delete old resources if they exist
@@ -74,8 +76,8 @@ void ShaderManager::initializeFramebuffers(int width,
 			std::cerr << "🔴 Framebuffer not complete!" << std::endl;
 		}
 
-		fb.last_display_w = w;
-		fb.last_display_h = h;
+		fb.lastDisplayW = w;
+		fb.lastDisplayH = h;
 		fb.initialized = true;
 
 		glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
@@ -101,7 +103,7 @@ void ShaderManager::initializeFramebuffers(int width,
 	}
 }
 
-void ShaderManager::cleanupFramebuffers(FramebufferState &fb, AccumulationBuffers &accum)
+void ShaderManager::cleanupFramebuffers()
 {
 	if (fb.initialized)
 	{
@@ -125,25 +127,14 @@ void ShaderManager::cleanupFramebuffers(FramebufferState &fb, AccumulationBuffer
 	}
 }
 
-void ShaderManager::renderWithEffects(int display_w,
-									  int display_h,
-									  double currentTime,
-									  const FramebufferState &fb,
-									  AccumulationBuffers &accum,
-									  const ShaderQuad &quad,
-									  class Settings &gSettings)
+void ShaderManager::renderWithEffects(GLFWwindow *window)
 {
 	if (shaderEnabled)
-	{
-		renderBurnInPass(fb, accum, quad, gSettings);
-	}
-	renderCRTEffects(display_w, display_h, currentTime, fb, accum, quad, gSettings);
+		renderBurnInPass();
+	renderCRTEffects(window);
 }
 
-void ShaderManager::renderBurnInPass(const FramebufferState &fb,
-									 AccumulationBuffers &accum,
-									 const ShaderQuad &quad,
-									 class Settings &gSettings)
+void ShaderManager::renderBurnInPass()
 {
 	int prev = accum.swap ? 1 : 0;
 	int curr = accum.swap ? 0 : 1;
@@ -152,7 +143,7 @@ void ShaderManager::renderBurnInPass(const FramebufferState &fb,
 	burnInShader.useShader();
 	burnInShader.setInt("currentFrame", 0);
 	burnInShader.setInt("previousFrame", 1);
-	burnInShader.setFloat("decay", gSettings.getSettings()["burnin_intensity"]);
+	burnInShader.setFloat("decay", settings.settings["burnin_intensity"]);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, fb.renderTexture);
@@ -166,49 +157,41 @@ void ShaderManager::renderBurnInPass(const FramebufferState &fb,
 	accum.swap = !accum.swap;
 }
 
-void ShaderManager::renderCRTEffects(int display_w,
-									 int display_h,
-									 double currentTime,
-									 const FramebufferState &fb,
-									 const AccumulationBuffers &accum,
-									 const ShaderQuad &quad,
-									 class Settings &gSettings)
+void ShaderManager::renderCRTEffects(GLFWwindow *window)
 {
+	int display_w = 0, display_h = 0;
+	if (window)
+		glfwGetFramebufferSize(window, &display_w, &display_h);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	crtShader.useShader();
 
 	crtShader.setInt("screenTexture", 0);
-	if (shaderEnabled)
-	{
-		crtShader.setFloat("u_effects_enabled", 1.0f);
-	} else
-	{
-		crtShader.setFloat("u_effects_enabled", 0.0f);
-	}
-	crtShader.setFloat("u_scanline_intensity",
-					   gSettings.getSettings()["scanline_intensity"]);
-	crtShader.setFloat("u_vignet_intensity", gSettings.getSettings()["vignet_intensity"]);
-	crtShader.setFloat("u_bloom_intensity", gSettings.getSettings()["bloom_intensity"]);
-	crtShader.setFloat("u_static_intensity", gSettings.getSettings()["static_intensity"]);
+	crtShader.setFloat("u_effects_enabled", shaderEnabled ? 1.0f : 0.0f);
+	crtShader.setFloat("u_scanline_intensity", settings.settings["scanline_intensity"]);
+	crtShader.setFloat("u_vignet_intensity", settings.settings["vignet_intensity"]);
+	crtShader.setFloat("u_bloom_intensity", settings.settings["bloom_intensity"]);
+	crtShader.setFloat("u_static_intensity", settings.settings["static_intensity"]);
 	crtShader.setFloat("u_colorshift_intensity",
-					   gSettings.getSettings()["colorshift_intensity"]);
+					   settings.settings["colorshift_intensity"]);
 	crtShader.setFloat("u_jitter_intensity",
-					   gSettings.getSettings()["jitter_intensity"].get<float>());
+					   settings.settings["jitter_intensity"].get<float>());
 	crtShader.setFloat("u_curvature_intensity",
-					   gSettings.getSettings()["curvature_intensity"].get<float>());
+					   settings.settings["curvature_intensity"].get<float>());
 	crtShader.setFloat("u_pixelation_intensity",
-					   gSettings.getSettings()["pixelation_intensity"].get<float>());
-	crtShader.setFloat("u_pixel_width",
-					   gSettings.getSettings()["pixel_width"].get<float>());
+					   settings.settings["pixelation_intensity"].get<float>());
+	crtShader.setFloat("u_pixel_width", settings.settings["pixel_width"].get<float>());
 
 	GLint timeLocation = glGetUniformLocation(crtShader.getShaderProgram(), "time");
 	GLint resolutionLocation =
 		glGetUniformLocation(crtShader.getShaderProgram(), "resolution");
 	if (timeLocation != -1)
-		glUniform1f(timeLocation, currentTime);
+		glUniform1f(timeLocation, static_cast<float>(glfwGetTime()));
 	if (resolutionLocation != -1)
-		glUniform2f(resolutionLocation, display_w, display_h);
+		glUniform2f(resolutionLocation,
+					static_cast<float>(display_w),
+					static_cast<float>(display_h));
 
 	glActiveTexture(GL_TEXTURE0);
 	if (shaderEnabled)
