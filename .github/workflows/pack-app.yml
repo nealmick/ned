@@ -56,46 +56,6 @@ jobs:
           draft: false
           prerelease: false
 
-  macos-intel:
-    runs-on: macos-13
-    needs: create-tag
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          brew install cmake llvm glfw glew pkg-config freetype fontconfig curl
-
-      - name: Build
-        run: |
-          export MACOSX_DEPLOYMENT_TARGET=11.0
-          ./scripts/build.sh --no-run --skip-format
-        env:
-          CI: true
-
-      - name: Test
-        run: ./scripts/test.sh
-        env:
-          CI: true
-
-      - name: Package
-        run: |
-          ./scripts/pack-mac.sh
-          mv Ned.zip "Ned-macOS-Intel-${{ needs.create-tag.outputs.timestamp }}.zip"
-
-      - name: Upload Intel Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: Ned-macOS-Intel-*.zip
-          tag_name: ${{ needs.create-tag.outputs.timestamp }}
-          name: "Build ${{ needs.create-tag.outputs.timestamp }}"
-          draft: false
-          prerelease: false
-
   debian:
     runs-on: ubuntu-22.04
     needs: create-tag

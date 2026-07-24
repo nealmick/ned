@@ -9,11 +9,10 @@
 
 using test::EditorFixture;
 
-// C++20 u8"…" is char8_t[]; convert for std::string comparisons.
-static std::string u8s(const char8_t *s)
-{
-	return std::string(reinterpret_cast<const char *>(s));
-}
+// Explicit UTF-8 bytes (not u8"…" / source glyphs) so MSVC matches other compilers
+// even without /utf-8 on this TU.
+static const std::string kEAcute("\xC3\xA9", 2);			 // U+00E9 é
+static const std::string kBookEmoji("\xF0\x9F\x93\x9A", 4); // U+1F4DA 📚
 
 TEST_CASE("EditorCommands typeText inserts and advances caret", "[ned][commands]")
 {
@@ -31,12 +30,11 @@ TEST_CASE("EditorCommands typeText multi-byte UTF-8 (é)", "[ned][commands][unic
 {
 	EditorFixture f;
 	f.setDocument("");
-	const std::string eAcute = u8s(u8"é");
-	f.commands.typeText(eAcute);
-	REQUIRE(f.content() == eAcute);
+	f.commands.typeText(kEAcute);
+	REQUIRE(f.content() == kEAcute);
 	// Column is UTF-8 byte offset.
-	REQUIRE(f.view.column == static_cast<int>(eAcute.size()));
-	REQUIRE(f.state.line(0) == eAcute);
+	REQUIRE(f.view.column == static_cast<int>(kEAcute.size()));
+	REQUIRE(f.state.line(0) == kEAcute);
 }
 
 TEST_CASE("EditorCommands typeText multi-byte UTF-8 (emoji)", "[ned][commands][unicode]")
@@ -44,11 +42,10 @@ TEST_CASE("EditorCommands typeText multi-byte UTF-8 (emoji)", "[ned][commands][u
 	EditorFixture f;
 	f.setDocument("a");
 	f.setCaret(0, 1);
-	const std::string book = u8s(u8"📚");
-	f.commands.typeText(book);
+	f.commands.typeText(kBookEmoji);
 	f.commands.typeText("b");
-	REQUIRE(f.content() == "a" + book + "b");
-	REQUIRE(f.view.column == static_cast<int>(("a" + book + "b").size()));
+	REQUIRE(f.content() == "a" + kBookEmoji + "b");
+	REQUIRE(f.view.column == static_cast<int>(("a" + kBookEmoji + "b").size()));
 }
 
 TEST_CASE("EditorCommands typeText replaces selection", "[ned][commands]")
@@ -102,10 +99,9 @@ TEST_CASE("EditorCommands deleteLeft merges lines at column 0", "[ned][commands]
 TEST_CASE("EditorCommands deleteLeft removes whole UTF-8 char", "[ned][commands][unicode]")
 {
 	EditorFixture f;
-	const std::string eAcute = u8s(u8"é");
-	f.setDocument("a" + eAcute + "x");
+	f.setDocument("a" + kEAcute + "x");
 	// Place caret after é (byte length of "a" + "é").
-	f.setCaret(0, static_cast<int>(("a" + eAcute).size()));
+	f.setCaret(0, static_cast<int>(("a" + kEAcute).size()));
 	f.commands.deleteLeft();
 	REQUIRE(f.content() == "ax");
 	REQUIRE(f.view.column == 1);

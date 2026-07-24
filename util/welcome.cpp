@@ -1,6 +1,7 @@
 #include "welcome.h"
 #include "../files/files.h"
 #include "settings.h"
+#include <filesystem>
 #include <iostream>
 
 // PNG loading with stb_image
@@ -24,9 +25,17 @@ bool Welcome::loadNedLogo()
 	if (nedLogoTexture != 0)
 		return true; // Already loaded
 
+	const std::string logoPath =
+		(std::filesystem::path(Settings::getAppResourcesPath()) / "resources" / "icons" /
+		 "ned.png")
+			.string();
 	int width, height, channels;
-	unsigned char *data =
-		stbi_load("resources/icons/ned.png", &width, &height, &channels, 4);
+	unsigned char *data = stbi_load(logoPath.c_str(), &width, &height, &channels, 4);
+	if (!data)
+	{
+		// Dev fallback when cwd is the repo root.
+		data = stbi_load("resources/icons/ned.png", &width, &height, &channels, 4);
+	}
 	if (!data)
 	{
 		std::cerr << "Failed to load ned.png logo" << std::endl;
@@ -55,8 +64,15 @@ bool Welcome::loadWelcomeImages()
 			continue; // Already loaded
 
 		int width, height, channels;
+		const std::string absPath =
+			(std::filesystem::path(Settings::getAppResourcesPath()) /
+			 welcomeImages[i].filename)
+				.string();
 		unsigned char *data =
-			stbi_load(welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
+			stbi_load(absPath.c_str(), &width, &height, &channels, 4);
+		if (!data)
+			data = stbi_load(
+				welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
 		if (!data)
 		{
 			std::cerr << "Failed to load " << welcomeImages[i].filename << std::endl;

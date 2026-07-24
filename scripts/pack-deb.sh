@@ -58,8 +58,11 @@ cp -r resources/fonts "$SHARE_DIR/resources/"
 cp -r resources/icons "$SHARE_DIR/resources/"
 cp -r resources/config "$SHARE_DIR/resources/"
 
-# 2. Queries
-mkdir -p "$LIB_DIR/queries"
+# 2. Queries — under share/Ned/queries so getAppResourcesPath() + "queries/" works
+#    (resources root is /usr/share/Ned). Also keep a copy next to the binary for
+#    older layouts / direct /usr/lib/Ned runs.
+mkdir -p "$SHARE_DIR/queries" "$LIB_DIR/queries"
+cp -r editor/services/highlight/queries/* "$SHARE_DIR/queries/"
 cp -r editor/services/highlight/queries/* "$LIB_DIR/queries/"
 
 # 3. Other resources
@@ -67,6 +70,7 @@ cp -r shaders "$SHARE_DIR/"
 # ImGui-Terminal X11 color database (looked up next to the executable / cwd)
 cp lib/imgui-terminal/rgb.txt "$SHARE_DIR/rgb.txt"
 cp lib/imgui-terminal/rgb.txt "$BIN_DIR/rgb.txt"
+cp lib/imgui-terminal/rgb.txt "$LIB_DIR/rgb.txt"
 
 # =========================================================================
 # Control File

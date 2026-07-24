@@ -37,6 +37,10 @@ elseif(WIN32)
         add_compile_options(/std:c++20)
         # Only add essential C++20 recognition flag
         add_compile_options(/Zc:__cplusplus)
+        # Source + execution charset UTF-8. Without this, MSVC treats .cpp as the
+        # system code page and u8"é"/emoji literals become mojibake (C4099-level
+        # breakage in UTF-8 unit tests and any non-ASCII string literals).
+        add_compile_options(/utf-8)
         # Enable parallel compilation for faster builds
         add_compile_options(/MP)
     endif()
@@ -328,20 +332,35 @@ target_include_directories(ned_util PUBLIC
   lib/imgui/misc/freetype
   lib/lsp-framework
   ${IMGUI_TERMINAL_DIR}
+  # app.cpp includes editor.h → highlight → tree_sitter.h
+  ${TS_ROOT}/tree-sitter/lib/include
+  ${TS_ROOT}/tree-sitter/lib/src
 )
 target_link_libraries(ned_util PUBLIC
   ${OPENGL_LIBRARIES} glfw libgit2 util imgui_terminal_widget)
 if(NOT WIN32)
   target_link_libraries(ned_util PUBLIC Freetype::Freetype)
 endif()
-add_dependencies(ned_util libgit2 util)
+add_dependencies(ned_util libgit2 util tree-sitter-lib)
 
 # ================
 # Main Executable (only when ned is the top-level project)
 # ================
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   if(WIN32)
-    set(WINDOWS_RESOURCES ned.rc)
+    # Windows icon + VERSIONINFO. Configure absolute .ico path so rc.exe always
+    # finds the file (relative paths break depending on MSVC cwd).
+    # Do not use IDI_APPLICATION — after windows.h it is MAKEINTRESOURCE(32512)
+    # and is a poor choice for the shell's primary app icon.
+    set(NED_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/ned.ico")
+    # RC accepts forward slashes; quote the path in the .rc itself.
+    file(TO_CMAKE_PATH "${NED_ICON_PATH}" NED_ICON_PATH)
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/ned.rc.in
+      ${CMAKE_CURRENT_BINARY_DIR}/ned.rc
+      @ONLY
+    )
+    set(WINDOWS_RESOURCES ${CMAKE_CURRENT_BINARY_DIR}/ned.rc)
   endif()
 
   add_executable(ned

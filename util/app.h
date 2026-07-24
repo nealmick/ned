@@ -69,6 +69,7 @@ class App
 
 	bool initializeImGui();
 	bool createWindow();
+	void setWindowIcon();
 	bool initializeGLEW();
 	void handleScrollAccumulators();
 };

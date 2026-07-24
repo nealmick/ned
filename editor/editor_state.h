@@ -18,8 +18,10 @@
 
 class EditorOperations;
 
-struct EditorState
+// class (not struct) so forward decls as `class EditorState` match MSVC C4099.
+class EditorState
 {
+  public:
 	// --- metadata (not rope mutation) ---
 	std::string path; // empty = none / untitled
 	std::string lineEnding;
