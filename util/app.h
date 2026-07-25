@@ -6,6 +6,10 @@ This class combines the functionality of ApplicationManager and GraphicsManager.
 
 #pragma once
 
+#ifndef NED_ENABLE_SHADERS
+#define NED_ENABLE_SHADERS 1
+#endif
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -20,10 +24,12 @@ class FileExplorer;
 class LSPClient;
 class NedTerminal;
 class Settings;
-class ShaderManager;
 class Splitter;
 class Welcome;
+#if NED_ENABLE_SHADERS
+class ShaderManager;
 struct FramebufferState;
+#endif
 
 class App
 {
@@ -32,10 +38,12 @@ class App
 		Editor &editor,
 		FileExplorer &fileExplorer,
 		LSPClient &lspClient,
+#if NED_ENABLE_SHADERS
 		ShaderManager &shaderManager,
+		FramebufferState &fb,
+#endif
 		Splitter &splitter,
 		Welcome &welcome,
-		FramebufferState &fb,
 		NedTerminal &terminal);
 	~App();
 
@@ -58,10 +66,12 @@ class App
 	Editor &editor;
 	FileExplorer &fileExplorer;
 	LSPClient &lspClient;
+#if NED_ENABLE_SHADERS
 	ShaderManager &shaderManager;
+	FramebufferState &fb;
+#endif
 	Splitter &splitter;
 	Welcome &welcome;
-	FramebufferState &fb;
 	NedTerminal &terminal;
 
 	bool windowFocused;

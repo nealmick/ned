@@ -31,15 +31,19 @@ Ned::Ned()
 	  lspClient(editor.api, fileExplorer, settings),
 	  welcome(settings, fileExplorer),
 	  splitter(settings),
+#if NED_ENABLE_SHADERS
 	  shaderManager(settings, fb, accum, quad),
+#endif
 	  app(settings,
 		  editor,
 		  fileExplorer,
 		  lspClient,
+#if NED_ENABLE_SHADERS
 		  shaderManager,
+		  fb,
+#endif
 		  splitter,
 		  welcome,
-		  fb,
 		  terminal),
 	  initialized(false)
 {
@@ -92,7 +96,9 @@ Ned::~Ned()
 bool Ned::initialize()
 {
 	app.initialize();
+#if NED_ENABLE_SHADERS
 	quad.initialize();
+#endif
 
 	glfwSetWindowUserPointer(app.window, this);
 	glfwSetScrollCallback(app.window, Ned::scrollCallback);
@@ -129,8 +135,10 @@ void Ned::cleanup()
 	lspClient.shutdown();
 	terminal.shutdown();
 
+#if NED_ENABLE_SHADERS
 	quad.cleanup();
 	shaderManager.cleanupFramebuffers();
+#endif
 	settings.saveSettings();
 	editor.api.save();
 	projectUndo.flush();

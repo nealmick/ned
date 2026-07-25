@@ -6,6 +6,10 @@
 
 #pragma once
 
+#ifndef NED_ENABLE_SHADERS
+#define NED_ENABLE_SHADERS 1
+#endif
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <chrono>
@@ -15,8 +19,10 @@
 #include "files/file_tree.h"
 #include "files/files.h"
 #include "lsp/lsp_client.h"
+#if NED_ENABLE_SHADERS
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
+#endif
 #include "util/app.h"
 #include "util/icons.h"
 #include "util/ned_terminal.h"
@@ -47,10 +53,12 @@ class Ned
 	LSPClient lspClient;
 	Welcome welcome;
 	Splitter splitter;
+#if NED_ENABLE_SHADERS
 	FramebufferState fb;
 	ShaderQuad quad;
 	AccumulationBuffers accum;
 	ShaderManager shaderManager;
+#endif
 	NedTerminal terminal;
 	App app;
 
