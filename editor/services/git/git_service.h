@@ -1,17 +1,18 @@
 /*
 	Git gutter + file-tree dirty marks.
 
-	Model:
-	  - Load HEAD lines once when a document opens (baseline).
-	  - Keep a live line cache; on edit, splice only the dirty span (no full
-		linesInto). Diff cache vs baseline immediately for gutter + "+N-M".
-	  - Rarely: git status for explorer dots.
-
-	libgit2 is only used for baseline blob + status — never on the typing path.
+	When NED_ENABLE_GIT=0, only the public API remains (stub .cpp).
+	When ON: libgit2 baseline + status via GitRepo; never on the typing path.
 */
 #pragma once
 
+#ifndef NED_ENABLE_GIT
+#define NED_ENABLE_GIT 1
+#endif
+
+#if NED_ENABLE_GIT
 #include "git_repo.h"
+#endif
 
 #include <chrono>
 #include <set>
@@ -25,10 +26,14 @@ class Settings;
 class EditorGit
 {
   public:
+#if NED_ENABLE_GIT
 	EditorGit(EditorState &document, std::string &projectRootRef, Settings &appSettings)
 		: state(&document), projectRoot(&projectRootRef), settings(&appSettings)
 	{
 	}
+#else
+	EditorGit(EditorState &, std::string &, Settings &) {}
+#endif
 
 	// Project root changed / opened.
 	void init();
@@ -48,6 +53,7 @@ class EditorGit
 	// Title bar "+N-M" (empty if clean / disabled).
 	std::string currentGitChanges;
 
+#if NED_ENABLE_GIT
   private:
 	EditorState *state;
 	std::string *projectRoot;
@@ -74,4 +80,5 @@ class EditorGit
 	bool syncLineCacheFromEdit(int firstRow, int lastRow);
 	void recomputeGutterFromCache();
 	void refreshStatus();
+#endif
 };

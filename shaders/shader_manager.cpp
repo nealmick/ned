@@ -23,9 +23,9 @@ bool ShaderManager::initializeShaders()
 	namespace fs = std::filesystem;
 	const fs::path root = Settings::getAppResourcesPath();
 	// Packaged apps: <root>/shaders/. Dev: cwd or <root>/shaders.
-	const fs::path shaderDir =
-		fs::exists(root / "shaders" / "vertex.glsl") ? (root / "shaders")
-													 : fs::path("shaders");
+	const fs::path shaderDir = fs::exists(root / "shaders" / "vertex.glsl")
+								   ? (root / "shaders")
+								   : fs::path("shaders");
 	const std::string vert = (shaderDir / "vertex.glsl").string();
 	const std::string frag = (shaderDir / "fragment.glsl").string();
 	const std::string burn = (shaderDir / "burn_in.frag").string();
