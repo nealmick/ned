@@ -595,8 +595,10 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 		renderMacSettings();
 	renderSyntaxColors();
 	renderToggleSettings();
+#if NED_ENABLE_SHADERS
 	if (!isEmbedded)
 		renderShaderSettings();
+#endif
 	renderKeybindsSettings(files, lsp);
 
 	ImGui::EndChild();
@@ -873,6 +875,7 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Syntax Highlighting)");
 
+#if NED_ENABLE_GIT
 	bool gitLines = settings.value("git_changed_lines", true);
 	if (ImGui::Checkbox("Git Changed Lines", &gitLines))
 	{
@@ -881,6 +884,7 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Highlight changed lines in git)");
+#endif
 }
 
 void Settings::renderShaderSettings()
@@ -976,6 +980,7 @@ void Settings::renderKeybindsSettings(FileExplorer &files, LSPClient &lsp)
 		ImGui::TextDisabled("(Reset to default configuration)");
 	}
 
+#if NED_ENABLE_LSP
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
@@ -986,6 +991,9 @@ void Settings::renderKeybindsSettings(FileExplorer &files, LSPClient &lsp)
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(View LSP server status)");
+#else
+	(void)lsp;
+#endif
 }
 
 void Settings::handleWindowInput(EditorApi &api)

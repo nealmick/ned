@@ -11,7 +11,7 @@ using test::EditorFixture;
 
 // Explicit UTF-8 bytes (not u8"…" / source glyphs) so MSVC matches other compilers
 // even without /utf-8 on this TU.
-static const std::string kEAcute("\xC3\xA9", 2);			 // U+00E9 é
+static const std::string kEAcute("\xC3\xA9", 2);			// U+00E9 é
 static const std::string kBookEmoji("\xF0\x9F\x93\x9A", 4); // U+1F4DA 📚
 
 TEST_CASE("EditorCommands typeText inserts and advances caret", "[ned][commands]")

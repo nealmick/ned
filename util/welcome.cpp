@@ -25,10 +25,9 @@ bool Welcome::loadNedLogo()
 	if (nedLogoTexture != 0)
 		return true; // Already loaded
 
-	const std::string logoPath =
-		(std::filesystem::path(Settings::getAppResourcesPath()) / "resources" / "icons" /
-		 "ned.png")
-			.string();
+	const std::string logoPath = (std::filesystem::path(Settings::getAppResourcesPath()) /
+								  "resources" / "icons" / "ned.png")
+									 .string();
 	int width, height, channels;
 	unsigned char *data = stbi_load(logoPath.c_str(), &width, &height, &channels, 4);
 	if (!data)
@@ -68,8 +67,7 @@ bool Welcome::loadWelcomeImages()
 			(std::filesystem::path(Settings::getAppResourcesPath()) /
 			 welcomeImages[i].filename)
 				.string();
-		unsigned char *data =
-			stbi_load(absPath.c_str(), &width, &height, &channels, 4);
+		unsigned char *data = stbi_load(absPath.c_str(), &width, &height, &channels, 4);
 		if (!data)
 			data = stbi_load(
 				welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);

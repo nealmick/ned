@@ -12,6 +12,37 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Optional features (default ON — full product). Pass -DNED_ENABLE_*=OFF for lean builds.
+option(NED_ENABLE_TERMINAL "Embedded terminal (imgui-terminal)" ON)
+option(NED_ENABLE_GIT      "Git gutter/status via libgit2" ON)
+option(NED_ENABLE_LSP      "Language Server Protocol client" ON)
+option(NED_ENABLE_SHADERS  "CRT/burn-in postprocess (standalone ned)" ON)
+
+function(ned_apply_feature_defs target)
+  if(NED_ENABLE_TERMINAL)
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_TERMINAL=1)
+  else()
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_TERMINAL=0)
+  endif()
+  if(NED_ENABLE_GIT)
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_GIT=1)
+  else()
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_GIT=0)
+  endif()
+  if(NED_ENABLE_LSP)
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_LSP=1)
+  else()
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_LSP=0)
+  endif()
+  if(NED_ENABLE_SHADERS)
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_SHADERS=1)
+  else()
+    target_compile_definitions(${target} PUBLIC NED_ENABLE_SHADERS=0)
+  endif()
+endfunction()
+
+message(STATUS "Ned features: TERMINAL=${NED_ENABLE_TERMINAL} GIT=${NED_ENABLE_GIT} LSP=${NED_ENABLE_LSP} SHADERS=${NED_ENABLE_SHADERS}")
+
 if(APPLE)
     add_compile_definitions(PLATFORM_MACOS)
     # Set minimum macOS version to 11.0 (Big Sur)
@@ -70,20 +101,22 @@ if(APPLE)
 endif()
 
 # ================
-# libgit2 Configuration  
+# libgit2 Configuration (optional — NED_ENABLE_GIT)
 # ================
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build libgit2 as static library")
-set(BUILD_TESTS OFF CACHE BOOL "Disable libgit2 tests")
-set(BUILD_CLI OFF CACHE BOOL "Disable libgit2 CLI tools")
-set(USE_SSH OFF CACHE BOOL "Disable SSH support")
-set(USE_HTTPS ON CACHE BOOL "Enable HTTPS support")
-set(USE_NTLMCLIENT OFF CACHE BOOL "Disable NTLM client")
-set(REGEX_BACKEND "builtin" CACHE STRING "Force libgit2 to use builtin regex")
-set(USE_BUNDLED_ZLIB ON CACHE BOOL "Use bundled zlib")
-set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
-set(EMBED_SSH_PATH OFF CACHE BOOL "Disable SSH path")
-set(THREADSAFE OFF CACHE BOOL "Disable threadsafe")
-add_subdirectory(lib/libgit2)
+if(NED_ENABLE_GIT)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build libgit2 as static library")
+  set(BUILD_TESTS OFF CACHE BOOL "Disable libgit2 tests")
+  set(BUILD_CLI OFF CACHE BOOL "Disable libgit2 CLI tools")
+  set(USE_SSH OFF CACHE BOOL "Disable SSH support")
+  set(USE_HTTPS ON CACHE BOOL "Enable HTTPS support")
+  set(USE_NTLMCLIENT OFF CACHE BOOL "Disable NTLM client")
+  set(REGEX_BACKEND "builtin" CACHE STRING "Force libgit2 to use builtin regex")
+  set(USE_BUNDLED_ZLIB ON CACHE BOOL "Use bundled zlib")
+  set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
+  set(EMBED_SSH_PATH OFF CACHE BOOL "Disable SSH path")
+  set(THREADSAFE OFF CACHE BOOL "Disable threadsafe")
+  add_subdirectory(lib/libgit2)
+endif()
 
 # ================
 # Native File Dialog
@@ -187,39 +220,56 @@ endforeach()
 set(APP_SOURCES
   main.cpp
   ned.cpp
-  shaders/shader.cpp
-  shaders/shader_types.cpp
-  shaders/shader_manager.cpp
 )
-
-# Component groups
-file(GLOB_RECURSE EDITOR_SOURCES    "editor/*.cpp")
-file(GLOB_RECURSE FILES_SOURCES     "files/*.cpp")
-
-# Add lsp-framework subdirectory with sanitizers disabled
-set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
-add_subdirectory(lib/lsp-framework)
-
-# Apply MSVC-specific flags only to lsp-framework on Windows
-if(WIN32 AND MSVC)
-    target_compile_options(lsp PRIVATE /permissive-)
-    target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
+if(NED_ENABLE_SHADERS)
+  list(APPEND APP_SOURCES
+    shaders/shader.cpp
+    shaders/shader_types.cpp
+    shaders/shader_manager.cpp
+  )
 endif()
 
-# Replace problematic connection.cpp with our patched version for all platforms
-get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
-list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
-list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
-set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
+# Component groups
+file(GLOB_RECURSE EDITOR_SOURCES "editor/*.cpp")
+if(NED_ENABLE_GIT)
+  # Drop stub if present so real implementation is the only TU.
+  list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/git_service_stub\\.cpp$")
+else()
+  list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/services/git/.*")
+  list(APPEND EDITOR_SOURCES editor/services/git/git_service_stub.cpp)
+endif()
 
-set(LSP_SOURCES
-  lsp/lsp_client.cpp
-  lsp/lsp_symbol_info.cpp
-  lsp/lsp_goto_def.cpp
-  lsp/lsp_goto_ref.cpp
-  lsp/lsp_uri_options.cpp
-  lsp/lsp_dashboard.cpp
-)
+file(GLOB_RECURSE FILES_SOURCES "files/*.cpp")
+
+# LSP (optional — NED_ENABLE_LSP)
+set(LSP_SOURCES)
+if(NED_ENABLE_LSP)
+  set(LSP_USE_SANITIZERS OFF CACHE BOOL "Disable sanitizers in lsp-framework" FORCE)
+  add_subdirectory(lib/lsp-framework)
+
+  # Apply MSVC-specific flags only to lsp-framework on Windows
+  if(WIN32 AND MSVC)
+    target_compile_options(lsp PRIVATE /permissive-)
+    target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
+  endif()
+
+  # Replace problematic connection.cpp with our patched version for all platforms
+  get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
+  list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
+  list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
+  set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
+
+  set(LSP_SOURCES
+    lsp/lsp_client.cpp
+    lsp/lsp_symbol_info.cpp
+    lsp/lsp_goto_def.cpp
+    lsp/lsp_goto_ref.cpp
+    lsp/lsp_uri_options.cpp
+    lsp/lsp_dashboard.cpp
+  )
+else()
+  set(LSP_SOURCES lsp/lsp_client_stub.cpp)
+endif()
 
 # Find GLFW headers
 find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h
@@ -255,61 +305,63 @@ endif()
 add_definitions(-DIMGUI_USER_CONFIG="ned_imgui_config.h")
 
 # ================
-# ImGui-Terminal (widget only — lib/imgui-terminal submodule)
+# ImGui-Terminal (optional — NED_ENABLE_TERMINAL)
 # ================
 set(IMGUI_TERMINAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui-terminal)
-add_library(imgui_terminal_widget STATIC
-  ${IMGUI_TERMINAL_DIR}/terminal.cpp
-)
-target_include_directories(imgui_terminal_widget PUBLIC
-  ${IMGUI_TERMINAL_DIR}
-)
-target_include_directories(imgui_terminal_widget PRIVATE
-  ${IMGUI_INCLUDE_DIRS}
-  lib/imgui/misc/freetype
-  ${CMAKE_CURRENT_SOURCE_DIR} # ned_imgui_config.h via IMGUI_USER_CONFIG
-)
-target_compile_definitions(imgui_terminal_widget PRIVATE
-  IMGUI_USER_CONFIG="ned_imgui_config.h"
-)
-if(UNIX)
-  target_compile_definitions(imgui_terminal_widget PRIVATE _DEFAULT_SOURCE)
-endif()
-if(WIN32)
+if(NED_ENABLE_TERMINAL)
+  add_library(imgui_terminal_widget STATIC
+    ${IMGUI_TERMINAL_DIR}/terminal.cpp
+  )
+  target_include_directories(imgui_terminal_widget PUBLIC
+    ${IMGUI_TERMINAL_DIR}
+  )
+  target_include_directories(imgui_terminal_widget PRIVATE
+    ${IMGUI_INCLUDE_DIRS}
+    lib/imgui/misc/freetype
+    ${CMAKE_CURRENT_SOURCE_DIR} # ned_imgui_config.h via IMGUI_USER_CONFIG
+  )
   target_compile_definitions(imgui_terminal_widget PRIVATE
-    _WIN32_WINNT=0x0A00 WINVER=0x0A00 NTDDI_VERSION=0x0A000006
-    WIN32_LEAN_AND_MEAN)
+    IMGUI_USER_CONFIG="ned_imgui_config.h"
+  )
+  if(UNIX)
+    target_compile_definitions(imgui_terminal_widget PRIVATE _DEFAULT_SOURCE)
+  endif()
+  if(WIN32)
+    target_compile_definitions(imgui_terminal_widget PRIVATE
+      _WIN32_WINNT=0x0A00 WINVER=0x0A00 NTDDI_VERSION=0x0A000006
+      WIN32_LEAN_AND_MEAN)
+    if(MSVC)
+      target_compile_definitions(imgui_terminal_widget PRIVATE _CRT_SECURE_NO_WARNINGS)
+      target_compile_options(imgui_terminal_widget PRIVATE /utf-8)
+    endif()
+  endif()
+
+  # Fontconfig (terminal glyph discovery) + FreeType
   if(MSVC)
-    target_compile_definitions(imgui_terminal_widget PRIVATE _CRT_SECURE_NO_WARNINGS)
-    target_compile_options(imgui_terminal_widget PRIVATE /utf-8)
+    find_package(Fontconfig REQUIRED)
+    target_link_libraries(imgui_terminal_widget PUBLIC
+      Fontconfig::Fontconfig Freetype::Freetype)
+  else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+    target_link_libraries(imgui_terminal_widget PUBLIC
+      PkgConfig::FONTCONFIG Freetype::Freetype)
   endif()
-endif()
 
-# Fontconfig (terminal glyph discovery) + FreeType
-if(MSVC)
-  find_package(Fontconfig REQUIRED)
-  target_link_libraries(imgui_terminal_widget PUBLIC
-    Fontconfig::Fontconfig Freetype::Freetype)
-else()
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
-  target_link_libraries(imgui_terminal_widget PUBLIC
-    PkgConfig::FONTCONFIG Freetype::Freetype)
-endif()
-
-# openpty lives in libutil on Linux; on macOS it is in libSystem.
-if(UNIX AND NOT APPLE)
-  find_library(LIBUTIL_LIBRARY NAMES util libutil)
-  if(LIBUTIL_LIBRARY)
-    target_link_libraries(imgui_terminal_widget PUBLIC ${LIBUTIL_LIBRARY})
+  # openpty lives in libutil on Linux; on macOS it is in libSystem.
+  if(UNIX AND NOT APPLE)
+    find_library(LIBUTIL_LIBRARY NAMES util libutil)
+    if(LIBUTIL_LIBRARY)
+      target_link_libraries(imgui_terminal_widget PUBLIC ${LIBUTIL_LIBRARY})
+    endif()
   endif()
-endif()
 
-# rgb.txt next to the binary (and cwd) for X11 color-name lookup
-file(COPY ${IMGUI_TERMINAL_DIR}/rgb.txt DESTINATION ${CMAKE_BINARY_DIR})
+  # rgb.txt next to the binary (and cwd) for X11 color-name lookup
+  file(COPY ${IMGUI_TERMINAL_DIR}/rgb.txt DESTINATION ${CMAKE_BINARY_DIR})
+endif()
 
 # Utility library
-add_library(ned_util STATIC
+set(NED_UTIL_SOURCES
   util/settings.cpp
   util/keybinds.cpp
   util/welcome.cpp
@@ -317,31 +369,60 @@ add_library(ned_util STATIC
   util/font.cpp
   util/icons.cpp
   util/splitter.cpp
-  util/ned_terminal.cpp
   util/project_undo.cpp
 )
+if(NED_ENABLE_TERMINAL)
+  list(APPEND NED_UTIL_SOURCES util/ned_terminal.cpp)
+else()
+  list(APPEND NED_UTIL_SOURCES util/ned_terminal_stub.cpp)
+endif()
+
+add_library(ned_util STATIC ${NED_UTIL_SOURCES})
+ned_apply_feature_defs(ned_util)
 target_include_directories(ned_util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${IMGUI_INCLUDE_DIRS}
   editor
   files
   ${CMAKE_BINARY_DIR}
-  # lsp-framework generates headers into <build>/lib/lsp-framework/generated
-  ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
-  lib/libgit2/include
   lib/imgui/misc/freetype
-  lib/lsp-framework
-  ${IMGUI_TERMINAL_DIR}
   # app.cpp includes editor.h → highlight → tree_sitter.h
   ${TS_ROOT}/tree-sitter/lib/include
   ${TS_ROOT}/tree-sitter/lib/src
 )
-target_link_libraries(ned_util PUBLIC
-  ${OPENGL_LIBRARIES} glfw libgit2 util imgui_terminal_widget)
+if(NED_ENABLE_LSP)
+  target_include_directories(ned_util PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
+    lib/lsp-framework
+  )
+endif()
+if(NED_ENABLE_GIT)
+  target_include_directories(ned_util PUBLIC lib/libgit2/include)
+endif()
+if(NED_ENABLE_TERMINAL)
+  target_include_directories(ned_util PUBLIC ${IMGUI_TERMINAL_DIR})
+endif()
+
+set(NED_UTIL_LINK_LIBS ${OPENGL_LIBRARIES} glfw)
+if(NED_ENABLE_GIT)
+  list(APPEND NED_UTIL_LINK_LIBS libgit2 util)
+endif()
+if(NED_ENABLE_TERMINAL)
+  list(APPEND NED_UTIL_LINK_LIBS imgui_terminal_widget)
+endif()
+target_link_libraries(ned_util PUBLIC ${NED_UTIL_LINK_LIBS})
 if(NOT WIN32)
   target_link_libraries(ned_util PUBLIC Freetype::Freetype)
 endif()
-add_dependencies(ned_util libgit2 util tree-sitter-lib)
+set(NED_UTIL_DEPS tree-sitter-lib)
+if(NED_ENABLE_GIT)
+  list(APPEND NED_UTIL_DEPS libgit2 util)
+endif()
+if(NED_ENABLE_LSP)
+  # app.cpp / settings include lsp headers that need generated types.
+  list(APPEND NED_UTIL_DEPS lsp)
+endif()
+add_dependencies(ned_util ${NED_UTIL_DEPS})
 
 # ================
 # Main Executable (only when ned is the top-level project)
@@ -371,6 +452,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${IMGUI_SOURCES}
     ${WINDOWS_RESOURCES}
   )
+  ned_apply_feature_defs(ned)
 endif()
 
 # ================
@@ -383,6 +465,7 @@ add_library(ned_embed STATIC
   ${FILES_SOURCES}
   ${IMGUI_SOURCES}
 )
+ned_apply_feature_defs(ned_embed)
 
 # =====================
 # macOS Window Management
@@ -425,14 +508,21 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     editor
     files
     ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
     $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
     ${TS_ROOT}/tree-sitter/lib/include
     ${TS_ROOT}/tree-sitter/lib/src
-    lib/libgit2/include
     ${GLFW_INCLUDE_DIR}
   )
+  if(NED_ENABLE_LSP)
+    target_include_directories(ned PRIVATE
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
+      lib/lsp-framework
+    )
+  endif()
+  if(NED_ENABLE_GIT)
+    target_include_directories(ned PRIVATE lib/libgit2/include)
+  endif()
 endif()
 
 target_include_directories(ned_embed PUBLIC
@@ -443,18 +533,49 @@ target_include_directories(ned_embed PUBLIC
   editor
   files
   ${CMAKE_BINARY_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
   $<TARGET_PROPERTY:GLEW::GLEW,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:Freetype::Freetype,INTERFACE_INCLUDE_DIRECTORIES>
   ${TS_ROOT}/tree-sitter/lib/include
   ${TS_ROOT}/tree-sitter/lib/src
-  lib/libgit2/include
   ${GLFW_INCLUDE_DIR}
 )
+if(NED_ENABLE_LSP)
+  target_include_directories(ned_embed PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
+    lib/lsp-framework
+  )
+endif()
+if(NED_ENABLE_GIT)
+  target_include_directories(ned_embed PUBLIC lib/libgit2/include)
+endif()
 
 # ================
 # Linking
 # ================
+# Feature-optional object/static libs (libgit2 stack, lsp)
+set(NED_FEATURE_LIBS)
+set(NED_FEATURE_DEPS)
+if(NED_ENABLE_GIT)
+  list(APPEND NED_FEATURE_LIBS libgit2 util llhttp xdiff pcre)
+  list(APPEND NED_FEATURE_DEPS libgit2 util llhttp xdiff)
+endif()
+if(NED_ENABLE_LSP)
+  list(APPEND NED_FEATURE_LIBS lsp)
+endif()
+
+# Platform extras mostly needed for libgit2 HTTPS / compression
+set(NED_PLATFORM_LIBS
+  $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
+  $<$<PLATFORM_ID:Darwin>:z>
+  $<$<PLATFORM_ID:Linux>:z>
+  $<$<PLATFORM_ID:Darwin>:iconv>
+  $<$<PLATFORM_ID:Linux>:pthread>
+  $<$<PLATFORM_ID:Linux>:ssl>
+  $<$<PLATFORM_ID:Linux>:crypto>
+  $<$<PLATFORM_ID:Linux>:pcre>
+  $<$<PLATFORM_ID:Linux>:rt>
+)
+
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   target_link_libraries(ned PRIVATE
     ${OPENGL_LIBRARIES}
@@ -466,23 +587,12 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     CURL::libcurl
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
-    libgit2
-    util
-    llhttp
-    xdiff
-    pcre
-    lsp
-    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
-    $<$<PLATFORM_ID:Darwin>:z>
-    $<$<PLATFORM_ID:Linux>:z>
-    $<$<PLATFORM_ID:Darwin>:iconv>
-    $<$<PLATFORM_ID:Linux>:pthread>
-    $<$<PLATFORM_ID:Linux>:ssl>
-    $<$<PLATFORM_ID:Linux>:crypto>
-    $<$<PLATFORM_ID:Linux>:pcre>
-    $<$<PLATFORM_ID:Linux>:rt>
+    ${NED_FEATURE_LIBS}
+    ${NED_PLATFORM_LIBS}
   )
-  add_dependencies(ned libgit2 util llhttp xdiff)
+  if(NED_FEATURE_DEPS)
+    add_dependencies(ned ${NED_FEATURE_DEPS})
+  endif()
 endif()
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -494,56 +604,34 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ned_util
     GLEW::GLEW
     Freetype::Freetype
-    CURL::libcurl 
+    CURL::libcurl
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
-    libgit2
-    util
-    llhttp
-    xdiff
-    pcre
-    lsp
-    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
-  $<$<PLATFORM_ID:Darwin>:z>
-  $<$<PLATFORM_ID:Linux>:z>
-    $<$<PLATFORM_ID:Darwin>:iconv>
-    $<$<PLATFORM_ID:Linux>:pthread>
-    $<$<PLATFORM_ID:Linux>:ssl>
-    $<$<PLATFORM_ID:Linux>:crypto>
-    $<$<PLATFORM_ID:Linux>:pcre>
-    $<$<PLATFORM_ID:Linux>:rt>
+    ${NED_FEATURE_LIBS}
+    ${NED_PLATFORM_LIBS}
   )
-  add_dependencies(ned_embed libgit2 util llhttp xdiff)
+  if(NED_FEATURE_DEPS)
+    add_dependencies(ned_embed ${NED_FEATURE_DEPS})
+  endif()
 else()
   # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
   # Note: imgui is compiled directly into the parent executable, so we don't link against it
-    target_link_libraries(ned_embed PUBLIC
+  target_link_libraries(ned_embed PUBLIC
     OpenGL::GL
     glfw
     nfd
     ned_util
     GLEW::GLEW
     Freetype::Freetype
-    CURL::libcurl 
+    CURL::libcurl
     tree-sitter-lib
     ${TS_GRAMMAR_LIBS}
-    libgit2
-    util
-    llhttp
-    xdiff
-    pcre
-    lsp
-    $<$<PLATFORM_ID:Windows>:ZLIB::ZLIB>
-  $<$<PLATFORM_ID:Darwin>:z>
-  $<$<PLATFORM_ID:Linux>:z>
-  $<$<PLATFORM_ID:Darwin>:iconv>
-  $<$<PLATFORM_ID:Linux>:pthread>
-  $<$<PLATFORM_ID:Linux>:ssl>
-  $<$<PLATFORM_ID:Linux>:crypto>
-  $<$<PLATFORM_ID:Linux>:pcre>
-  $<$<PLATFORM_ID:Linux>:rt>
+    ${NED_FEATURE_LIBS}
+    ${NED_PLATFORM_LIBS}
   )
-  add_dependencies(ned_embed libgit2 util llhttp xdiff)
+  if(NED_FEATURE_DEPS)
+    add_dependencies(ned_embed ${NED_FEATURE_DEPS})
+  endif()
 endif()
 
 if(APPLE AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -588,12 +676,14 @@ endif()
 # ================
 # Resources
 # ================
-file(COPY
+set(NED_RESOURCE_COPY
   ${CMAKE_CURRENT_SOURCE_DIR}/resources
-  ${CMAKE_CURRENT_SOURCE_DIR}/shaders
   ${CMAKE_CURRENT_SOURCE_DIR}/editor/services/highlight/queries
-  DESTINATION ${CMAKE_BINARY_DIR}
 )
+if(NED_ENABLE_SHADERS)
+  list(APPEND NED_RESOURCE_COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
+endif()
+file(COPY ${NED_RESOURCE_COPY} DESTINATION ${CMAKE_BINARY_DIR})
 
 # ================
 # Unit tests (Monaco-shaped editor model suite)
