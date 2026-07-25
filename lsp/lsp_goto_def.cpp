@@ -1,23 +1,23 @@
 #include "lsp_goto_def.h"
+#include "../editor/editor_api.h"
+#include "../files/files.h"
 #include "lsp_includes.h"
 #include "lsp_uri_options.h"
 
-// Global instance
-LSPGotoDef gLSPGotoDef;
-
-LSPGotoDef::LSPGotoDef() : show(false), pending(false) {}
+LSPGotoDef::LSPGotoDef(LSPClient &client, EditorApi &api, FileExplorer &fileExplorer)
+	: show(false), client(&client), api(&api), fileExplorer(&fileExplorer), pending(false)
+{
+}
 
 LSPGotoDef::~LSPGotoDef() = default;
 
 void LSPGotoDef::get()
 {
-	if (!gLSPClient.isInitialized())
+	if (!client || !api || !fileExplorer || !client->isInitialized())
 		return;
 
-	// Get current cursor position
-	int row = gEditor.getLineFromPos(editor_state.cursor_index);
-	int line_start = editor_state.editor_content_lines[row];
-	int column = editor_state.cursor_index - line_start;
+	int row = 0, column = 0;
+	api->getCaret(row, column);
 
 	// Set pending state
 	pending = true;
@@ -49,14 +49,14 @@ void LSPGotoDef::request(
 	{
 		// Create request parameters
 		lsp::ReferenceParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(gFileExplorer.currentFile);
+		params.textDocument.uri = lsp::FileUri::fromPath(fileExplorer->api->path());
 		params.position.line = line;
 		params.position.character = character;
 		params.context.includeDeclaration = true; // Include the definition in results
 
 		// Send request and handle response asynchronously
 		auto response =
-			gLSPClient.getMessageHandler()
+			client->getMessageHandler()
 				->sendRequest<lsp::requests::TextDocument_References>(std::move(params));
 
 		asyncResponse = std::make_shared<std::future<void>>(
@@ -128,4 +128,10 @@ void LSPGotoDef::printResponse(
 	std::cout << "]" << std::endl;
 }
 
-void LSPGotoDef::render() { gLSPUriOptions.render("Goto Definition", definitions, show); }
+void LSPGotoDef::render()
+{
+	if (client)
+	{
+		client->uriOptions.render("Goto Definition", definitions, show);
+	}
+}

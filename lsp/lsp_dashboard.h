@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 
+class FileExplorer;
+class LSPClient;
+class Settings;
+
 struct LSPServerInfo
 {
 	std::string language;
@@ -17,7 +21,7 @@ struct LSPServerInfo
 class LSPDashboard
 {
   public:
-	LSPDashboard();
+	LSPDashboard(LSPClient &client, FileExplorer &fileExplorer, Settings &settings);
 	~LSPDashboard();
 
 	// Main interface
@@ -38,6 +42,9 @@ class LSPDashboard
 
   private:
 	bool show = false;
+	LSPClient *client = nullptr;
+	FileExplorer *fileExplorer = nullptr;
+	Settings *settings = nullptr;
 
 	// Window properties (similar to settings)
 	ImVec2 windowPos{300.0f, 200.0f};
@@ -53,6 +60,3 @@ class LSPDashboard
 	std::vector<std::string> getSupportedLanguages();
 	void handleWindowInput();
 };
-
-// Global instance declaration
-extern LSPDashboard gLSPDashboard;

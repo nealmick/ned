@@ -1,12 +1,13 @@
 {
   "name": "ned",
   "version": "1.0.0",
-  "builtin-baseline": "3dd44b931481d7a8e9ba412621fa810232b66289",
+  "builtin-baseline": "cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3",
   "dependencies": [
     "glfw3",
     "glew",
     "curl",
     "freetype",
+    "fontconfig",
     "opengl"
   ]
 }

@@ -12,7 +12,7 @@
 struct FramebufferState
 {
 	GLuint framebuffer = 0, renderTexture = 0, rbo = 0;
-	int last_display_w = 0, last_display_h = 0;
+	int lastDisplayW = 0, lastDisplayH = 0;
 	bool initialized = false;
 };
 

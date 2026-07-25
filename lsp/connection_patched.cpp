@@ -97,22 +97,22 @@ void verifyContentType(std::string_view contentType)
 class Connection::InputReader
 {
   public:
-	InputReader(io::Stream &stream) : m_stream{stream} {}
+	InputReader(io::Stream &stream) : stream{stream} {}
 
 	char peek()
 	{
-		if (!m_peek.has_value())
-			m_peek = get();
+		if (!peeked.has_value())
+			peeked = get();
 
-		return m_peek.value();
+		return peeked.value();
 	}
 
 	char get()
 	{
-		if (m_peek.has_value())
+		if (peeked.has_value())
 		{
-			const char c = m_peek.value();
-			m_peek.reset();
+			const char c = peeked.value();
+			peeked.reset();
 			return c;
 		}
 
@@ -125,21 +125,21 @@ class Connection::InputReader
 	{
 		if (size > 0)
 		{
-			if (m_peek.has_value())
+			if (peeked.has_value())
 			{
-				*buffer = m_peek.value();
-				m_peek.reset();
+				*buffer = peeked.value();
+				peeked.reset();
 				++buffer;
 				--size;
 			}
 
-			m_stream.read(buffer, size);
+			stream.read(buffer, size);
 		}
 	}
 
   private:
-	io::Stream &m_stream;
-	std::optional<char> m_peek;
+	io::Stream &stream;
+	std::optional<char> peeked;
 };
 
 /*
@@ -239,9 +239,8 @@ void Connection::parseHeaderValue(MessageHeader &header, std::string_view line)
 
 		if (equalCaseInsensitive(key, "Content-Length"))
 		{
-			const auto [ptr, ec] = std::from_chars(value.data(),
-												   value.data() + value.size(),
-												   header.contentLength);
+			const auto [ptr, ec] = std::from_chars(
+				value.data(), value.data() + value.size(), header.contentLength);
 
 			if (ec != std::error_code{} || ptr != value.data() + value.size())
 				throw ConnectionError(

@@ -1,27 +1,45 @@
 #include "lsp_dashboard.h"
 #include "../files/files.h"
 #include "../util/settings.h"
-#include "../util/settings_file_manager.h"
 #include "imgui.h"
 #include "lsp_client.h"
 #include <filesystem>
 #include <iostream>
 
-// Global instance
-LSPDashboard gLSPDashboard;
-
-LSPDashboard::LSPDashboard() { refreshServerInfo(); }
+LSPDashboard::LSPDashboard(LSPClient &client,
+						   FileExplorer &fileExplorer,
+						   Settings &settings)
+	: client(&client), fileExplorer(&fileExplorer), settings(&settings)
+{
+}
 
 LSPDashboard::~LSPDashboard() {}
 
 void LSPDashboard::render()
 {
-	if (!show)
+	if (!show || !client || !fileExplorer || !settings)
 		return;
 
 	// Set window position and size on first use
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
+
+	// Standalone uses a translucent global WindowBg for the host window glass effect.
+	// Floating panels need an opaque bg so content is readable (same as Settings / URI
+	// options).
+	const bool pushBg = !settings->isEmbedded &&
+						settings->settings.contains("backgroundColor") &&
+						settings->settings["backgroundColor"].is_array() &&
+						settings->settings["backgroundColor"].size() >= 3;
+	if (pushBg)
+	{
+		const auto &bg = settings->settings["backgroundColor"];
+		const float m = 0.8f;
+		const ImVec4 windowBg(
+			bg[0].get<float>() * m, bg[1].get<float>() * m, bg[2].get<float>() * m, 1.0f);
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, windowBg);
+		ImGui::PushStyleColor(ImGuiCol_ChildBg, windowBg);
+	}
 
 	bool windowOpen = true;
 	bool windowCreated =
@@ -53,26 +71,22 @@ void LSPDashboard::render()
 		ImGui::SameLine();
 		if (ImGui::Button("Reload LSP.json"))
 		{
-			gLSPClient.initializeLanguageServers();
+			client->initializeLanguageServers();
 			refreshServerInfo();
 
 			// Show notification with server count
-			extern Settings gSettings;
 			std::string message = "LSP Servers: " + std::to_string(serverInfos.size());
-			gSettings.renderNotification(message, 2.0f);
+			settings->renderNotification(message, 2.0f);
 		}
 
 		ImGui::SameLine();
 		if (ImGui::Button("Open LSP.json"))
 		{
 			std::string lspJsonPath =
-				(std::filesystem::path(SettingsFileManager::getUserSettingsPath())
-					 .parent_path() /
-				 "lsp.json")
-					.string();
+				(std::filesystem::path(Settings::getUserConfigDir()) / "lsp.json").string();
 			if (std::filesystem::exists(lspJsonPath))
 			{
-				gFileExplorer.loadFileContent(lspJsonPath);
+				fileExplorer->loadFileContent(lspJsonPath);
 				show = false; // Close LSP dashboard after opening file
 			} else
 			{
@@ -92,6 +106,8 @@ void LSPDashboard::render()
 	}
 
 	ImGui::End();
+	if (pushBg)
+		ImGui::PopStyleColor(2);
 }
 
 void LSPDashboard::renderServerList()
@@ -182,8 +198,13 @@ void LSPDashboard::refreshServerInfo()
 {
 	serverInfos.clear();
 
+	if (!client)
+	{
+		return;
+	}
+
 	// Get language server configurations directly from the LSP client
-	const auto &languageServers = gLSPClient.getLanguageServers();
+	const auto &languageServers = client->getLanguageServers();
 
 	for (const auto &serverConfig : languageServers)
 	{
@@ -195,7 +216,7 @@ void LSPDashboard::refreshServerInfo()
 		for (const auto &path : serverConfig.serverPaths)
 		{
 			// Expand environment variables like %USERNAME% on Windows
-			std::string expandedPath = gLSPClient.expandEnvironmentVariables(path);
+			std::string expandedPath = client->expandEnvironmentVariables(path);
 			if (std::filesystem::exists(expandedPath) &&
 				std::filesystem::is_regular_file(expandedPath))
 			{
@@ -211,8 +232,8 @@ void LSPDashboard::refreshServerInfo()
 		// 1. The server exists/is found
 		// 2. The global LSP client is initialized
 		// 3. The current language matches this server's language
-		info.isActive = info.isFound && gLSPClient.isInitialized() &&
-						gLSPClient.getCurrentLanguage() == serverConfig.language;
+		info.isActive = info.isFound && client->isInitialized() &&
+						client->getCurrentLanguage() == serverConfig.language;
 
 		serverInfos.push_back(info);
 	}
@@ -221,7 +242,11 @@ void LSPDashboard::refreshServerInfo()
 std::vector<std::string> LSPDashboard::getSupportedLanguages()
 {
 	// Use the LSP client's supported languages directly
-	return gLSPClient.getSupportedLanguages();
+	if (!client)
+	{
+		return {};
+	}
+	return client->getSupportedLanguages();
 }
 
 void LSPDashboard::handleWindowInput()
