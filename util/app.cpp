@@ -14,8 +14,10 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 #include "imgui_impl_opengl3.h"
 #include "lsp/lsp_client.h"
 #include "settings.h"
+#if NED_ENABLE_SHADERS
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
+#endif
 #include "util/keybinds.h"
 #include "util/ned_terminal.h"
 #include "util/settings.h"
@@ -45,19 +47,23 @@ App::App(Settings &settings,
 		 Editor &editor,
 		 FileExplorer &fileExplorer,
 		 LSPClient &lspClient,
+#if NED_ENABLE_SHADERS
 		 ShaderManager &shaderManager,
+		 FramebufferState &fb,
+#endif
 		 Splitter &splitter,
 		 Welcome &welcome,
-		 FramebufferState &fb,
 		 NedTerminal &terminal)
 	: settings(settings),
 	  editor(editor),
 	  fileExplorer(fileExplorer),
 	  lspClient(lspClient),
+#if NED_ENABLE_SHADERS
 	  shaderManager(shaderManager),
+	  fb(fb),
+#endif
 	  splitter(splitter),
 	  welcome(welcome),
-	  fb(fb),
 	  terminal(terminal),
 	  window(nullptr),
 	  windowFocused(true)
@@ -84,7 +90,9 @@ bool App::initialize()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glGetError();
 
+#if NED_ENABLE_SHADERS
 	shaderManager.initializeShaders();
+#endif
 	settings.keybinds.loadKeybinds();
 
 #ifdef __APPLE__
@@ -101,7 +109,9 @@ bool App::initialize()
 	settings.isEmbedded = false;
 	settings.apply(true, editor.api);
 	fileExplorer.icons.load();
+#if NED_ENABLE_SHADERS
 	shaderManager.setShaderEnabled(settings.settings["shader_toggle"].get<bool>());
+#endif
 
 	return true;
 }
@@ -128,7 +138,9 @@ void App::runMainLoop()
 			terminal.reloadTerminalFonts(settings.font.getFontSize());
 			settings.font.load(/*clearAtlas=*/false);
 		}
+#if NED_ENABLE_SHADERS
 		shaderManager.setShaderEnabled(settings.settings["shader_toggle"].get<bool>());
+#endif
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -144,9 +156,11 @@ void App::runMainLoop()
 		}
 		fileExplorer.handleFileDialog();
 
+#if NED_ENABLE_SHADERS
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
 		shaderManager.initializeFramebuffers(display_w, display_h);
+#endif
 
 		renderFrame();
 	}
@@ -361,18 +375,24 @@ void App::handleBackgroundUpdates()
 
 void App::renderFrame()
 {
-	bool shaderEnabled = shaderManager.isShaderEnabled();
-
 	int display_w, display_h;
 	glfwGetFramebufferSize(window, &display_w, &display_h);
 
+	auto &bg = settings.settings["backgroundColor"];
+
+#if NED_ENABLE_SHADERS
+	const bool shaderEnabled = shaderManager.isShaderEnabled();
 	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
 	glViewport(0, 0, display_w, display_h);
-
-	auto &bg = settings.settings["backgroundColor"];
-	float alpha = shaderEnabled ? bg[3].get<float>() : 1.0f;
+	const float alpha = shaderEnabled ? bg[3].get<float>() : 1.0f;
 	glClearColor(bg[0], bg[1], bg[2], alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
+#else
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, display_w, display_h);
+	glClearColor(bg[0], bg[1], bg[2], 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
 	renderMainWindow();
 	settings.renderSettingsWindow(editor.api, fileExplorer, lspClient);
@@ -381,10 +401,12 @@ void App::renderFrame()
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+#if NED_ENABLE_SHADERS
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
 	shaderManager.renderWithEffects(window);
+#endif
 	glfwSwapBuffers(window);
 }
 

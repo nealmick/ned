@@ -1,4 +1,14 @@
 #pragma once
+
+#ifndef NED_ENABLE_GIT
+#define NED_ENABLE_GIT 1
+#endif
+#ifndef NED_ENABLE_LSP
+#define NED_ENABLE_LSP 1
+#endif
+#ifndef NED_ENABLE_SHADERS
+#define NED_ENABLE_SHADERS 1
+#endif
 #include "../lib/json.hpp"
 #include "font.h"
 #include "imgui.h"

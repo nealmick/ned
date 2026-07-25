@@ -15,18 +15,50 @@ NO_RUN=0
 CLEAN=0
 SKIP_FORMAT=0
 
+# Optional features (default ON — same as CMake). Use --no-* / --minimal to trim.
+ENABLE_TERMINAL=1
+ENABLE_GIT=1
+ENABLE_LSP=1
+ENABLE_SHADERS=1
+
 for arg in "$@"; do
 	case "$arg" in
 	--clean) CLEAN=1 ;;
 	--no-run) NO_RUN=1 ;;
 	--skip-format) SKIP_FORMAT=1 ;;
+	--no-terminal) ENABLE_TERMINAL=0 ;;
+	--no-git) ENABLE_GIT=0 ;;
+	--no-lsp) ENABLE_LSP=0 ;;
+	--no-shaders) ENABLE_SHADERS=0 ;;
+	--minimal)
+		# Editor core only: no terminal, git, LSP, or CRT shaders.
+		ENABLE_TERMINAL=0
+		ENABLE_GIT=0
+		ENABLE_LSP=0
+		ENABLE_SHADERS=0
+		;;
 	-h | --help)
-		echo "Usage: $0 [--clean] [--no-run] [--skip-format]"
+		echo "Usage: $0 [options]"
 		echo "  --clean         Wipe ${BUILD_DIR} first"
 		echo "  --no-run        Build only (do not launch ned)"
 		echo "  --skip-format   Skip clang-format"
+		echo "  --no-terminal   Disable embedded terminal (imgui-terminal)"
+		echo "  --no-git        Disable libgit2 gutter / status"
+		echo "  --no-lsp        Disable language server client"
+		echo "  --no-shaders    Disable CRT/burn-in postprocess"
+		echo "  --minimal       All of --no-terminal --no-git --no-lsp --no-shaders"
 		echo "  CI=true         Implies --no-run (and skips format if clang-format missing)"
+		echo ""
+		echo "Examples:"
+		echo "  $0 --minimal --no-run"
+		echo "  $0 --no-git --no-lsp"
+		echo "  $0 --clean --minimal   # reconfigure from a full build"
 		exit 0
+		;;
+	*)
+		echo -e "${RED}Unknown option: $arg${NC}"
+		echo "Try $0 --help"
+		exit 1
 		;;
 	esac
 done
@@ -62,12 +94,20 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	echo -e "${BLUE}macOS deployment target: ${MACOSX_DEPLOYMENT_TARGET}${NC}"
 fi
 
-# Release-style default for CI; local can override with CMAKE_BUILD_TYPE
+# Always pass feature flags so re-running with different --no-* updates the cache.
+CMAKE_ARGS=(
+	-DNED_ENABLE_TERMINAL="$ENABLE_TERMINAL"
+	-DNED_ENABLE_GIT="$ENABLE_GIT"
+	-DNED_ENABLE_LSP="$ENABLE_LSP"
+	-DNED_ENABLE_SHADERS="$ENABLE_SHADERS"
+)
 if [ -n "${CMAKE_BUILD_TYPE:-}" ]; then
-	cmake .. -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE"
-else
-	cmake ..
+	CMAKE_ARGS+=(-DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE")
 fi
+
+echo -e "${BLUE}Features: terminal=${ENABLE_TERMINAL} git=${ENABLE_GIT} lsp=${ENABLE_LSP} shaders=${ENABLE_SHADERS}${NC}"
+
+cmake .. "${CMAKE_ARGS[@]}"
 
 if [ $? -ne 0 ]; then
 	echo -e "${RED}CMake configure failed${NC}"

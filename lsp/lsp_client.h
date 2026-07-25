@@ -1,23 +1,39 @@
 #pragma once
 
+#ifndef NED_ENABLE_LSP
+#define NED_ENABLE_LSP 1
+#endif
+
+#include <string>
+#include <vector>
+
+class EditorApi;
+class FileExplorer;
+class Settings;
+
+// Structure to hold language server information (used by settings UI when ON)
+struct LanguageServerInfo
+{
+	std::string language;
+	std::vector<std::string> fileExtensions;
+	std::vector<std::string> serverPaths;
+	std::vector<std::string> serverArgs;
+};
+
+#if NED_ENABLE_LSP
+
 #include <functional>
 #include <future>
 #include <map>
 #include <memory>
-#include <string>
 #include <thread>
 #include <unordered_set>
-#include <vector>
 
 #include "lsp_dashboard.h"
 #include "lsp_goto_def.h"
 #include "lsp_goto_ref.h"
 #include "lsp_symbol_info.h"
 #include "lsp_uri_options.h"
-
-class EditorApi;
-class FileExplorer;
-class Settings;
 
 // Forward declarations
 namespace lsp {
@@ -32,15 +48,6 @@ class Stream;
 
 }
 } // namespace lsp
-
-// Structure to hold language server information
-struct LanguageServerInfo
-{
-	std::string language;
-	std::vector<std::string> fileExtensions;
-	std::vector<std::string> serverPaths;
-	std::vector<std::string> serverArgs;
-};
 
 class LSPClient
 {
@@ -136,3 +143,49 @@ class LSPClient
 	// Message processing thread
 	std::thread processingThread;
 };
+
+#else // !NED_ENABLE_LSP
+
+// Minimal stand-in so App/Ned/keybinds/settings compile without lsp-framework.
+class LSPClient
+{
+  public:
+	struct DashboardStub
+	{
+		void render() {}
+		void setShow(bool) {}
+	};
+
+	LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
+	~LSPClient();
+
+	DashboardStub dashboard;
+
+	void setWorkspace(const std::string &workspacePath);
+	bool init(const std::string &filePath);
+	void shutdown();
+	bool isInitialized() const { return false; }
+	std::string getCurrentLanguage() const;
+
+	const std::vector<LanguageServerInfo> &getLanguageServers() const;
+	std::vector<std::string> getSupportedLanguages() const;
+
+	void didOpen(const std::string &filePath,
+				 const std::string &content,
+				 int version,
+				 const std::string &languageId);
+	void didEdit(const std::string &filePath, const std::string &content, int version);
+	void didClose(const std::string &filePath);
+	bool isDocumentOpen(const std::string &filePath) const;
+
+	bool keybinds();
+	void bindEditorApi(EditorApi &api);
+	void render();
+
+	bool startServer(const std::string &language, const std::string &serverPath);
+	void stopServer();
+	void initializeLanguageServers();
+	std::string expandEnvironmentVariables(const std::string &path) const;
+};
+
+#endif // NED_ENABLE_LSP
