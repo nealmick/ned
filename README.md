@@ -1,3 +1,4 @@
+<img width="270" height="150" alt="ned-3" src="https://github.com/user-attachments/assets/49cc36bf-1164-4bdc-bc22-7b89a0021c77" />
 
 <img src="https://github.com/nealmick/ned/actions/workflows/pack-app.yml/badge.svg" alt="Build Status">  ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)  ![Debian](https://img.shields.io/badge/Debian-✓-success?logo=debian&logoColor=white)  ![Windows](https://img.shields.io/badge/Windows-✓-success?logo=microsoft&logoColor=white)
 
