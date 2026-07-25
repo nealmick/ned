@@ -1,26 +1,23 @@
 #include "welcome.h"
 #include "../files/files.h"
 #include "settings.h"
-#include "util/debug_console.h"
+#include <filesystem>
 #include <iostream>
 
 // PNG loading with stb_image
 #define STB_IMAGE_IMPLEMENTATION
 #include "../lib/stb_image.h"
 
-Welcome &gWelcome = Welcome::getInstance();
-
-void Welcome::calculateFPS()
+namespace {
+ImVec4 colorFromJson(const json &color)
 {
-	frameCount++;
-	double currentTime = glfwGetTime();
+	return ImVec4(color[0], color[1], color[2], color[3]);
+}
+} // namespace
 
-	if (currentTime - lastTime >= 1.0)
-	{
-		fps = frameCount;
-		frameCount = 0;
-		lastTime = currentTime;
-	}
+Welcome::Welcome(Settings &settings, FileExplorer &fileExplorer)
+	: settings(settings), fileExplorer(fileExplorer)
+{
 }
 
 bool Welcome::loadNedLogo()
@@ -28,8 +25,17 @@ bool Welcome::loadNedLogo()
 	if (nedLogoTexture != 0)
 		return true; // Already loaded
 
+	const std::string logoPath =
+		(std::filesystem::path(Settings::getAppResourcesPath()) / "resources" / "icons" /
+		 "ned.png")
+			.string();
 	int width, height, channels;
-	unsigned char *data = stbi_load("icons/ned.png", &width, &height, &channels, 4);
+	unsigned char *data = stbi_load(logoPath.c_str(), &width, &height, &channels, 4);
+	if (!data)
+	{
+		// Dev fallback when cwd is the repo root.
+		data = stbi_load("resources/icons/ned.png", &width, &height, &channels, 4);
+	}
 	if (!data)
 	{
 		std::cerr << "Failed to load ned.png logo" << std::endl;
@@ -58,8 +64,15 @@ bool Welcome::loadWelcomeImages()
 			continue; // Already loaded
 
 		int width, height, channels;
+		const std::string absPath =
+			(std::filesystem::path(Settings::getAppResourcesPath()) /
+			 welcomeImages[i].filename)
+				.string();
 		unsigned char *data =
-			stbi_load(welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
+			stbi_load(absPath.c_str(), &width, &height, &channels, 4);
+		if (!data)
+			data = stbi_load(
+				welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
 		if (!data)
 		{
 			std::cerr << "Failed to load " << welcomeImages[i].filename << std::endl;
@@ -151,14 +164,14 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 		ImGui::PopStyleColor(3);
 
 		// Get the button's position for drawing
-		ImVec2 p_min = ImGui::GetItemRectMin();
-		ImVec2 p_max = ImGui::GetItemRectMax();
+		ImVec2 rectMin = ImGui::GetItemRectMin();
+		ImVec2 rectMax = ImGui::GetItemRectMax();
 		ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
 		// Draw the rounded image
 		draw_list->AddImageRounded((ImTextureID)(intptr_t)welcomeImages[i].texture,
-								   p_min,
-								   p_max,
+								   rectMin,
+								   rectMax,
 								   ImVec2(0, 0),
 								   ImVec2(1, 1),   // UV coordinates (full image)
 								   IM_COL32_WHITE, // Tint color
@@ -169,11 +182,11 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 		if (isHovered)
 		{
 			draw_list->AddRectFilled(
-				p_min, p_max, IM_COL32(0, 123, 255, 76), 12.0f); // Light blue overlay
+				rectMin, rectMax, IM_COL32(0, 123, 255, 76), 12.0f); // Light blue overlay
 		}
 
 		// Always draw grey border
-		draw_list->AddRect(p_min, p_max, IM_COL32(128, 128, 128, 80), 12.0f, 0, 1.5f);
+		draw_list->AddRect(rectMin, rectMax, IM_COL32(128, 128, 128, 80), 12.0f, 0, 1.5f);
 
 		// Check for click animation on this image
 		bool showClickAnimation = false;
@@ -209,17 +222,17 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 		{
 			uint8_t alpha = (uint8_t)(clickAnimationAlpha * 255.0f);
 			draw_list->AddRect(
-				p_min, p_max, IM_COL32(255, 255, 255, alpha), 12.0f, 0, 3.0f);
+				rectMin, rectMax, IM_COL32(255, 255, 255, alpha), 12.0f, 0, 3.0f);
 		}
 
 		// Add blue border on hover (only if not showing click animation)
 		if (isHovered && !showClickAnimation)
 		{
-			draw_list->AddRect(p_min, p_max, IM_COL32(0, 123, 255, 200), 12.0f, 0, 2.5f);
+			draw_list->AddRect(
+				rectMin, rectMax, IM_COL32(0, 123, 255, 200), 12.0f, 0, 2.5f);
 
 			// Create tooltip with theme background color (force opacity to 1.0)
-			extern Settings gSettings;
-			ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+			ImVec4 bgColor = colorFromJson(settings.settings["backgroundColor"]);
 			bgColor.w = 1.0f; // Force full opacity
 			ImGui::PushStyleColor(ImGuiCol_PopupBg, bgColor);
 			ImGui::BeginTooltip();
@@ -228,61 +241,34 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 			ImGui::PopStyleColor();
 		}
 
-		// Handle theme preview and clicking
-		handleThemePreview(i, isHovered, clicked);
-
 		if (clicked)
-		{
-			std::cout << "Clicked: " << welcomeImages[i].name << std::endl;
-		}
+			selectTheme(i);
 	}
 }
 
-void Welcome::handleThemePreview(int themeIndex, bool isHovered, bool isClicked)
+void Welcome::selectTheme(int themeIndex)
 {
-	double currentTime = glfwGetTime();
-
-	// Map theme indices to profile filenames
-	std::string profileNames[] = {
+	static const char *profileNames[] = {
 		"amber.json", "solarized.json", "solarized-light.json", "ned.json"};
-
-	if (isClicked)
-	{
-		// Permanent theme switch on click
-		if (themeIndex >= 0 && themeIndex < 4)
-		{
-			std::cout << "[Welcome] Permanently switching to theme: "
-					  << welcomeImages[themeIndex].name << std::endl;
-
-			// Start click animation
-			clickedThemeIndex = themeIndex;
-			clickAnimationStartTime = currentTime;
-			isPlayingClickAnimation = true;
-
-			// Use the settings global to switch profile
-			extern Settings gSettings;
-			gSettings.switchToProfile(profileNames[themeIndex]);
-		}
+	if (themeIndex < 0 || themeIndex >= 4)
 		return;
-	}
 
-	// Removed hover-based theme switching - only handle click events now
+	clickedThemeIndex = themeIndex;
+	clickAnimationStartTime = glfwGetTime();
+	isPlayingClickAnimation = true;
+	settings.switchToProfile(profileNames[themeIndex]);
 }
 
 void Welcome::render()
 {
-	calculateFPS(); // Update FPS count
-
 	float windowWidth, windowHeight;
 
-	if (isEmbedded)
+	if (settings.isEmbedded)
 	{
-		// When embedded, use the current content area
 		windowWidth = ImGui::GetContentRegionAvail().x;
 		windowHeight = ImGui::GetContentRegionAvail().y;
 	} else
 	{
-		// When standalone, create a full window
 		ImGuiViewport *viewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(viewport->Pos);
 		ImGui::SetNextWindowSize(viewport->Size);
@@ -295,21 +281,6 @@ void Welcome::render()
 		windowWidth = ImGui::GetWindowWidth();
 		windowHeight = ImGui::GetWindowHeight();
 	}
-
-	// FPS Counter in top right
-	ImGui::SetCursorPos(ImVec2(windowWidth - 80, 10));
-	ImVec4 fpsColor;
-	if (fps >= 55)
-	{
-		fpsColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green for good FPS
-	} else if (fps >= 30)
-	{
-		fpsColor = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for okay FPS
-	} else
-	{
-		fpsColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red for bad FPS
-	}
-	// ImGui::TextColored(fpsColor, "FPS: %d", fps);
 
 	// Dynamic vertical positioning - move up for smaller windows
 	float minTopMargin = 20.0f;
@@ -356,8 +327,9 @@ void Welcome::render()
 			ImGui::SetCursorPos(ImVec2(contentStartX, titleY));
 
 			// Use theme text color
-			extern Settings gSettings;
-			ImVec4 textColor = gSettings.getCurrentTextColor();
+			auto &text = settings.settings["themes"][settings.settings.value(
+				"theme", std::string("default"))]["text"];
+			ImVec4 textColor = colorFromJson(text);
 			ImGui::TextColored(textColor, "%s", title);
 
 			ImGui::SetWindowFontScale(1.0f);
@@ -372,13 +344,14 @@ void Welcome::render()
 
 		ImGui::SetCursorPos(ImVec2(buttonX, buttonY));
 		// Get background color and make it 10% darker
-		extern Settings gSettings;
-		ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+		ImVec4 bgColor = colorFromJson(settings.settings["backgroundColor"]);
 		ImVec4 buttonBgColor =
 			ImVec4(bgColor.x * 0.9f, bgColor.y * 0.9f, bgColor.z * 0.9f, 0.8f);
 
 		// Get font color for border
-		ImVec4 fontColor = gSettings.getCurrentTextColor();
+		auto &text = settings.settings["themes"][settings.settings.value(
+			"theme", std::string("default"))]["text"];
+		ImVec4 fontColor = colorFromJson(text);
 
 		// Create hover and active states (20% darker for hover)
 		ImVec4 hoverColor =
@@ -424,7 +397,7 @@ void Welcome::render()
 			{
 				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
 						  << std::endl;
-				gFileExplorer._showFileDialog = true;
+				fileExplorer.showFileDialog = true;
 			}
 
 			ImGui::PopStyleColor(); // Pop border color
@@ -456,33 +429,37 @@ void Welcome::render()
 				// Two column layout aligned under the button
 				const char *keybinds[] = {"CMD+O Open Folder",
 										  "CMD+T Terminal",
-										  "CMD+B Bookmarks",
 										  "CMD+: Line Jump",
 										  "CMD+F Find",
 										  "CMD+/ Show this window"};
 
-				// Two-column layout: 3 rows, 2 columns
+				// Two-column layout
+				constexpr int keybindCount = 5;
 				float colSpacing = 200.0f;
 				for (int i = 0; i < 3; i++)
 				{
 					// Get theme text color for keybinds (slightly dimmed)
-					extern Settings gSettings;
-					ImVec4 textColor = gSettings.getCurrentTextColor();
+					auto &text = settings.settings["themes"][settings.settings.value(
+						"theme", std::string("default"))]["text"];
+					ImVec4 textColor = colorFromJson(text);
 					ImVec4 keybindColor = ImVec4(textColor.x * 0.8f,
 												 textColor.y * 0.8f,
 												 textColor.z * 0.8f,
 												 textColor.w);
 
-					// Left column
-					ImGui::SetCursorPos(ImVec2(keybindsX, keybindsY + i * 22.0f));
-					ImGui::TextColored(keybindColor, "%s", keybinds[i * 2]);
+					const int left = i * 2;
+					if (left >= keybindCount)
+						break;
 
-					// Right column
-					if (i * 2 + 1 < 6)
+					ImGui::SetCursorPos(ImVec2(keybindsX, keybindsY + i * 22.0f));
+					ImGui::TextColored(keybindColor, "%s", keybinds[left]);
+
+					const int right = left + 1;
+					if (right < keybindCount)
 					{
 						ImGui::SetCursorPos(
 							ImVec2(keybindsX + colSpacing, keybindsY + i * 22.0f));
-						ImGui::TextColored(keybindColor, "%s", keybinds[i * 2 + 1]);
+						ImGui::TextColored(keybindColor, "%s", keybinds[right]);
 					}
 				}
 
@@ -528,8 +505,9 @@ void Welcome::render()
 			ImGui::SetCursorPos(ImVec2((windowWidth - titleWidth) * 0.5f, currentY));
 
 			// Use theme text color
-			extern Settings gSettings;
-			ImVec4 textColor = gSettings.getCurrentTextColor();
+			auto &text = settings.settings["themes"][settings.settings.value(
+				"theme", std::string("default"))]["text"];
+			ImVec4 textColor = colorFromJson(text);
 			ImGui::TextColored(textColor, "%s", title);
 
 			ImGui::SetWindowFontScale(1.0f);
@@ -543,13 +521,14 @@ void Welcome::render()
 
 		ImGui::SetCursorPos(ImVec2((windowWidth - buttonWidth) * 0.5f, currentY));
 		// Get background color and make it 10% darker
-		extern Settings gSettings;
-		ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+		ImVec4 bgColor = colorFromJson(settings.settings["backgroundColor"]);
 		ImVec4 buttonBgColor =
 			ImVec4(bgColor.x * 0.9f, bgColor.y * 0.9f, bgColor.z * 0.9f, 0.8f);
 
 		// Get font color for border
-		ImVec4 fontColor = gSettings.getCurrentTextColor();
+		auto &text = settings.settings["themes"][settings.settings.value(
+			"theme", std::string("default"))]["text"];
+		ImVec4 fontColor = colorFromJson(text);
 
 		// Create hover and active states (20% darker for hover)
 		ImVec4 hoverColor =
@@ -595,7 +574,7 @@ void Welcome::render()
 			{
 				std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
 						  << std::endl;
-				gFileExplorer._showFileDialog = true;
+				fileExplorer.showFileDialog = true;
 			}
 
 			ImGui::PopStyleColor(); // Pop border color
@@ -630,14 +609,15 @@ void Welcome::render()
 		ImGui::SetCursorPosX((windowWidth - githubWidth) * 0.5f);
 
 		// Make GitHub link clickable - use theme text color
-		extern Settings gSettings;
-		ImVec4 textColor = gSettings.getCurrentTextColor();
+		auto &text = settings.settings["themes"][settings.settings.value(
+			"theme", std::string("default"))]["text"];
+		ImVec4 textColor = colorFromJson(text);
 		ImGui::PushStyleColor(ImGuiCol_Text, textColor);
-		if (ImGui::Selectable(github,
-							  false,
-							  ImGuiSelectableFlags_None,
-							  ImVec2(githubWidth,
-									 ImGui::GetTextLineHeight() * scaleFactor)))
+		if (ImGui::Selectable(
+				github,
+				false,
+				ImGuiSelectableFlags_None,
+				ImVec2(githubWidth, ImGui::GetTextLineHeight() * scaleFactor)))
 		{
 			// Open GitHub URL in default browser
 #ifdef __APPLE__
@@ -653,8 +633,7 @@ void Welcome::render()
 		// Add hover effect with theme background color
 		if (ImGui::IsItemHovered())
 		{
-			extern Settings gSettings;
-			ImVec4 bgColor = gSettings.getCurrentBackgroundColor();
+			ImVec4 bgColor = colorFromJson(settings.settings["backgroundColor"]);
 			bgColor.w = 1.0f; // Force full opacity
 			ImGui::PushStyleColor(ImGuiCol_PopupBg, bgColor);
 			ImGui::SetTooltip("Click to open GitHub repository");
@@ -665,8 +644,7 @@ void Welcome::render()
 		ImGui::PopFont();
 	} // End scope for github link scaling
 
-	if (!isEmbedded)
-	{
+	// Must pair Begin("##WelcomeScreen") above (standalone only).
+	if (!settings.isEmbedded)
 		ImGui::End();
-	}
 }

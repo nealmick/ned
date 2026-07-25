@@ -8,53 +8,44 @@
 
 #include "shaders/shader.h"
 #include "shaders/shader_types.h"
+#include "util/settings.h"
+
+struct GLFWwindow;
 
 class ShaderManager
 {
   public:
-	ShaderManager();
-	~ShaderManager();
+	ShaderManager(Settings &settings,
+				  FramebufferState &fb,
+				  AccumulationBuffers &accum,
+				  ShaderQuad &quad);
 
 	// Shader management
 	bool initializeShaders();
 
 	// Framebuffer management
-	void initializeFramebuffers(int width,
-								int height,
-								FramebufferState &fb,
-								AccumulationBuffers &accum);
-	void cleanupFramebuffers(FramebufferState &fb, AccumulationBuffers &accum);
+	void initializeFramebuffers(int width, int height);
+	void cleanupFramebuffers();
 
-	// Rendering pipeline
-	void renderWithEffects(int display_w,
-						   int display_h,
-						   double currentTime,
-						   const FramebufferState &fb,
-						   AccumulationBuffers &accum,
-						   const ShaderQuad &quad,
-						   class Settings &gSettings);
+	// Rendering pipeline (window used for framebuffer size queries)
+	void renderWithEffects(GLFWwindow *window);
 
 	// State management
 	void setShaderEnabled(bool enabled);
 	bool isShaderEnabled() const;
 
   private:
+	Settings &settings;
+	FramebufferState &fb;
+	AccumulationBuffers &accum;
+	ShaderQuad &quad;
+
 	Shader crtShader;
 	Shader burnInShader;
 	bool shaderEnabled = false;
 
-	// Internal rendering methods
-	void renderBurnInPass(const FramebufferState &fb,
-						  AccumulationBuffers &accum,
-						  const ShaderQuad &quad,
-						  class Settings &gSettings);
-	void renderCRTEffects(int display_w,
-						  int display_h,
-						  double currentTime,
-						  const FramebufferState &fb,
-						  const AccumulationBuffers &accum,
-						  const ShaderQuad &quad,
-						  class Settings &gSettings);
+	void renderBurnInPass();
+	void renderCRTEffects(GLFWwindow *window);
 };
 
 #endif // SHADER_MANAGER_H

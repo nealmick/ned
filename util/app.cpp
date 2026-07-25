@@ -6,398 +6,65 @@ editor. This class combines the functionality of ApplicationManager and Graphics
 
 #include "app.h"
 #include "../files/files.h"
-#include "ai/ai_agent.h"
-#include "editor/editor_scroll.h"
+#include "editor/editor.h"
+
+#include "files/file_tree.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "lsp/lsp_client.h"
 #include "settings.h"
 #include "shaders/shader_manager.h"
-#include "util/font.h"
-#include "util/render.h"
-#include "util/scroll.h"
+#include "shaders/shader_types.h"
+#include "util/keybinds.h"
+#include "util/ned_terminal.h"
 #include "util/settings.h"
-#include <chrono>
+#include "util/splitter.h"
+#include "util/welcome.h"
+#include <filesystem>
 #include <iostream>
+#include <vector>
+
+// PNG decode only — STB_IMAGE_IMPLEMENTATION lives in welcome.cpp
+#include "../lib/stb_image.h"
 
 #ifdef __APPLE__
-#include "../macos_window.h"
+#include "macos_window.h"
 #endif
 
-// Global externals
-extern Font gFont;
-extern FileExplorer gFileExplorer;
-
-App::App()
-	: window(nullptr), lastFocusState(false), windowFocused(true), lastOpacity(0.5f),
-	  lastBlurEnabled(false), scrollCallback(nullptr), scrollXAccumulator(0.0),
-	  scrollYAccumulator(0.0)
-{
-}
-
-App::~App() { cleanup(); }
-
-bool App::initialize(ShaderManager &shaderManager)
-{
-	if (!initializeGLFW())
-	{
-		return false;
-	}
-	if (!createWindow())
-	{
-		return false;
-	}
-	if (!initializeGLEW())
-	{
-		return false;
-	}
-
-	initializeOpenGLState();
-
-	// CRITICAL FIX: Configure macOS window immediately after window creation (like old
-	// version)
-#ifdef __APPLE__
-	float opacity = 0.5f; // Default values, will be updated when settings are loaded
-	bool blurEnabled = true;
-	configureMacOSWindow(window, opacity, blurEnabled);
-#endif
-
-	if (!shaderManager.initializeShaders())
-	{
-		std::cerr << "🔴 Shader initialization failed" << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
-bool App::initializeApp(ShaderManager &shaderManager,
-						Render &render,
-						Settings &settings,
-						Splitter &splitter,
-						WindowResize &windowResize,
-						ShaderQuad &quad,
-						FramebufferState &fb,
-						AccumulationBuffers &accum)
-{
-	// Initialize window resize handler
-	windowResize.initialize(getWindow());
-
-	// Initialize render class
-	if (!render.initialize(getWindow()))
-	{
-		std::cerr << "Failed to initialize render class" << std::endl;
-		return false;
-	}
-
-	// Initialize frame management
-	render.initializeFrameManagement();
-
-	// Apply all settings after all components are initialized
-	float lastOpacity = getLastOpacity();
-	bool lastBlurEnabled = getLastBlurEnabled();
-	bool needFontReload = false;
-	bool m_needsRedraw = false;
-	int m_framesToRender = 0;
-	settings.handleSettingsChanges(
-		needFontReload,
-		m_needsRedraw,
-		m_framesToRender,
-		[&shaderManager](bool enabled) { shaderManager.setShaderEnabled(enabled); },
-		lastOpacity,
-		lastBlurEnabled,
-		true // force = true to apply settings even if they haven't "changed"
-	);
-
-	return true;
-}
-
-void App::runMainLoop(ShaderManager &shaderManager,
-					  Render &render,
-					  Settings &settings,
-					  Splitter &splitter,
-					  WindowResize &windowResize,
-					  ShaderQuad &quad,
-					  FramebufferState &fb,
-					  AccumulationBuffers &accum,
-					  bool &needFontReload,
-					  float &lastOpacity,
-					  bool &lastBlurEnabled)
-{
-	GLFWwindow *window = getWindow();
-
-	while (!shouldWindowClose())
-	{
-		// Check for external file changes
-		gFileExplorer.checkForExternalFileChanges();
-
-		// Get current time for activity tracking
-		double currentTime = glfwGetTime();
-
-		// Handle event polling
-		handleEventPolling(shaderManager, currentTime);
-
-		// Handle window management
-		handleWindowManagement(window);
-
-		// Handle scroll accumulators
-		handleScrollAccumulators(this->scrollXAccumulator, this->scrollYAccumulator);
-
-		// Check for activity and decide if we should keep rendering
-		render.checkForActivity();
-		bool shouldKeepRendering = (currentTime - render.lastActivityTime()) < 0.5 ||
-								   gEditorScroll.isScrollAnimationActive();
-
-		// Always render a frame after polling events
-		auto frame_start = std::chrono::high_resolution_clock::now();
-
-		// Handle frame setup using Render class
-		render.handleFrameSetup(
-			currentTime,
-			needFontReload,
-			render.needsRedrawRef(),
-			render.framesToRenderRef(),
-			[&shaderManager](bool enabled) { shaderManager.setShaderEnabled(enabled); },
-			lastOpacity,
-			lastBlurEnabled,
-			this->windowFocused,
-			*this);
-
-		// Setup framebuffers
-		handleFramebufferSetup(shaderManager, fb, accum);
-
-		// Handle main rendering
-		handleFrameRendering(render,
-							 window,
-							 shaderManager,
-							 fb,
-							 accum,
-							 quad,
-							 settings,
-							 splitter,
-							 windowResize,
-							 currentTime);
-
-		// Handle font reloading using Font class
-		handleFontReload(needFontReload);
-
-		// Handle frame updates for font reloading
-		if (needFontReload)
-		{
-			render.setNeedsRedraw(true);
-			render.setFramesToRender(std::max(render.framesToRender(), 3));
-		}
-
-		// Handle frame timing using Render class
-		render.handleFrameTiming(
-			frame_start, shaderManager.isShaderEnabled(), this->windowFocused, settings);
-	}
-}
-
-// Graphics manager methods
-void App::setScrollCallback(GLFWscrollfun callback)
-{
-	if (window)
-	{
-		glfwSetScrollCallback(window, callback);
-	}
-}
-
-void App::setAppScrollCallback(GLFWscrollfun callback)
-{
-	scrollCallback = callback;
-	if (window)
-	{
-		glfwSetScrollCallback(window, callback);
-	}
-}
-
-void App::enableRawMouseMotion()
-{
-	if (window)
-	{
-		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-	}
-}
-
-void App::setWindowUserPointer(void *pointer)
-{
-	if (window)
-	{
-		glfwSetWindowUserPointer(window, pointer);
-	}
-}
-
-void App::makeContextCurrent()
-{
-	if (window)
-	{
-		glfwMakeContextCurrent(window);
-	}
-}
-
-void App::setSwapInterval(int interval)
-{
-	if (window)
-	{
-		glfwSwapInterval(interval);
-	}
-}
-
-void App::setWindowRefreshCallback(GLFWwindowrefreshfun callback)
-{
-	if (window)
-	{
-		glfwSetWindowRefreshCallback(window, callback);
-	}
-}
-
-bool App::shouldWindowClose() const { return glfwWindowShouldClose(window); }
-
-void App::getFramebufferSize(int *width, int *height)
-{
-	if (window)
-	{
-		glfwGetFramebufferSize(window, width, height);
-	}
-}
-
-bool App::isWindowFocused() const
-{
-	return window ? glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0 : false;
-}
-
-void App::pollEvents(double currentTime, bool shaderEnabled, double lastActivityTime)
-{
 #ifdef PLATFORM_WINDOWS
-	// On Windows, always use non-blocking polling for consistent frame timing
-	glfwPollEvents();
-#else
-	// On macOS/Linux, use timeout-based polling for power efficiency
-	double timeout = calculateEventTimeout(currentTime, shaderEnabled, lastActivityTime);
-	glfwWaitEventsTimeout(timeout);
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
-}
-
-double App::calculateEventTimeout(double currentTime,
-								  bool shaderEnabled,
-								  double lastActivityTime)
-{
-#ifdef PLATFORM_WINDOWS
-	// On Windows, always use consistent FPS-based timeout
-	float fpsTarget = 60.0f;
-	extern Settings gSettings;
-	if (gSettings.getSettings().contains("fps_target") &&
-		gSettings.getSettings()["fps_target"].is_number())
-	{
-		fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
-	}
-	return 1.0 / fpsTarget; // Convert FPS to timeout
-#else
-	// On macOS/Linux, keep the variable timeout logic for smooth user interaction
-	// Check if scroll animation is active - if so, use shorter timeout for responsiveness
-	extern EditorScroll gEditorScroll;
-	bool scrollAnimationActive = gEditorScroll.isScrollAnimationActive();
-
-	// When shaders are enabled, use settings FPS target for timeout
-	// When shaders are disabled, use normal timeout logic
-	if (shaderEnabled)
-	{
-		// Use settings FPS target when shaders are enabled
-		float fpsTarget = 60.0f;
-		extern Settings gSettings;
-		if (gSettings.getSettings().contains("fps_target") &&
-			gSettings.getSettings()["fps_target"].is_number())
-		{
-			fpsTarget = gSettings.getSettings()["fps_target"].get<float>();
-		}
-		return 1.0 / fpsTarget; // Convert FPS to timeout
-	} else
-	{
-		// Use shorter timeout if we recently had activity (for smoother
-		// interaction) Also respect minimum FPS: 25 FPS normally
-		double minFPS = 25.0;
-		double maxTimeout = 1.0 / minFPS; // Convert FPS to timeout
-
-		// When scroll animation is active, use much shorter timeout for responsiveness
-		if (scrollAnimationActive)
-		{
-			return 0.001; // 1ms timeout for very responsive scrolling
-		}
-
-		return (currentTime - lastActivityTime) < 0.5 ? 0.016 : maxTimeout;
-	}
+#include <windows.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 #endif
-}
 
-// Window management methods
-void App::initializeWindowManagement(GLFWwindow *window)
+App::App(Settings &settings,
+		 Editor &editor,
+		 FileExplorer &fileExplorer,
+		 LSPClient &lspClient,
+		 ShaderManager &shaderManager,
+		 Splitter &splitter,
+		 Welcome &welcome,
+		 FramebufferState &fb,
+		 NedTerminal &terminal)
+	: settings(settings),
+	  editor(editor),
+	  fileExplorer(fileExplorer),
+	  lspClient(lspClient),
+	  shaderManager(shaderManager),
+	  splitter(splitter),
+	  welcome(welcome),
+	  fb(fb),
+	  terminal(terminal),
+	  window(nullptr),
+	  windowFocused(true)
 {
-	this->window = window;
-	lastFocusState = isWindowFocused(window);
 }
 
-void App::handleWindowFocus(bool &windowFocused, FileExplorer &fileExplorer)
-{
-	bool currentFocus = isWindowFocused(window);
-	if (windowFocused != currentFocus)
-	{
-		// Redraw on focus change
-		if (windowFocused && !currentFocus)
-		{
-			fileExplorer.saveCurrentFile();
-		}
-		windowFocused = currentFocus;
-	}
-}
-
-bool App::shouldTerminateApplication() const
-{
-#ifdef __APPLE__
-	return ::shouldTerminateApplication();
-#else
-	return false;
-#endif
-}
-
-void App::configureMacOSWindow(GLFWwindow *window, float opacity, bool blurEnabled)
-{
-#ifdef __APPLE__
-	::configureMacOSWindow(window, opacity, blurEnabled);
-#endif
-}
-
-void App::updateMacOSWindowProperties(float opacity, bool blurEnabled)
-{
-#ifdef __APPLE__
-	::updateMacOSWindowProperties(opacity, blurEnabled);
-#endif
-}
-
-bool App::isWindowFocused(GLFWwindow *window) const
-{
-	return window ? glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0 : false;
-}
-
-void App::handleSettingsChanges(Settings &settings,
-								float &lastOpacity,
-								bool &lastBlurEnabled)
-{
-#ifdef __APPLE__
-	float opacity = settings.getSettings().value("mac_background_opacity", 0.5f);
-	bool blurEnabled = settings.getSettings().value("mac_blur_enabled", true);
-
-	if (opacity != lastOpacity || blurEnabled != lastBlurEnabled)
-	{
-		// Use updateMacOSWindowProperties for settings changes (like old version)
-		updateMacOSWindowProperties(opacity, blurEnabled);
-		lastOpacity = opacity;
-		lastBlurEnabled = blurEnabled;
-	}
-#endif
-}
-
-void App::cleanup()
+App::~App()
 {
 	if (window)
 	{
@@ -407,123 +74,252 @@ void App::cleanup()
 	glfwTerminate();
 }
 
-// Graphics initialization methods
-bool App::initializeGLFW()
+bool App::initialize()
 {
-	std::cout << "Initializing GLFW..." << std::endl;
+	glfwInit();
+	createWindow();
+	initializeGLEW();
 
-	if (!glfwInit())
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glGetError();
+
+	shaderManager.initializeShaders();
+	settings.keybinds.loadKeybinds();
+
+#ifdef __APPLE__
 	{
-		std::cerr << "❌ Failed to initialize GLFW" << std::endl;
-
-		// Get detailed GLFW error
-		const char *error_description;
-		glfwGetError(&error_description);
-		if (error_description)
-		{
-			std::cerr << "GLFW Init Error: " << error_description << std::endl;
-		}
-
-		return false;
+		float opacity = settings.settings.value("mac_background_opacity", 0.5f);
+		bool blurEnabled = settings.settings.value("mac_blur_enabled", true);
+		setupMacOSApplicationDelegate();
+		::configureMacOSWindow(window, opacity, blurEnabled);
 	}
+#endif
 
-	std::cout << "✅ GLFW initialized successfully" << std::endl;
+	initializeImGui();
+	// Standalone Ned (default is already false; set explicitly for clarity).
+	settings.isEmbedded = false;
+	settings.apply(true, editor.api);
+	fileExplorer.icons.load();
+	shaderManager.setShaderEnabled(settings.settings["shader_toggle"].get<bool>());
+
 	return true;
 }
 
-void App::setupWindowHints()
+void App::runMainLoop()
 {
-	std::cout << "Setting up GLFW window hints..." << std::endl;
-
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	std::cout << "  - OpenGL 3.3 Core Profile" << std::endl;
+	while (!glfwWindowShouldClose(window))
+	{
+		glfwPollEvents();
 
 #ifdef __APPLE__
-	// For app bundles, use more conservative window hints
-	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations for app bundles
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);	  // macOS specific
-	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE); // Disable for compatibility
-	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE); // Enable retina support
-	std::cout << "  - macOS specific hints set" << std::endl;
-#else // For Linux/Ubuntu and other non-Apple platforms
-	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
-	std::cout << "  - Linux/Ubuntu hints set" << std::endl;
+		if (::shouldTerminateApplication())
+			glfwSetWindowShouldClose(window, 1);
 #endif
-	// GLFW_RESIZABLE should be TRUE for both.
-	// On Linux, the OS window manager handles resizing if DECORATED is TRUE.
-	// On macOS, your custom logic handles resizing.
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	std::cout << "  - Resizable: TRUE" << std::endl;
 
-	std::cout << "Window hints configured successfully" << std::endl;
+		handleScrollAccumulators();
+
+		handleBackgroundUpdates();
+
+		// Font atlas rebuilds must happen *before* NewFrame (never mid-draw).
+		const bool settingsApplied = settings.apply(false, editor.api);
+		if (terminal.isStarted() && (settingsApplied || terminal.consumeNeedsFontResync()))
+		{
+			terminal.reloadTerminalFonts(settings.font.getFontSize());
+			settings.font.load(/*clearAtlas=*/false);
+		}
+		shaderManager.setShaderEnabled(settings.settings["shader_toggle"].get<bool>());
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		bool currentFocus =
+			window ? glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0 : false;
+		if (this->windowFocused != currentFocus)
+		{
+			if (this->windowFocused && !currentFocus)
+				editor.api.save();
+			this->windowFocused = currentFocus;
+		}
+		fileExplorer.handleFileDialog();
+
+		int display_w, display_h;
+		glfwGetFramebufferSize(window, &display_w, &display_h);
+		shaderManager.initializeFramebuffers(display_w, display_h);
+
+		renderFrame();
+	}
+}
+
+void App::handleScrollAccumulators()
+{
+	if (scrollXAccumulator != 0.0 || scrollYAccumulator != 0.0)
+	{
+		ImGui::GetIO().AddMouseWheelEvent(static_cast<float>(scrollXAccumulator),
+										  static_cast<float>(scrollYAccumulator));
+		scrollXAccumulator = 0.0;
+		scrollYAccumulator = 0.0;
+	}
+}
+
+bool App::initializeImGui()
+{
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO &io = ImGui::GetIO();
+	io.IniFilename = NULL;
+	(void)io;
+	ImGui::StyleColorsDark();
+
+	ImGuiStyle &style = ImGui::GetStyle();
+	style.FrameRounding = 8.0f;
+	style.GrabRounding = 8.0f;
+#ifdef PLATFORM_WINDOWS
+	style.WindowRounding = 0.0f;
+#else
+	style.WindowRounding = 12.0f;
+#endif
+	style.ChildRounding = 8.0f;
+	style.PopupRounding = 8.0f;
+	style.ScrollbarRounding = 8.0f;
+	style.TabRounding = 8.0f;
+	style.FramePadding = ImVec2(6.0f, 4.0f);
+
+	ImVec4 *colors = style.Colors;
+	colors[ImGuiCol_Button] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);
+	colors[ImGuiCol_ButtonHovered] = ImVec4(0.06f, 0.35f, 0.60f, 1.00f);
+	colors[ImGuiCol_ButtonActive] = ImVec4(0.04f, 0.25f, 0.45f, 1.00f);
+	colors[ImGuiCol_CheckMark] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);
+	colors[ImGuiCol_FrameBg] = ImVec4(0.95f, 0.95f, 0.95f, 0.30f);
+	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.90f, 0.90f, 0.90f, 0.40f);
+	colors[ImGuiCol_FrameBgActive] = ImVec4(0.85f, 0.85f, 0.85f, 0.50f);
+	colors[ImGuiCol_SliderGrab] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);
+	colors[ImGuiCol_SliderGrabActive] = ImVec4(0.06f, 0.35f, 0.60f, 1.00f);
+	colors[ImGuiCol_Header] = ImVec4(0.08f, 0.45f, 0.75f, 0.31f);
+	colors[ImGuiCol_HeaderHovered] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f);
+	colors[ImGuiCol_HeaderActive] = ImVec4(0.08f, 0.45f, 0.75f, 0.80f);
+	colors[ImGuiCol_Tab] = ImVec4(0.08f, 0.45f, 0.75f, 0.31f);
+	colors[ImGuiCol_TabHovered] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f);
+	colors[ImGuiCol_TabActive] = ImVec4(0.08f, 0.45f, 0.75f, 0.80f);
+	colors[ImGuiCol_ScrollbarBg] = ImVec4(0.95f, 0.95f, 0.95f, 0.30f);
+	colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.08f, 0.45f, 0.75f, 0.60f);
+	colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.08f, 0.45f, 0.75f, 0.80f);
+	colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.06f, 0.35f, 0.60f, 1.00f);
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330");
+	return true;
 }
 
 bool App::createWindow()
 {
-	std::cout << "=== GLFW Window Creation Debug ===" << std::endl;
 
-	setupWindowHints();
-	std::cout << "Window hints set, attempting to create window with OpenGL 3.3..."
-			  << std::endl;
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations for app bundles
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);	  // macOS specific
+	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE); // Disable for compatibility
+	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE); // Enable retina support
+#else
+	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE); // Use OS decorations
+#endif
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
 
 	if (!window)
 	{
-		std::cerr << "❌ Failed with OpenGL 3.3, trying OpenGL 2.1..." << std::endl;
 
 		// Get detailed error for OpenGL 3.3 failure
 		const char *error_description;
 		glfwGetError(&error_description);
-		if (error_description)
-		{
-			std::cerr << "OpenGL 3.3 Error: " << error_description << std::endl;
-		}
 
-		// Try with older OpenGL for VM compatibility
-		std::cout << "Setting OpenGL 2.1 hints..." << std::endl;
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-		// Remove core profile requirement for older OpenGL
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
 
-		std::cout << "Attempting to create window with OpenGL 2.1..." << std::endl;
 		window = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
 
 		if (!window)
 		{
-			std::cerr << "❌ Failed to create GLFW window with any OpenGL version"
-					  << std::endl;
 
-			// Get detailed error for OpenGL 2.1 failure
 			glfwGetError(&error_description);
-			if (error_description)
-			{
-				std::cerr << "OpenGL 2.1 Error: " << error_description << std::endl;
-			}
 
 			glfwTerminate();
 			return false;
-		} else
-		{
-			std::cout << "✅ OpenGL 2.1 window created successfully!" << std::endl;
 		}
-	} else
-	{
-		std::cout << "✅ OpenGL 3.3 window created successfully!" << std::endl;
 	}
 
-	std::cout << "=== Window Creation Complete ===" << std::endl;
+	// Taskbar / title-bar icon. The .rc resource only covers Explorer's .exe icon;
+	// GLFW creates its own window class and does not pick that up automatically.
+	setWindowIcon();
 	return true;
+}
+
+void App::setWindowIcon()
+{
+	if (!window)
+		return;
+
+	namespace fs = std::filesystem;
+
+	// Prefer resources next to the packaged binary; fall back to cwd/dev layout.
+	const std::vector<fs::path> candidates = {
+		fs::path(Settings::getAppResourcesPath()) / "resources" / "icons" / "ned.png",
+		fs::path("resources") / "icons" / "ned.png",
+		fs::path("..") / "resources" / "icons" / "ned.png",
+	};
+
+	int width = 0;
+	int height = 0;
+	int channels = 0;
+	unsigned char *pixels = nullptr;
+	for (const fs::path &path : candidates)
+	{
+		pixels = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+		if (pixels)
+			break;
+	}
+
+	if (pixels && width > 0 && height > 0)
+	{
+		GLFWimage image;
+		image.width = width;
+		image.height = height;
+		image.pixels = pixels;
+		glfwSetWindowIcon(window, 1, &image);
+		stbi_image_free(pixels);
+	}
+
+#ifdef PLATFORM_WINDOWS
+	// Also apply the icon embedded in ned.exe (resource ID 1 from ned.rc).
+	// Covers cases where the PNG path is missing and helps Win32 title-bar chrome.
+	HICON hIcon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),
+												MAKEINTRESOURCEW(1),
+												IMAGE_ICON,
+												0,
+												0,
+												LR_DEFAULTSIZE | LR_SHARED));
+	if (hIcon)
+	{
+		HWND hwnd = glfwGetWin32Window(window);
+		if (hwnd)
+		{
+			SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hIcon));
+			SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hIcon));
+		}
+	}
+#endif
 }
 
 bool App::initializeGLEW()
 {
 	glfwMakeContextCurrent(window);
 #ifdef PLATFORM_WINDOWS
-	// On Windows, try different VSync disable approaches for better compatibility
 	glfwSwapInterval(-1); // Try adaptive VSync first
 	glfwSwapInterval(0);  // Then disable completely
 #else
@@ -546,120 +342,118 @@ bool App::initializeGLEW()
 	return true;
 }
 
-void App::initializeOpenGLState()
+void App::handleBackgroundUpdates()
 {
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glGetError(); // Clear any GLEW startup errors
-}
-
-// Application loop helper methods
-void App::handleEventPolling(ShaderManager &shaderManager, double currentTime)
-{
-	// Handle event polling using this class
-	pollEvents(currentTime,
-			   shaderManager.isShaderEnabled(),
-			   0.0); // We'll get activity time from render object
-}
-
-void App::handleWindowManagement(GLFWwindow *window)
-{
-	// Handle window management (macOS termination, etc.)
-	if (shouldTerminateApplication())
+	double currentTime = glfwGetTime();
+	if (currentTime - timing.lastSettingsCheck >= SETTINGS_CHECK_INTERVAL)
 	{
-		glfwSetWindowShouldClose(window, 1);
+		settings.checkSettingsFile();
+		settings.keybinds.checkKeybindsFile();
+		timing.lastSettingsCheck = currentTime;
+	}
+
+	if (currentTime - timing.lastFileTreeRefresh >= FILE_TREE_REFRESH_INTERVAL)
+	{
+		fileExplorer.fileTree.refreshFileTree();
+		timing.lastFileTreeRefresh = currentTime;
 	}
 }
 
-void App::handleScrollAccumulators(double &scrollXAccumulator, double &scrollYAccumulator)
+void App::renderFrame()
 {
-	// Handle scroll accumulators
-	Scroll::handleScrollAccumulators(scrollXAccumulator, scrollYAccumulator);
-}
+	bool shaderEnabled = shaderManager.isShaderEnabled();
 
-void App::handleFramebufferSetup(ShaderManager &shaderManager,
-								 FramebufferState &fb,
-								 AccumulationBuffers &accum)
-{
-	// Setup framebuffers
 	int display_w, display_h;
-	getFramebufferSize(&display_w, &display_h);
-	shaderManager.initializeFramebuffers(display_w, display_h, fb, accum);
+	glfwGetFramebufferSize(window, &display_w, &display_h);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fb.framebuffer);
+	glViewport(0, 0, display_w, display_h);
+
+	auto &bg = settings.settings["backgroundColor"];
+	float alpha = shaderEnabled ? bg[3].get<float>() : 1.0f;
+	glClearColor(bg[0], bg[1], bg[2], alpha);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	renderMainWindow();
+	settings.renderSettingsWindow(editor.api, fileExplorer, lspClient);
+	lspClient.dashboard.render();
+	settings.renderNotification("");
+
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	shaderManager.renderWithEffects(window);
+	glfwSwapBuffers(window);
 }
 
-void App::handleFrameRendering(Render &render,
-							   GLFWwindow *window,
-							   ShaderManager &shaderManager,
-							   FramebufferState &fb,
-							   AccumulationBuffers &accum,
-							   ShaderQuad &quad,
-							   Settings &settings,
-							   Splitter &splitter,
-							   WindowResize &windowResize,
-							   double currentTime)
+void App::renderMainWindow()
 {
-	// Handle main rendering
-	render.renderFrame(window,
-					   shaderManager,
-					   fb,
-					   accum,
-					   quad,
-					   settings,
-					   splitter,
-					   windowResize,
-					   currentTime);
-}
+#ifdef __APPLE__
+	// renderTopLeftMenu();
+#endif
 
-void App::handleFontReload(bool &needFontReload)
-{
-	// Handle font reloading using Font class
-	gFont.handleFontReloadWithFrameUpdates();
-	needFontReload = gFont.getNeedFontReload();
-}
+	settings.keybinds.handleKeyboardShortcuts(
+		editor.api, fileExplorer, lspClient, terminal);
 
-// Cleanup methods
-void App::cleanupAll(ShaderQuad &quad,
-					 ShaderManager &shaderManager,
-					 FramebufferState &fb,
-					 AccumulationBuffers &accum)
-{
-	// Cleanup quad
-	cleanupQuad(quad);
+	// Keep shell cwd aligned with the open project.
+	terminal.setProjectRoot(fileExplorer.projectRoot);
 
-	// Cleanup framebuffers
-	cleanupFramebuffers(shaderManager, fb, accum);
+	if (terminal.visible())
+	{
+		ImGui::PushFont(settings.font.getMainFont());
+		ImGui::SetNextWindowPos(ImVec2(0, 0));
+		ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+		ImGui::Begin("Main Window",
+					 nullptr,
+					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+						 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollWithMouse |
+						 ImGuiWindowFlags_NoScrollbar);
+		terminal.renderFullscreen();
+		ImGui::End();
+		ImGui::PopFont();
+		return;
+	}
 
-	// Save settings
-	extern Settings gSettings;
-	gSettings.saveSettings();
+	if (fileExplorer.showWelcomeScreen)
+	{
+		welcome.render();
+		return;
+	}
 
-	// Save current file
-	extern FileExplorer gFileExplorer;
-	gFileExplorer.saveCurrentFile();
+	ImGui::PushFont(settings.font.getMainFont());
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+	ImGui::Begin("Main Window",
+				 nullptr,
+				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+					 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollWithMouse |
+					 ImGuiWindowFlags_NoScrollbar);
 
-	// Save AI agent history
-	extern AIAgent gAIAgent;
-	gAIAgent.getHistoryManager().saveConversationHistory();
+	float windowWidth = ImGui::GetWindowWidth();
+	float padding = ImGui::GetStyle().WindowPadding.x;
+	float availableWidth = windowWidth - padding * 3;
 
-	// Cleanup graphics
-	cleanup();
+	if (Splitter::showSidebar)
+	{
+		float leftSplit = settings.settings.value("splitPos", 0.2142857164144516f);
+		float explorerWidth = availableWidth * leftSplit;
+		float editorWidth = availableWidth - explorerWidth - (padding * 2) + 16.0f;
 
-	// Cleanup ImGui
-	cleanupImGui();
-}
-
-void App::cleanupQuad(ShaderQuad &quad) { quad.cleanup(); }
-
-void App::cleanupFramebuffers(ShaderManager &shaderManager,
-							  FramebufferState &fb,
-							  AccumulationBuffers &accum)
-{
-	shaderManager.cleanupFramebuffers(fb, accum);
-}
-
-void App::cleanupImGui()
-{
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
+		fileExplorer.renderFileExplorer(explorerWidth);
+		ImGui::SameLine(0, 0);
+		splitter.renderSplitter(padding, availableWidth);
+		ImGui::SameLine(0, 0);
+		editor.renderEditor(settings.font.getMainFont(), editorWidth);
+	} else
+	{
+		float editorWidth = availableWidth + 5.0f;
+		editor.renderEditor(settings.font.getMainFont(), editorWidth);
+	}
+	lspClient.render();
+	// Project UI (not editor document chrome) — always, even if sidebar is hidden.
+	fileExplorer.renderFileFinder();
+	ImGui::End();
+	ImGui::PopFont();
 }

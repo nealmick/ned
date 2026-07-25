@@ -1,5 +1,8 @@
 #include "lsp_client.h"
+#include "../editor/editor_api.h"
+#include "../files/files.h"
 #include "../util/keybinds.h"
+#include "../util/settings.h"
 #include "lsp_includes.h"
 
 #include "lsp_goto_def.h"
@@ -7,22 +10,36 @@
 #include "lsp_symbol_info.h"
 
 #include "../lib/json.hpp"
-#include "../util/settings_file_manager.h"
 #include "imgui.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <iostream>
 
-// Global instance
-LSPClient gLSPClient;
-
-LSPClient::LSPClient() : initialized(false), running(false)
+LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings)
+	: dashboard(*this, fileExplorer, settings),
+	  gotoDef(*this, api, fileExplorer),
+	  gotoRef(*this, api, fileExplorer),
+	  symbolInfo(*this, api, fileExplorer, settings),
+	  uriOptions(api, fileExplorer, settings),
+	  initialized(false),
+	  running(false),
+	  settings(&settings)
 {
 	initializeLanguageServers();
+	dashboard.refreshServerInfo();
 }
 
 LSPClient::~LSPClient() { shutdown(); }
+
+void LSPClient::bindEditorApi(EditorApi &api)
+{
+	gotoDef.setApi(api);
+	gotoRef.setApi(api);
+	symbolInfo.setApi(api);
+	uriOptions.setApi(api);
+}
 
 void LSPClient::setWorkspace(const std::string &workspacePath)
 {
@@ -286,7 +303,11 @@ void LSPClient::shutdown()
 		}
 
 		initialized = false;
+		openDocuments.clear();
 		std::cout << "LSP: Shutdown complete" << std::endl;
+	} else
+	{
+		openDocuments.clear();
 	}
 }
 void LSPClient::stopServer()
@@ -387,58 +408,116 @@ bool LSPClient::sendLSPInitialize()
 	}
 }
 
-void LSPClient::didOpen(const std::string &filePath, const std::string &content)
+std::string LSPClient::documentKey(const std::string &filePath)
 {
-	if (!initialized || !messageHandler)
+	if (filePath.empty())
+		return {};
+
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	fs::path p = fs::weakly_canonical(filePath, ec);
+	if (ec)
+		p = fs::absolute(filePath, ec);
+	if (ec)
+		return filePath;
+	return p.string();
+}
+
+bool LSPClient::isDocumentOpen(const std::string &filePath) const
+{
+	if (filePath.empty())
+		return false;
+	return openDocuments.count(documentKey(filePath)) > 0;
+}
+
+void LSPClient::didOpen(const std::string &filePath,
+						const std::string &content,
+						int version,
+						const std::string &languageId)
+{
+	if (!initialized || !messageHandler || filePath.empty())
 		return;
+
+	const std::string key = documentKey(filePath);
+	// Spec: must not didOpen twice without didClose — re-sync via full didChange.
+	if (openDocuments.count(key))
+	{
+		didEdit(key, content, version);
+		return;
+	}
 
 	try
 	{
-		// Create didOpen notification
 		lsp::DidOpenTextDocumentParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(filePath);
-		params.textDocument.languageId = "cpp"; // Simplified for now
-		params.textDocument.version = 1;
+		params.textDocument.uri = lsp::FileUri::fromPath(key);
+		// Prefer configured server language; fall back to extension id from EditorState.
+		std::string lang = detectLanguageFromFile(filePath);
+		if (lang.empty())
+			lang = languageId.empty() ? "plaintext" : languageId;
+		params.textDocument.languageId = lang;
+		params.textDocument.version = version;
 		params.textDocument.text = content;
 
-		// Send the notification
 		messageHandler->sendNotification<lsp::notifications::TextDocument_DidOpen>(
 			std::move(params));
-
-		// std::cout << "LSP: Sending didOpen for file: " << filePath << std::endl;
-		// std::cout << "LSP: Document opened: " << filePath
-		//			  << " (content length: " << content.length() << ")" << std::endl;
+		openDocuments.insert(key);
 	} catch (const std::exception &e)
 	{
 		std::cerr << "LSP: Failed to send didOpen: " << e.what() << std::endl;
 	}
 }
 
-void LSPClient::didEdit(const std::string &filePath, const std::string &content)
+void LSPClient::didEdit(const std::string &filePath,
+						const std::string &content,
+						int version)
 {
-	if (!initialized || !messageHandler)
+	if (!initialized || !messageHandler || filePath.empty())
+		return;
+
+	const std::string key = documentKey(filePath);
+	// didChange without a prior didOpen is invalid for most servers.
+	if (!openDocuments.count(key))
 		return;
 
 	try
 	{
-		// Create didChange notification
 		lsp::DidChangeTextDocumentParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(filePath);
-		params.textDocument.version = 2; // Increment version for changes
+		params.textDocument.uri = lsp::FileUri::fromPath(key);
+		params.textDocument.version = version;
 
-		// Create a content change that replaces the entire document
 		lsp::TextDocumentContentChangeEvent_Text change;
 		change.text = content;
 		params.contentChanges.push_back(change);
 
-		// Send the notification
 		messageHandler->sendNotification<lsp::notifications::TextDocument_DidChange>(
 			std::move(params));
-
-		// std::cout << "LSP: Sending didChange for file: " << filePath << std::endl;
 	} catch (const std::exception &e)
 	{
 		std::cerr << "LSP: Failed to send didChange: " << e.what() << std::endl;
+	}
+}
+
+void LSPClient::didClose(const std::string &filePath)
+{
+	if (!initialized || !messageHandler || filePath.empty())
+		return;
+
+	const std::string key = documentKey(filePath);
+	if (!openDocuments.count(key))
+		return;
+
+	try
+	{
+		lsp::DidCloseTextDocumentParams params;
+		params.textDocument.uri = lsp::FileUri::fromPath(key);
+		messageHandler->sendNotification<lsp::notifications::TextDocument_DidClose>(
+			std::move(params));
+		openDocuments.erase(key);
+	} catch (const std::exception &e)
+	{
+		std::cerr << "LSP: Failed to send didClose: " << e.what() << std::endl;
+		// Drop tracking so we can re-open later even if the notify failed.
+		openDocuments.erase(key);
 	}
 }
 
@@ -482,26 +561,29 @@ bool LSPClient::keybinds()
 	bool shortcutPressed = false;
 
 	// LSP Symbol Info keybind
-	ImGuiKey symbolInfoKey = gKeybinds.getActionKey("lsp_symbol_info");
+	if (!settings)
+		return false;
+
+	ImGuiKey symbolInfoKey = settings->keybinds.getActionKey("lsp_symbol_info");
 	if (symbolInfoKey != ImGuiKey_None && ImGui::IsKeyPressed(symbolInfoKey, false))
 	{
-		gLSPSymbolInfo.get();
+		symbolInfo.get();
 		shortcutPressed = true;
 	}
 
 	// LSP Goto Definition keybind
-	ImGuiKey gotoDefKey = gKeybinds.getActionKey("lsp_find_def");
+	ImGuiKey gotoDefKey = settings->keybinds.getActionKey("lsp_find_def");
 	if (gotoDefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoDefKey, false))
 	{
-		gLSPGotoDef.get();
+		gotoDef.get();
 		shortcutPressed = true;
 	}
 
 	// LSP Goto References keybind
-	ImGuiKey gotoRefKey = gKeybinds.getActionKey("lsp_find_ref");
+	ImGuiKey gotoRefKey = settings->keybinds.getActionKey("lsp_find_ref");
 	if (gotoRefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoRefKey, false))
 	{
-		gLSPGotoRef.get();
+		gotoRef.get();
 		shortcutPressed = true;
 	}
 
@@ -510,9 +592,9 @@ bool LSPClient::keybinds()
 
 void LSPClient::render()
 {
-	gLSPSymbolInfo.render();
-	gLSPGotoDef.render();
-	gLSPGotoRef.render();
+	symbolInfo.render();
+	gotoDef.render();
+	gotoRef.render();
 }
 
 void LSPClient::initializeLanguageServers()
@@ -520,9 +602,7 @@ void LSPClient::initializeLanguageServers()
 	languageServers.clear();
 
 	std::string lspJsonPath =
-		(std::filesystem::path(SettingsFileManager::getUserSettingsPath()).parent_path() /
-		 "lsp.json")
-			.string();
+		(std::filesystem::path(Settings::getUserConfigDir()) / "lsp.json").string();
 	std::ifstream file(lspJsonPath);
 	if (!file.is_open())
 	{
