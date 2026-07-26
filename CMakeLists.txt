@@ -220,6 +220,7 @@ endforeach()
 set(APP_SOURCES
   main.cpp
   ned.cpp
+  workbench.cpp
 )
 if(NED_ENABLE_SHADERS)
   list(APPEND APP_SOURCES
@@ -365,10 +366,8 @@ set(NED_UTIL_SOURCES
   util/settings.cpp
   util/keybinds.cpp
   util/welcome.cpp
-  util/app.cpp
   util/font.cpp
   util/icons.cpp
-  util/splitter.cpp
   util/project_undo.cpp
 )
 if(NED_ENABLE_TERMINAL)
@@ -386,7 +385,7 @@ target_include_directories(ned_util PUBLIC
   files
   ${CMAKE_BINARY_DIR}
   lib/imgui/misc/freetype
-  # app.cpp includes editor.h → highlight → tree_sitter.h
+  # settings / welcome touch editor + tree-sitter headers
   ${TS_ROOT}/tree-sitter/lib/include
   ${TS_ROOT}/tree-sitter/lib/src
 )
@@ -419,7 +418,7 @@ if(NED_ENABLE_GIT)
   list(APPEND NED_UTIL_DEPS libgit2 util)
 endif()
 if(NED_ENABLE_LSP)
-  # app.cpp / settings include lsp headers that need generated types.
+  # settings include lsp headers that need generated types.
   list(APPEND NED_UTIL_DEPS lsp)
 endif()
 add_dependencies(ned_util ${NED_UTIL_DEPS})
@@ -460,6 +459,7 @@ endif()
 # ================
 add_library(ned_embed STATIC
   ned_embed.cpp
+  workbench.cpp
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
   ${FILES_SOURCES}

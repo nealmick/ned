@@ -798,8 +798,8 @@ void TreeSitter::updateThemeColors()
 		if (!theme.contains(key) || !theme[key].is_array() || theme[key].size() < 4)
 			return fb;
 		auto &a = theme[key];
-		return ImVec4(a[0].get<float>(), a[1].get<float>(), a[2].get<float>(),
-					  a[3].get<float>());
+		return ImVec4(
+			a[0].get<float>(), a[1].get<float>(), a[2].get<float>(), a[3].get<float>());
 	};
 
 	cachedColors.text = load("text", fallbackText);

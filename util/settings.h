@@ -54,8 +54,10 @@ class Settings
 	Font font;
 
 	bool showSettingsWindow = false;
-	// True only when running as NedEmbed inside a host app. Standalone Ned leaves false.
+	// True for WorkbenchHostMode::Floating (embed). Fullscreen standalone leaves false.
 	bool isEmbedded = false;
+	// File-tree sidebar visibility (replaces old Splitter::showSidebar).
+	bool sidebarVisible = true;
 
 	ImVec2 embeddedWindowPos{200.0f, 200.0f};
 	ImVec2 embeddedWindowSize{900.0f, 600.0f};
