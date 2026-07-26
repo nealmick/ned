@@ -1,54 +1,121 @@
-; editor/queries/hcl.scm
-; Final corrected version
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
-; Blocks - capture block type identifiers
-(block (identifier) @type)  ; "terraform", "provider", "resource" etc
+; highlights.scm
+[
+  "!"
+  "\*"
+  "/"
+  "%"
+  "\+"
+  "-"
+  ">"
+  ">="
+  "<"
+  "<="
+  "=="
+  "!="
+  "&&"
+  "||"
+] @operator
 
-; Block labels (string literals after block type)
-(block (string_lit) @string)  ; "google", "cloud_run_service" etc
+[
+  "{"
+  "}"
+  "["
+  "]"
+  "("
+  ")"
+] @punctuation.bracket
 
-; Functions
-(function_call (identifier) @function)  ; "file", "toset", "split"
+[
+  "."
+  ".*"
+  ","
+  "[*]"
+] @punctuation.delimiter
 
-; Variables and identifiers
-(identifier) @variable
+[
+  (ellipsis)
+  "\?"
+  "=>"
+] @punctuation.special
 
-; Literals
-(string_lit) @string
+[
+  ":"
+  "="
+] @none
+
+[
+  "for"
+  "endfor"
+  "in"
+] @keyword.repeat
+
+[
+  "if"
+  "else"
+  "endif"
+] @keyword.conditional
+
+[
+  (quoted_template_start) ; "
+  (quoted_template_end) ; "
+  (template_literal) ; non-interpolation/directive content
+] @string
+
+[
+  (heredoc_identifier) ; END
+  (heredoc_start) ; << or <<-
+] @punctuation.delimiter
+
+[
+  (template_interpolation_start) ; ${
+  (template_interpolation_end) ; }
+  (template_directive_start) ; %{
+  (template_directive_end) ; }
+  (strip_marker) ; ~
+] @punctuation.special
+
 (numeric_lit) @number
-((identifier) @keyword
- (#match? @keyword "^(true|false)$"))
 
-; Comments
+(bool_lit) @boolean
+
+(null_lit) @constant
+
 (comment) @comment
 
-; Template syntax
-(template_interpolation_start) @operator
-(template_interpolation_end) @operator
+(identifier) @variable
 
-; Attributes (left side of =)
-(attribute (identifier) @property)  ; "bucket", "credentials", "region"
+(body
+  (block
+    (identifier) @keyword))
 
-; Special blocks
-(block (identifier) @type
- (#match? @type "^provider$|^resource$|^data$|^module$|^variable$|^output$|^locals$"))
+(body
+  (block
+    (body
+      (block
+        (identifier) @type))))
 
-; Punctuation
-["{" "}" "(" ")" "[" "]"] @punctuation.bracket
-"=" @operator
+(function_call
+  (identifier) @function)
 
-; Fixed index access
-(new_index
-  "[" @punctuation.bracket
-  (expression (literal_value (numeric_lit) @number))
-  "]" @punctuation.bracket)
+(attribute
+  (identifier) @variable.member)
 
-; Fixed attribute access
-(get_attr
-  "." @punctuation.delimiter
-  (identifier) @property)
+; { key: val }
+;
+; highlight identifier keys as though they were block attributes
+(object_elem
+  key: (expression
+    (variable_expr
+      (identifier) @variable.member)))
 
-; String templates
-(quoted_template_start) @string
-(quoted_template_end) @string
-(template_literal) @string
+; var.foo, data.bar
+;
+; first element in get_attr is a variable.builtin or a reference to a variable.builtin
+(expression
+  (variable_expr
+    (identifier) @variable.builtin)
+  (get_attr
+    (identifier) @variable.member))

@@ -139,6 +139,8 @@ set(NED_TEST_SOURCES
   editor/undo_service_test.cpp
   editor/save_service_test.cpp
   editor/utf8_utils_test.cpp
+  editor/capture_map_test.cpp
+  editor/highlight_queries_test.cpp
 )
 if(NED_ENABLE_GIT)
   list(APPEND NED_TEST_SOURCES editor/git_libgit2_test.cpp)
@@ -151,6 +153,7 @@ target_include_directories(ned_tests PRIVATE
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/editor
   ${CMAKE_SOURCE_DIR}/lib/imgui
+  ${CMAKE_SOURCE_DIR}/lib/treesitter/tree-sitter/lib/include
 )
 if(NED_ENABLE_GIT)
   target_include_directories(ned_tests PRIVATE
@@ -161,9 +164,16 @@ if(GLFW_INCLUDE_DIR)
   target_include_directories(ned_tests PRIVATE ${GLFW_INCLUDE_DIR})
 endif()
 
+# Query compile tests resolve scm files under the source tree.
+target_compile_definitions(ned_tests PRIVATE CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # Monaco tests need text_model + state/ops from layer (avoid duplicate symbols).
 target_sources(ned_tests PRIVATE monaco/text_model.cpp)
-target_link_libraries(ned_tests PRIVATE ned_editor_layer)
+target_link_libraries(ned_tests PRIVATE
+  ned_editor_layer
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
+)
 target_compile_features(ned_tests PRIVATE cxx_std_20)
 ned_apply_feature_defs(ned_tests)
 

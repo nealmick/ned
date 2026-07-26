@@ -1,12 +1,17 @@
 #include "tree_sitter.h"
 #include "../../../util/settings.h"
 #include "../../editor_operations.h"
+#include "capture_map.h"
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <regex>
+#include <string_view>
+#include <vector>
 
 extern "C" TSLanguage *tree_sitter_cpp();
 extern "C" TSLanguage *tree_sitter_javascript();
@@ -228,6 +233,175 @@ TSPoint TreeSitter::advancePoint(TSPoint point, std::string_view s)
 }
 
 // ---------------------------------------------------------------------------
+// Query predicates (#match?, #eq?, …)
+//
+// The C API returns ALL pattern matches; hosts must evaluate predicates.
+// Without this, (#match? @constant "^[A-Z]…") still paints every identifier
+// as @constant — which made themes look nothing like Neovim.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+std::string nodeText(const TreeSitter::ParseSnapshot &snap, TSNode node)
+{
+	const uint32_t a = ts_node_start_byte(node);
+	const uint32_t b = ts_node_end_byte(node);
+	if (b <= a || a >= snap.text.size())
+		return {};
+	const size_t len = std::min(static_cast<size_t>(b - a), snap.text.size() - a);
+	std::string out(len, '\0');
+	snap.text.copyBytes(a, len, out.data());
+	return out;
+}
+
+// Text of the first capture in `match` whose capture index equals `captureIndex`.
+std::string captureTextByIndex(const TreeSitter::ParseSnapshot &snap,
+							   const TSQueryMatch &match,
+							   uint32_t captureIndex)
+{
+	for (uint16_t i = 0; i < match.capture_count; ++i)
+	{
+		if (match.captures[i].index == captureIndex)
+			return nodeText(snap, match.captures[i].node);
+	}
+	return {};
+}
+
+// Capture index from a Capture-step value_id (same id as capture names).
+bool regexFullMatch(const std::string &text, const std::string &pattern)
+{
+	try
+	{
+		// Tree-sitter / nvim use Rust-style regex; ECMAScript covers the
+		// common ^…$ identifier conventions in grammar highlights.
+		// tree-sitter #match? uses "find" semantics (Rust Regex::is_match),
+		// not full-string only — so ^[A-Z] matches ClassName, not only "A".
+		const std::regex re(pattern, std::regex::ECMAScript);
+		return std::regex_search(text, re);
+	} catch (const std::regex_error &)
+	{
+		return false;
+	}
+}
+
+// Returns false if any predicate fails (match should be discarded).
+bool predicatesPass(TSQuery *query,
+					const TSQueryMatch &match,
+					const TreeSitter::ParseSnapshot &snap)
+{
+	uint32_t stepCount = 0;
+	const TSQueryPredicateStep *steps =
+		ts_query_predicates_for_pattern(query, match.pattern_index, &stepCount);
+	if (!steps || stepCount == 0)
+		return true;
+
+	// Walk steps; each predicate is [String op] [args…] [Done].
+	uint32_t i = 0;
+	while (i < stepCount)
+	{
+		if (steps[i].type == TSQueryPredicateStepTypeDone)
+		{
+			++i;
+			continue;
+		}
+		if (steps[i].type != TSQueryPredicateStepTypeString)
+		{
+			// Unexpected; skip to next Done.
+			while (i < stepCount && steps[i].type != TSQueryPredicateStepTypeDone)
+				++i;
+			if (i < stepCount)
+				++i;
+			continue;
+		}
+
+		uint32_t opLen = 0;
+		const char *opPtr =
+			ts_query_string_value_for_id(query, steps[i].value_id, &opLen);
+		const std::string_view op(opPtr, opLen);
+		++i;
+
+		// Collect args until Done.
+		struct Arg
+		{
+			bool isCapture = false;
+			uint32_t id = 0; // capture index or string id
+		};
+		std::vector<Arg> args;
+		while (i < stepCount && steps[i].type != TSQueryPredicateStepTypeDone)
+		{
+			Arg a;
+			if (steps[i].type == TSQueryPredicateStepTypeCapture)
+			{
+				a.isCapture = true;
+				a.id = steps[i].value_id;
+			} else if (steps[i].type == TSQueryPredicateStepTypeString)
+			{
+				a.isCapture = false;
+				a.id = steps[i].value_id;
+			}
+			args.push_back(a);
+			++i;
+		}
+		if (i < stepCount && steps[i].type == TSQueryPredicateStepTypeDone)
+			++i;
+
+		auto argText = [&](const Arg &a) -> std::string {
+			if (a.isCapture)
+				return captureTextByIndex(snap, match, a.id);
+			uint32_t n = 0;
+			const char *s = ts_query_string_value_for_id(query, a.id, &n);
+			return std::string(s, n);
+		};
+
+		// Unsupported predicates (nvim #lua-match?, #set!, etc.): ignore so
+		// the structural match still applies (best-effort).
+		if (op == "match?" || op == "not-match?")
+		{
+			if (args.size() < 2 || !args[0].isCapture || args[1].isCapture)
+				continue;
+			const std::string text = argText(args[0]);
+			const std::string pat = argText(args[1]);
+			const bool matched = regexFullMatch(text, pat);
+			if (op == "match?" && !matched)
+				return false;
+			if (op == "not-match?" && matched)
+				return false;
+		} else if (op == "eq?" || op == "not-eq?")
+		{
+			if (args.size() < 2)
+				continue;
+			const std::string a = argText(args[0]);
+			const std::string b = argText(args[1]);
+			const bool eq = (a == b);
+			if (op == "eq?" && !eq)
+				return false;
+			if (op == "not-eq?" && eq)
+				return false;
+		} else if (op == "any-of?")
+		{
+			if (args.size() < 2 || !args[0].isCapture)
+				continue;
+			const std::string text = argText(args[0]);
+			bool any = false;
+			for (size_t k = 1; k < args.size(); ++k)
+			{
+				if (text == argText(args[k]))
+				{
+					any = true;
+					break;
+				}
+			}
+			if (!any)
+				return false;
+		}
+		// else: #set!, #is?, #lua-match?, … — ignore
+	}
+	return true;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
 // Query → ranges
 // ---------------------------------------------------------------------------
 
@@ -239,21 +413,7 @@ void TreeSitter::runQuery(TSQuery *query,
 						  ColorRangeMap &colors)
 {
 	auto colorForCapture = [this](std::string_view name) -> const ImVec4 & {
-		if (name == "keyword")
-			return cachedColors.keyword;
-		if (name == "string" || name == "punctuation.special")
-			return cachedColors.string;
-		if (name == "number" || name == "attribute")
-			return cachedColors.number;
-		if (name == "comment")
-			return cachedColors.comment;
-		if (name == "type" || name == "tag")
-			return cachedColors.type;
-		if (name == "function" || name == "hook")
-			return cachedColors.function;
-		if (name == "variable" || name == "property" || name == "variable.parameter")
-			return cachedColors.variable;
-		return cachedColors.text;
+		return cachedColors.colorForKey(themeKeyForCapture(name));
 	};
 
 	auto fillRange = [&](uint32_t start, uint32_t end, const ImVec4 &color) {
@@ -274,6 +434,19 @@ void TreeSitter::runQuery(TSQuery *query,
 		}
 	};
 
+	// Collect captures then apply weak → strong so function/type beat @variable.
+	// @none (e.g. f-string interpolation) punches holes in @string spans.
+	struct Hit
+	{
+		uint32_t start = 0;
+		uint32_t end = 0;
+		int priority = 0;
+		std::string_view capture;
+	};
+	std::vector<Hit> hits;
+	std::vector<std::pair<uint32_t, uint32_t>> noneHoles;
+	hits.reserve(256);
+
 	TSQueryCursor *cursor = ts_query_cursor_new();
 	if (byteEnd > byteStart)
 		ts_query_cursor_set_byte_range(cursor, byteStart, byteEnd);
@@ -282,18 +455,77 @@ void TreeSitter::runQuery(TSQuery *query,
 	TSQueryMatch match;
 	while (ts_query_cursor_next_match(cursor, &match))
 	{
+		if (!predicatesPass(query, match, snap))
+			continue;
+
 		for (uint32_t i = 0; i < match.capture_count; ++i)
 		{
 			TSNode node = match.captures[i].node;
 			uint32_t name_length = 0;
 			const char *name_ptr = ts_query_capture_name_for_id(
 				query, match.captures[i].index, &name_length);
-			fillRange(ts_node_start_byte(node),
-					  ts_node_end_byte(node),
-					  colorForCapture({name_ptr, name_length}));
+			const std::string_view cap{name_ptr, name_length};
+			// nvim helper captures like @_parent are not highlight roles.
+			if (!cap.empty() && cap.front() == '_')
+				continue;
+
+			const uint32_t a = ts_node_start_byte(node);
+			const uint32_t b = ts_node_end_byte(node);
+			if (isNoneCapture(cap))
+			{
+				if (a < b)
+					noneHoles.push_back({a, b});
+				continue;
+			}
+
+			const int prio = capturePriority(cap);
+			// Skip injection / non-color captures.
+			if (prio <= 10)
+				continue;
+
+			hits.push_back(Hit{a, b, prio, cap});
 		}
 	}
 	ts_query_cursor_delete(cursor);
+
+	std::sort(noneHoles.begin(), noneHoles.end());
+	// Merge overlapping holes for subtractRanges.
+	if (!noneHoles.empty())
+	{
+		std::vector<std::pair<uint32_t, uint32_t>> merged;
+		merged.push_back(noneHoles[0]);
+		for (size_t i = 1; i < noneHoles.size(); ++i)
+		{
+			auto &last = merged.back();
+			if (noneHoles[i].first <= last.second)
+				last.second = std::max(last.second, noneHoles[i].second);
+			else
+				merged.push_back(noneHoles[i]);
+		}
+		noneHoles = std::move(merged);
+	}
+
+	// Expand string hits: clip out @none ranges (nvim interpolation reset).
+	std::vector<Hit> expanded;
+	expanded.reserve(hits.size() + noneHoles.size());
+	for (const Hit &h : hits)
+	{
+		if (isStringCapture(h.capture) && !noneHoles.empty())
+		{
+			for (const auto &[a, b] : subtractRanges(h.start, h.end, noneHoles))
+				expanded.push_back(Hit{a, b, h.priority, h.capture});
+		} else
+			expanded.push_back(h);
+	}
+
+	std::stable_sort(expanded.begin(), expanded.end(), [](const Hit &a, const Hit &b) {
+		if (a.priority != b.priority)
+			return a.priority < b.priority; // low first, high last (wins)
+		return a.start < b.start;
+	});
+
+	for (const Hit &h : expanded)
+		fillRange(h.start, h.end, colorForCapture(h.capture));
 }
 
 ColorRangeMap
@@ -537,46 +769,53 @@ ParseResult TreeSitter::parse(ParseSnapshot snapshot, uint64_t gen)
 void TreeSitter::updateThemeColors()
 {
 	const ImVec4 fallbackText(0.85f, 0.85f, 0.85f, 1.0f);
+	const ImVec4 fallbackComment(0.5f, 0.5f, 0.5f, 1.0f);
+	cachedColors = {};
+	cachedColors.text = fallbackText;
+	cachedColors.comment = fallbackComment;
+	// remaining fields default to {} then we fill from theme; use text as fallback
+	auto setAll = [&](const ImVec4 &v) {
+		cachedColors.keyword = cachedColors.string = cachedColors.number = v;
+		cachedColors.function = cachedColors.type = cachedColors.variable = v;
+		cachedColors.parameter = cachedColors.property = cachedColors.constant = v;
+		cachedColors.operatorColor = cachedColors.punctuation = cachedColors.special = v;
+	};
+	setAll(fallbackText);
+	cachedColors.comment = fallbackComment;
+
 	if (!settings || !settings->settings.is_object())
-	{
-		cachedColors = {fallbackText,
-						fallbackText,
-						fallbackText,
-						ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-						fallbackText,
-						fallbackText,
-						fallbackText,
-						fallbackText};
 		return;
-	}
 
 	const std::string themeName =
 		settings->settings.value("theme", std::string("default"));
 	if (!settings->settings.contains("themes") ||
 		!settings->settings["themes"].is_object() ||
 		!settings->settings["themes"].contains(themeName))
-	{
-		cachedColors.text = fallbackText;
 		return;
-	}
 
 	auto &theme = settings->settings["themes"][themeName];
-
-	auto loadColor = [&theme, &fallbackText](const char *key) -> ImVec4 {
+	auto load = [&theme](const char *key, const ImVec4 &fb) -> ImVec4 {
 		if (!theme.contains(key) || !theme[key].is_array() || theme[key].size() < 4)
-			return fallbackText;
-		auto &c = theme[key];
-		return ImVec4(
-			c[0].get<float>(), c[1].get<float>(), c[2].get<float>(), c[3].get<float>());
+			return fb;
+		auto &a = theme[key];
+		return ImVec4(a[0].get<float>(), a[1].get<float>(), a[2].get<float>(),
+					  a[3].get<float>());
 	};
-	cachedColors = {loadColor("keyword"),
-					loadColor("string"),
-					loadColor("number"),
-					loadColor("comment"),
-					loadColor("text"),
-					loadColor("function"),
-					loadColor("type"),
-					loadColor("variable")};
+
+	cachedColors.text = load("text", fallbackText);
+	cachedColors.comment = load("comment", fallbackComment);
+	cachedColors.keyword = load("keyword", cachedColors.text);
+	cachedColors.string = load("string", cachedColors.text);
+	cachedColors.number = load("number", cachedColors.text);
+	cachedColors.function = load("function", cachedColors.text);
+	cachedColors.type = load("type", cachedColors.text);
+	cachedColors.variable = load("variable", cachedColors.text);
+	cachedColors.parameter = load("parameter", cachedColors.variable);
+	cachedColors.property = load("property", cachedColors.variable);
+	cachedColors.constant = load("constant", cachedColors.number);
+	cachedColors.operatorColor = load("operator", cachedColors.text);
+	cachedColors.punctuation = load("punctuation", cachedColors.text);
+	cachedColors.special = load("special", cachedColors.keyword);
 }
 
 // ---------------------------------------------------------------------------

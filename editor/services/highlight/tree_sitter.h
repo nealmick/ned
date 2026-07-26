@@ -4,6 +4,7 @@
 #include "../../editor_operations.h"
 #include "imgui.h"
 #include <cstdint>
+#include <cstring>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -13,16 +14,54 @@
 
 class Settings;
 
+// Syntax palette (~15 slots). JSON keys match field names except operator → operatorColor.
 struct ThemeColors
 {
-	ImVec4 keyword;
-	ImVec4 string;
-	ImVec4 number;
-	ImVec4 comment;
-	ImVec4 text;
-	ImVec4 function;
-	ImVec4 type;
-	ImVec4 variable;
+	ImVec4 text{};
+	ImVec4 comment{};
+	ImVec4 keyword{};
+	ImVec4 string{};
+	ImVec4 number{};
+	ImVec4 function{};
+	ImVec4 type{};
+	ImVec4 variable{};
+	ImVec4 parameter{};
+	ImVec4 property{};
+	ImVec4 constant{};
+	ImVec4 operatorColor{};
+	ImVec4 punctuation{};
+	ImVec4 special{};
+
+	const ImVec4 &colorForKey(const char *key) const
+	{
+		if (std::strcmp(key, "comment") == 0)
+			return comment;
+		if (std::strcmp(key, "keyword") == 0)
+			return keyword;
+		if (std::strcmp(key, "string") == 0)
+			return string;
+		if (std::strcmp(key, "number") == 0)
+			return number;
+		if (std::strcmp(key, "function") == 0)
+			return function;
+		if (std::strcmp(key, "type") == 0)
+			return type;
+		if (std::strcmp(key, "variable") == 0)
+			return variable;
+		if (std::strcmp(key, "parameter") == 0)
+			return parameter;
+		if (std::strcmp(key, "property") == 0)
+			return property;
+		if (std::strcmp(key, "constant") == 0)
+			return constant;
+		if (std::strcmp(key, "operator") == 0)
+			return operatorColor;
+		if (std::strcmp(key, "punctuation") == 0)
+			return punctuation;
+		if (std::strcmp(key, "special") == 0)
+			return special;
+		return text;
+	}
 };
 
 // Half-open [start, end) byte range on a single line.

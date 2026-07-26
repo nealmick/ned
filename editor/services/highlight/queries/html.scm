@@ -1,35 +1,115 @@
-; html.scm - Working version (no errors)
-; Uses existing ThemeColors only
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
-; Tags -------------- 
-(tag_name) @type
-(erroneous_end_tag_name) @comment
+(tag_name) @tag
 
-; Script/Style tags
-(tag_name) @function @type
-  (#match? @function "^(script|style)$")
-
-
-; Attributes ----------
-(attribute_name) @keyword
-(attribute_value) @string
-
-; Special values
-((attribute_value) @number
-  (#match? @number "^[0-9]+(px|em|%|s)?$")) ; Handles CSS units
-
-((attribute_value) @variable 
-  (#match? @variable "^#[0-9a-fA-F]{3,6}$")) ; Hex colors
-
-; HTML Basics -----------
+; (erroneous_end_tag_name) @error ; we do not lint syntax errors
 (comment) @comment
-(doctype) @keyword
-(entity) @number
-["<" ">" "</" "/>"] @text
 
-; Template tags ---------
-((text) @keyword  ; {% ... %}
-  (#match? @keyword "^(\\s*\\{%).*(%}\\s*)$"))
+(attribute_name) @tag.attribute
 
-((text) @variable ; {{ ... }}
-  (#match? @variable "^(\\s*\\{\\{).*(\\}\\}\\s*)$"))
+((attribute
+  (quoted_attribute_value) @string)
+  )
+
+(text) @none
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading)
+  (#eq? @_tag "title"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.1)
+  (#eq? @_tag "h1"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.2)
+  (#eq? @_tag "h2"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.3)
+  (#eq? @_tag "h3"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.4)
+  (#eq? @_tag "h4"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.5)
+  (#eq? @_tag "h5"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.heading.6)
+  (#eq? @_tag "h6"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.strong)
+  (#any-of? @_tag "strong" "b"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.italic)
+  (#any-of? @_tag "em" "i"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.strikethrough)
+  (#any-of? @_tag "s" "del"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.underline)
+  (#eq? @_tag "u"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.raw)
+  (#any-of? @_tag "code" "kbd"))
+
+((element
+  (start_tag
+    (tag_name) @_tag)
+  (text) @markup.link.label)
+  (#eq? @_tag "a"))
+
+((attribute
+  (attribute_name) @_attr
+  (quoted_attribute_value
+    (attribute_value) @string.special.url))
+  (#any-of? @_attr "href" "src")
+  )
+
+[
+  "<"
+  ">"
+  "</"
+  "/>"
+] @tag.delimiter
+
+"=" @operator
+
+(doctype) @constant
+
+"<!" @tag.delimiter
+
+(entity) @character.special
