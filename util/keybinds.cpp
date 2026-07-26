@@ -4,7 +4,6 @@
 #include "../lsp/lsp_client.h"
 #include "../util/ned_terminal.h"
 #include "../util/settings.h"
-#include "../util/splitter.h"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -263,9 +262,7 @@ bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 
 	if (mod && ImGui::IsKeyPressed(getActionKey("toggle_sidebar"), false))
 	{
-		Splitter::showSidebar = !Splitter::showSidebar;
-		settings.settings["sidebar_visible"] = Splitter::showSidebar;
-		settings.saveSettings();
+		settings.toggleSidebar();
 		pressed = true;
 	}
 

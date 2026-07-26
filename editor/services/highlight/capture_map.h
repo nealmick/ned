@@ -22,10 +22,8 @@ inline bool isStringCapture(std::string_view n)
 }
 
 // Clip [start,end) by sorted/merged hole ranges.
-inline std::vector<std::pair<uint32_t, uint32_t>>
-subtractRanges(uint32_t start,
-			   uint32_t end,
-			   const std::vector<std::pair<uint32_t, uint32_t>> &holes)
+inline std::vector<std::pair<uint32_t, uint32_t>> subtractRanges(
+	uint32_t start, uint32_t end, const std::vector<std::pair<uint32_t, uint32_t>> &holes)
 {
 	std::vector<std::pair<uint32_t, uint32_t>> out;
 	if (start >= end)

@@ -3,7 +3,7 @@
 #include "../editor/editor_events.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
-#include "../util/splitter.h"
+
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -412,19 +412,39 @@ bool Settings::apply(bool force, EditorApi &api)
 	ApplySettings(style);
 
 	// Embedded hosts keep the host ImGui theme for window/child backgrounds.
+	// Standalone: match window, child, and editor tab bar to theme background.
 	if (!isEmbedded && settings.contains("backgroundColor") &&
 		settings["backgroundColor"].is_array() && settings["backgroundColor"].size() >= 3)
 	{
 		const auto &bg = settings["backgroundColor"];
 		const float a =
 			settings["backgroundColor"].size() >= 4 ? bg[3].get<float>() : 1.0f;
-		style.Colors[ImGuiCol_ChildBg] =
-			ImVec4(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), 1.0f);
-		style.Colors[ImGuiCol_WindowBg] =
-			ImVec4(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), a);
+		const ImVec4 bgCol(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), a);
+		const ImVec4 bgOpaque(
+			bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), 1.0f);
+		style.Colors[ImGuiCol_ChildBg] = bgOpaque;
+		style.Colors[ImGuiCol_WindowBg] = bgCol;
+		// Active / inactive / hovered tabs share the same fill as the theme.
+		style.Colors[ImGuiCol_Tab] = bgOpaque;
+		style.Colors[ImGuiCol_TabHovered] = bgOpaque;
+		style.Colors[ImGuiCol_TabSelected] = bgOpaque;
+		style.Colors[ImGuiCol_TabDimmed] = bgOpaque;
+		style.Colors[ImGuiCol_TabDimmedSelected] = bgOpaque;
+		// Hide selected-tab overline so active doesn't look different.
+		style.Colors[ImGuiCol_TabSelectedOverline] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0, 0, 0, 0);
+		// Window / dock title bars (active, inactive, collapsed) match theme bg.
+		style.Colors[ImGuiCol_TitleBg] = bgOpaque;
+		style.Colors[ImGuiCol_TitleBgActive] = bgOpaque;
+		style.Colors[ImGuiCol_TitleBgCollapsed] = bgOpaque;
+		style.Colors[ImGuiCol_MenuBarBg] = bgOpaque;
+		style.Colors[ImGuiCol_DockingEmptyBg] = bgOpaque;
+		// Hide the dock title-bar / tab-bar window-menu (tab list) button.
+		// See https://github.com/ocornut/imgui/issues/4880
+		style.WindowMenuButtonPosition = ImGuiDir_None;
 	}
 
-	Splitter::showSidebar = settings.value("sidebar_visible", true);
+	sidebarVisible = settings.value("sidebar_visible", true);
 
 	api.forceColorUpdate();
 
@@ -485,8 +505,8 @@ void Settings::ApplySettings(ImGuiStyle &style)
 
 void Settings::toggleSidebar()
 {
-	Splitter::showSidebar = !Splitter::showSidebar;
-	settings["sidebar_visible"] = Splitter::showSidebar;
+	sidebarVisible = !sidebarVisible;
+	settings["sidebar_visible"] = sidebarVisible;
 	saveSettings();
 }
 
