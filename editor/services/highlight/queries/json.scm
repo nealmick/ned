@@ -1,16 +1,41 @@
-(pair
-  key: (_) @string.special.key)
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
-(string) @string
+[
+  (true)
+  (false)
+] @boolean
+
+(null) @constant.builtin
 
 (number) @number
 
+(pair
+  key: (string) @property)
+
+(pair
+  value: (string) @string)
+
+(array
+  (string) @string)
+
 [
-  (null)
-  (true)
-  (false)
-] @constant.builtin
+  ","
+  ":"
+] @punctuation.delimiter
 
-(escape_sequence) @escape
+[
+  "["
+  "]"
+  "{"
+  "}"
+] @punctuation.bracket
 
-(comment) @comment
+("\"" @conceal
+  )
+
+(escape_sequence) @string.escape
+
+((escape_sequence) @conceal
+  (#eq? @conceal "\\\"")
+  )

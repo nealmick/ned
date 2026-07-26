@@ -1,33 +1,42 @@
-; Properties
-;-----------
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
 (bare_key) @property
-(quoted_key) @string
 
-; Literals
-;---------
+[
+  (string)
+  (quoted_key)
+] @string
 
-(boolean) @constant.builtin
+(boolean) @boolean
+
 (comment) @comment
-(string) @string
+
+(escape_sequence) @string.escape
+
 (integer) @number
-(float) @number
-(offset_date_time) @string.special
-(local_date_time) @string.special
-(local_date) @string.special
-(local_time) @string.special
 
-; Punctuation
-;------------
+(float) @number.float
 
-"." @punctuation.delimiter
-"," @punctuation.delimiter
+[
+  (local_date)
+  (local_date_time)
+  (local_time)
+  (offset_date_time)
+] @string.special
 
 "=" @operator
 
-"[" @punctuation.bracket
-"]" @punctuation.bracket
-"[[" @punctuation.bracket
-"]]" @punctuation.bracket
-"{" @punctuation.bracket
-"}" @punctuation.bracket
+[
+  "."
+  ","
+] @punctuation.delimiter
+
+[
+  "["
+  "]"
+  "[["
+  "]]"
+  "{"
+  "}"
+] @punctuation.bracket

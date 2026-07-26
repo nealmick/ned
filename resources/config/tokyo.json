@@ -1,0 +1,130 @@
+{
+    "agent_model": "anthropic/claude-3-5-haiku-20241022",
+    "ai_autocomplete": false,
+    "backgroundColor": [
+        0.101961,
+        0.105882,
+        0.14902,
+        0.0
+    ],
+    "bloom_intensity": 0.5,
+    "burnin_intensity": 0.9,
+    "colorshift_intensity": 0.0,
+    "completion_model": "meta-llama/llama-4-scout",
+    "curvature_intensity": 0.15,
+    "font": "SourceCodePro-Regular",
+    "fontSize": 25.0,
+    "fps_target": 60.0,
+    "fps_target_unfocused": 30.0,
+    "fps_toggle": true,
+    "git_changed_lines": true,
+    "jitter_intensity": 1.5,
+    "lsp_autocomplete": false,
+    "mac_background_opacity": 0.6,
+    "mac_blur_enabled": true,
+    "pixel_width": 5000.0,
+    "pixelation_intensity": 0.0,
+    "rainbow": true,
+    "scanline_intensity": 0.1,
+    "shader_toggle": false,
+    "sidebar_visible": true,
+    "splitPos": 0.3286467492580414,
+    "static_intensity": 0.3,
+    "theme": "default",
+    "themes": {
+        "default": {
+            "background": [
+                0.101961,
+                0.105882,
+                0.14902,
+                1.0
+            ],
+            "comment": [
+                0.337255,
+                0.372549,
+                0.537255,
+                1.0
+            ],
+            "constant": [
+                1.0,
+                0.619608,
+                0.392157,
+                1.0
+            ],
+            "function": [
+                0.478431,
+                0.635294,
+                0.968627,
+                1.0
+            ],
+            "keyword": [
+                0.615686,
+                0.486275,
+                0.847059,
+                1.0
+            ],
+            "number": [
+                1.0,
+                0.619608,
+                0.392157,
+                1.0
+            ],
+            "operator": [
+                0.537255,
+                0.866667,
+                1.0,
+                1.0
+            ],
+            "parameter": [
+                0.878431,
+                0.686275,
+                0.407843,
+                1.0
+            ],
+            "property": [
+                0.45098,
+                0.854902,
+                0.792157,
+                1.0
+            ],
+            "punctuation": [
+                0.662745,
+                0.694118,
+                0.839216,
+                1.0
+            ],
+            "special": [
+                0.968627,
+                0.462745,
+                0.556863,
+                1.0
+            ],
+            "string": [
+                0.619608,
+                0.807843,
+                0.415686,
+                1.0
+            ],
+            "text": [
+                0.752941,
+                0.792157,
+                0.960784,
+                1.0
+            ],
+            "type": [
+                0.164706,
+                0.764706,
+                0.870588,
+                1.0
+            ],
+            "variable": [
+                0.490196,
+                0.811765,
+                1.0,
+                1.0
+            ]
+        }
+    },
+    "treesitter": true,
+    "vignet_intensity": 0.2
+}

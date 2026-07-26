@@ -271,9 +271,9 @@ void Settings::loadSettings()
 		return;
 	}
 
-	// First launch (or wiped config): copy defaults from app resources.
-	if (!fs::exists(primary))
-		seedUserConfigIfNeeded();
+	// Always seed *missing* profile files from the bundle (new themes, etc.).
+	// Does not overwrite existing user profiles.
+	seedUserConfigIfNeeded();
 
 	json pointer;
 	if (!readJson(primary, pointer))
@@ -282,12 +282,12 @@ void Settings::loadSettings()
 			needsApply = true;
 		return;
 	}
+	// Dual-purpose ned.json: pointer + default profile. If settings_file is
+	// missing, treat primary itself as the active profile.
 	if (!pointer.contains("settings_file") || !pointer["settings_file"].is_string())
 	{
-		std::cerr << "[Settings] Missing settings_file in " << primary << std::endl;
-		if (loadBundledProfile(settings, settingsPath))
-			needsApply = true;
-		return;
+		pointer["settings_file"] = "ned.json";
+		writeJson(primary, pointer);
 	}
 
 	settingsPath =
@@ -804,6 +804,35 @@ void Settings::renderSyntaxColors()
 	}
 
 	auto &colors = settings["themes"][theme];
+
+	// Ensure key exists so older 8-slot themes can gain extras from the picker.
+	auto ensureColor = [&](const char *key, const char *fallbackKey) {
+		if (colors.contains(key) && colors[key].is_array() && colors[key].size() == 4)
+			return;
+		if (colors.contains(fallbackKey) && colors[fallbackKey].is_array() &&
+			colors[fallbackKey].size() == 4)
+			colors[key] = colors[fallbackKey];
+		else
+			colors[key] = {0.75f, 0.75f, 0.75f, 1.0f};
+	};
+
+	// Core
+	ensureColor("text", "text");
+	ensureColor("keyword", "text");
+	ensureColor("string", "text");
+	ensureColor("number", "text");
+	ensureColor("comment", "text");
+	ensureColor("function", "text");
+	ensureColor("type", "text");
+	ensureColor("variable", "text");
+	// Extended (plan: ~15 slots)
+	ensureColor("parameter", "variable");
+	ensureColor("property", "variable");
+	ensureColor("constant", "number");
+	ensureColor("operator", "text");
+	ensureColor("punctuation", "text");
+	ensureColor("special", "keyword");
+
 	auto editColor = [&](const char *label, const char *key) {
 		if (!colors.contains(key) || !colors[key].is_array() || colors[key].size() != 4)
 			return;
@@ -829,17 +858,24 @@ void Settings::renderSyntaxColors()
 	};
 
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Syntax Colors");
-	ImGui::Separator();
-	ImGui::Spacing();
-	editColor("Text Color", "text");
-	editColor("Keywords", "keyword");
-	editColor("Strings", "string");
-	editColor("Numbers", "number");
-	editColor("Comments", "comment");
-	editColor("Functions", "function");
-	editColor("Types", "type");
-	editColor("Identifier", "variable");
+	if (ImGui::CollapsingHeader("Syntax Colors"))
+	{
+		ImGui::Spacing();
+		editColor("Text", "text");
+		editColor("Keywords", "keyword");
+		editColor("Strings", "string");
+		editColor("Numbers", "number");
+		editColor("Comments", "comment");
+		editColor("Functions", "function");
+		editColor("Types", "type");
+		editColor("Identifier", "variable");
+		editColor("Parameter", "parameter");
+		editColor("Property / field", "property");
+		editColor("Constant", "constant");
+		editColor("Operator", "operator");
+		editColor("Punctuation", "punctuation");
+		editColor("Special / builtin", "special");
+	}
 }
 
 void Settings::renderToggleSettings()

@@ -1,134 +1,78 @@
-;; ==============================================================================
-;; C++ Highlighting Query
-;; ==============================================================================
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
-;; Comments
-(comment) @comment
+; Lower priority to prefer @variable.parameter when identifier appears in parameter_declaration.
+((identifier) @variable
+  )
 
-;; Preprocessor Directives
-(preproc_include) @keyword ; Highlight #include as a keyword
-(preproc_include
-  path: [
-    (string_literal) @string ; Highlight paths in quotes (e.g., "editor_cursor.h")
-    (system_lib_string) @string ; Highlight paths in angle brackets (e.g., <algorithm>)
-  ])
-(preproc_def name: (identifier) @constant.macro) ; Highlight the macro name in #define
+(preproc_def
+  (preproc_arg) @variable)
+
 [
-  (preproc_directive)
-  (preproc_if)
-  (preproc_ifdef)
-  (preproc_else)
-  (preproc_elif)
-  (preproc_call)
-  (preproc_def)
-  (preproc_function_def)
-] @preprocessor
-
-;; Keywords
-[
-  "alignas"
-  "alignof"
-  "asm"
-  "break"
-  "case"
-  "catch"
-  "class"
-  "co_await"
-  "co_return"
-  "co_yield"
-  "concept"
-  "const"
-  "consteval"
-  "constexpr"
-  "constinit"
-  "continue"
-  "decltype"
   "default"
-  "delete"
-  "do"
-  "else"
-  "enum"
-  "explicit"
-  "export"
-  "extern"
-  "final"
-  "for"
-  "friend"
   "goto"
-  "if"
-  "import"
-  "inline"
-  "module"
-  "mutable"
-  "namespace"
-  "new"
-  "noexcept"
-  "operator"
-  "override"
-  "private"
-  "protected"
-  "public"
-  "register"
-  "requires"
-  "return"
-  "sizeof"
-  "static"
-  "static_assert"
-  "struct"
-  "switch"
-  "template"
-  "thread_local"
-  "throw"
-  "try"
-  "typedef"
-  "typename"
-  "union"
-  "using"
-  "virtual"
-  "volatile"
-  "while"
+  "asm"
+  "__asm__"
 ] @keyword
 
-;; Operators
 [
-  "--"
-  "-"
-  "-="
-  "->"
-  "&"
-  "&="
-  "&&"
-  "+"
-  "++"
-  "+="
-  "<"
-  "="
-  "=="
-  "!="
-  ">"
-  ">>"
-  "|"
-  "||"
-  "?"
-  "^"
-  "~"
-  "*"
-  "*="
-  "/"
-  "/="
-  "%"
-  ":"
-  "::"
-  "."
-  ".*"
-  "->*"
-] @operator
+  "enum"
+  "struct"
+  "union"
+  "typedef"
+] @keyword.type
 
-;; Punctuation
+[
+  "sizeof"
+  "offsetof"
+] @keyword.operator
+
+(alignof_expression
+  .
+  _ @keyword.operator)
+
+"return" @keyword.return
+
+[
+  "while"
+  "for"
+  "do"
+  "continue"
+  "break"
+] @keyword.repeat
+
+[
+  "if"
+  "else"
+  "case"
+  "switch"
+] @keyword.conditional
+
+[
+  "#if"
+  "#ifdef"
+  "#ifndef"
+  "#else"
+  "#elif"
+  "#endif"
+  "#elifdef"
+  "#elifndef"
+  (preproc_directive)
+] @keyword.directive
+
+"#define" @keyword.directive.define
+
+"#include" @keyword.import
+
 [
   ";"
+  ":"
   ","
+  "."
+  "::"
 ] @punctuation.delimiter
+
+"..." @punctuation.special
 
 [
   "("
@@ -139,99 +83,529 @@
   "}"
 ] @punctuation.bracket
 
-;; Literals
+[
+  "="
+  "-"
+  "*"
+  "/"
+  "+"
+  "%"
+  "~"
+  "|"
+  "&"
+  "^"
+  "<<"
+  ">>"
+  "->"
+  "<"
+  "<="
+  ">="
+  ">"
+  "=="
+  "!="
+  "!"
+  "&&"
+  "||"
+  "-="
+  "+="
+  "*="
+  "/="
+  "%="
+  "|="
+  "&="
+  "^="
+  ">>="
+  "<<="
+  "--"
+  "++"
+] @operator
+
+; Make sure the comma operator is given a highlight group after the comma
+; punctuator so the operator is highlighted properly.
+(comma_expression
+  "," @operator)
+
+[
+  (true)
+  (false)
+] @boolean
+
+(conditional_expression
+  [
+    "?"
+    ":"
+  ] @keyword.conditional.ternary)
+
 (string_literal) @string
-(raw_string_literal) @string
-(char_literal) @string.special ; Or just @string
+
+(system_lib_string) @string
+
 (escape_sequence) @string.escape
+
+(null) @constant.builtin
 
 (number_literal) @number
 
-(true) @constant.builtin
-(false) @constant.builtin
+(char_literal) @character
 
-;; Built-in Variables/Keywords acting like variables
+(preproc_defined) @function.macro
+
+((field_expression
+  (field_identifier) @property) @_parent
+  (#not-has-parent? @_parent template_method function_declarator call_expression))
+
+(field_designator) @property
+
+((field_identifier) @property
+  (#has-ancestor? @property field_declaration)
+  (#not-has-ancestor? @property function_declarator))
+
+(statement_identifier) @label
+
+(declaration
+  type: (type_identifier) @_type
+  declarator: (identifier) @label
+  (#eq? @_type "__label__"))
+
+[
+  (type_identifier)
+  (type_descriptor)
+] @type
+
+(storage_class_specifier) @keyword.modifier
+
+[
+  (type_qualifier)
+  (gnu_asm_qualifier)
+  "__extension__"
+] @keyword.modifier
+
+(linkage_specification
+  "extern" @keyword.modifier)
+
+(type_definition
+  declarator: (type_identifier) @type.definition)
+
+(primitive_type) @type.builtin
+
+(sized_type_specifier
+  _ @type.builtin
+  type: _?)
+
+((identifier) @constant
+  (#match? @constant "^[A-Z][A-Z0-9_]+$"))
+
+(preproc_def
+  (preproc_arg) @constant
+  (#match? @constant "^[A-Z][A-Z0-9_]+$"))
+
+(enumerator
+  name: (identifier) @constant)
+
+(case_statement
+  value: (identifier) @constant)
+
+((identifier) @constant.builtin
+  ; format-ignore
+  (#any-of? @constant.builtin
+    "stderr" "stdin" "stdout"
+    "__FILE__" "__LINE__" "__DATE__" "__TIME__"
+    "__STDC__" "__STDC_VERSION__" "__STDC_HOSTED__"
+    "__cplusplus" "__OBJC__" "__ASSEMBLER__"
+    "__BASE_FILE__" "__FILE_NAME__" "__INCLUDE_LEVEL__"
+    "__TIMESTAMP__" "__clang__" "__clang_major__"
+    "__clang_minor__" "__clang_patchlevel__"
+    "__clang_version__" "__clang_literal_encoding__"
+    "__clang_wide_literal_encoding__"
+    "__FUNCTION__" "__func__" "__PRETTY_FUNCTION__"
+    "__VA_ARGS__" "__VA_OPT__"))
+
+(preproc_def
+  (preproc_arg) @constant.builtin
+  ; format-ignore
+  (#any-of? @constant.builtin
+    "stderr" "stdin" "stdout"
+    "__FILE__" "__LINE__" "__DATE__" "__TIME__"
+    "__STDC__" "__STDC_VERSION__" "__STDC_HOSTED__"
+    "__cplusplus" "__OBJC__" "__ASSEMBLER__"
+    "__BASE_FILE__" "__FILE_NAME__" "__INCLUDE_LEVEL__"
+    "__TIMESTAMP__" "__clang__" "__clang_major__"
+    "__clang_minor__" "__clang_patchlevel__"
+    "__clang_version__" "__clang_literal_encoding__"
+    "__clang_wide_literal_encoding__"
+    "__FUNCTION__" "__func__" "__PRETTY_FUNCTION__"
+    "__VA_ARGS__" "__VA_OPT__"))
+
+(attribute_specifier
+  (argument_list
+    (identifier) @variable.builtin))
+
+(attribute_specifier
+  (argument_list
+    (call_expression
+      function: (identifier) @variable.builtin)))
+
+((call_expression
+  function: (identifier) @function.builtin)
+  (#match? @function.builtin "^__builtin_"))
+
+((call_expression
+  function: (identifier) @function.builtin)
+  (#has-ancestor? @function.builtin attribute_specifier))
+
+; Preproc def / undef
+(preproc_def
+  name: (_) @constant.macro)
+
+(preproc_call
+  directive: (preproc_directive) @_u
+  argument: (_) @constant.macro
+  (#eq? @_u "#undef"))
+
+(preproc_ifdef
+  name: (identifier) @constant.macro)
+
+(preproc_elifdef
+  name: (identifier) @constant.macro)
+
+(preproc_defined
+  (identifier) @constant.macro)
+
+(call_expression
+  function: (identifier) @function.call)
+
+(call_expression
+  function: (field_expression
+    field: (field_identifier) @function.call))
+
+(function_declarator
+  declarator: (identifier) @function)
+
+(function_declarator
+  declarator: (parenthesized_declarator
+    (pointer_declarator
+      declarator: (field_identifier) @function)))
+
+(preproc_function_def
+  name: (identifier) @function.macro)
+
+(comment) @comment
+
+((comment) @comment.documentation
+  (#match? @comment.documentation "^/[*][*][^*].*[*]/$"))
+
+; Parameters
+(parameter_declaration
+  declarator: (identifier) @variable.parameter)
+
+(parameter_declaration
+  declarator: (array_declarator) @variable.parameter)
+
+(parameter_declaration
+  declarator: (pointer_declarator) @variable.parameter)
+
+; K&R functions
+; To enable support for K&R functions,
+; add the following lines to your own query config and uncomment them.
+; They are commented out as they'll conflict with C++
+; Note that you'll need to have `; extends` at the top of your query file.
+;
+; (parameter_list (identifier) @variable.parameter)
+;
+; (function_definition
+;   declarator: _
+;   (declaration
+;     declarator: (identifier) @variable.parameter))
+;
+; (function_definition
+;   declarator: _
+;   (declaration
+;     declarator: (array_declarator) @variable.parameter))
+;
+; (function_definition
+;   declarator: _
+;   (declaration
+;     declarator: (pointer_declarator) @variable.parameter))
+(preproc_params
+  (identifier) @variable.parameter)
+
+[
+  "__attribute__"
+  "__declspec"
+  "__based"
+  "__cdecl"
+  "__clrcall"
+  "__stdcall"
+  "__fastcall"
+  "__thiscall"
+  "__vectorcall"
+  (ms_pointer_modifier)
+  (attribute_declaration)
+] @attribute
+
+((identifier) @variable.member
+  (#match? @variable.member "^m_.*$"))
+
+(parameter_declaration
+  declarator: (reference_declarator) @variable.parameter)
+
+; function(Foo ...foo)
+(variadic_parameter_declaration
+  declarator: (variadic_declarator
+    (_) @variable.parameter))
+
+; int foo = 0
+(optional_parameter_declaration
+  declarator: (_) @variable.parameter)
+
+;(field_expression) @variable.parameter ;; How to highlight this?
+((field_expression
+  (field_identifier) @function.method) @_parent
+  (#has-parent? @_parent template_method function_declarator))
+
+(field_declaration
+  (field_identifier) @variable.member)
+
+(field_initializer
+  (field_identifier) @property)
+
+(function_declarator
+  declarator: (field_identifier) @function.method)
+
+(concept_definition
+  name: (identifier) @type.definition)
+
+(alias_declaration
+  name: (type_identifier) @type.definition)
+
+(auto) @type.builtin
+
+(namespace_identifier) @module
+
+((namespace_identifier) @type
+  (#match? @type "^[A-Z]"))
+
+(case_statement
+  value: (qualified_identifier
+    (identifier) @constant))
+
+(using_declaration
+  .
+  "using"
+  .
+  "namespace"
+  .
+  [
+    (qualified_identifier)
+    (identifier)
+  ] @module)
+
+(destructor_name
+  (identifier) @function.method)
+
+; functions
+(function_declarator
+  (qualified_identifier
+    (identifier) @function))
+
+(function_declarator
+  (qualified_identifier
+    (qualified_identifier
+      (identifier) @function)))
+
+(function_declarator
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function))))
+
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function)))) @_parent
+  (#has-ancestor? @_parent function_declarator))
+
+(function_declarator
+  (template_function
+    (identifier) @function))
+
+(operator_name) @function
+
+"operator" @function
+
+"static_assert" @function.builtin
+
+(call_expression
+  (qualified_identifier
+    (identifier) @function.call))
+
+(call_expression
+  (qualified_identifier
+    (qualified_identifier
+      (identifier) @function.call)))
+
+(call_expression
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function.call))))
+
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (identifier) @function.call)))) @_parent
+  (#has-ancestor? @_parent call_expression))
+
+(call_expression
+  (template_function
+    (identifier) @function.call))
+
+(call_expression
+  (qualified_identifier
+    (template_function
+      (identifier) @function.call)))
+
+(call_expression
+  (qualified_identifier
+    (qualified_identifier
+      (template_function
+        (identifier) @function.call))))
+
+(call_expression
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (template_function
+          (identifier) @function.call)))))
+
+((qualified_identifier
+  (qualified_identifier
+    (qualified_identifier
+      (qualified_identifier
+        (template_function
+          (identifier) @function.call))))) @_parent
+  (#has-ancestor? @_parent call_expression))
+
+; methods
+(function_declarator
+  (template_method
+    (field_identifier) @function.method))
+
+(call_expression
+  (field_expression
+    (field_identifier) @function.method.call))
+
+; constructors
+((function_declarator
+  (qualified_identifier
+    (identifier) @constructor))
+  (#match? @constructor "^[A-Z]"))
+
+((call_expression
+  function: (identifier) @constructor)
+  (#match? @constructor "^[A-Z]"))
+
+((call_expression
+  function: (qualified_identifier
+    name: (identifier) @constructor))
+  (#match? @constructor "^[A-Z]"))
+
+((call_expression
+  function: (field_expression
+    field: (field_identifier) @constructor))
+  (#match? @constructor "^[A-Z]"))
+
+; constructing a type in an initializer list: Constructor ():  **SuperType (1)**
+((field_initializer
+  (field_identifier) @constructor
+  (argument_list))
+  (#match? @constructor "^[A-Z]"))
+
+; Constants
 (this) @variable.builtin
 
-;; === Types ===
+(null
+  "nullptr" @constant.builtin)
 
-;; Primitive Types
-(primitive_type) @type ; int, float, void, bool, char, etc.
-(auto) @type ; Treat auto like a type specifier
+(true) @boolean
 
-;; User-Defined Types
-(class_specifier name: (type_identifier) @type)
-(struct_specifier name: (type_identifier) @type)
-(union_specifier name: (type_identifier) @type)
-(enum_specifier name: (type_identifier) @type)
+(false) @boolean
 
-;; Type Definitions
-(alias_declaration name: (type_identifier) @type) ; using MyType = ...
-(type_definition declarator: (type_identifier) @type) ; typedef ... MyType;
+; Literals
+(raw_string_literal) @string
 
-;; Type Usage (General)
-(type_identifier) @type
+; Keywords
+[
+  "try"
+  "catch"
+  "noexcept"
+  "throw"
+] @keyword.exception
 
-;; === Function Declarations/Definitions ===
+[
+  "decltype"
+  "explicit"
+  "friend"
+  "override"
+  "using"
+  "requires"
+  "constexpr"
+] @keyword
 
-;; Function Definitions
-(function_definition
-  declarator: (function_declarator
-    declarator: (identifier) @function)) ; Function name in definitions
+[
+  "class"
+  "namespace"
+  "template"
+  "typename"
+  "concept"
+] @keyword.type
 
-;; Function Declarations
-(declaration
-  declarator: (function_declarator
-    declarator: (identifier) @function)) ; Function name in declarations
+[
+  "co_await"
+  "co_yield"
+  "co_return"
+] @keyword.coroutine
 
-;; Method Definitions
-(function_definition
-  declarator: (function_declarator
-    declarator: (field_identifier) @function)) ; Method name in definitions
+[
+  "public"
+  "private"
+  "protected"
+  "final"
+  "virtual"
+] @keyword.modifier
 
-;; Method Declarations
-(declaration
-  declarator: (function_declarator
-    declarator: (field_identifier) @function)) ; Method name in declarations
+[
+  "new"
+  "delete"
+  "xor"
+  "bitand"
+  "bitor"
+  "compl"
+  "not"
+  "xor_eq"
+  "and_eq"
+  "or_eq"
+  "not_eq"
+  "and"
+  "or"
+] @keyword.operator
 
-;; Function Calls
-(call_expression
-  function: (identifier) @function)
-(call_expression
-  function: (field_expression field: (field_identifier) @function)) ; obj.method()
-(call_expression
-  function: (qualified_identifier name: (identifier) @function)) ; namespace::func()
-(call_expression
-  function: (template_function name: (identifier) @function)) ; func<T>()
+"<=>" @operator
 
-;; Templates
-(template_declaration) @keyword
-(template_parameter_list) @type
-(template_function
-  name: (identifier) @function)
-(template_method
-  name: (field_identifier) @function)
+"::" @punctuation.delimiter
 
-;; Namespaces
-(using_declaration (qualified_identifier) @type)
+(template_argument_list
+  [
+    "<"
+    ">"
+  ] @punctuation.bracket)
 
-;; Identifiers (General Fallback)
-(identifier) @variable
-(field_identifier) @function
+(template_parameter_list
+  [
+    "<"
+    ">"
+  ] @punctuation.bracket)
 
-;; Constants (Enum members)
-(enumerator (identifier) @constant)
-
-;; Attributes
-(attribute_specifier) @function
-(attribute (identifier) @function)
-
-;; Concepts (C++20)
-(concept_definition name: (identifier) @type)
-
-;; Qualified Identifiers (Refinement)
-(qualified_identifier
-  scope: (namespace_identifier) @type
-  name: (identifier) @variable)
-(qualified_identifier
-  name: (identifier) @variable)
+(literal_suffix) @operator
