@@ -69,7 +69,7 @@ Workbench::Workbench() : projectUndo(projectRoot)
 	bootstrap.windowId = nextTabWindowId_++;
 	bootstrap.editor =
 		std::make_unique<Editor>(settings, projectRoot, icons, projectUndo);
-	// forceDock once layout exists (editorDockNodeId_ set in ensureDockLayout).
+	// forceDock once layout exists (editorDockNodeId_ set in ensureEditorDockLayout).
 	bootstrap.forceDock = true;
 	tabs_.push_back(std::move(bootstrap));
 	activeIndex_ = 0;
@@ -337,42 +337,93 @@ void Workbench::openOrFocus(const std::string &path, std::function<void()> after
 // ---------------------------------------------------------------------------
 // Dock layout
 // ---------------------------------------------------------------------------
+// VS Code–style layout:
+//   [ File Explorer (fixed panel) | Editor DockSpace (only editors) ]
+// The explorer is NOT inside the dockspace, so nothing can dock left of it /
+// around the full window. Editors share one WindowClass and can only dock into
+// the editor dockspace (or split with other editors). Permanent floating is
+// prevented by re-docking after a drag ends outside a valid target.
 
-void Workbench::ensureDockLayout(ImGuiID dockspaceId, ImVec2 size)
+namespace {
+
+ImGuiWindowClass makeEditorDockClass()
+{
+	ImGuiWindowClass c;
+	c.ClassId = ImHashStr("ned_editor");
+	// Only dock with same ClassId — never with unclassed overlays / other panels.
+	c.DockingAllowUnclassed = false;
+	// Hide the dock tab-bar window-menu (▶ tabs dropdown). See imgui#4880.
+	c.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
+	return c;
+}
+
+// True while the user is mid-drag with a window dock payload (temporary undock).
+bool isWindowDockDragActive()
+{
+	const ImGuiPayload *payload = ImGui::GetDragDropPayload();
+	return payload != nullptr && payload->IsDataType(IMGUI_PAYLOAD_TYPE_WINDOW);
+}
+
+// Depth-first: first leaf that currently hosts windows.
+ImGuiDockNode *findLeafWithWindows(ImGuiDockNode *node)
+{
+	if (!node)
+		return nullptr;
+	if (node->IsLeafNode())
+		return node->Windows.Size > 0 ? node : nullptr;
+	if (ImGuiDockNode *n = findLeafWithWindows(node->ChildNodes[0]))
+		return n;
+	return findLeafWithWindows(node->ChildNodes[1]);
+}
+
+// ImGui keeps an empty "central" leaf visible so outer-edge docks can leave a
+// hole (left | empty | right). VS Code never does that — editors always fill.
+//
+// Do NOT DockBuilderRemoveNode here: mid-frame that can hit
+// DockNodeMoveWindows(src == dst) and abort. Instead move the CentralNode flag
+// onto a filled leaf so the empty hole becomes invisible and loses remaining
+// space (see DockNodeUpdateVisibleFlag / DockNodeTreeUpdatePosSize).
+void compactEmptyCentralDockLeaves(ImGuiID dockspaceId)
+{
+	ImGuiDockNode *root = ImGui::DockBuilderGetNode(dockspaceId);
+	if (!root)
+		return;
+
+	ImGuiDockNode *central = root->CentralNode;
+	if (!central || !central->IsLeafNode())
+		return;
+	// Already filled, or empty root workspace (still the drop target) — leave it.
+	if (central->Windows.Size > 0 || central == root || central->ParentNode == nullptr)
+		return;
+
+	ImGuiDockNode *fill = root->OnlyNodeWithWindows;
+	if (!fill || fill->Windows.Size == 0 || fill == central)
+		fill = findLeafWithWindows(root);
+	if (!fill || fill == central || fill->Windows.Size == 0)
+		return;
+
+	central->SetLocalFlags(central->LocalFlags & ~ImGuiDockNodeFlags_CentralNode);
+	fill->SetLocalFlags(fill->LocalFlags | ImGuiDockNodeFlags_CentralNode);
+	root->CentralNode = fill;
+}
+
+} // namespace
+
+void Workbench::ensureEditorDockLayout(ImGuiID dockspaceId, ImVec2 size)
 {
 	// DockBuilder asserts size > 0 — never build until we have a real region.
 	if (size.x <= 1.0f || size.y <= 1.0f)
 		return;
-
-	const bool wantSidebar = settings.sidebarVisible;
-	if (dockLayoutBuilt_ && dockLayoutHadSidebar_ == wantSidebar)
+	if (editorDockLayoutBuilt_)
 		return;
 
-	dockLayoutBuilt_ = true;
-	dockLayoutHadSidebar_ = wantSidebar;
+	editorDockLayoutBuilt_ = true;
 
 	ImGui::DockBuilderRemoveNode(dockspaceId);
 	ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
 	ImGui::DockBuilderSetNodeSize(dockspaceId, size);
-
-	if (wantSidebar)
-	{
-		ImGuiID dockMain = dockspaceId;
-		ImGuiID dockLeft = 0;
-		ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.25f, &dockLeft, &dockMain);
-		editorDockNodeId_ = dockMain;
-		// Chrome-less explorer strip in both host modes (no tab/title bar).
-		if (ImGuiDockNode *node = ImGui::DockBuilderGetNode(dockLeft))
-		{
-			node->LocalFlags |=
-				ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_NoWindowMenuButton |
-				ImGuiDockNodeFlags_NoCloseButton | ImGuiDockNodeFlags_NoUndocking;
-		}
-		ImGui::DockBuilderDockWindow("File Explorer", dockLeft);
-	} else
-	{
-		editorDockNodeId_ = dockspaceId;
-	}
+	// Entire dockspace is the editor workspace (no sidebar split inside it).
+	editorDockNodeId_ = dockspaceId;
 
 	for (int i = 0; i < static_cast<int>(tabs_.size()); ++i)
 	{
@@ -387,35 +438,54 @@ void Workbench::ensureDockLayout(ImGuiID dockspaceId, ImVec2 size)
 
 void Workbench::renderDockedWorkspace(ImFont *font)
 {
-	const ImGuiID dockspaceId = ImGui::GetID("NedWorkbenchDock");
+	const ImVec2 avail = ImGui::GetContentRegionAvail();
+	const float minExplorer = 140.0f;
+	const float maxExplorer =
+		avail.x > minExplorer + 200.0f ? avail.x - 200.0f : minExplorer;
+
+	// ---- Fixed explorer strip (outside dockspace) ----
+	// Not a dock node: nothing can dock left of it or wrap around the full window.
+	if (settings.sidebarVisible)
+	{
+		explorerWidth_ = ImClamp(explorerWidth_, minExplorer, maxExplorer);
+
+		// WindowPadding 0: flush to root. ChildRounding 0: ResizeX edge is drawn
+		// with perp_padding = WindowRounding — non-zero rounding shortens the
+		// separator top/bottom (~style.ChildRounding px), unlike full dock splits.
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+		ImGui::BeginChild("##ned_explorer_host",
+						  ImVec2(explorerWidth_, 0.0f),
+						  ImGuiChildFlags_ResizeX,
+						  ImGuiWindowFlags_NoScrollbar);
+		// Persist width after user drag-resize of the child border.
+		explorerWidth_ = ImClamp(ImGui::GetWindowWidth(), minExplorer, maxExplorer);
+		fileExplorer->renderFileExplorer(/*fill*/ -1.0f);
+		ImGui::EndChild();
+		ImGui::PopStyleVar(2);
+
+		ImGui::SameLine(0.0f, 0.0f);
+	}
+
+	// ---- Editor-only dockspace in the remaining region ----
 	// Capture size *before* DockSpace — after it, ContentRegionAvail is often (0,0)
 	// and DockBuilderSetNodeSize asserts.
 	ImVec2 dockSize = ImGui::GetContentRegionAvail();
 	if (dockSize.x <= 1.0f || dockSize.y <= 1.0f)
-		dockSize = ImGui::GetWindowSize();
-	if (dockSize.x <= 1.0f || dockSize.y <= 1.0f)
-		dockSize = ImGui::GetIO().DisplaySize;
+		dockSize = ImVec2(
+			ImMax(1.0f, avail.x - (settings.sidebarVisible ? explorerWidth_ : 0.0f)),
+			ImMax(1.0f, avail.y));
 
-	// Build layout first so the dockspace has a valid tree on this frame.
-	ensureDockLayout(dockspaceId, dockSize);
-	ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+	const ImGuiID dockspaceId = ImGui::GetID("NedEditorDock");
+	const ImGuiWindowClass editorClass = makeEditorDockClass();
 
-	if (settings.sidebarVisible)
-	{
-		// Both modes: no title/tab bar, no undock chrome on the explorer panel.
-		ImGuiWindowClass explorerClass;
-		explorerClass.DockNodeFlagsOverrideSet =
-			ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_NoUndocking |
-			ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
-		ImGui::SetNextWindowClass(&explorerClass);
-		if (ImGui::Begin("File Explorer",
-						 nullptr,
-						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-							 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
-			fileExplorer->renderFileExplorer(/*fill*/ -1.0f);
-		ImGui::End();
-	}
+	ensureEditorDockLayout(dockspaceId, dockSize);
+	// Only windows with the editor class can drop into this dockspace. Drop
+	// targets are limited to this region (not the full OS/root window).
+	ImGui::DockSpace(
+		dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None, &editorClass);
 
+	// ---- Editor tab windows (submitted after DockSpace; peer of host) ----
 	std::vector<int> toClose;
 
 	for (int i = 0; i < static_cast<int>(tabs_.size()); ++i)
@@ -426,17 +496,23 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 
 		const std::string title = tabWindowTitle(tab);
 
-		// New tabs: dock into the group that was active when opened (not ImGui
-		// memory of a recycled window id / leftover empty split node).
+		const ImGuiID defaultDockTarget =
+			activeEditorDockNodeId_ != 0 ? activeEditorDockNodeId_ : editorDockNodeId_;
+
+		// New tabs: immediately dock into the group that was active on open.
 		if (tab.forceDock)
 		{
-			const ImGuiID target =
-				tab.preferredDockNodeId != 0
-					? tab.preferredDockNodeId
-					: (activeEditorDockNodeId_ != 0 ? activeEditorDockNodeId_
-													: editorDockNodeId_);
+			const ImGuiID target = tab.preferredDockNodeId != 0 ? tab.preferredDockNodeId
+																: defaultDockTarget;
 			if (target != 0)
 				ImGui::SetNextWindowDockID(target, ImGuiCond_Always);
+		}
+		// Orphan float snap-back: only after several stable undocked frames so we
+		// do not override a successful split (drop is applied after Begin on the
+		// release frame; Cond_Always the next frame would yank the tab back).
+		else if (tab.undockedFrames >= 2 && editorDockNodeId_ != 0)
+		{
+			ImGui::SetNextWindowDockID(editorDockNodeId_, ImGuiCond_Always);
 		}
 
 		if (tab.wantFocus)
@@ -445,29 +521,40 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 			tab.wantFocus = false;
 		}
 
-		// Hide the dock tab-bar "list" / window-menu button (▶ tabs dropdown).
-		// Per https://github.com/ocornut/imgui/issues/4880 — NoWindowMenuButton.
-		ImGuiWindowClass editorClass;
-		editorClass.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
 		ImGui::SetNextWindowClass(&editorClass);
+		// No content padding under the dock tab bar — custom title bar sits flush.
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
 		bool open = true;
 		if (ImGui::Begin(title.c_str(), &open))
 		{
-			if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
-				ImGui::IsWindowFocused(0))
+			const bool docked = ImGui::IsWindowDocked();
+			if (docked)
 			{
-				if (activeIndex_ != i)
-					setActiveIndex(i);
-				const ImGuiID dockId = ImGui::GetWindowDockID();
-				if (dockId != 0)
-					activeEditorDockNodeId_ = dockId;
-			}
-			if (tab.forceDock && ImGui::IsWindowDocked())
 				tab.forceDock = false;
+				tab.undockedFrames = 0;
+				if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
+					ImGui::IsWindowFocused(0))
+				{
+					if (activeIndex_ != i)
+						setActiveIndex(i);
+					const ImGuiID dockId = ImGui::GetWindowDockID();
+					if (dockId != 0)
+						activeEditorDockNodeId_ = dockId;
+				}
+			} else if (isWindowDockDragActive())
+			{
+				// Temporary undock while dragging a tab — leave it alone.
+				tab.undockedFrames = 0;
+			} else
+			{
+				++tab.undockedFrames;
+			}
+
 			tab.editor->renderEditor(font, /*fill*/ -1.0f);
 		}
 		ImGui::End();
+		ImGui::PopStyleVar();
 
 		if (!open)
 			toClose.push_back(i);
@@ -475,6 +562,12 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 
 	for (int i = static_cast<int>(toClose.size()) - 1; i >= 0; --i)
 		closeTab(toClose[static_cast<size_t>(i)]);
+
+	// After tabs are submitted (window counts are current), collapse empty
+	// central holes so split editors always fill the editor workspace.
+	// Skip while a dock drag is active so we don't fight live undocking.
+	if (!isWindowDockDragActive())
+		compactEmptyCentralDockLeaves(dockspaceId);
 }
 
 // ---------------------------------------------------------------------------

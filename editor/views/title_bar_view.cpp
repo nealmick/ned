@@ -148,11 +148,18 @@ void TitleBarView::renderSettingsIcon(float iconSize)
 
 void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGitChanges)
 {
+	// Light horizontal inset only — parent WindowPadding is 0 so we sit flush
+	// under the ImGui dock tab bar (no extra top gap).
+	const float kPadX = 8.0f;
+	const float kPadY = 2.0f;
+	const ImVec2 cursor = ImGui::GetCursorPos();
+	ImGui::SetCursorPos(ImVec2(cursor.x + kPadX, cursor.y + kPadY));
+
 	ImGui::BeginGroup();
 	ImGui::PushFont(font);
 
 	const float iconSize = ImGui::GetFontSize() * 1.15f;
-	const float rightPadding = 25.0f;
+	const float rightPadding = 25.0f + kPadX;
 	const float totalStatusWidth = iconSize + rightPadding;
 	const bool isTerminal = (filePath == "Terminal");
 	const bool showGit = showGitChanges && settings->settings["git_changed_lines"] &&
