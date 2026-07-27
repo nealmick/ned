@@ -70,6 +70,10 @@ class Workbench
 		// First frame(s): force dock into the editor group that was active on open.
 		bool forceDock = false;
 		ImGuiID preferredDockNodeId = 0;
+		// Consecutive frames undocked while not mid dock-drag. Used to snap orphan
+		// floats back without fighting a successful split (ImGui applies the drop
+		// after our Begin on the release frame).
+		int undockedFrames = 0;
 	};
 
 	struct TimingState
@@ -83,11 +87,12 @@ class Workbench
 
 	WorkbenchHostMode mode_ = WorkbenchHostMode::Floating;
 	bool initialized_ = false;
-	bool dockLayoutBuilt_ = false;
-	bool dockLayoutHadSidebar_ = true;
-	ImGuiID editorDockNodeId_ = 0;		 // initial layout "main" editor node
+	bool editorDockLayoutBuilt_ = false;
+	ImGuiID editorDockNodeId_ = 0;		 // root node of the editor-only dockspace
 	ImGuiID activeEditorDockNodeId_ = 0; // dock node of last-focused editor
 	int nextTabWindowId_ = 1;
+	// Fixed sidebar width (explorer lives outside the editor dockspace).
+	float explorerWidth_ = 260.0f;
 	TimingState timing_;
 
 	std::vector<Tab> tabs_;
@@ -97,7 +102,7 @@ class Workbench
 	ImVec2 floatingPos_{200.0f, 200.0f};
 	ImVec2 floatingSize_{1100.0f, 700.0f};
 
-	void ensureDockLayout(ImGuiID dockspaceId, ImVec2 size);
+	void ensureEditorDockLayout(ImGuiID dockspaceId, ImVec2 size);
 	void renderDockedWorkspace(ImFont *font);
 	void openOrFocus(const std::string &path, std::function<void()> after = nullptr);
 	void closeTab(int index);

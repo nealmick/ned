@@ -424,15 +424,18 @@ bool Settings::apply(bool force, EditorApi &api)
 			bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), 1.0f);
 		style.Colors[ImGuiCol_ChildBg] = bgOpaque;
 		style.Colors[ImGuiCol_WindowBg] = bgCol;
-		// Active / inactive / hovered tabs share the same fill as the theme.
-		style.Colors[ImGuiCol_Tab] = bgOpaque;
-		style.Colors[ImGuiCol_TabHovered] = bgOpaque;
-		style.Colors[ImGuiCol_TabSelected] = bgOpaque;
-		style.Colors[ImGuiCol_TabDimmed] = bgOpaque;
-		style.Colors[ImGuiCol_TabDimmedSelected] = bgOpaque;
+		// Dock title-bar tabs: no fill by default; slight highlight only on hover.
+		const ImVec4 tabNone(0.0f, 0.0f, 0.0f, 0.0f);
+		style.Colors[ImGuiCol_Tab] = tabNone;
+		style.Colors[ImGuiCol_TabSelected] = tabNone;
+		style.Colors[ImGuiCol_TabDimmed] = tabNone;
+		style.Colors[ImGuiCol_TabDimmedSelected] = tabNone;
+		// Soft lift from text color so hover reads on light and dark themes.
+		const ImVec4 &text = style.Colors[ImGuiCol_Text];
+		style.Colors[ImGuiCol_TabHovered] = ImVec4(text.x, text.y, text.z, 0.12f);
 		// Hide selected-tab overline so active doesn't look different.
-		style.Colors[ImGuiCol_TabSelectedOverline] = ImVec4(0, 0, 0, 0);
-		style.Colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0, 0, 0, 0);
+		style.Colors[ImGuiCol_TabSelectedOverline] = tabNone;
+		style.Colors[ImGuiCol_TabDimmedSelectedOverline] = tabNone;
 		// Window / dock title bars (active, inactive, collapsed) match theme bg.
 		style.Colors[ImGuiCol_TitleBg] = bgOpaque;
 		style.Colors[ImGuiCol_TitleBgActive] = bgOpaque;
