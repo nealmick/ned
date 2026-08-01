@@ -9,6 +9,7 @@
 
 #include "views/caret_view.h"
 #include "views/gutter_view.h"
+#include "views/minimap_view.h"
 #include "views/text_view.h"
 #include "views/title_bar_view.h"
 #include "views/view_layout.h"
@@ -32,6 +33,7 @@ class EditorFrame
 	TitleBarView titleBar;
 	TextView textView;
 	GutterView gutter;
+	MinimapView minimap;
 	CaretView caret;
 
 	EditorFrame(EditorState &document,

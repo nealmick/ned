@@ -161,10 +161,13 @@ class EditorViewState
 	ImVec2 getScrollPosition() const { return scrollPosition; }
 	void setScrollPosition(const ImVec2 &position) { scrollPosition = position; }
 
+	// Immediate scroll intent (no animation). Applied in updateScroll same frame.
+	// Prefer this over SetScrollY from outside so clamp is centralized.
 	void requestScroll(float x, float y) { requestedScroll = ImVec2(x, y); }
 	void requestCursorCenter(int line, int character);
 
 	// Apply pending reveal/center/request + animation; write ImGui scroll.
+	// Document ImGui child must be current.
 	void updateScroll(const ViewLayout &layout);
 	// Wheel while hovered over the editor child.
 	void processMouseWheelScrolling(const ViewLayout &layout);
@@ -196,7 +199,9 @@ class EditorViewState
 	void revealCursor(const ViewLayout &layout, bool horizontal, bool vertical);
 	void animateScrollTo(const ImVec2 &target);
 	void updateScrollAnimation();
+	// Clamp against ImGui scroll max; falls back to layout when max is unset.
 	ImVec2 clampToScrollRange(const ImVec2 &position) const;
+	ImVec2 clampToScrollRange(const ImVec2 &position, const ViewLayout &layout) const;
 
 	void clampSelection(Selection &sel);
 };
