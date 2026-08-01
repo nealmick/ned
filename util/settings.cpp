@@ -924,6 +924,15 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Rainbow cursor & line numbers)");
 
+	bool minimap = settings.value("minimap", true);
+	if (ImGui::Checkbox("Minimap", &minimap))
+	{
+		settings["minimap"] = minimap;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Code overview strip on the right)");
+
 	bool treesitter = settings.value("treesitter", true);
 	if (ImGui::Checkbox("TreeSitter Mode", &treesitter))
 	{

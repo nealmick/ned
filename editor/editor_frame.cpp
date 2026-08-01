@@ -30,6 +30,7 @@ EditorFrame::EditorFrame(EditorState &document,
 	  titleBar(gitService, iconSet, appSettings, api),
 	  textView(document, view, hl, layout),
 	  gutter(document, view, gitService, layout),
+	  minimap(document, hl, layout),
 	  caret(view, layout)
 {
 	// Frame owns layout; input needs it for hit-testing.
@@ -232,16 +233,36 @@ void EditorFrame::updateLayoutMetrics()
 	const int lineCount = state->lineCount();
 	layout.totalHeight = layout.lineHeight * static_cast<float>(lineCount);
 	layout.rainbowMode = settings->settings.value("rainbow", true);
+
+	// Minimap width is layout policy (not a paint-leaf constant leak).
+	// settings["minimap"] gates visibility; pane width still hides on narrow splits.
+	const bool minimapOn = !settings || settings->settings.value("minimap", true);
+	layout.minimapWidth = (minimapOn && layout.size.x >= MinimapView::kMinPaneWidth)
+							  ? MinimapView::kWidth
+							  : 0.0f;
 }
 
 void EditorFrame::beginDocumentChild()
 {
 	ImGui::PushID(EDITOR_CHILD_ID);
 
+	// This-frame strip AABB (screen space) before gutter/document widgets move the cursor.
+	const ImVec2 origin = ImGui::GetCursorScreenPos();
+	const ImVec2 avail = ImGui::GetContentRegionAvail();
+	if (layout.minimapWidth > 0.5f)
+	{
+		layout.minimapMin = ImVec2(origin.x + avail.x - layout.minimapWidth, origin.y);
+		layout.minimapMax = ImVec2(origin.x + avail.x, origin.y + avail.y);
+	} else
+	{
+		layout.minimapMin = layout.minimapMax = ImVec2(0, 0);
+	}
+
 	gutter.lineNumbersPos = gutter.createLineNumbersPanel();
 
 	const int lineCount = state->lineCount();
-	const float remaining_width = layout.size.x - gutter.lineNumberWidth;
+	const float remaining_width =
+		std::max(1.0f, layout.size.x - gutter.lineNumberWidth - layout.minimapWidth);
 	const float content_width =
 		contentWidth() + ImGui::GetFontSize() * SCROLL_WIDTH_FONT_MUL;
 	const float content_height = static_cast<float>(lineCount) * layout.lineHeight;
@@ -325,6 +346,12 @@ void EditorFrame::drawDocument()
 	ImGui::PopStyleColor(4);
 	ImGui::PopStyleVar(4);
 
+	if (layout.minimapVisible())
+	{
+		ImGui::SameLine(0.0f, 0.0f);
+		minimap.draw(*viewState);
+	}
+
 	ImGui::PushClipRect(
 		gutter.lineNumbersPos,
 		ImVec2(gutter.lineNumbersPos.x + gutter.lineNumberWidth,
@@ -349,6 +376,9 @@ void EditorFrame::run(ImFont *font)
 	updateLayoutMetrics();
 	beginDocumentChild();
 	input->process();
+	// Interact uses this-frame layout.minimap* rect; requestScroll applied below.
+	if (layout.minimapVisible())
+		minimap.interact(*viewState);
 	viewState->updateScroll(layout);
 	drawDocument();
 

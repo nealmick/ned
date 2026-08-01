@@ -521,6 +521,7 @@ void EditorViewState::requestCursorCenter(int line, int character)
 
 void EditorViewState::updateScroll(const ViewLayout &layout)
 {
+	// Baseline from ImGui (scrollbar). requestScroll / center / reveal override.
 	scrollPosition = ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY());
 
 	// Document child focus (not RootAndChildWindows — dock siblings share hierarchy).
@@ -555,7 +556,8 @@ void EditorViewState::updateScroll(const ViewLayout &layout)
 
 	if (requestedScroll)
 	{
-		animateScrollTo(*requestedScroll);
+		scrollPosition = clampToScrollRange(*requestedScroll, layout);
+		scrollAnimation.active = false;
 		requestedScroll.reset();
 	} else if (centerCursorVertical)
 	{
@@ -697,6 +699,17 @@ void EditorViewState::updateScrollAnimation()
 
 ImVec2 EditorViewState::clampToScrollRange(const ImVec2 &position) const
 {
-	return ImVec2(std::clamp(position.x, 0.0f, ImGui::GetScrollMaxX()),
-				  std::clamp(position.y, 0.0f, ImGui::GetScrollMaxY()));
+	return ImVec2(std::clamp(position.x, 0.0f, std::max(0.0f, ImGui::GetScrollMaxX())),
+				  std::clamp(position.y, 0.0f, std::max(0.0f, ImGui::GetScrollMaxY())));
+}
+
+ImVec2 EditorViewState::clampToScrollRange(const ImVec2 &position,
+										   const ViewLayout &layout) const
+{
+	float maxX = ImGui::GetScrollMaxX();
+	float maxY = ImGui::GetScrollMaxY();
+	if (maxY < 1.0f && layout.totalHeight > layout.size.y)
+		maxY = layout.totalHeight + layout.editorTopMargin - layout.size.y;
+	return ImVec2(std::clamp(position.x, 0.0f, std::max(0.0f, maxX)),
+				  std::clamp(position.y, 0.0f, std::max(0.0f, maxY)));
 }
