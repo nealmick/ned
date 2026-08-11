@@ -16,6 +16,7 @@
 #include "util/macos_window.h"
 #endif
 
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <vector>
@@ -287,8 +288,16 @@ void Ned::run()
 		return;
 	}
 
+	// Frame pacing restored after workbench refactor: settings still expose
+	// fps_target / fps_target_unfocused / fps_toggle, but the main loop had been
+	// left as glfwPollEvents + swapInterval(0) with no sleep — spinning the GPU
+	// as fast as possible (fans, high energy). Cap to the configured FPS.
+	using clock = std::chrono::steady_clock;
+
 	while (!glfwWindowShouldClose(window_))
 	{
+		const auto frameStart = clock::now();
+
 		glfwPollEvents();
 
 #ifdef __APPLE__
@@ -329,6 +338,29 @@ void Ned::run()
 #endif
 
 		renderFrame();
+
+		// Pace to fps_target (focused) / fps_target_unfocused. Wait for events
+		// for the remainder of the frame budget so input stays snappy without
+		// busy-spinning. fps_toggle false or absurd targets = uncapped.
+		const auto &s = workbench.settings.settings;
+		const bool fpsToggle = s.value("fps_toggle", true);
+		float fpsTarget = windowFocused_ ? s.value("fps_target", 60.0f)
+										 : s.value("fps_target_unfocused", 30.0f);
+		// Slider allows up to 1000; treat that as "unlimited" like the old path.
+		if (fpsToggle && fpsTarget > 0.0f && fpsTarget < 900.0f)
+		{
+			const auto target = std::chrono::duration_cast<clock::duration>(
+				std::chrono::duration<double>(1.0 / static_cast<double>(fpsTarget)));
+			const auto deadline = frameStart + target;
+			const auto now = clock::now();
+			if (now < deadline)
+			{
+				const double remaining =
+					std::chrono::duration<double>(deadline - now).count();
+				// Block until an event or the frame budget elapses (macOS-friendly).
+				glfwWaitEventsTimeout(remaining);
+			}
+		}
 	}
 }
 

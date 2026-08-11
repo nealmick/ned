@@ -257,6 +257,13 @@ static NEDAppDelegate* gAppDelegate = nil;
     }
 }
 
+- (void)stopIntroTimer {
+    if (_fadeTimer) {
+        [_fadeTimer invalidate];
+        _fadeTimer = nil;
+    }
+}
+
 - (void)fadeIn {
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
         context.duration = 0.2;
@@ -279,9 +286,30 @@ static NEDAppDelegate* gAppDelegate = nil;
     } completionHandler:nil];
 }
 
+// Show traffic lights for ~2s on launch, then fade once. Previously a permanent
+// 60 Hz NSTimer called fadeIn/fadeOut + setNeedsDisplay forever (energy waste).
+- (void)startIntroVisibility {
+    [self stopIntroTimer];
+    _displayFrame = 0;
+    [self fadeIn];
+    // Manual retain/release (not ARC): timer owns a retain on the block's captures;
+    // clear _fadeTimer in the fire so we don't double-invalidate.
+    TopLeftMenuView *menu = self;
+    _fadeTimer = [NSTimer scheduledTimerWithTimeInterval:2.0
+                                                 repeats:NO
+                                                   block:^(NSTimer * _Nonnull timer) {
+        menu->_fadeTimer = nil;
+        menu->_displayFrame = 120;
+        if (!menu.isHovered)
+            [menu fadeOut];
+    }];
+}
+
 - (void)mouseEntered:(NSEvent *)event {
     if (event.trackingArea == _trackingArea) {
         self.isHovered = YES;
+        [self stopIntroTimer];
+        _displayFrame = 120;
         [self fadeIn];
     } else if (event.trackingArea == _closeButtonTrackingArea) {
         [self.closeButton setContentTintColor:[[NSColor systemRedColor] colorWithAlphaComponent:0.5]];
@@ -305,19 +333,6 @@ static NEDAppDelegate* gAppDelegate = nil;
     } else if (event.trackingArea == _maximizeButtonTrackingArea) {
         [self.maximizeButton setContentTintColor:[NSColor systemGreenColor]];
     }
-}
-
-- (void)updateDisplayFrame {
-    _displayFrame++;
-    if (_displayFrame >= 120) {
-        _displayFrame = 120;
-        if (!self.isHovered) {
-            [self fadeOut];
-        }
-    } else {
-        [self fadeIn];
-    }
-    [self setNeedsDisplay:YES];
 }
 
 - (BOOL)mouseDownCanMoveWindow {
@@ -448,12 +463,8 @@ void configureMacOSWindow(void* window, float opacity, bool blurEnabled) {
     static TopLeftMenuView* menuViewRef = nil;
     menuViewRef = menuView;
     
-    // Start display frame update timer
-    [NSTimer scheduledTimerWithTimeInterval:1.0/60.0
-                                   repeats:YES
-                                     block:^(NSTimer * _Nonnull timer) {
-        [menuViewRef updateDisplayFrame];
-    }];
+    // One-shot intro: show traffic lights briefly, then fade (no permanent timer).
+    [menuViewRef startIntroVisibility];
 
     // Force window refresh
     [nswindow invalidateShadow];

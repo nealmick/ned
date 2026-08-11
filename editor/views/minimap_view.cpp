@@ -1,6 +1,11 @@
 /*
 	File: views/minimap_view.cpp
 	Description: Density minimap — ImGui rects, click/drag/wheel.
+
+	Density glyphs are expensive (lineInto + span walk + UTF-8 per char, every
+	frame). Cache the strip's rect list keyed by doc version / highlight gen /
+	visible line window; only rebuild when that key changes. Idle frames just
+	replay verts. Slider still updates live with scroll.
 */
 #include "minimap_view.h"
 #include "../editor_state.h"
@@ -14,6 +19,18 @@
 namespace {
 
 constexpr float kLineH = 2.0f, kCharW = 1.0f;
+// Density rects read hotter than full glyphs — pull theme colors down a notch.
+constexpr float kColorDim = 0.72f;
+constexpr float kDotH = 1.5f;
+constexpr float kPadX = 2.0f;
+
+ImU32 dimInk(ImVec4 c)
+{
+	c.x *= kColorDim;
+	c.y *= kColorDim;
+	c.z *= kColorDim;
+	return ImGui::ColorConvertFloat4ToU32(c);
+}
 
 struct Strip
 {
@@ -50,6 +67,71 @@ Strip makeStrip(const EditorState &st, const ViewLayout &lay, float scrollY, flo
 }
 
 } // namespace
+
+void MinimapView::rebuildDensityCache(const CacheKey &key) const
+{
+	cacheDots_.clear();
+	if (!state || !highlight || key.end < key.start || key.maxCols <= 0)
+	{
+		cacheKey_ = key;
+		return;
+	}
+
+	// Rough upper bound: visible lines * columns (most cells empty).
+	const int rows = key.end - key.start + 1;
+	cacheDots_.reserve(static_cast<size_t>(rows * std::min(key.maxCols, 24)));
+
+	static thread_local std::string line;
+	for (int row = key.start; row <= key.end; ++row)
+	{
+		const float y0 = float(row - key.start) * kLineH;
+		state->lineInto(row, line);
+		const auto &spans = highlight->spansForLine(row);
+		size_t sp = 0;
+		for (int col = 0, i = 0; i < (int)line.size() && col < key.maxCols;)
+		{
+			const int byte = i;
+			const unsigned char c = (unsigned char)line[i++];
+			if ((c & 0xC0) == 0x80)
+				continue;
+			if (c == '\t')
+			{
+				col = std::min(key.maxCols, col + (4 - col % 4));
+				continue;
+			}
+			if (c <= ' ')
+			{
+				++col;
+				continue;
+			}
+			while (sp < spans.size() && spans[sp].end <= byte)
+				++sp;
+			ImU32 ink = key.defInk;
+			if (sp < spans.size() && spans[sp].start <= byte)
+				ink = dimInk(spans[sp].color);
+			cacheDots_.push_back(Dot{kPadX + float(col++) * kCharW, y0, ink});
+			while (i < (int)line.size() && ((unsigned char)line[i] & 0xC0) == 0x80)
+				++i;
+		}
+	}
+	cacheKey_ = key;
+}
+
+void MinimapView::replayDensity(ImDrawList *dl, ImVec2 origin) const
+{
+	const int n = static_cast<int>(cacheDots_.size());
+	if (n <= 0 || !dl)
+		return;
+
+	// Batch into the window draw list — avoids per-dot AddRectFilled overhead.
+	dl->PrimReserve(n * 6, n * 4);
+	for (const Dot &d : cacheDots_)
+	{
+		const ImVec2 p0(origin.x + d.x, origin.y + d.y);
+		const ImVec2 p1(p0.x + kCharW, p0.y + kDotH);
+		dl->PrimRect(p0, p1, d.col);
+	}
+}
 
 void MinimapView::interact(EditorViewState &view)
 {
@@ -114,42 +196,14 @@ void MinimapView::draw(const EditorViewState &view) const
 	ImGui::InvisibleButton("##mm", ImVec2(w, h));
 	ImDrawList *dl = ImGui::GetWindowDrawList();
 	const int maxCols = std::max(1, int((w - 4.0f) / kCharW));
-	const ImU32 defInk = ImGui::ColorConvertFloat4ToU32(highlight->defaultTextColor());
-	static thread_local std::string line;
+	const ImU32 defInk = dimInk(highlight->defaultTextColor());
 
-	for (int row = s.start; row <= s.end; ++row)
-	{
-		const float y0 = a.y + float(row - s.start) * kLineH;
-		state->lineInto(row, line);
-		const auto &spans = highlight->spansForLine(row);
-		size_t sp = 0;
-		for (int col = 0, i = 0; i < (int)line.size() && col < maxCols;)
-		{
-			const int byte = i;
-			const unsigned char c = (unsigned char)line[i++];
-			if ((c & 0xC0) == 0x80)
-				continue;
-			if (c == '\t')
-			{
-				col = std::min(maxCols, col + (4 - col % 4));
-				continue;
-			}
-			if (c <= ' ')
-			{
-				++col;
-				continue;
-			}
-			while (sp < spans.size() && spans[sp].end <= byte)
-				++sp;
-			ImU32 ink = defInk;
-			if (sp < spans.size() && spans[sp].start <= byte)
-				ink = ImGui::ColorConvertFloat4ToU32(spans[sp].color);
-			const float x = a.x + 2.0f + float(col++) * kCharW;
-			dl->AddRectFilled(ImVec2(x, y0), ImVec2(x + kCharW, y0 + 1.5f), ink);
-			while (i < (int)line.size() && ((unsigned char)line[i] & 0xC0) == 0x80)
-				++i;
-		}
-	}
+	const CacheKey key{
+		state->version, highlight->visualGeneration(), s.start, s.end, maxCols, defInk};
+	if (!(key == cacheKey_))
+		rebuildDensityCache(key);
+
+	replayDensity(dl, a);
 
 	if (s.sliderH > 0.0f)
 	{

@@ -39,6 +39,7 @@ void EditorHighlight::forceColorUpdate()
 {
 	cancelHighlighting();
 	treeSitter.updateThemeColors();
+	++visualGen_;
 	if (state && !state->path.empty())
 		highlightContent();
 }
@@ -60,6 +61,7 @@ void EditorHighlight::clear()
 {
 	cancelHighlighting();
 	++jobGen;
+	++visualGen_;
 	heldTreeEdits.clear();
 	lineColors.clear();
 	lineLens.clear();
@@ -72,6 +74,7 @@ void EditorHighlight::resetForDocument(size_t lineCount)
 {
 	cancelHighlighting();
 	++jobGen;
+	++visualGen_;
 	heldTreeEdits.clear();
 	lineColors.assign(lineCount, {});
 	syncLensFromContent();
@@ -265,6 +268,7 @@ void EditorHighlight::morphSpans(const std::vector<PendingTreeEdit> &edits)
 	{
 		lineColors.assign(static_cast<size_t>(state->lineCount()), {});
 		syncLensFromContent();
+		++visualGen_;
 		return;
 	}
 
@@ -275,6 +279,8 @@ void EditorHighlight::morphSpans(const std::vector<PendingTreeEdit> &edits)
 		else
 			morphDelete(pe.op.row, pe.op.column, pe.op.length);
 	}
+	if (!edits.empty())
+		++visualGen_;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +387,7 @@ void EditorHighlight::applyParseResult(ParseResult &result)
 		lineColors = std::move(result.fullColors);
 		// Full rebuild: refresh lineLens from the buffer.
 		syncLensFromContent();
+		++visualGen_;
 	} else
 	{
 		// Partial: morph already sized maps; only replace dirty rows.
@@ -394,6 +401,8 @@ void EditorHighlight::applyParseResult(ParseResult &result)
 				continue;
 			lineColors[static_cast<size_t>(row)] = std::move(result.dirtySpans[i]);
 		}
+		if (n > 0)
+			++visualGen_;
 	}
 }
 
