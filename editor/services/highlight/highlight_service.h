@@ -40,6 +40,9 @@ class EditorHighlight
 	ImVec4 defaultTextColor() const;
 	const LineColorSpans &spansForLine(int row) const;
 
+	// Bumps when span map or theme colors change — minimap/other caches key off this.
+	uint64_t visualGeneration() const { return visualGen_; }
+
 	void resetForDocument(size_t lineCount);
 	void clear();
 
@@ -52,6 +55,7 @@ class EditorHighlight
 	ColorRangeMap lineColors;
 	std::vector<int> lineLens; // pre-edit line sizes for morphDelete walks
 	static const LineColorSpans kEmptySpans;
+	uint64_t visualGen_ = 1;
 
 	std::shared_ptr<std::atomic_bool> cancelFlag;
 	std::vector<std::future<void>> tasks;
