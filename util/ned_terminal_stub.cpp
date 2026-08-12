@@ -26,7 +26,7 @@ void NedTerminal::shutdown() {}
 
 void NedTerminal::toggle() {}
 
-void NedTerminal::setVisible(bool) {}
+void NedTerminal::setVisible(bool, bool) {}
 
 void NedTerminal::renderPanel() {}
 

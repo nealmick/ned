@@ -27,7 +27,7 @@ class NedTerminal
 	NedTerminal(const NedTerminal &) = delete;
 	NedTerminal &operator=(const NedTerminal &) = delete;
 
-	// Working directory for the next shell spawn (project root).
+	// Working directory for the next shell spa	wn (project root).
 	void setProjectRoot(const std::string &root);
 
 	bool visible() const;
@@ -35,7 +35,9 @@ class NedTerminal
 
 	// Toggle visibility. Saves editor on open (caller should also save).
 	void toggle();
-	void setVisible(bool on);
+	// `focus` focuses the shell on hide→show. Pass false when a modal
+	// (e.g. Settings) should keep keyboard focus.
+	void setVisible(bool on, bool focus = true);
 	void hide();
 
 	// Draw into the current ImGui region (bottom panel host child).

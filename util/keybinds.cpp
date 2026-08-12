@@ -2,7 +2,6 @@
 #include "../editor/editor_api.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
-#include "../util/ned_terminal.h"
 #include "../util/settings.h"
 #include <algorithm>
 #include <cctype>
@@ -232,8 +231,7 @@ ImGuiKey KeybindsManager::stringToImGuiKey(const std::string &keyString)
 
 bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 											  FileExplorer &files,
-											  LSPClient &lsp,
-											  NedTerminal &terminal)
+											  LSPClient &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();
@@ -249,7 +247,7 @@ bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 			api.closeAllOverlays();
 			api.save();
 			files.showWelcomeScreen = false;
-			terminal.toggle();
+			settings.toggleTerminal();
 			return true;
 		}
 	}

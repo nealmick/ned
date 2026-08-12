@@ -29,6 +29,7 @@
     "scanline_intensity": 0.3400000035762787,
     "shader_toggle": true,
     "sidebar_visible": true,
+    "terminal_visible": true,
     "splitPos": 0.1800553947687149,
     "static_intensity": 0.4129999876022339,
     "theme": "default",

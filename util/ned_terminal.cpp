@@ -163,7 +163,7 @@ void NedTerminal::shutdown()
 
 void NedTerminal::toggle() { setVisible(!impl_->visible); }
 
-void NedTerminal::setVisible(bool on)
+void NedTerminal::setVisible(bool on, bool focus)
 {
 	const bool wasVisible = impl_->visible;
 	impl_->visible = on;
@@ -171,7 +171,7 @@ void NedTerminal::setVisible(bool on)
 		return;
 
 	// Focus only on hide→show (not cold-start default-visible).
-	if (!wasVisible)
+	if (focus && !wasVisible)
 		impl_->wantFocus = true;
 
 	if (impl_->sessions.empty())

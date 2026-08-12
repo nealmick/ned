@@ -503,6 +503,8 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 					  ImGuiChildFlags_None,
 					  ImGuiWindowFlags_NoScrollbar);
 
+	// Don't steal focus while Settings is open — blur would dismiss it.
+	terminal.setVisible(settings.terminalVisible, !settings.showSettingsWindow);
 	const bool termOn = terminal.visible();
 	const float colH = ImGui::GetContentRegionAvail().y;
 	constexpr float kTermSplitterH = kSplitHit;
@@ -767,8 +769,7 @@ void Workbench::render()
 
 	if (!fileExplorer->fileFinder.showFFWindow)
 	{
-		settings.keybinds.handleKeyboardShortcuts(
-			*api, *fileExplorer, *lspClient, terminal);
+		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspClient);
 	}
 
 	if (fileExplorer->handleFileDialog())
