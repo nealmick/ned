@@ -433,6 +433,10 @@ bool Settings::apply(bool force, EditorApi &api)
 		// Soft lift from text color so hover reads on light and dark themes.
 		const ImVec4 &text = style.Colors[ImGuiCol_Text];
 		style.Colors[ImGuiCol_TabHovered] = ImVec4(text.x, text.y, text.z, 0.12f);
+		// Window/tab close (X) draws ButtonHovered / ButtonActive as its fill.
+		style.Colors[ImGuiCol_Button] = ImVec4(text.x, text.y, text.z, 0.12f);
+		style.Colors[ImGuiCol_ButtonHovered] = ImVec4(text.x, text.y, text.z, 0.18f);
+		style.Colors[ImGuiCol_ButtonActive] = ImVec4(text.x, text.y, text.z, 0.30f);
 		// Hide selected-tab overline so active doesn't look different.
 		style.Colors[ImGuiCol_TabSelectedOverline] = tabNone;
 		style.Colors[ImGuiCol_TabDimmedSelectedOverline] = tabNone;
@@ -448,6 +452,7 @@ bool Settings::apply(bool force, EditorApi &api)
 	}
 
 	sidebarVisible = settings.value("sidebar_visible", true);
+	terminalVisible = settings.value("terminal_visible", true);
 
 	api.forceColorUpdate();
 
@@ -510,6 +515,13 @@ void Settings::toggleSidebar()
 {
 	sidebarVisible = !sidebarVisible;
 	settings["sidebar_visible"] = sidebarVisible;
+	saveSettings();
+}
+
+void Settings::toggleTerminal()
+{
+	terminalVisible = !terminalVisible;
+	settings["terminal_visible"] = terminalVisible;
 	saveSettings();
 }
 
@@ -684,7 +696,12 @@ void Settings::renderWindowHeader(EditorApi &api, FileExplorer &files)
 {
 	static bool wasFocused = false;
 	const bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-	if (wasFocused && !isFocused && showSettingsWindow)
+	const bool windowHovered =
+		ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+	// Layout changes (terminal/sidebar) can steal ImGui focus for a frame.
+	// Don't dismiss if the pointer is still over Settings — click-outside
+	// is handled in handleWindowInput.
+	if (wasFocused && !isFocused && showSettingsWindow && !windowHovered)
 		closeSettingsWindow(api);
 	wasFocused = isFocused;
 
@@ -913,6 +930,13 @@ void Settings::renderToggleSettings()
 		toggleSidebar();
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Show/hide file explorer sidebar)");
+	ImGui::Spacing();
+
+	bool term = settings.value("terminal_visible", true);
+	if (ImGui::Checkbox("Terminal", &term))
+		toggleTerminal();
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide bottom terminal panel)");
 	ImGui::Spacing();
 
 	bool rainbow = settings.value("rainbow", true);

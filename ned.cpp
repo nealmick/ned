@@ -139,9 +139,10 @@ bool Ned::initializeImGui()
 	style.FramePadding = ImVec2(6.0f, 4.0f);
 
 	ImVec4 *colors = style.Colors;
-	colors[ImGuiCol_Button] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);
-	colors[ImGuiCol_ButtonHovered] = ImVec4(0.06f, 0.35f, 0.60f, 1.00f);
-	colors[ImGuiCol_ButtonActive] = ImVec4(0.04f, 0.25f, 0.45f, 1.00f);
+	// Close (X) uses ButtonHovered / ButtonActive for its fill — keep those grey.
+	colors[ImGuiCol_Button] = ImVec4(0.40f, 0.40f, 0.40f, 0.35f);
+	colors[ImGuiCol_ButtonHovered] = ImVec4(0.55f, 0.55f, 0.55f, 0.40f);
+	colors[ImGuiCol_ButtonActive] = ImVec4(0.45f, 0.45f, 0.45f, 0.55f);
 	colors[ImGuiCol_CheckMark] = ImVec4(0.08f, 0.45f, 0.75f, 1.00f);
 	colors[ImGuiCol_FrameBg] = ImVec4(0.95f, 0.95f, 0.95f, 0.30f);
 	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.90f, 0.90f, 0.90f, 0.40f);
