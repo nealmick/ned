@@ -28,7 +28,7 @@ void NedTerminal::toggle() {}
 
 void NedTerminal::setVisible(bool) {}
 
-void NedTerminal::renderFullscreen() {}
+void NedTerminal::renderPanel() {}
 
 void NedTerminal::reloadTerminalFonts(float) {}
 

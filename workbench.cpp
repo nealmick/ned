@@ -338,11 +338,11 @@ void Workbench::openOrFocus(const std::string &path, std::function<void()> after
 // Dock layout
 // ---------------------------------------------------------------------------
 // VS Code–style layout:
-//   [ File Explorer (fixed panel) | Editor DockSpace (only editors) ]
-// The explorer is NOT inside the dockspace, so nothing can dock left of it /
-// around the full window. Editors share one WindowClass and can only dock into
-// the editor dockspace (or split with other editors). Permanent floating is
-// prevented by re-docking after a drag ends outside a valid target.
+//   [ File Explorer (fixed, full height) | Editor DockSpace          ]
+//                                       | Terminal (fixed bottom)   ]
+// Explorer + terminal are not dock nodes. Editors share one WindowClass and
+// only dock into the editor dockspace. Permanent floating is prevented by
+// re-docking after a drag ends outside a valid target.
 
 namespace {
 
@@ -442,48 +442,145 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 	const float minExplorer = 140.0f;
 	const float maxExplorer =
 		avail.x > minExplorer + 200.0f ? avail.x - 200.0f : minExplorer;
+	const float minTerminal = 80.0f;
+	const float minEditor = 100.0f;
+	// Shared splitter visuals: wide hit target, 1px hairline (ResizeX/Y child
+	// borders get covered by the next sibling and lose hover highlight).
+	constexpr float kSplitHit = 5.0f;
+	constexpr float kSplitLine = 1.0f;
 
-	// ---- Fixed explorer strip (outside dockspace) ----
-	// Not a dock node: nothing can dock left of it or wrap around the full window.
+	// ---- Fixed explorer strip (full height, outside dockspace) ----
 	if (settings.sidebarVisible)
 	{
 		explorerWidth_ = ImClamp(explorerWidth_, minExplorer, maxExplorer);
 
-		// WindowPadding 0: flush to root. ChildRounding 0: ResizeX edge is drawn
-		// with perp_padding = WindowRounding — non-zero rounding shortens the
-		// separator top/bottom (~style.ChildRounding px), unlike full dock splits.
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 		ImGui::BeginChild("##ned_explorer_host",
 						  ImVec2(explorerWidth_, 0.0f),
-						  ImGuiChildFlags_ResizeX,
+						  ImGuiChildFlags_None,
 						  ImGuiWindowFlags_NoScrollbar);
-		// Persist width after user drag-resize of the child border.
-		explorerWidth_ = ImClamp(ImGui::GetWindowWidth(), minExplorer, maxExplorer);
 		fileExplorer->renderFileExplorer(/*fill*/ -1.0f);
 		ImGui::EndChild();
-		ImGui::PopStyleVar(2);
+
+		// Explicit vertical splitter (##ned_main_column used to sit on top of
+		// ImGuiChildFlags_ResizeX and steal hover / SeparatorHovered feedback).
+		ImGui::SameLine(0.0f, 0.0f);
+		ImGui::InvisibleButton("##ned_explorer_splitter", ImVec2(kSplitHit, -1.0f));
+		const bool expHover = ImGui::IsItemHovered();
+		const bool expActive = ImGui::IsItemActive();
+		if (expActive)
+		{
+			explorerWidth_ = ImClamp(
+				explorerWidth_ + ImGui::GetIO().MouseDelta.x, minExplorer, maxExplorer);
+		}
+		{
+			ImDrawList *dl = ImGui::GetWindowDrawList();
+			const ImVec2 a = ImGui::GetItemRectMin();
+			const ImVec2 b = ImGui::GetItemRectMax();
+			const float x = IM_TRUNC((a.x + b.x) * 0.5f);
+			const ImU32 col = ImGui::GetColorU32(expActive	? ImGuiCol_SeparatorActive
+												 : expHover ? ImGuiCol_SeparatorHovered
+															: ImGuiCol_Border);
+			dl->AddRectFilled(ImVec2(x, a.y), ImVec2(x + kSplitLine, b.y), col);
+		}
+		if (expHover || expActive)
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
 
 		ImGui::SameLine(0.0f, 0.0f);
+		ImGui::PopStyleVar(3);
 	}
 
-	// ---- Editor-only dockspace in the remaining region ----
+	// ---- Main column: editor dock (top) + optional terminal (bottom) ----
+	// Not a dock target — terminal is a fixed split, not a dockable window.
+	// ItemSpacing 0: no gap between editor/terminal (otherwise height math drifts).
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::BeginChild("##ned_main_column",
+					  ImVec2(0.0f, 0.0f),
+					  ImGuiChildFlags_None,
+					  ImGuiWindowFlags_NoScrollbar);
+
+	const bool termOn = terminal.visible();
+	const float colH = ImGui::GetContentRegionAvail().y;
+	constexpr float kTermSplitterH = kSplitHit;
+	constexpr float kTermBorderThickness = kSplitLine;
+
+	if (termOn && colH > minEditor + minTerminal + kTermSplitterH)
+	{
+		terminalHeight_ =
+			ImClamp(terminalHeight_, minTerminal, colH - minEditor - kTermSplitterH);
+	}
+
+	const float editorHostH = termOn ? (colH - terminalHeight_ - kTermSplitterH) : 0.0f;
+
+	ImGui::BeginChild("##ned_editor_host",
+					  ImVec2(0.0f, editorHostH),
+					  ImGuiChildFlags_None,
+					  ImGuiWindowFlags_NoScrollbar);
+
 	// Capture size *before* DockSpace — after it, ContentRegionAvail is often (0,0)
 	// and DockBuilderSetNodeSize asserts.
 	ImVec2 dockSize = ImGui::GetContentRegionAvail();
 	if (dockSize.x <= 1.0f || dockSize.y <= 1.0f)
-		dockSize = ImVec2(
-			ImMax(1.0f, avail.x - (settings.sidebarVisible ? explorerWidth_ : 0.0f)),
-			ImMax(1.0f, avail.y));
+		dockSize = ImVec2(ImMax(1.0f, ImGui::GetWindowSize().x),
+						  ImMax(1.0f, ImGui::GetWindowSize().y));
 
 	const ImGuiID dockspaceId = ImGui::GetID("NedEditorDock");
 	const ImGuiWindowClass editorClass = makeEditorDockClass();
 
 	ensureEditorDockLayout(dockspaceId, dockSize);
-	// Only windows with the editor class can drop into this dockspace. Drop
-	// targets are limited to this region (not the full OS/root window).
+	// Keep dock node size in sync when the bottom terminal split changes.
+	if (ImGuiDockNode *root = ImGui::DockBuilderGetNode(dockspaceId))
+	{
+		if (root->Size.x != dockSize.x || root->Size.y != dockSize.y)
+			ImGui::DockBuilderSetNodeSize(dockspaceId, dockSize);
+	}
+	// Only windows with the editor class can drop into this dockspace.
 	ImGui::DockSpace(
 		dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None, &editorClass);
+
+	ImGui::EndChild(); // ##ned_editor_host
+
+	if (termOn)
+	{
+		// Drag up → taller terminal. Terminal child uses size.y = 0 so it always
+		// fills remaining space to the bottom of the column.
+		ImGui::InvisibleButton("##ned_term_splitter", ImVec2(-1.0f, kTermSplitterH));
+		const bool splitHover = ImGui::IsItemHovered();
+		const bool splitActive = ImGui::IsItemActive();
+		if (splitActive && colH > minEditor + minTerminal + kTermSplitterH)
+		{
+			terminalHeight_ = ImClamp(terminalHeight_ - ImGui::GetIO().MouseDelta.y,
+									  minTerminal,
+									  colH - minEditor - kTermSplitterH);
+		}
+		// 1px hairline centered in the hit strip (not a thick filled bar).
+		{
+			ImDrawList *dl = ImGui::GetWindowDrawList();
+			const ImVec2 a = ImGui::GetItemRectMin();
+			const ImVec2 b = ImGui::GetItemRectMax();
+			const float y = IM_TRUNC((a.y + b.y) * 0.5f);
+			const ImU32 col = ImGui::GetColorU32(splitActive  ? ImGuiCol_SeparatorActive
+												 : splitHover ? ImGuiCol_SeparatorHovered
+															  : ImGuiCol_Border);
+			dl->AddRectFilled(ImVec2(a.x, y), ImVec2(b.x, y + kTermBorderThickness), col);
+		}
+		if (splitHover || splitActive)
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+
+		ImGui::BeginChild("##ned_terminal_host",
+						  ImVec2(0.0f, 0.0f),
+						  ImGuiChildFlags_None,
+						  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoDocking);
+		terminal.renderPanel();
+		ImGui::EndChild();
+	}
+
+	ImGui::EndChild(); // ##ned_main_column
+	ImGui::PopStyleVar(3);
 
 	// ---- Editor tab windows (submitted after DockSpace; peer of host) ----
 	std::vector<int> toClose;
@@ -683,16 +780,6 @@ void Workbench::render()
 		fileExplorer->setEditorsBlockInput(true);
 
 	ImGui::PushFont(settings.font.getMainFont());
-
-	if (terminal.visible())
-	{
-		if (beginRootChrome())
-			terminal.renderFullscreen();
-		endRootChrome();
-		renderOverlays(*api);
-		ImGui::PopFont();
-		return;
-	}
 
 	if (showWelcome || fileExplorer->showWelcomeScreen)
 	{
