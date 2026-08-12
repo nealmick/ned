@@ -306,9 +306,19 @@ void EditorFinder::draw()
 		shouldFocus = false;
 	}
 
+	// Editor host uses WindowPadding 0 (title flush under dock tabs). Give the
+	// find row air so the top border/frame is not clipped by the tab strip.
+	constexpr float kPadX = 10.0f;
+	constexpr float kPadTop = 10.0f;
+	constexpr float kPadBottom = 6.0f;
+	ImGui::SetCursorPos(
+		ImVec2(ImGui::GetCursorPosX() + kPadX, ImGui::GetCursorPosY() + kPadTop));
+
 	ImGui::BeginGroup();
 	{
-		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+		// Leave room for status/checkbox on the right of this padded row.
+		const float rowW = std::max(120.0f, ImGui::GetContentRegionAvail().x - kPadX);
+		ImGui::SetNextItemWidth(rowW * 0.5f);
 		{
 			ScopedFindStyle style(settings);
 			// Unique id per EditorFinder instance (side-by-side tabs).
@@ -354,4 +364,6 @@ void EditorFinder::draw()
 	boxMin = ImGui::GetItemRectMin();
 	boxMax = ImGui::GetItemRectMax();
 	boxRectValid = true;
+
+	ImGui::Dummy(ImVec2(0.0f, kPadBottom));
 }

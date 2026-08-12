@@ -39,7 +39,9 @@ EditorFrame::EditorFrame(EditorState &document,
 
 void EditorFrame::drawTitleBar(ImFont *font)
 {
-	// Top chrome (path / git / settings) — same presentation layer as gutter.
+	// No document path → no chrome ("Editor - No file selected" was noise).
+	if (!state || state->path.empty())
+		return;
 	const bool showGitChanges = layout.paneSize.x >= GIT_CHANGES_MIN_WIDTH;
 	titleBar.render(font, state->path, showGitChanges);
 }

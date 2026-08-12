@@ -239,9 +239,7 @@ bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 	const ImGuiIO &io = ImGui::GetIO();
 	const bool mod = io.KeyCtrl || io.KeySuper;
 
-	// Cmd/Ctrl+T — fullscreen terminal (replaces explorer + editor).
-	// Always handled so the terminal can be dismissed; when open, this is the
-	// only app shortcut that may fire (keys go to the PTY otherwise).
+	// Cmd/Ctrl+T — toggle bottom terminal panel (under editor dock).
 	{
 		ImGuiKey termKey = getActionKey("toggle_terminal");
 		if (termKey == ImGuiKey_None)
@@ -255,10 +253,6 @@ bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 			return true;
 		}
 	}
-
-	// Terminal owns the keyboard — skip sidebar/settings/LSP/etc.
-	if (terminal.visible())
-		return false;
 
 	if (mod && ImGui::IsKeyPressed(getActionKey("toggle_sidebar"), false))
 	{

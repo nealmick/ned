@@ -93,6 +93,8 @@ class Workbench
 	int nextTabWindowId_ = 1;
 	// Fixed sidebar width (explorer lives outside the editor dockspace).
 	float explorerWidth_ = 260.0f;
+	// Bottom terminal panel height (not a dock node — fixed split under editors).
+	float terminalHeight_ = 220.0f;
 	TimingState timing_;
 
 	std::vector<Tab> tabs_;
