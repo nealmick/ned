@@ -13,7 +13,7 @@
     "completion_model": "meta-llama/llama-4-scout",
     "curvature_intensity": 0.03999999910593033,
     "font": "VT323-Regular",
-    "fontSize": 25.0,
+    "fontSize": 20.0,
     "fps_target": 60.0,
     "fps_target_unfocused": 30.0,
     "fps_toggle": true,
