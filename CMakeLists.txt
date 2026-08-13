@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
 project(ned)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -63,6 +66,10 @@ elseif(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0601) # Windows 7+
     # MSVC-specific flags from lsp-framework documentation
     if(MSVC)
+        # Match vcpkg x64-windows-static: no vcruntime / msvcp DLLs beside the exe.
+        if(VCPKG_TARGET_TRIPLET MATCHES "static")
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+        endif()
         add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
         add_compile_definitions(UTF_CPP_CPLUSPLUS=202002L)
         add_compile_options(/std:c++20)
@@ -93,7 +100,18 @@ find_package(CURL REQUIRED)
 find_package(Freetype REQUIRED)
 
 # GLEW Configuration
+if(WIN32 AND VCPKG_TARGET_TRIPLET MATCHES "static")
+  set(GLEW_USE_STATIC_LIBS ON)
+endif()
 find_package(GLEW REQUIRED)
+if(WIN32)
+  find_package(ZLIB REQUIRED)
+  # vcpkg x64-windows-static: imported targets should pull this, but GLEW/curl
+  # headers still need the static-link macros when mixing find_package modes.
+  if(VCPKG_TARGET_TRIPLET MATCHES "static")
+    add_compile_definitions(GLEW_STATIC CURL_STATICLIB)
+  endif()
+endif()
 
 if(APPLE)
   add_definitions(-DGL_SILENCE_DEPRECATION)
@@ -111,8 +129,17 @@ if(NED_ENABLE_GIT)
   set(USE_HTTPS ON CACHE BOOL "Enable HTTPS support")
   set(USE_NTLMCLIENT OFF CACHE BOOL "Disable NTLM client")
   set(REGEX_BACKEND "builtin" CACHE STRING "Force libgit2 to use builtin regex")
-  set(USE_BUNDLED_ZLIB ON CACHE BOOL "Use bundled zlib")
+  # Windows+vcpkg-static: one zlib (ZLIB::ZLIB). Bundled zlib + static
+  # freetype/curl zlib is LNK2005 on inflate/deflate.
+  if(WIN32)
+    set(USE_BUNDLED_ZLIB OFF CACHE BOOL "Use vcpkg zlib on Windows")
+  else()
+    set(USE_BUNDLED_ZLIB ON CACHE BOOL "Use bundled zlib")
+  endif()
   set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries")
+  if(WIN32 AND VCPKG_TARGET_TRIPLET MATCHES "static")
+    set(STATIC_CRT ON CACHE BOOL "Link the static CRT (matches Windows /MT package)")
+  endif()
   set(EMBED_SSH_PATH OFF CACHE BOOL "Disable SSH path")
   set(THREADSAFE OFF CACHE BOOL "Disable threadsafe")
   add_subdirectory(lib/libgit2)
@@ -341,8 +368,9 @@ if(NED_ENABLE_TERMINAL)
   # Fontconfig (terminal glyph discovery) + FreeType
   if(MSVC)
     find_package(Fontconfig REQUIRED)
+    find_package(EXPAT REQUIRED)
     target_link_libraries(imgui_terminal_widget PUBLIC
-      Fontconfig::Fontconfig Freetype::Freetype)
+      Fontconfig::Fontconfig Freetype::Freetype EXPAT::EXPAT)
   else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
@@ -376,6 +404,9 @@ if(NED_ENABLE_TERMINAL)
 else()
   list(APPEND NED_UTIL_SOURCES util/ned_terminal_stub.cpp)
 endif()
+if(WIN32)
+  list(APPEND NED_UTIL_SOURCES util/windows_window.cpp)
+endif()
 
 add_library(ned_util STATIC ${NED_UTIL_SOURCES})
 ned_apply_feature_defs(ned_util)
@@ -404,6 +435,9 @@ if(NED_ENABLE_TERMINAL)
 endif()
 
 set(NED_UTIL_LINK_LIBS ${OPENGL_LIBRARIES} glfw)
+if(WIN32)
+  list(APPEND NED_UTIL_LINK_LIBS dwmapi)
+endif()
 if(NED_ENABLE_GIT)
   list(APPEND NED_UTIL_LINK_LIBS libgit2 util)
 endif()
@@ -458,6 +492,21 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set_target_properties(ned PROPERTIES WIN32_EXECUTABLE TRUE)
     if(MSVC)
       target_link_options(ned PRIVATE /ENTRY:mainCRTStartup)
+    endif()
+    # imgui-terminal sets FONTCONFIG_PATH to <exe>/fontconfig. Stage the vcpkg
+    # fonts.conf tree there so FcInit works without a DLL install.
+    if(NED_ENABLE_TERMINAL AND VCPKG_TARGET_TRIPLET)
+      set(_ned_fc "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/etc/fonts")
+      if(NOT EXISTS "${_ned_fc}")
+        set(_ned_fc "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/etc/fonts")
+      endif()
+      if(EXISTS "${_ned_fc}")
+        add_custom_command(TARGET ned POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${_ned_fc}"
+            "$<TARGET_FILE_DIR:ned>/fontconfig"
+          COMMENT "Stage fontconfig data next to ned.exe")
+      endif()
     endif()
   endif()
 endif()
@@ -669,6 +718,12 @@ if(WIN32 AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     oleaut32
     user32
     comdlg32
+    gdi32
+    imm32
+    winmm
+    iphlpapi
+    normaliz
+    bcrypt
   )
 endif()
 

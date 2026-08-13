@@ -117,11 +117,10 @@ struct NedTerminal::Impl
 			return false;
 		}
 
-		if (fontPx >= 6.0f)
-			s.term.set_font_size(fontPx);
-		else
-			// load_fonts_once defaults to 16px — host should resync.
-			needsFontResync = true;
+		// Do not call set_font_size here — it Clears the ImGui atlas and
+		// must run before NewFrame (applySettings). init() may add default
+		// 16px fonts; the host resyncs to fontPx on the next tick.
+		needsFontResync = true;
 		return true;
 	}
 };
@@ -262,6 +261,8 @@ void NedTerminal::renderPanel()
 		ImGui::EndTabBar();
 	}
 }
+
+float NedTerminal::configuredFontPx() const { return impl_->fontPx; }
 
 void NedTerminal::reloadTerminalFonts(float desiredPx)
 {

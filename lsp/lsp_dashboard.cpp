@@ -20,7 +20,9 @@ void LSPDashboard::render()
 	if (!show || !client || !fileExplorer || !settings)
 		return;
 
-	// Set window position and size on first use
+	const float fs = ImGui::GetFontSize();
+	if (windowSize.x < fs * 20.0f)
+		windowSize = ImVec2(fs * 40.0f, fs * 25.0f);
 	ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
 

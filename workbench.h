@@ -91,10 +91,9 @@ class Workbench
 	ImGuiID editorDockNodeId_ = 0;		 // root node of the editor-only dockspace
 	ImGuiID activeEditorDockNodeId_ = 0; // dock node of last-focused editor
 	int nextTabWindowId_ = 1;
-	// Fixed sidebar width (explorer lives outside the editor dockspace).
-	float explorerWidth_ = 260.0f;
-	// Bottom terminal panel height (not a dock node — fixed split under editors).
-	float terminalHeight_ = 220.0f;
+	// 0 until first layout — then seeded from GetFontSize() (260/220 at 20px).
+	float explorerWidth_ = 0.0f;
+	float terminalHeight_ = 0.0f;
 	TimingState timing_;
 
 	std::vector<Tab> tabs_;
@@ -115,6 +114,9 @@ class Workbench
 	bool beginRootChrome();
 	void endRootChrome();
 	void renderOverlays(EditorApi &api);
+#ifdef _WIN32
+	void drawWindowsTitlebar();
+#endif
 	std::string tabWindowTitle(const Tab &tab) const;
 	Tab makeTab(const std::string &path = {});
 	static std::string canonicalizePath(const std::string &path);

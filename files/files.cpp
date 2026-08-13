@@ -185,16 +185,17 @@ void FileExplorer::renderFileExplorer(float explorerWidth)
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
 
 	const float treeW = explorerWidth <= 0.0f ? 0.0f : explorerWidth;
-	// Standalone macOS uses the native title-bar controls instead.
+	// Standalone macOS / Windows: explorer/terminal/settings live in the
+	// window title bar, so the explorer doesn't grow a second toolbar.
 	const bool nativeTitlebar =
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_WIN32)
 		settings && !settings->isEmbedded;
 #else
 		false;
 #endif
 	const float icon = ImGui::GetFontSize() * 1.05f;
-	const float pad = 10.0f;
-	const float barH = nativeTitlebar ? 0.0f : icon + 16.0f;
+	const float pad = ImGui::GetFontSize() * 0.5f;
+	const float barH = nativeTitlebar ? 0.0f : icon + ImGui::GetFontSize() * 0.8f;
 	ImGui::BeginChild("File Tree", ImVec2(treeW, barH > 0.0f ? -barH : 0.0f));
 	if (!projectRoot.empty())
 		fileTree.displayFileTree(fileTree.rootNode);

@@ -94,14 +94,14 @@ void LSPSymbolInfo::render()
 
 	// Set initial display position relative to cursor
 	ImVec2 displayPosition = cursor_screen_pos;
-	displayPosition.y += layout.lineHeight + 5.0f; // Position below cursor line
-	displayPosition.x += 5.0f;					   // Small horizontal offset
+	const float fs = ImGui::GetFontSize();
+	displayPosition.y += layout.lineHeight + fs * 0.25f;
+	displayPosition.x += fs * 0.25f;
 
-	// Width configuration
-	const float min_width = 450.0f;
-	const float max_width = 650.0f;
-	const float screen_padding = 20.0f;
-	const float text_wrap_padding = 30.0f;
+	const float min_width = fs * 22.5f;
+	const float max_width = fs * 32.5f;
+	const float screen_padding = fs * 1.0f;
+	const float text_wrap_padding = fs * 1.5f;
 
 	// Set initial window position and size constraints
 	ImGui::SetNextWindowPos(displayPosition, ImGuiCond_Appearing);
@@ -111,9 +111,9 @@ void LSPSymbolInfo::render()
 	);
 
 	// Style settings
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.7f, fs * 0.5f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.3f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(fs * 0.4f, fs * 0.3f));
 	ImGui::PushStyleColor(
 		ImGuiCol_WindowBg,
 		ImVec4(settings->settings["backgroundColor"][0].get<float>() * .8,
@@ -155,7 +155,7 @@ void LSPSymbolInfo::render()
 		} else if (window_pos.y > bottom_bound)
 		{
 			// If window would be cutoff at bottom, display above cursor
-			clamped_pos.y = cursor_screen_pos.y - window_size.y - 15.0f;
+			clamped_pos.y = cursor_screen_pos.y - window_size.y - fs * 0.75f;
 			// Ensure we don't go above the screen
 			clamped_pos.y = std::max(clamped_pos.y, screen_padding);
 		}

@@ -15,6 +15,9 @@
 #ifdef __APPLE__
 #include "util/macos_window.h"
 #endif
+#ifdef PLATFORM_WINDOWS
+#include "util/windows_window.h"
+#endif
 
 #include <chrono>
 #include <filesystem>
@@ -100,8 +103,13 @@ void Ned::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 	Ned *ned = static_cast<Ned *>(glfwGetWindowUserPointer(window));
 	if (!ned)
 		return;
-	ned->scrollXAccumulator_ += xoffset * 0.2;
-	ned->scrollYAccumulator_ += yoffset * 0.2;
+	// macOS trackpad deltas are large; Windows wheel notches are already ~1.0.
+#ifndef PLATFORM_WINDOWS
+	xoffset *= 0.2;
+	yoffset *= 0.2;
+#endif
+	ned->scrollXAccumulator_ += xoffset;
+	ned->scrollYAccumulator_ += yoffset;
 }
 
 void Ned::handleScrollAccumulators()
@@ -193,6 +201,9 @@ bool Ned::createWindow()
 	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 #endif
 #ifdef PLATFORM_WINDOWS
+	// Custom ImGui caption (see windows_window.cpp). Thick-frame is restored
+	// after create so Win11 snap / shadows still work.
+	glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 	// GLFW enables per-monitor DPI on first window; without this hint 1200x750
 	// is physical pixels and the app looks tiny on 150/200% displays.
 	glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
@@ -220,6 +231,9 @@ bool Ned::createWindow()
 	}
 
 	setWindowIcon();
+#ifdef PLATFORM_WINDOWS
+	configureWindowsWindow(window_);
+#endif
 	return true;
 }
 
@@ -326,13 +340,6 @@ void Ned::run()
 
 		handleScrollAccumulators();
 		workbench.tick();
-		// Font atlas rebuilds must happen *before* NewFrame (never mid-draw).
-		workbench.applySettings();
-
-#if NED_ENABLE_SHADERS
-		shaderManager.setShaderEnabled(
-			workbench.settings.settings.value("shader_toggle", true));
-#endif
 
 #ifdef PLATFORM_WINDOWS
 		{
@@ -341,6 +348,14 @@ void Ned::run()
 			if (xscale > 0.0f)
 				ImGui::GetStyle().FontScaleDpi = xscale;
 		}
+#endif
+		// Font atlas rebuilds must happen *before* NewFrame (never mid-draw).
+		// FontScaleDpi is already current so the terminal gets the scaled px.
+		workbench.applySettings();
+
+#if NED_ENABLE_SHADERS
+		shaderManager.setShaderEnabled(
+			workbench.settings.settings.value("shader_toggle", true));
 #endif
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();

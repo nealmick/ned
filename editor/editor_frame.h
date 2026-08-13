@@ -58,11 +58,7 @@ class EditorFrame
 
 	static constexpr const char *EDITOR_CHILD_ID = "##editor";
 	static constexpr int LINE_NUMBER_DIGITS = 4;
-	static constexpr float LINE_NUMBER_PAD = 8.0f;
-	static constexpr float EDITOR_TOP_MARGIN = 2.0f;
-	static constexpr float TEXT_LEFT_MARGIN = 7.0f;
 	static constexpr float SCROLL_WIDTH_FONT_MUL = 10.0f;
-	static constexpr float GIT_CHANGES_MIN_WIDTH = 250.0f;
 
 	void drawTitleBar(ImFont *font);
 	void updateLayoutMetrics();

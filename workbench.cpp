@@ -12,9 +12,13 @@
 #include "files/file_explorer_events.h"
 #include "util/keybinds.h"
 #include "util/macos_window.h"
+#ifdef _WIN32
+#include "util/windows_window.h"
+#endif
 
 #include "imgui_internal.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 
@@ -468,14 +472,21 @@ void Workbench::ensureEditorDockLayout(ImGuiID dockspaceId, ImVec2 size)
 void Workbench::renderDockedWorkspace(ImFont *font)
 {
 	const ImVec2 avail = ImGui::GetContentRegionAvail();
-	const float minExplorer = 140.0f;
+	const float fs = ImGui::GetFontSize();
+	// Designed at a 20px font: explorer 260, terminal 220, mins 140/80/100.
+	if (explorerWidth_ <= 0.0f)
+		explorerWidth_ = fs * 13.0f;
+	if (terminalHeight_ <= 0.0f)
+		terminalHeight_ = fs * 11.0f;
+	const float minExplorer = fs * 7.0f;
+	const float minEditorW = fs * 10.0f;
 	const float maxExplorer =
-		avail.x > minExplorer + 200.0f ? avail.x - 200.0f : minExplorer;
-	const float minTerminal = 80.0f;
-	const float minEditor = 100.0f;
+		avail.x > minExplorer + minEditorW ? avail.x - minEditorW : minExplorer;
+	const float minTerminal = fs * 4.0f;
+	const float minEditor = fs * 5.0f;
 	// Shared splitter visuals: wide hit target, 1px hairline (ResizeX/Y child
 	// borders get covered by the next sibling and lose hover highlight).
-	constexpr float kSplitHit = 5.0f;
+	const float kSplitHit = std::max(5.0f, fs * 0.25f);
 	constexpr float kSplitLine = 1.0f;
 
 	// ---- Fixed explorer strip (full height, outside dockspace) ----
@@ -536,7 +547,7 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 	terminal.setVisible(settings.terminalVisible, !settings.showSettingsWindow);
 	const bool termOn = terminal.visible();
 	const float colH = ImGui::GetContentRegionAvail().y;
-	constexpr float kTermSplitterH = kSplitHit;
+	const float kTermSplitterH = kSplitHit;
 	constexpr float kTermBorderThickness = kSplitLine;
 
 	if (termOn && colH > minEditor + minTerminal + kTermSplitterH)
@@ -702,6 +713,194 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 // Chrome
 // ---------------------------------------------------------------------------
 
+#ifdef _WIN32
+void Workbench::drawWindowsTitlebar()
+{
+	const float fs = ImGui::GetFontSize();
+	const float h = std::max(fs * 1.7f, 28.0f);
+	windowsSetTitlebarHeight(h);
+	windowsClearCaptionExcludes();
+
+	ImGuiViewport *vp = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(vp->Pos);
+	ImGui::SetNextWindowSize(ImVec2(vp->Size.x, h));
+	ImGui::SetNextWindowViewport(vp->ID);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::Begin("##ned_win_titlebar",
+				 nullptr,
+				 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+					 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings |
+					 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+					 ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoNav |
+					 ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+	ImDrawList *dl = ImGui::GetWindowDrawList();
+	const ImU32 ink = ImGui::GetColorU32(ImGuiCol_Text);
+	const float stroke = std::max(1.0f, fs * 0.07f);
+	const float btnW = std::max(fs * 2.15f, 36.0f);
+	const float actW = std::max(fs * 1.7f, 28.0f);
+
+	// Title left, then thin split glyphs. Cog stays by the caption buttons.
+	const char *title = "Ned Text Editor";
+	const ImVec2 ts = ImGui::CalcTextSize(title);
+	const float titleX = fs * 0.7f;
+	ImGui::SetCursorPos(ImVec2(titleX, (h - ts.y) * 0.5f));
+	ImGui::TextUnformatted(title);
+
+	auto actionBtn = [&](const char *id, const char *tip, auto glyph) -> bool {
+		const bool hit = ImGui::InvisibleButton(id, ImVec2(actW, h));
+		const ImVec2 a = ImGui::GetItemRectMin();
+		const ImVec2 b = ImGui::GetItemRectMax();
+		windowsExcludeCaptionRect(a, b);
+		const bool hov = ImGui::IsItemHovered();
+		if (hov)
+		{
+			ImGui::SetTooltip("%s", tip);
+			dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 28));
+		}
+		glyph(a, b, ink);
+		return hit;
+	};
+
+	const float glyphPad = fs * 0.52f;
+	auto glyphBox = [&](ImVec2 a, ImVec2 b) {
+		const float side = std::min(b.x - a.x, b.y - a.y) - glyphPad * 2.0f;
+		const float cx = (a.x + b.x) * 0.5f;
+		const float cy = (a.y + b.y) * 0.5f;
+		return std::pair<ImVec2, ImVec2>{ImVec2(cx - side * 0.5f, cy - side * 0.5f),
+										 ImVec2(cx + side * 0.5f, cy + side * 0.5f)};
+	};
+	auto drawSidebar = [&](ImVec2 a, ImVec2 b, ImU32 col) {
+		const auto [p0, p1] = glyphBox(a, b);
+		const float r = std::max(1.0f, fs * 0.06f);
+		const float split = p0.x + (p1.x - p0.x) * 0.38f;
+		dl->AddRect(p0, p1, col, r, 0, stroke);
+		dl->AddLine(ImVec2(split, p0.y + 0.5f), ImVec2(split, p1.y - 0.5f), col, stroke);
+	};
+	auto drawBottomSplit = [&](ImVec2 a, ImVec2 b, ImU32 col) {
+		const auto [p0, p1] = glyphBox(a, b);
+		const float r = std::max(1.0f, fs * 0.06f);
+		const float split = p0.y + (p1.y - p0.y) * 0.58f;
+		dl->AddRect(p0, p1, col, r, 0, stroke);
+		dl->AddLine(ImVec2(p0.x + 0.5f, split), ImVec2(p1.x - 0.5f, split), col, stroke);
+	};
+
+	ImGui::SetCursorPos(ImVec2(titleX + ts.x + fs * 0.85f, 0.0f));
+	if (actionBtn("##tb_sidebar", "Toggle Explorer", drawSidebar))
+		settings.toggleSidebar();
+	ImGui::SameLine(0.0f, 0.0f);
+	if (actionBtn("##tb_term", "Toggle Terminal", drawBottomSplit))
+		settings.toggleTerminal();
+
+	float capX = ImGui::GetWindowWidth() - btnW * 3.0f;
+	ImGui::SetCursorPos(ImVec2(capX - actW, 0.0f));
+	if (actionBtn("##tb_set", "Settings", [&](ImVec2 a, ImVec2 b, ImU32) {
+			const float pad = fs * 0.38f;
+			ImTextureID gear = icons.get("gear");
+			if (ImGui::IsItemHovered())
+			{
+				ImTextureID hover = icons.get("gear-hover");
+				if (hover)
+					gear = hover;
+			}
+			if (gear)
+				dl->AddImage(gear,
+							 ImVec2(a.x + pad, a.y + pad),
+							 ImVec2(b.x - pad, b.y - pad));
+		}))
+	{
+		if (EditorApi *api = activeApi())
+			settings.toggleSettingsWindow(*api);
+	}
+
+	auto capBtn = [&](const char *id,
+					  bool isClose,
+					  WindowsCaptionHit part,
+					  auto glyph) -> bool {
+		ImGui::SetCursorPos(ImVec2(capX, 0.0f));
+		const bool hit = ImGui::InvisibleButton(id, ImVec2(btnW, h));
+		const ImVec2 a = ImGui::GetItemRectMin();
+		const ImVec2 b = ImGui::GetItemRectMax();
+		windowsExcludeCaptionRect(a, b, part);
+		const bool hov =
+			ImGui::IsItemHovered() || windowsCaptionHover() == part;
+		if (hov)
+		{
+			dl->AddRectFilled(a,
+							  b,
+							  isClose ? IM_COL32(232, 17, 35, 255)
+									  : IM_COL32(255, 255, 255, 28));
+		}
+		glyph(a, b, hov && isClose ? IM_COL32(255, 255, 255, 255) : ink);
+		capX += btnW;
+		return hit;
+	};
+
+	if (capBtn("##tb_min", false, WindowsCaptionHit::Min, [&](ImVec2 a, ImVec2 b, ImU32 col) {
+			const float cx = (a.x + b.x) * 0.5f;
+			const float cy = (a.y + b.y) * 0.5f;
+			const float w = fs * 0.45f;
+			dl->AddLine(ImVec2(cx - w, cy), ImVec2(cx + w, cy), col, stroke);
+		}))
+		windowsMinimize();
+
+	if (capBtn("##tb_max", false, WindowsCaptionHit::Max, [&](ImVec2 a, ImVec2 b, ImU32 col) {
+			const float cx = (a.x + b.x) * 0.5f;
+			const float cy = (a.y + b.y) * 0.5f;
+			const float s = fs * 0.42f;
+			if (windowsIsMaximized())
+			{
+				dl->AddRect(ImVec2(cx - s + 2.0f, cy - s),
+							ImVec2(cx + s, cy + s - 2.0f),
+							col,
+							0.0f,
+							0,
+							stroke);
+				dl->AddRect(ImVec2(cx - s, cy - s + 3.0f),
+							ImVec2(cx + s - 2.0f, cy + s),
+							col,
+							0.0f,
+							0,
+							stroke);
+			} else
+			{
+				dl->AddRect(ImVec2(cx - s, cy - s),
+							ImVec2(cx + s, cy + s),
+							col,
+							0.0f,
+							0,
+							stroke);
+			}
+		}))
+		windowsToggleMaximize();
+
+	if (capBtn("##tb_close", true, WindowsCaptionHit::Close, [&](ImVec2 a, ImVec2 b, ImU32 col) {
+			const float cx = (a.x + b.x) * 0.5f;
+			const float cy = (a.y + b.y) * 0.5f;
+			const float s = fs * 0.38f;
+			dl->AddLine(ImVec2(cx - s, cy - s), ImVec2(cx + s, cy + s), col, stroke);
+			dl->AddLine(ImVec2(cx + s, cy - s), ImVec2(cx - s, cy + s), col, stroke);
+		}))
+		windowsClose();
+
+	// Hairline under the bar.
+	{
+		const ImVec2 wp = ImGui::GetWindowPos();
+		const float y1 = wp.y + h - 1.0f;
+		dl->AddLine(ImVec2(wp.x, y1),
+					ImVec2(wp.x + ImGui::GetWindowWidth(), y1),
+					ImGui::GetColorU32(ImGuiCol_Border),
+					1.0f);
+	}
+
+	ImGui::End();
+	ImGui::PopStyleVar(4);
+}
+#endif
+
 bool Workbench::beginRootChrome()
 {
 	// Sampled at Begin; 0 so the explorer strip can sit on the window edge.
@@ -790,9 +989,27 @@ void Workbench::applySettings()
 		for (auto &tab : tabs_)
 			tab.editor->api.forceColorUpdate();
 	}
-	if (terminal.isStarted() && (settingsApplied || terminal.consumeNeedsFontResync()))
+
+	// Terminal bakes glyphs at the px we pass (AddText does not apply
+	// FontScaleDpi). Atlas rebuilds only happen here, before NewFrame.
+	// Windows: 85% of editor size — cells include ascent+descent and read large.
+	const float dpi = ImGui::GetStyle().FontScaleDpi;
+#ifdef _WIN32
+	const float termScale = 0.85f;
+#else
+	const float termScale = 1.0f;
+#endif
+	const float termPx =
+		settings.font.getFontSize() * (dpi > 0.0f ? dpi : 1.0f) * termScale;
+	const bool resync = terminal.consumeNeedsFontResync();
+	const bool sizeChanged = ImAbs(terminal.configuredFontPx() - termPx) > 0.05f;
+	if (!terminal.isStarted())
 	{
-		terminal.reloadTerminalFonts(settings.font.getFontSize());
+		if (sizeChanged)
+			terminal.reloadTerminalFonts(termPx);
+	} else if (settingsApplied || resync || sizeChanged)
+	{
+		terminal.reloadTerminalFonts(termPx);
 		settings.font.load(/*clearAtlas=*/false);
 	}
 }
@@ -820,6 +1037,11 @@ void Workbench::render()
 		fileExplorer->setEditorsBlockInput(true);
 
 	ImGui::PushFont(settings.font.getMainFont());
+
+#ifdef _WIN32
+	if (mode_ == WorkbenchHostMode::Fullscreen)
+		drawWindowsTitlebar();
+#endif
 
 	if (showWelcome || fileExplorer->showWelcomeScreen)
 	{
