@@ -675,6 +675,9 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 
 bool Workbench::beginRootChrome()
 {
+	// Sampled at Begin; 0 so the explorer strip can sit on the window edge.
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
 	if (mode_ == WorkbenchHostMode::Floating)
 	{
 		ImGui::SetNextWindowPos(floatingPos_, ImGuiCond_FirstUseEver);
@@ -703,7 +706,11 @@ bool Workbench::beginRootChrome()
 			ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus);
 }
 
-void Workbench::endRootChrome() { ImGui::End(); }
+void Workbench::endRootChrome()
+{
+	ImGui::End();
+	ImGui::PopStyleVar();
+}
 
 void Workbench::renderOverlays(EditorApi &api)
 {
