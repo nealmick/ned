@@ -11,6 +11,7 @@
 #include "editor/editor_events.h"
 #include "files/file_explorer_events.h"
 #include "util/keybinds.h"
+#include "util/macos_window.h"
 
 #include "imgui_internal.h"
 
@@ -18,6 +19,12 @@
 #include <iostream>
 
 namespace fs = std::filesystem;
+
+#ifdef __APPLE__
+namespace {
+Workbench *gTitlebarWorkbench = nullptr;
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -188,6 +195,28 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 	icons.load();
 
 	initialized_ = true;
+
+#ifdef __APPLE__
+	if (mode_ == WorkbenchHostMode::Fullscreen)
+	{
+		gTitlebarWorkbench = this;
+		setMacOSTitlebarActions(
+			[]() {
+				if (gTitlebarWorkbench)
+					gTitlebarWorkbench->settings.toggleSidebar();
+			},
+			[]() {
+				if (gTitlebarWorkbench)
+					gTitlebarWorkbench->settings.toggleTerminal();
+			},
+			[]() {
+				if (!gTitlebarWorkbench)
+					return;
+				if (EditorApi *api = gTitlebarWorkbench->activeApi())
+					gTitlebarWorkbench->settings.toggleSettingsWindow(*api);
+			});
+	}
+#endif
 	return true;
 }
 
@@ -677,6 +706,7 @@ bool Workbench::beginRootChrome()
 {
 	// Sampled at Begin; 0 so the explorer strip can sit on the window edge.
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
 	if (mode_ == WorkbenchHostMode::Floating)
 	{
@@ -694,9 +724,11 @@ bool Workbench::beginRootChrome()
 		return open;
 	}
 
-	// Fullscreen: fill the OS window, not draggable.
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
-	ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+	// Fullscreen: fill the OS window below the native title bar.
+	const float top = macOSTitlebarInset();
+	ImGui::SetNextWindowPos(ImVec2(0.0f, top));
+	ImGui::SetNextWindowSize(
+		ImVec2(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y - top));
 	return ImGui::Begin(
 		"##ned_root",
 		nullptr,
@@ -709,7 +741,7 @@ bool Workbench::beginRootChrome()
 void Workbench::endRootChrome()
 {
 	ImGui::End();
-	ImGui::PopStyleVar();
+	ImGui::PopStyleVar(2);
 }
 
 void Workbench::renderOverlays(EditorApi &api)
@@ -821,6 +853,10 @@ void Workbench::render()
 
 void Workbench::cleanup()
 {
+#ifdef __APPLE__
+	gTitlebarWorkbench = nullptr;
+	setMacOSTitlebarActions(nullptr, nullptr, nullptr);
+#endif
 	if (!initialized_)
 		return;
 	// Persist every open tab (no-op when clean / no path).

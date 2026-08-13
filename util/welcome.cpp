@@ -1,5 +1,6 @@
 #include "welcome.h"
 #include "../files/files.h"
+#include "macos_window.h"
 #include "settings.h"
 #include <filesystem>
 #include <iostream>
@@ -268,9 +269,11 @@ void Welcome::render()
 	} else
 	{
 		ImGuiViewport *viewport = ImGui::GetMainViewport();
-		ImGui::SetNextWindowPos(viewport->Pos);
-		ImGui::SetNextWindowSize(viewport->Size);
+		const float top = macOSTitlebarInset();
+		ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + top));
+		ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - top));
 
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 		ImGui::Begin("##WelcomeScreen",
 					 nullptr,
 					 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
@@ -644,5 +647,8 @@ void Welcome::render()
 
 	// Must pair Begin("##WelcomeScreen") above (standalone only).
 	if (!settings.isEmbedded)
+	{
 		ImGui::End();
+		ImGui::PopStyleVar();
+	}
 }

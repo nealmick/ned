@@ -181,7 +181,7 @@ bool Ned::createWindow()
 #endif
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-	window_ = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+	window_ = glfwCreateWindow(1200, 750, "Ned Text Editor", NULL, NULL);
 
 	if (!window_)
 	{
@@ -192,7 +192,7 @@ bool Ned::createWindow()
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
 
-		window_ = glfwCreateWindow(1200, 750, "NED", NULL, NULL);
+		window_ = glfwCreateWindow(1200, 750, "Ned Text Editor", NULL, NULL);
 		if (!window_)
 		{
 			glfwGetError(&error_description);

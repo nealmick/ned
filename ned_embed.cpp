@@ -13,6 +13,10 @@ extern "C" void updateMacOSWindowProperties(float opacity, bool blurEnabled)
 	(void)blurEnabled;
 }
 
+extern "C" float macOSTitlebarInset(void) { return 0.0f; }
+
+extern "C" void setMacOSTitlebarActions(void (*)(void), void (*)(void), void (*)(void)) {}
+
 NedEmbed::NedEmbed()
 {
 	// Host must create ImGui context before constructing NedEmbed (same as before).
