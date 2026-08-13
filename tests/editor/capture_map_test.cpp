@@ -34,3 +34,19 @@ TEST_CASE("themeKeyForCapture hierarchical map", "[ned][highlight]")
 	REQUIRE(std::string(themeKeyForCapture("unknown.capture.xyz")) == "text");
 	REQUIRE(std::string(themeKeyForCapture("default")) == "text");
 }
+
+TEST_CASE("themeSlotForKey matches theme JSON keys", "[ned][highlight]")
+{
+	REQUIRE(themeSlotForKey("comment") == ThemeSlot::Comment);
+	REQUIRE(themeSlotForKey("keyword") == ThemeSlot::Keyword);
+	REQUIRE(themeSlotForKey("string") == ThemeSlot::String);
+	REQUIRE(themeSlotForKey("function") == ThemeSlot::Function);
+	REQUIRE(themeSlotForKey("operator") == ThemeSlot::Operator);
+	REQUIRE(themeSlotForKey("text") == ThemeSlot::Text);
+	REQUIRE(themeSlotForKey("nope") == ThemeSlot::Text);
+	REQUIRE(themeSlotForCapture("keyword.import") == ThemeSlot::Keyword);
+	REQUIRE(themeSlotForCapture("function.method") == ThemeSlot::Function);
+	REQUIRE(themeSlotForCapture("type.builtin") == ThemeSlot::Special);
+	REQUIRE(themeSlotForCapture("variable.parameter") == ThemeSlot::Parameter);
+	REQUIRE(themeSlotForCapture("unknown.capture.xyz") == ThemeSlot::Text);
+}

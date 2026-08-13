@@ -184,7 +184,7 @@ void TextView::renderText() const
 
 			ImVec4 color = defaultColor;
 			if (spanIdx < spans.size() && spans[spanIdx].start <= static_cast<int>(i))
-				color = spans[spanIdx].color;
+				color = highlight->colorForSlot(spans[spanIdx].slot);
 
 			const char *char_start = &line[i];
 			const char *char_end = char_start + 1;
