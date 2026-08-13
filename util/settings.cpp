@@ -499,7 +499,8 @@ void Settings::ApplySettings(ImGuiStyle &style)
 
 	if (!isEmbedded)
 	{
-		style.ScrollbarSize = 30.0f;
+		const float dpi = std::max(1.0f, style.FontScaleDpi);
+		style.ScrollbarSize = 30.0f * dpi;
 		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
 		style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
 		style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
@@ -779,7 +780,7 @@ void Settings::renderMainSettings()
 	ImGui::Spacing();
 
 	float fontSize = settings.value("fontSize", 20.0f);
-	if (ImGui::SliderFloat("Font Size", &fontSize, 4.0f, 32.0f, "%.0f"))
+	if (ImGui::SliderFloat("Font Size", &fontSize, 4.0f, 64.0f, "%.0f"))
 	{
 		settings["fontSize"] = fontSize;
 		needsApply = true;

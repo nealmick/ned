@@ -162,6 +162,19 @@ bool Ned::initializeImGui()
 
 	ImGui_ImplGlfw_InitForOpenGL(window_, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
+
+#ifdef PLATFORM_WINDOWS
+	// SCALE_TO_MONITOR already grew the window in physical pixels, so ImGui's
+	// viewport DpiScale stays 1. ConfigDpiScaleFonts would keep fonts tiny.
+	// Drive FontScaleDpi from the monitor content scale instead.
+	io.ConfigDpiScaleFonts = false;
+	float xscale = 1.0f, yscale = 1.0f;
+	glfwGetWindowContentScale(window_, &xscale, &yscale);
+	const float dpi = xscale > 0.0f ? xscale : 1.0f;
+	style.FontScaleDpi = dpi;
+	if (dpi > 1.01f)
+		style.ScaleAllSizes(dpi);
+#endif
 	return true;
 }
 
@@ -178,6 +191,11 @@ bool Ned::createWindow()
 	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 #else
 	glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+#endif
+#ifdef PLATFORM_WINDOWS
+	// GLFW enables per-monitor DPI on first window; without this hint 1200x750
+	// is physical pixels and the app looks tiny on 150/200% displays.
+	glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 #endif
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
@@ -316,6 +334,14 @@ void Ned::run()
 			workbench.settings.settings.value("shader_toggle", true));
 #endif
 
+#ifdef PLATFORM_WINDOWS
+		{
+			float xscale = 1.0f, yscale = 1.0f;
+			glfwGetWindowContentScale(window_, &xscale, &yscale);
+			if (xscale > 0.0f)
+				ImGui::GetStyle().FontScaleDpi = xscale;
+		}
+#endif
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
