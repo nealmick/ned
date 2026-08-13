@@ -1,15 +1,15 @@
 /*
 	File: services/highlight/highlight_service.h
-	Description: Syntax colors as per-line non-overlapping byte ranges.
+	Description: Per-line syntax spans (ThemeSlot, not RGB).
 
-	On edit: morphSpans (geometry, UI thread, instant) then tree-sitter recolor.
-	Small files recolor synchronously; large files recolor on a worker. The full
-	lineStarts rope walk runs inside parse() (worker for large files), not on the
-	keystroke path beyond CoW snapshot + morph.
+	Edit: morph geometry on this thread, then recolor.
+	Open: cheap prefix query here; full parse + rest on a worker.
+	Theme: remap palette only.
 */
 
 #pragma once
 #include "imgui.h"
+#include "span_map.h"
 #include "tree_sitter.h"
 #include <atomic>
 #include <future>
@@ -25,19 +25,23 @@ class Settings;
 class EditorHighlight
 {
   public:
-	// Above this, recolor on a worker (avoid hitching the UI thread).
-	static constexpr size_t kAsyncRecolorBytes = 512 * 1024;
+	// Incremental edits at or below this stay on the UI thread.
+	static constexpr size_t kSyncIncrementalBytes = 16 * 1024;
 	static constexpr size_t kSkipTreeSitterBytes = 100 * 1024 * 1024;
+	static constexpr int kPrimeQueryLines = 128;
+	static constexpr int kQueryChunkLines = 384;
 
-	EditorHighlight(EditorState &document, EditorOperations &ops, Settings &appSettings);
+	EditorHighlight(EditorState &document,
+					EditorOperations &ops,
+					Settings *appSettings = nullptr);
 
-	// Morph pending ops, then recolor (sync unless file is large).
 	void highlightContent();
 	void cancelHighlighting();
 	void forceColorUpdate();
-	void poll(); // adopt finished async recolor (large files only)
+	void poll();
 
 	ImVec4 defaultTextColor() const;
+	ImVec4 colorForSlot(ThemeSlot slot) const;
 	const LineColorSpans &spansForLine(int row) const;
 
 	// Bumps when span map or theme colors change — minimap/other caches key off this.
@@ -51,10 +55,7 @@ class EditorHighlight
 	EditorOperations *operations;
 	Settings *settings;
 	TreeSitter treeSitter;
-
-	ColorRangeMap lineColors;
-	std::vector<int> lineLens; // pre-edit line sizes for morphDelete walks
-	static const LineColorSpans kEmptySpans;
+	SpanMap spans;
 	uint64_t visualGen_ = 1;
 
 	std::shared_ptr<std::atomic_bool> cancelFlag;
@@ -64,20 +65,19 @@ class EditorHighlight
 	std::mutex pendingMutex;
 	std::shared_ptr<ParseResult> pendingResult;
 	uint64_t pendingGen = 0;
-
 	std::vector<PendingTreeEdit> heldTreeEdits;
 
 	void morphSpans(const std::vector<PendingTreeEdit> &edits);
-	void morphInsert(int row, int col, const std::string &text);
-	void morphDelete(int row, int col, int length);
 	void syncLensFromContent();
-	static void insertBytes(LineColorSpans &spans, int col, int n);
-	static void deleteBytes(LineColorSpans &spans, int col, int n);
-
 	void reapTasks();
 	void recolor();
 	TreeSitter::ParseSnapshot makeSnapshot(std::vector<PendingTreeEdit> pending) const;
 	void applyParseResult(ParseResult &result);
+	void postResult(ParseResult result, uint64_t gen);
 	void publishPending();
-	size_t contentByteSize() const;
+	void runJob(TreeSitter::ParseSnapshot &snap,
+				uint64_t gen,
+				size_t lineCount,
+				const std::shared_ptr<std::atomic_bool> &canceled);
+	void launchJob(TreeSitter::ParseSnapshot snap, uint64_t gen, size_t lineCount);
 };

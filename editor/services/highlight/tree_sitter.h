@@ -2,65 +2,32 @@
 #pragma once
 #include "../../buffer/text_buffer.h"
 #include "../../editor_operations.h"
+#include "capture_map.h"
 #include "imgui.h"
 #include <cstdint>
-#include <cstring>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <tree_sitter/api.h>
-#include <unordered_map>
 #include <vector>
 
 class Settings;
 
-// Syntax palette (~15 slots). JSON keys match field names except operator → operatorColor.
+// Syntax palette. Index is ThemeSlot; JSON keys are kThemeKeys.
 struct ThemeColors
 {
-	ImVec4 text{};
-	ImVec4 comment{};
-	ImVec4 keyword{};
-	ImVec4 string{};
-	ImVec4 number{};
-	ImVec4 function{};
-	ImVec4 type{};
-	ImVec4 variable{};
-	ImVec4 parameter{};
-	ImVec4 property{};
-	ImVec4 constant{};
-	ImVec4 operatorColor{};
-	ImVec4 punctuation{};
-	ImVec4 special{};
+	ImVec4 slots[static_cast<size_t>(ThemeSlot::Count)]{};
 
-	const ImVec4 &colorForKey(const char *key) const
+	const ImVec4 &operator[](ThemeSlot slot) const
 	{
-		if (std::strcmp(key, "comment") == 0)
-			return comment;
-		if (std::strcmp(key, "keyword") == 0)
-			return keyword;
-		if (std::strcmp(key, "string") == 0)
-			return string;
-		if (std::strcmp(key, "number") == 0)
-			return number;
-		if (std::strcmp(key, "function") == 0)
-			return function;
-		if (std::strcmp(key, "type") == 0)
-			return type;
-		if (std::strcmp(key, "variable") == 0)
-			return variable;
-		if (std::strcmp(key, "parameter") == 0)
-			return parameter;
-		if (std::strcmp(key, "property") == 0)
-			return property;
-		if (std::strcmp(key, "constant") == 0)
-			return constant;
-		if (std::strcmp(key, "operator") == 0)
-			return operatorColor;
-		if (std::strcmp(key, "punctuation") == 0)
-			return punctuation;
-		if (std::strcmp(key, "special") == 0)
-			return special;
-		return text;
+		const auto i = static_cast<uint8_t>(slot);
+		return slots[i < static_cast<uint8_t>(ThemeSlot::Count) ? i : 0];
+	}
+	ImVec4 &operator[](ThemeSlot slot)
+	{
+		const auto i = static_cast<uint8_t>(slot);
+		return slots[i < static_cast<uint8_t>(ThemeSlot::Count) ? i : 0];
 	}
 };
 
@@ -69,19 +36,22 @@ struct ColorSpan
 {
 	int start = 0;
 	int end = 0;
-	ImVec4 color{};
+	ThemeSlot slot = ThemeSlot::Text;
 };
 
 using LineColorSpans = std::vector<ColorSpan>;
 using ColorRangeMap = std::vector<LineColorSpans>;
 
-// Result of a parse/recolor pass.
+enum class ParseKind : uint8_t {
+	Failed,
+	Full,	  // replace the span map with fullColors
+	Partial,  // splice dirtyRows / dirtySpans
+	TreeOnly, // tree committed; caller must query windows
+};
+
 struct ParseResult
 {
-	bool ok = false;
-	// true: fullColors has one entry per line (replace entire map).
-	// false: dirtyRows/dirtySpans are parallel; splice into existing map.
-	bool full = true;
+	ParseKind kind = ParseKind::Failed;
 	size_t lineCount = 0;
 	ColorRangeMap fullColors;
 	std::vector<int> dirtyRows;
@@ -104,6 +74,8 @@ class TreeSitter
 		std::string path;
 		std::string languageId;
 		std::vector<PendingTreeEdit> pendingEdits;
+		// If non-zero, treat the document as this many bytes (prefix parse).
+		uint32_t byteLimit = 0;
 	};
 
 	TreeSitter();
@@ -111,11 +83,21 @@ class TreeSitter
 
 	void bind(Settings &appSettings) { settings = &appSettings; }
 
-	// Parse snapshot → colors (full or dirty-line partial). Stale gens return !ok.
-	// Thread-safe vs other parse() calls; never touches live EditorState.
-	ParseResult parse(ParseSnapshot snapshot, uint64_t gen);
+	// Parse then emit color windows under one lock, so a later parse cannot
+	// swap `tree` mid-query. Incremental dirties emit one Partial; a full
+	// rebuild emits Partial windows of `chunkLines`.
+	void colorDocument(ParseSnapshot &snapshot,
+					   uint64_t gen,
+					   int chunkLines,
+					   const std::function<bool()> &canceled,
+					   const std::function<void(ParseResult &&)> &emit);
+
+	// First maxLines only — throwaway parser, no full rope walk, tree untouched.
+	ParseResult queryPrefix(const ParseSnapshot &snapshot, int maxLines);
 
 	void updateThemeColors();
+	// True if this language's .scm is already compiled (safe to query on UI).
+	bool queryReady(const std::string &languageId) const;
 	ThemeColors cachedColors;
 
   private:
@@ -127,40 +109,47 @@ class TreeSitter
 	TSParser *parser = nullptr;
 	TSTree *tree = nullptr;
 	std::string treeFilePath;
+	std::string treeLanguageId;
 	size_t treeDocBytes = 0;
 	uint64_t lastCommittedGen = 0;
 	std::mutex parserMutex;
-	std::unordered_map<std::string, TSQuery *> queryCache;
 	std::string inputScratch;
 
 	std::pair<TSLanguage *, std::string>
-	detectLanguageAndQuery(const std::string &languageId);
+	detectLanguageAndQuery(const std::string &languageId) const;
 	TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path);
 
-	ColorRangeMap
-	buildColorRangesFull(TSQuery *query, TSTree *tree, const ParseSnapshot &snap);
+	ParseResult parse(ParseSnapshot &snapshot, uint64_t gen);
+	ParseResult queryWindow(const ParseSnapshot &snapshot, int lineLo, int lineHi);
+	void queryWindowInto(TSQuery *query,
+						 TSTree *tree,
+						 const ParseSnapshot &snap,
+						 int lineLo,
+						 int lineHi,
+						 std::vector<int> &outRows,
+						 std::vector<LineColorSpans> &outSpans);
 
-	// Query only dirty line runs; out rows/spans parallel.
-	void buildColorRangesPartial(TSQuery *query,
-								 TSTree *tree,
-								 const ParseSnapshot &snap,
-								 const std::vector<uint8_t> &dirtyLine,
-								 std::vector<int> &outRows,
-								 std::vector<LineColorSpans> &outSpans);
+	void emitDirtyWindows(TSQuery *query,
+						  TSTree *tree,
+						  const ParseSnapshot &snap,
+						  const std::vector<uint8_t> &dirtyLine,
+						  std::vector<int> &outRows,
+						  std::vector<LineColorSpans> &outSpans);
 
 	void runQuery(TSQuery *query,
 				  TSTree *tree,
 				  const ParseSnapshot &snap,
 				  uint32_t byteStart,
 				  uint32_t byteEnd,
-				  ColorRangeMap &colors);
+				  ColorRangeMap &colors,
+				  int rowBase);
 
 	bool applyPendingEdits(const std::vector<PendingTreeEdit> &edits);
 
 	static int lineLength(const ParseSnapshot &snap, size_t row);
 	static void
 	rowColFromOffset(const ParseSnapshot &snap, size_t offset, int &row, int &column);
-	static void setRange(LineColorSpans &spans, int start, int end, const ImVec4 &color);
+	static void setRange(LineColorSpans &spans, int start, int end, ThemeSlot slot);
 	static void mergeAdjacent(LineColorSpans &spans);
 	static TSPoint advancePoint(TSPoint point, std::string_view s);
 	static void markDirtyLines(const ParseSnapshot &snap,

@@ -141,6 +141,10 @@ set(NED_TEST_SOURCES
   editor/utf8_utils_test.cpp
   editor/capture_map_test.cpp
   editor/highlight_queries_test.cpp
+  editor/highlight_service_test.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/highlight_service.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/span_map.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/tree_sitter.cpp
 )
 if(NED_ENABLE_GIT)
   list(APPEND NED_TEST_SOURCES editor/git_libgit2_test.cpp)

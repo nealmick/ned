@@ -8,9 +8,12 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <optional>
 #include <regex>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 extern "C" TSLanguage *tree_sitter_cpp();
@@ -30,6 +33,13 @@ extern "C" TSLanguage *tree_sitter_c();
 extern "C" TSLanguage *tree_sitter_rust();
 extern "C" TSLanguage *tree_sitter_toml();
 extern "C" TSLanguage *tree_sitter_ruby();
+
+namespace {
+// Compiled once per process — not per editor tab. ts_query_new on jsx/cpp
+// is the expensive part of opening a 10-line file.
+std::mutex gQueryMu;
+std::unordered_map<std::string, TSQuery *> gQueryCache;
+} // namespace
 
 namespace {
 struct InputState
@@ -66,8 +76,6 @@ TreeSitter::TreeSitter() : parser(ts_parser_new()) {}
 
 TreeSitter::~TreeSitter()
 {
-	for (auto &[key, query] : queryCache)
-		ts_query_delete(query);
 	ts_tree_delete(tree);
 	ts_parser_delete(parser);
 }
@@ -87,9 +95,7 @@ void TreeSitter::mergeAdjacent(LineColorSpans &spans)
 	{
 		ColorSpan &prev = out.back();
 		const ColorSpan &cur = spans[i];
-		if (prev.end == cur.start && prev.color.x == cur.color.x &&
-			prev.color.y == cur.color.y && prev.color.z == cur.color.z &&
-			prev.color.w == cur.color.w)
+		if (prev.end == cur.start && prev.slot == cur.slot)
 			prev.end = cur.end;
 		else
 			out.push_back(cur);
@@ -97,7 +103,7 @@ void TreeSitter::mergeAdjacent(LineColorSpans &spans)
 	spans = std::move(out);
 }
 
-void TreeSitter::setRange(LineColorSpans &spans, int start, int end, const ImVec4 &color)
+void TreeSitter::setRange(LineColorSpans &spans, int start, int end, ThemeSlot slot)
 {
 	if (start >= end)
 		return;
@@ -117,27 +123,32 @@ void TreeSitter::setRange(LineColorSpans &spans, int start, int end, const ImVec
 		{
 			if (!inserted)
 			{
-				out.push_back({start, end, color});
+				out.push_back({start, end, slot});
 				inserted = true;
 			}
 			out.push_back(s);
 			continue;
 		}
 		if (s.start < start)
-			out.push_back({s.start, start, s.color});
+			out.push_back({s.start, start, s.slot});
 		if (!inserted)
 		{
-			out.push_back({start, end, color});
+			out.push_back({start, end, slot});
 			inserted = true;
 		}
 		if (s.end > end)
-			out.push_back({end, s.end, s.color});
+			out.push_back({end, s.end, s.slot});
 	}
 	if (!inserted)
-		out.push_back({start, end, color});
+		out.push_back({start, end, slot});
 
 	mergeAdjacent(out);
 	spans = std::move(out);
+}
+
+static size_t snapSize(const TreeSitter::ParseSnapshot &snap)
+{
+	return snap.byteLimit ? snap.byteLimit : snap.text.size();
 }
 
 int TreeSitter::lineLength(const ParseSnapshot &snap, size_t row)
@@ -148,7 +159,7 @@ int TreeSitter::lineLength(const ParseSnapshot &snap, size_t row)
 	const size_t begin = snap.lineStarts[row];
 	if (row + 1 < n)
 		return static_cast<int>(snap.lineStarts[row + 1] - begin - snap.lineEnding.size());
-	return static_cast<int>(snap.text.size() - begin);
+	return static_cast<int>(snapSize(snap) - begin);
 }
 
 void TreeSitter::rowColFromOffset(const ParseSnapshot &snap,
@@ -165,7 +176,7 @@ void TreeSitter::rowColFromOffset(const ParseSnapshot &snap,
 
 	const size_t sep = snap.lineEnding.size();
 	const size_t n = snap.lineStarts.size();
-	const size_t docSize = snap.text.size();
+	const size_t docSize = snapSize(snap);
 	offset = std::min(offset, docSize);
 
 	size_t lo = 0, hi = n - 1;
@@ -268,20 +279,35 @@ std::string captureTextByIndex(const TreeSitter::ParseSnapshot &snap,
 }
 
 // Capture index from a Capture-step value_id (same id as capture names).
+// Query files have a small, fixed set of #match? patterns. Compile once.
+const std::regex *cachedRegex(const std::string &pattern)
+{
+	static std::mutex mu;
+	static std::unordered_map<std::string, std::optional<std::regex>> cache;
+	std::lock_guard<std::mutex> lock(mu);
+	auto it = cache.find(pattern);
+	if (it == cache.end())
+	{
+		try
+		{
+			it =
+				cache.emplace(pattern, std::regex(pattern, std::regex::ECMAScript)).first;
+		} catch (const std::regex_error &)
+		{
+			it = cache.emplace(pattern, std::nullopt).first;
+		}
+	}
+	return it->second ? &*it->second : nullptr;
+}
+
 bool regexFullMatch(const std::string &text, const std::string &pattern)
 {
-	try
-	{
-		// Tree-sitter / nvim use Rust-style regex; ECMAScript covers the
-		// common ^…$ identifier conventions in grammar highlights.
-		// tree-sitter #match? uses "find" semantics (Rust Regex::is_match),
-		// not full-string only — so ^[A-Z] matches ClassName, not only "A".
-		const std::regex re(pattern, std::regex::ECMAScript);
-		return std::regex_search(text, re);
-	} catch (const std::regex_error &)
-	{
-		return false;
-	}
+	// Tree-sitter / nvim use Rust-style regex; ECMAScript covers the
+	// common ^…$ identifier conventions in grammar highlights.
+	// tree-sitter #match? uses "find" semantics (Rust Regex::is_match),
+	// not full-string only — so ^[A-Z] matches ClassName, not only "A".
+	const std::regex *re = cachedRegex(pattern);
+	return re && std::regex_search(text, *re);
 }
 
 // Returns false if any predicate fails (match should be discarded).
@@ -410,13 +436,10 @@ void TreeSitter::runQuery(TSQuery *query,
 						  const ParseSnapshot &snap,
 						  uint32_t byteStart,
 						  uint32_t byteEnd,
-						  ColorRangeMap &colors)
+						  ColorRangeMap &colors,
+						  int rowBase)
 {
-	auto colorForCapture = [this](std::string_view name) -> const ImVec4 & {
-		return cachedColors.colorForKey(themeKeyForCapture(name));
-	};
-
-	auto fillRange = [&](uint32_t start, uint32_t end, const ImVec4 &color) {
+	auto fillRange = [&](uint32_t start, uint32_t end, ThemeSlot slot) {
 		if (start >= end)
 			return;
 		int sr, sc, er, ec;
@@ -424,13 +447,14 @@ void TreeSitter::runQuery(TSQuery *query,
 		rowColFromOffset(snap, end, er, ec);
 		for (int r = sr; r <= er; ++r)
 		{
-			if (r < 0 || r >= static_cast<int>(colors.size()))
+			const int idx = r - rowBase;
+			if (idx < 0 || idx >= static_cast<int>(colors.size()))
 				continue;
 			const int lineLen = lineLength(snap, static_cast<size_t>(r));
 			const int a = std::clamp(r == sr ? sc : 0, 0, lineLen);
 			const int b = std::clamp(r == er ? ec : lineLen, 0, lineLen);
 			if (a < b)
-				setRange(colors[static_cast<size_t>(r)], a, b, color);
+				setRange(colors[static_cast<size_t>(idx)], a, b, slot);
 		}
 	};
 
@@ -525,31 +549,46 @@ void TreeSitter::runQuery(TSQuery *query,
 	});
 
 	for (const Hit &h : expanded)
-		fillRange(h.start, h.end, colorForCapture(h.capture));
+		fillRange(h.start, h.end, themeSlotForCapture(h.capture));
 }
 
-ColorRangeMap
-TreeSitter::buildColorRangesFull(TSQuery *query, TSTree *tree, const ParseSnapshot &snap)
+void TreeSitter::queryWindowInto(TSQuery *query,
+								 TSTree *tree,
+								 const ParseSnapshot &snap,
+								 int lineLo,
+								 int lineHi,
+								 std::vector<int> &outRows,
+								 std::vector<LineColorSpans> &outSpans)
 {
-	ColorRangeMap colors(snap.lineStarts.size());
-	runQuery(query, tree, snap, 0, static_cast<uint32_t>(snap.text.size()), colors);
-	return colors;
-}
-
-void TreeSitter::buildColorRangesPartial(TSQuery *query,
-										 TSTree *tree,
-										 const ParseSnapshot &snap,
-										 const std::vector<uint8_t> &dirtyLine,
-										 std::vector<int> &outRows,
-										 std::vector<LineColorSpans> &outSpans)
-{
-	const int n = static_cast<int>(dirtyLine.size());
-	if (n == 0)
+	if (!query || !tree || lineLo >= lineHi || snap.lineStarts.empty())
+		return;
+	const int nStarts = static_cast<int>(snap.lineStarts.size());
+	lineLo = std::clamp(lineLo, 0, nStarts);
+	lineHi = std::clamp(lineHi, lineLo, nStarts);
+	if (lineLo >= lineHi)
 		return;
 
-	// Scratch map is document-sized; only dirty runs are cleared and filled.
-	ColorRangeMap scratch(static_cast<size_t>(n));
+	ColorRangeMap scratch(static_cast<size_t>(lineHi - lineLo));
+	const uint32_t byteStart = snap.lineStarts[static_cast<size_t>(lineLo)];
+	const uint32_t byteEnd = (lineHi < nStarts)
+								 ? snap.lineStarts[static_cast<size_t>(lineHi)]
+								 : static_cast<uint32_t>(snapSize(snap));
+	runQuery(query, tree, snap, byteStart, byteEnd, scratch, lineLo);
+	for (int r = lineLo; r < lineHi; ++r)
+	{
+		outRows.push_back(r);
+		outSpans.push_back(std::move(scratch[static_cast<size_t>(r - lineLo)]));
+	}
+}
 
+void TreeSitter::emitDirtyWindows(TSQuery *query,
+								  TSTree *tree,
+								  const ParseSnapshot &snap,
+								  const std::vector<uint8_t> &dirtyLine,
+								  std::vector<int> &outRows,
+								  std::vector<LineColorSpans> &outSpans)
+{
+	const int n = static_cast<int>(dirtyLine.size());
 	int i = 0;
 	while (i < n)
 	{
@@ -561,24 +600,7 @@ void TreeSitter::buildColorRangesPartial(TSQuery *query,
 		const int lo = i;
 		while (i < n && dirtyLine[static_cast<size_t>(i)])
 			++i;
-		const int hi = i - 1; // inclusive
-
-		for (int r = lo; r <= hi; ++r)
-			scratch[static_cast<size_t>(r)].clear();
-
-		const uint32_t byteStart = snap.lineStarts[static_cast<size_t>(lo)];
-		const uint32_t byteEnd = (hi + 1 < n)
-									 ? snap.lineStarts[static_cast<size_t>(hi + 1)]
-									 : static_cast<uint32_t>(snap.text.size());
-
-		runQuery(query, tree, snap, byteStart, byteEnd, scratch);
-
-		for (int r = lo; r <= hi; ++r)
-		{
-			outRows.push_back(r);
-			outSpans.push_back(std::move(scratch[static_cast<size_t>(r)]));
-			scratch[static_cast<size_t>(r)].clear();
-		}
+		queryWindowInto(query, tree, snap, lo, i, outRows, outSpans);
 	}
 }
 
@@ -623,10 +645,8 @@ bool TreeSitter::applyPendingEdits(const std::vector<PendingTreeEdit> &edits)
 	return true;
 }
 
-ParseResult TreeSitter::parse(ParseSnapshot snapshot, uint64_t gen)
+ParseResult TreeSitter::parse(ParseSnapshot &snapshot, uint64_t gen)
 {
-	std::lock_guard<std::mutex> lock(parserMutex);
-
 	// Build line index here (not on the UI thread for large async recolors).
 	if (snapshot.lineStarts.empty())
 	{
@@ -645,8 +665,7 @@ ParseResult TreeSitter::parse(ParseSnapshot snapshot, uint64_t gen)
 	if (!lang)
 	{
 		// Unknown language: empty spans (paint uses default text color).
-		result.ok = true;
-		result.full = true;
+		result.kind = ParseKind::Full;
 		result.fullColors.assign(result.lineCount, {});
 		return result;
 	}
@@ -656,7 +675,7 @@ ParseResult TreeSitter::parse(ParseSnapshot snapshot, uint64_t gen)
 	std::vector<PendingTreeEdit> pendingEdits = std::move(snapshot.pendingEdits);
 	const bool hadPending = !pendingEdits.empty();
 
-	if (treeFilePath != snapshot.path)
+	if (treeFilePath != snapshot.path || treeLanguageId != snapshot.languageId)
 	{
 		ts_tree_delete(tree);
 		tree = nullptr;
@@ -739,53 +758,180 @@ ParseResult TreeSitter::parse(ParseSnapshot snapshot, uint64_t gen)
 		ts_tree_delete(oldTree);
 	tree = newTree;
 	treeFilePath = snapshot.path;
+	treeLanguageId = snapshot.languageId;
 	treeDocBytes = snapshot.text.size();
 	lastCommittedGen = gen;
 
-	TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
+	if (tryPartial)
+	{
+		TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
+		if (!query)
+		{
+			result.kind = ParseKind::Full;
+			result.fullColors.assign(result.lineCount, {});
+			return result;
+		}
+		emitDirtyWindows(
+			query, tree, snapshot, dirty, result.dirtyRows, result.dirtySpans);
+		result.kind = ParseKind::Partial;
+		return result;
+	}
+
+	result.kind = ParseKind::TreeOnly;
+	return result;
+}
+
+ParseResult TreeSitter::queryWindow(const ParseSnapshot &snapshot, int lineLo, int lineHi)
+{
+	ParseResult result;
+	result.lineCount = snapshot.lineStarts.size();
+	if (!tree || snapshot.lineStarts.empty())
+		return result;
+
+	auto [lang, query_path] = detectLanguageAndQuery(snapshot.languageId);
+	TSQuery *query = lang ? loadQueryFromCacheOrFile(lang, query_path) : nullptr;
 	if (!query)
 	{
-		result.ok = true;
-		result.full = true;
+		result.kind = ParseKind::Full;
 		result.fullColors.assign(result.lineCount, {});
 		return result;
 	}
 
-	if (tryPartial)
+	const int n = static_cast<int>(result.lineCount);
+	lineLo = std::clamp(lineLo, 0, n);
+	lineHi = std::clamp(lineHi, lineLo, n);
+	queryWindowInto(
+		query, tree, snapshot, lineLo, lineHi, result.dirtyRows, result.dirtySpans);
+	result.kind = ParseKind::Partial;
+	return result;
+}
+
+void TreeSitter::colorDocument(ParseSnapshot &snapshot,
+							   uint64_t gen,
+							   int chunkLines,
+							   const std::function<bool()> &canceled,
+							   const std::function<void(ParseResult &&)> &emit)
+{
+	std::lock_guard<std::mutex> lock(parserMutex);
+	if (canceled && canceled())
+		return;
+
+	ParseResult built = parse(snapshot, gen);
+	if ((canceled && canceled()) || built.kind == ParseKind::Failed)
+		return;
+	if (built.kind != ParseKind::TreeOnly)
 	{
-		buildColorRangesPartial(
-			query, tree, snapshot, dirty, result.dirtyRows, result.dirtySpans);
-		result.ok = true;
-		result.full = false;
+		emit(std::move(built));
+		return;
+	}
+
+	const int n = static_cast<int>(snapshot.lineStarts.size());
+	const int chunk = std::max(1, chunkLines);
+	for (int lo = 0; lo < n;)
+	{
+		if (canceled && canceled())
+			return;
+		const int hi = std::min(n, lo + chunk);
+		emit(queryWindow(snapshot, lo, hi));
+		lo = hi;
+	}
+}
+
+ParseResult TreeSitter::queryPrefix(const ParseSnapshot &src, int maxLines)
+{
+	ParseResult result;
+	const int docLines = std::max(1, src.text.lineCount());
+	result.lineCount = static_cast<size_t>(docLines);
+	if (maxLines <= 0 || src.text.size() == 0)
+	{
+		result.kind = ParseKind::Partial;
 		return result;
 	}
 
-	result.fullColors = buildColorRangesFull(query, tree, snapshot);
-	result.ok = true;
-	result.full = true;
+	auto [lang, query_path] = detectLanguageAndQuery(src.languageId);
+	if (!lang)
+	{
+		result.kind = ParseKind::Full;
+		result.fullColors.assign(result.lineCount, {});
+		return result;
+	}
+
+	// Bounded copy — do not walk the whole rope.
+	constexpr size_t kMaxPrefixBytes = 64 * 1024;
+	const size_t cap = std::min(src.text.size(), kMaxPrefixBytes);
+	std::string buf(cap, '\0');
+	if (cap)
+		src.text.copyBytes(0, cap, buf.data());
+
+	const std::string_view sep = src.lineEnding.empty()
+									 ? std::string_view("\n")
+									 : std::string_view(src.lineEnding);
+
+	ParseSnapshot snap;
+	snap.text = src.text;
+	snap.lineEnding = src.lineEnding.empty() ? std::string("\n") : src.lineEnding;
+	snap.languageId = src.languageId;
+	snap.lineStarts.push_back(0);
+	size_t pos = 0;
+	while (static_cast<int>(snap.lineStarts.size()) < maxLines && pos < cap)
+	{
+		const size_t at = buf.find(sep, pos);
+		if (at == std::string::npos)
+			break;
+		pos = at + sep.size();
+		snap.lineStarts.push_back(static_cast<uint32_t>(pos));
+	}
+
+	uint32_t prefixEnd = static_cast<uint32_t>(cap);
+	if (static_cast<int>(snap.lineStarts.size()) >= maxLines)
+	{
+		const size_t last = snap.lineStarts[static_cast<size_t>(maxLines - 1)];
+		const size_t at = buf.find(sep, last);
+		prefixEnd = at == std::string::npos ? static_cast<uint32_t>(cap)
+											: static_cast<uint32_t>(at + sep.size());
+	}
+	snap.byteLimit = prefixEnd;
+
+	const int found = static_cast<int>(snap.lineStarts.size());
+	if (found <= 0)
+	{
+		result.kind = ParseKind::Partial;
+		return result;
+	}
+
+	TSQuery *query = loadQueryFromCacheOrFile(lang, query_path);
+	if (!query)
+	{
+		result.kind = ParseKind::Partial;
+		return result;
+	}
+
+	TSParser *tmp = ts_parser_new();
+	ts_parser_set_language(tmp, lang);
+	TSTree *tmpTree = ts_parser_parse_string(
+		tmp, nullptr, buf.data(), static_cast<uint32_t>(prefixEnd));
+
+	if (tmpTree)
+		queryWindowInto(
+			query, tmpTree, snap, 0, found, result.dirtyRows, result.dirtySpans);
+
+	ts_tree_delete(tmpTree);
+	ts_parser_delete(tmp);
+
+	result.kind = ParseKind::Partial;
 	return result;
 }
 
 void TreeSitter::updateThemeColors()
 {
-	const ImVec4 fallbackText(0.85f, 0.85f, 0.85f, 1.0f);
-	const ImVec4 fallbackComment(0.5f, 0.5f, 0.5f, 1.0f);
-	cachedColors = {};
-	cachedColors.text = fallbackText;
-	cachedColors.comment = fallbackComment;
-	// remaining fields default to {} then we fill from theme; use text as fallback
-	auto setAll = [&](const ImVec4 &v) {
-		cachedColors.keyword = cachedColors.string = cachedColors.number = v;
-		cachedColors.function = cachedColors.type = cachedColors.variable = v;
-		cachedColors.parameter = cachedColors.property = cachedColors.constant = v;
-		cachedColors.operatorColor = cachedColors.punctuation = cachedColors.special = v;
-	};
-	setAll(fallbackText);
-	cachedColors.comment = fallbackComment;
+	const ImVec4 fbText(0.85f, 0.85f, 0.85f, 1.0f);
+	const ImVec4 fbComment(0.5f, 0.5f, 0.5f, 1.0f);
+	for (auto &s : cachedColors.slots)
+		s = fbText;
+	cachedColors[ThemeSlot::Comment] = fbComment;
 
 	if (!settings || !settings->settings.is_object())
 		return;
-
 	const std::string themeName =
 		settings->settings.value("theme", std::string("default"));
 	if (!settings->settings.contains("themes") ||
@@ -802,20 +948,23 @@ void TreeSitter::updateThemeColors()
 			a[0].get<float>(), a[1].get<float>(), a[2].get<float>(), a[3].get<float>());
 	};
 
-	cachedColors.text = load("text", fallbackText);
-	cachedColors.comment = load("comment", fallbackComment);
-	cachedColors.keyword = load("keyword", cachedColors.text);
-	cachedColors.string = load("string", cachedColors.text);
-	cachedColors.number = load("number", cachedColors.text);
-	cachedColors.function = load("function", cachedColors.text);
-	cachedColors.type = load("type", cachedColors.text);
-	cachedColors.variable = load("variable", cachedColors.text);
-	cachedColors.parameter = load("parameter", cachedColors.variable);
-	cachedColors.property = load("property", cachedColors.variable);
-	cachedColors.constant = load("constant", cachedColors.number);
-	cachedColors.operatorColor = load("operator", cachedColors.text);
-	cachedColors.punctuation = load("punctuation", cachedColors.text);
-	cachedColors.special = load("special", cachedColors.keyword);
+	cachedColors[ThemeSlot::Text] = load("text", fbText);
+	cachedColors[ThemeSlot::Comment] = load("comment", fbComment);
+	const ImVec4 text = cachedColors[ThemeSlot::Text];
+	cachedColors[ThemeSlot::Keyword] = load("keyword", text);
+	cachedColors[ThemeSlot::String] = load("string", text);
+	cachedColors[ThemeSlot::Number] = load("number", text);
+	cachedColors[ThemeSlot::Function] = load("function", text);
+	cachedColors[ThemeSlot::Type] = load("type", text);
+	cachedColors[ThemeSlot::Variable] = load("variable", text);
+	cachedColors[ThemeSlot::Operator] = load("operator", text);
+	cachedColors[ThemeSlot::Punctuation] = load("punctuation", text);
+	cachedColors[ThemeSlot::Parameter] =
+		load("parameter", cachedColors[ThemeSlot::Variable]);
+	cachedColors[ThemeSlot::Property] =
+		load("property", cachedColors[ThemeSlot::Variable]);
+	cachedColors[ThemeSlot::Constant] = load("constant", cachedColors[ThemeSlot::Number]);
+	cachedColors[ThemeSlot::Special] = load("special", cachedColors[ThemeSlot::Keyword]);
 }
 
 // ---------------------------------------------------------------------------
@@ -823,49 +972,53 @@ void TreeSitter::updateThemeColors()
 // ---------------------------------------------------------------------------
 
 std::pair<TSLanguage *, std::string>
-TreeSitter::detectLanguageAndQuery(const std::string &languageId)
+TreeSitter::detectLanguageAndQuery(const std::string &languageId) const
 {
 	std::string id = languageId;
 	if (!id.empty() && id[0] == '.')
 		id.erase(0, 1);
 
-	// query file base name only; loadQueryFromCacheOrFile resolves the directory.
-	auto q = [](const char *name) { return std::string(name); };
-
-	if (id == "c")
-		return {tree_sitter_c(), q("c.scm")};
-	if (id == "cpp" || id == "h" || id == "hpp" || id == "mm" || id == "cc" || id == "cxx")
-		return {tree_sitter_cpp(), q("cpp.scm")};
-	if (id == "js" || id == "jsx")
-		return {tree_sitter_javascript(), q("jsx.scm")};
-	if (id == "py")
-		return {tree_sitter_python(), q("python.scm")};
-	if (id == "cs")
-		return {tree_sitter_c_sharp(), q("csharp.scm")};
-	if (id == "html" || id == "cshtml")
-		return {tree_sitter_html(), q("html.scm")};
-	if (id == "tsx" || id == "ts")
-		return {tree_sitter_tsx(), q("tsx.scm")};
-	if (id == "css")
-		return {tree_sitter_css(), q("css.scm")};
-	if (id == "java")
-		return {tree_sitter_java(), q("java.scm")};
-	if (id == "go")
-		return {tree_sitter_go(), q("go.scm")};
-	if (id == "tf" || id == "hcl")
-		return {tree_sitter_hcl(), q("hcl.scm")};
-	if (id == "json")
-		return {tree_sitter_json(), q("json.scm")};
-	if (id == "sh" || id == "bash")
-		return {tree_sitter_bash(), q("sh.scm")};
-	if (id == "kt" || id == "kts")
-		return {tree_sitter_kotlin(), q("kotlin.scm")};
-	if (id == "rs")
-		return {tree_sitter_rust(), q("rs.scm")};
-	if (id == "toml")
-		return {tree_sitter_toml(), q("toml.scm")};
-	if (id == "rb")
-		return {tree_sitter_ruby(), q("rb.scm")};
+	struct Entry
+	{
+		const char *id;
+		TSLanguage *(*lang)();
+		const char *scm;
+	};
+	static const Entry kLangs[] = {
+		{"c", tree_sitter_c, "c.scm"},
+		{"cpp", tree_sitter_cpp, "cpp.scm"},
+		{"h", tree_sitter_cpp, "cpp.scm"},
+		{"hpp", tree_sitter_cpp, "cpp.scm"},
+		{"mm", tree_sitter_cpp, "cpp.scm"},
+		{"cc", tree_sitter_cpp, "cpp.scm"},
+		{"cxx", tree_sitter_cpp, "cpp.scm"},
+		{"js", tree_sitter_javascript, "jsx.scm"},
+		{"jsx", tree_sitter_javascript, "jsx.scm"},
+		{"py", tree_sitter_python, "python.scm"},
+		{"cs", tree_sitter_c_sharp, "csharp.scm"},
+		{"html", tree_sitter_html, "html.scm"},
+		{"cshtml", tree_sitter_html, "html.scm"},
+		{"tsx", tree_sitter_tsx, "tsx.scm"},
+		{"ts", tree_sitter_tsx, "tsx.scm"},
+		{"css", tree_sitter_css, "css.scm"},
+		{"java", tree_sitter_java, "java.scm"},
+		{"go", tree_sitter_go, "go.scm"},
+		{"tf", tree_sitter_hcl, "hcl.scm"},
+		{"hcl", tree_sitter_hcl, "hcl.scm"},
+		{"json", tree_sitter_json, "json.scm"},
+		{"sh", tree_sitter_bash, "sh.scm"},
+		{"bash", tree_sitter_bash, "sh.scm"},
+		{"kt", tree_sitter_kotlin, "kotlin.scm"},
+		{"kts", tree_sitter_kotlin, "kotlin.scm"},
+		{"rs", tree_sitter_rust, "rs.scm"},
+		{"toml", tree_sitter_toml, "toml.scm"},
+		{"rb", tree_sitter_ruby, "rb.scm"},
+	};
+	for (const Entry &e : kLangs)
+	{
+		if (id == e.id)
+			return {e.lang(), e.scm};
+	}
 	return {};
 }
 
@@ -900,10 +1053,10 @@ std::filesystem::path resolveQueryFile(const std::string &queryFile)
 TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
 											  const std::string &query_path)
 {
-	// query_path is a bare filename (e.g. "cpp.scm") after detectLanguageAndQuery.
 	const std::string full_path = resolveQueryFile(query_path).string();
 
-	if (auto it = queryCache.find(full_path); it != queryCache.end())
+	std::lock_guard<std::mutex> lock(gQueryMu);
+	if (auto it = gQueryCache.find(full_path); it != gQueryCache.end())
 		return it->second;
 
 	std::ifstream file(full_path);
@@ -922,6 +1075,16 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
 				  << "\n";
 		return nullptr;
 	}
-	queryCache[full_path] = query;
+	gQueryCache[full_path] = query;
 	return query;
+}
+
+bool TreeSitter::queryReady(const std::string &languageId) const
+{
+	auto [lang, query_path] = detectLanguageAndQuery(languageId);
+	if (!lang)
+		return true;
+	const std::string full_path = resolveQueryFile(query_path).string();
+	std::lock_guard<std::mutex> lock(gQueryMu);
+	return gQueryCache.count(full_path) != 0;
 }

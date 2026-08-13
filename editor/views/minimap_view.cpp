@@ -108,7 +108,7 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 				++sp;
 			ImU32 ink = key.defInk;
 			if (sp < spans.size() && spans[sp].start <= byte)
-				ink = dimInk(spans[sp].color);
+				ink = dimInk(highlight->colorForSlot(spans[sp].slot));
 			cacheDots_.push_back(Dot{kPadX + float(col++) * kCharW, y0, ink});
 			while (i < (int)line.size() && ((unsigned char)line[i] & 0xC0) == 0x80)
 				++i;
