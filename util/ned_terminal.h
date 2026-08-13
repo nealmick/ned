@@ -47,9 +47,11 @@ class NedTerminal
 	void shutdown();
 
 	// After the host clears/rebuilds the ImGui font atlas: re-add terminal
-	// fonts at `desiredPx` on every live session. Caller must then re-merge
-	// host editor fonts with Font::load(/*clearAtlas=*/false).
+	// fonts at `desiredPx` on every live session. Pass the on-screen size
+	// (settings font * FontScaleDpi) — the widget draws at this px as-is.
+	// Caller must then re-merge host editor fonts with Font::load(false).
 	void reloadTerminalFonts(float desiredPx);
+	float configuredFontPx() const;
 
 	// True after shell init (default 16px fonts) until the host applies
 	// editor font size via reloadTerminalFonts + Font::load(false).

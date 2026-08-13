@@ -16,8 +16,9 @@ struct ViewLayout;
 class MinimapView
 {
   public:
-	static constexpr float kWidth = 80.0f;
-	static constexpr float kMinPaneWidth = 320.0f;
+	// 80px / 320px at a 20px font — width follows GetFontSize().
+	static constexpr float kWidthFontMul = 4.0f;
+	static constexpr float kMinPaneFontMul = 16.0f;
 
 	MinimapView(const EditorState &document,
 				const EditorHighlight &hl,
@@ -47,11 +48,13 @@ class MinimapView
 		int end = -1;
 		int maxCols = -1;
 		ImU32 defInk = 0;
+		float fontSize = 0.0f;
 
 		bool operator==(const CacheKey &o) const
 		{
 			return docVersion == o.docVersion && hlGen == o.hlGen && start == o.start &&
-				   end == o.end && maxCols == o.maxCols && defInk == o.defInk;
+				   end == o.end && maxCols == o.maxCols && defInk == o.defInk &&
+				   fontSize == o.fontSize;
 		}
 	};
 

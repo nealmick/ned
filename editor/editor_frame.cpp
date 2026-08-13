@@ -41,13 +41,13 @@ void EditorFrame::drawTitleBar(ImFont *font)
 	// No document path → no chrome ("Editor - No file selected" was noise).
 	if (!state || state->path.empty())
 		return;
-	const bool showGitChanges = layout.paneSize.x >= GIT_CHANGES_MIN_WIDTH;
+	const bool showGitChanges = layout.paneSize.x >= ImGui::GetFontSize() * 12.5f;
 	titleBar.render(font, state->path, showGitChanges);
 }
 
 void EditorFrame::recomputeWidthPad()
 {
-	widthPad = widthMax + std::max(150.0f, widthMax * 0.15f);
+	widthPad = widthMax + std::max(ImGui::GetFontSize() * 7.5f, widthMax * 0.15f);
 }
 
 void EditorFrame::shiftLongestForLineDelta(int dirtyLo, int lineDelta)
@@ -112,7 +112,7 @@ float EditorFrame::contentWidth()
 	// Longest-line horizontal scroll width. Prefer dirty-row updates; full scan
 	// only on invalidate / font change / first use.
 	ImFont *font = ImGui::GetFont();
-	const float fs = font->LegacySize;
+	const float fs = ImGui::GetFontSize();
 	auto measure = [&](const std::string &line) {
 		if (line.empty())
 			return 0.0f;
@@ -225,11 +225,12 @@ void EditorFrame::updateLayoutMetrics()
 	viewState->updateBlinkTime();
 
 	layout.size = ImGui::GetContentRegionAvail();
+	const float fs = ImGui::GetFontSize();
 	gutter.lineNumberWidth =
-		ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + LINE_NUMBER_PAD;
+		ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
 	layout.lineHeight = ImGui::GetTextLineHeight();
-	layout.editorTopMargin = EDITOR_TOP_MARGIN;
-	layout.textLeftMargin = TEXT_LEFT_MARGIN;
+	layout.editorTopMargin = fs * 0.1f;
+	layout.textLeftMargin = fs * 0.35f;
 
 	const int lineCount = state->lineCount();
 	layout.totalHeight = layout.lineHeight * static_cast<float>(lineCount);
@@ -238,9 +239,10 @@ void EditorFrame::updateLayoutMetrics()
 	// Minimap width is layout policy (not a paint-leaf constant leak).
 	// settings["minimap"] gates visibility; pane width still hides on narrow splits.
 	const bool minimapOn = !settings || settings->settings.value("minimap", true);
-	layout.minimapWidth = (minimapOn && layout.size.x >= MinimapView::kMinPaneWidth)
-							  ? MinimapView::kWidth
-							  : 0.0f;
+	layout.minimapWidth =
+		(minimapOn && layout.size.x >= fs * MinimapView::kMinPaneFontMul)
+			? fs * MinimapView::kWidthFontMul
+			: 0.0f;
 }
 
 void EditorFrame::beginDocumentChild()
@@ -275,7 +277,7 @@ void EditorFrame::beginDocumentChild()
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.05f, 0.05f, 0.05f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.6f, 0.6f, 0.6f, 0.7f));
 	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.8f, 0.8f, 0.8f, 0.9f));
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 12.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, ImGui::GetFontSize() * 0.6f);
 	ImGui::SetNextWindowContentSize(ImVec2(content_width, content_height));
 	ImGui::BeginChild(EDITOR_CHILD_ID,
 					  ImVec2(remaining_width, ImGui::GetContentRegionAvail().y),

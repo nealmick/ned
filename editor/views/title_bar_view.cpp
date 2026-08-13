@@ -126,8 +126,9 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 {
 	// Light horizontal inset only — parent WindowPadding is 0 so we sit flush
 	// under the ImGui dock tab bar (no extra top gap).
-	const float kPadX = 8.0f;
-	const float kPadY = 2.0f;
+	const float fs = ImGui::GetFontSize();
+	const float kPadX = fs * 0.4f;
+	const float kPadY = fs * 0.1f;
 	const ImVec2 cursor = ImGui::GetCursorPos();
 	ImGui::SetCursorPos(ImVec2(cursor.x + kPadX, cursor.y + kPadY));
 
@@ -164,14 +165,14 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 		float availableWidth = ImGui::GetWindowWidth() - ImGui::GetCursorPosX() -
 							   ImGui::GetStyle().ItemSpacing.x - kPadX - gitChangesWidth;
 		if (isTerminal)
-			availableWidth -= 10.0f;
+			availableWidth -= fs * 0.5f;
 
 		std::string label = truncateFilePath(filePath, availableWidth);
 
 		if (isTerminal)
 		{
 			ImVec2 pos = ImGui::GetCursorPos();
-			ImGui::SetCursorPos(ImVec2(pos.x - 7.0f, pos.y + 3.0f));
+			ImGui::SetCursorPos(ImVec2(pos.x - fs * 0.35f, pos.y + fs * 0.15f));
 		}
 
 		ImGui::Text("%s", label.c_str());
@@ -191,7 +192,7 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 	{
 		ImDrawList *draw_list = ImGui::GetWindowDrawList();
 		ImVec2 p = ImGui::GetCursorScreenPos();
-		const float margin = 19.0f;
+		const float margin = ImGui::GetFontSize() * 0.95f;
 		float left = ImGui::GetWindowPos().x + margin;
 		float width = ImGui::GetWindowWidth() - margin * 2.0f;
 		ImU32 col = ImGui::GetColorU32(ImGuiCol_Separator);

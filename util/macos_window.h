@@ -19,6 +19,11 @@ void setMacOSTitlebarActions(MacTitlebarFn sidebar,
 }
 #endif
 #else
+#ifdef _WIN32
+#include "windows_window.h"
+inline float macOSTitlebarInset(void) { return windowsTitlebarInset(); }
+#else
 inline float macOSTitlebarInset(void) { return 0.0f; }
+#endif
 inline void setMacOSTitlebarActions(void (*)(void), void (*)(void), void (*)(void)) {}
 #endif

@@ -122,9 +122,10 @@ std::string FileTree::findReadmeInRoot() const
 
 void FileTree::displayFileTree(FileNode &node, int depth)
 {
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, FRAME_ROUNDING);
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, FRAME_PADDING);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ITEM_SPACING);
+	const float fs = ImGui::GetFontSize();
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.3f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(fs * 0.2f, fs * 0.1f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(fs * 0.05f, fs * 0.15f));
 	ImGui::PushID(node.fullPath.c_str());
 
 	drawNodeRow(node, depth);
@@ -135,19 +136,21 @@ void FileTree::displayFileTree(FileNode &node, int depth)
 
 void FileTree::drawNodeRow(FileNode &node, int depth)
 {
-	const float fontSize = settings->font.getFontSize();
+	const float fontSize = ImGui::GetFontSize();
 	const float baseIcon = node.isDirectory ? fontSize * 0.8f : fontSize * 1.2f;
 	const float iconSize = baseIcon * ICON_SCALE;
-	const float itemHeight = ImGui::GetFrameHeight();
+	const float itemHeight = std::max(ImGui::GetFrameHeight(), iconSize + 2.0f);
 	const ImVec2 rowOrigin = ImGui::GetCursorPos();
-	const float indent = depth * INDENT_WIDTH;
+	const float indent = depth * fontSize * 0.9f;
+	const float rowPadX = fontSize * 0.2f;
+	const float iconTextGap = fontSize * 0.35f;
 
 	const ImTextureID icon = node.isDirectory ? folderIcon(node.isOpen)
 											  : fileExplorer->icons.getForFile(node.name);
 
 	const ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
 	const float requiredWidth =
-		indent + ROW_PAD_X + iconSize + ICON_TEXT_GAP + textSize.x;
+		indent + rowPadX + iconSize + iconTextGap + textSize.x;
 	const float buttonWidth = std::max(requiredWidth, ImGui::GetContentRegionAvail().x);
 
 	// Full-width invisible hit target for the row.
@@ -161,8 +164,8 @@ void FileTree::drawNodeRow(FileNode &node, int depth)
 
 	// Icon + label centered vertically on the row (drawn over the button).
 	const float centerY = rowOrigin.y + itemHeight * 0.5f;
-	const float iconX = rowOrigin.x + indent + ROW_PAD_X;
-	const float textX = iconX + iconSize + ICON_TEXT_GAP;
+	const float iconX = rowOrigin.x + indent + rowPadX;
+	const float textX = iconX + iconSize + iconTextGap;
 
 	ImGui::SetCursorPos(ImVec2(iconX, centerY - iconSize * 0.5f));
 	ImGui::Image(icon, ImVec2(iconSize, iconSize));

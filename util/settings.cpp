@@ -619,7 +619,8 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 									 bg[2].get<float>() * m,
 									 1.0f));
 	}
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 5.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+						ImVec2(ImGui::GetFontSize() * 0.75f, ImGui::GetFontSize() * 0.25f));
 	ImGui::BeginChild("SettingsContent",
 					  ImVec2(0, ImGui::GetContentRegionAvail().y),
 					  false,
@@ -646,11 +647,12 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 
 void Settings::applyImGuiStyles()
 {
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+	const float fs = ImGui::GetFontSize();
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.5f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 15.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, fs * 0.7f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, fs * 0.5f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.75f, fs * 0.75f));
 
 	// Embedded: keep host ImGui palette for window/frame backgrounds.
 	if (isEmbedded)
@@ -708,7 +710,7 @@ void Settings::renderWindowHeader(EditorApi &api, FileExplorer &files)
 
 	ImGui::BeginGroup();
 	ImGui::TextUnformatted("Settings");
-	const float closeSize = ImGui::GetFrameHeight() - 10;
+	const float closeSize = ImGui::GetFontSize();
 	const float buttonX = ImGui::GetContentRegionAvail().x - closeSize -
 						  ImGui::GetStyle().FramePadding.x * 2;
 	ImGui::SameLine(buttonX > 0 ? buttonX : ImGui::GetCursorPosX() + 100);

@@ -48,7 +48,7 @@ if not exist "%VCPKG_ROOT%" (
 
 REM Install dependencies via vcpkg
 echo Installing dependencies via vcpkg...
-%VCPKG_ROOT%\vcpkg.exe install --triplet x64-windows
+%VCPKG_ROOT%\vcpkg.exe install --triplet x64-windows-static
 if %errorlevel% neq 0 (
     echo Failed to install vcpkg dependencies!
     exit /b 1
@@ -59,11 +59,23 @@ if not exist build (
     mkdir build
 )
 
+REM A leftover x64-windows (dynamic) CMake cache points Fontconfig/ZLIB at
+REM deleted headers and configure dies. Wipe just the cache, keep static libs.
+if exist build\CMakeCache.txt (
+    findstr /C:"vcpkg_installed/x64-windows/" /C:"vcpkg_installed\\x64-windows\\" build\CMakeCache.txt >nul
+    if not errorlevel 1 (
+        echo Clearing stale dynamic-vcpkg CMake cache...
+        del /q build\CMakeCache.txt
+        if exist build\CMakeFiles rmdir /s /q build\CMakeFiles
+    )
+)
+if exist build\vcpkg_installed\x64-windows rmdir /s /q build\vcpkg_installed\x64-windows
+
 cd build
 
 REM Configure with CMake using vcpkg toolchain
 echo Configuring with CMake...
-cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_TARGET_TRIPLET=x64-windows
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_TARGET_TRIPLET=x64-windows-static
 
 REM Check if configuration succeeded
 if %errorlevel% neq 0 (

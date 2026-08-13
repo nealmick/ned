@@ -32,34 +32,35 @@ class EditorLineJump
 	// Helper: Render window header (setup and title)
 	inline void renderHeader()
 	{
-		// Window setup (size, position, flags)
-		ImGui::SetNextWindowSize(ImVec2(400, 120), ImGuiCond_Always);
+		const float fs = ImGui::GetFontSize();
+		const ImVec2 windowSize(fs * 20.0f, fs * 6.0f);
+		ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
 
 		// Host calls update() inside the Editor child — use current window.
 		const ImVec2 panePos = ImGui::GetWindowPos();
 		const ImVec2 paneSize = ImGui::GetWindowSize();
 
-		ImVec2 windowPos = ImVec2(panePos.x + paneSize.x * 0.5f - 200.0f,
-								  panePos.y + paneSize.y * 0.35f - 60.0f);
+		ImVec2 windowPos =
+			ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
+				   panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);
 
 		if (windowPos.x < panePos.x)
 			windowPos.x = panePos.x;
-		if (windowPos.x + 400 > panePos.x + paneSize.x)
-			windowPos.x = panePos.x + paneSize.x - 400;
+		if (windowPos.x + windowSize.x > panePos.x + paneSize.x)
+			windowPos.x = panePos.x + paneSize.x - windowSize.x;
 		if (windowPos.y < panePos.y)
 			windowPos.y = panePos.y;
-		if (windowPos.y + 120 > panePos.y + paneSize.y)
-			windowPos.y = panePos.y + paneSize.y - 120;
+		if (windowPos.y + windowSize.y > panePos.y + paneSize.y)
+			windowPos.y = panePos.y + paneSize.y - windowSize.y;
 
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 		ImGuiWindowFlags windowFlags =
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
 			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
 			ImGuiWindowFlags_NoScrollWithMouse;
-		// Push window style (3 style vars, 3 style colors)
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.5f);
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.8f, fs * 0.8f));
 		// background
 		ImGui::PushStyleColor(
 			ImGuiCol_WindowBg,
@@ -99,10 +100,10 @@ class EditorLineJump
 		float inputWidth = ImGui::GetContentRegionAvail().x;
 		ImGui::PushItemWidth(inputWidth);
 
-		// Add border styling to match FileFinder
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+		const float fs = ImGui::GetFontSize();
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.2f);
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(fs * 0.4f, fs * 0.4f));
 
 		// Match border and background colors from FileFinder
 		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));

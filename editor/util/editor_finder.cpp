@@ -28,7 +28,8 @@ struct ScopedFindStyle
 {
 	ScopedFindStyle(Settings *settings)
 	{
-		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+		const float fs = ImGui::GetFontSize();
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.3f);
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 		ImGui::PushStyleColor(
 			ImGuiCol_FrameBg,
@@ -308,16 +309,17 @@ void EditorFinder::draw()
 
 	// Editor host uses WindowPadding 0 (title flush under dock tabs). Give the
 	// find row air so the top border/frame is not clipped by the tab strip.
-	constexpr float kPadX = 10.0f;
-	constexpr float kPadTop = 10.0f;
-	constexpr float kPadBottom = 6.0f;
+	const float fs = ImGui::GetFontSize();
+	const float kPadX = fs * 0.5f;
+	const float kPadTop = fs * 0.5f;
+	const float kPadBottom = fs * 0.3f;
 	ImGui::SetCursorPos(
 		ImVec2(ImGui::GetCursorPosX() + kPadX, ImGui::GetCursorPosY() + kPadTop));
 
 	ImGui::BeginGroup();
 	{
 		// Leave room for status/checkbox on the right of this padded row.
-		const float rowW = std::max(120.0f, ImGui::GetContentRegionAvail().x - kPadX);
+		const float rowW = std::max(fs * 6.0f, ImGui::GetContentRegionAvail().x - kPadX);
 		ImGui::SetNextItemWidth(rowW * 0.5f);
 		{
 			ScopedFindStyle style(settings);
@@ -337,7 +339,7 @@ void EditorFinder::draw()
 		{
 			rebuildMatches();
 			ImGui::SameLine();
-			ImGui::Dummy(ImVec2(10, 0));
+			ImGui::Dummy(ImVec2(fs * 0.5f, 0));
 			ImGui::SameLine();
 			if (matchIndex < 0 || matches.empty())
 				ImGui::Text("Not Found");
@@ -346,7 +348,7 @@ void EditorFinder::draw()
 		}
 
 		ImGui::SameLine();
-		ImGui::Dummy(ImVec2(10, 0));
+		ImGui::Dummy(ImVec2(fs * 0.5f, 0));
 		ImGui::SameLine();
 		const bool prev = ignoreCase;
 		{

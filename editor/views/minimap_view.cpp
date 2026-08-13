@@ -18,11 +18,30 @@
 
 namespace {
 
-constexpr float kLineH = 2.0f, kCharW = 1.0f;
 // Density rects read hotter than full glyphs — pull theme colors down a notch.
 constexpr float kColorDim = 0.72f;
-constexpr float kDotH = 1.5f;
-constexpr float kPadX = 2.0f;
+
+// Designed at a 20px font: 2px rows, 1px columns, 1.5px dots, 2px pad.
+struct Density
+{
+	float lineH;
+	float charW;
+	float dotH;
+	float padX;
+	float sliderMin;
+};
+
+Density densityFromFont()
+{
+	const float fs = std::max(1.0f, ImGui::GetFontSize());
+	Density d;
+	d.lineH = std::max(1.0f, fs * 0.1f);
+	d.charW = std::max(1.0f, fs * 0.05f);
+	d.dotH = std::max(1.0f, d.lineH * 0.75f);
+	d.padX = std::max(1.0f, fs * 0.1f);
+	d.sliderMin = std::max(4.0f, fs * 0.2f);
+	return d;
+}
 
 ImU32 dimInk(ImVec4 c)
 {
@@ -38,7 +57,11 @@ struct Strip
 	float viewH = 0, maxScroll = 0, sliderTop = 0, sliderH = 0, ratio = 0;
 };
 
-Strip makeStrip(const EditorState &st, const ViewLayout &lay, float scrollY, float stripH)
+Strip makeStrip(const EditorState &st,
+				const ViewLayout &lay,
+				float scrollY,
+				float stripH,
+				const Density &d)
 {
 	Strip s;
 	s.lineCount = st.lineCount();
@@ -48,19 +71,19 @@ Strip makeStrip(const EditorState &st, const ViewLayout &lay, float scrollY, flo
 	scrollY = std::max(0.0f, scrollY);
 	s.viewH = std::max(elh, std::max(0.0f, lay.size.y - lay.editorTopMargin));
 	s.maxScroll = std::max(0.0f, std::max(lay.totalHeight, s.viewH) - s.viewH);
-	s.sliderH = std::clamp(std::floor((s.viewH / elh) * kLineH), 4.0f, stripH);
+	s.sliderH = std::clamp(std::floor((s.viewH / elh) * d.lineH), d.sliderMin, stripH);
 	const float maxTop = std::min(
-		stripH - s.sliderH, std::max(0.0f, float(s.lineCount) * kLineH - s.sliderH));
+		stripH - s.sliderH, std::max(0.0f, float(s.lineCount) * d.lineH - s.sliderH));
 	s.ratio = s.maxScroll > 1.0f ? maxTop / s.maxScroll : 0.0f;
 	s.sliderTop = std::clamp(scrollY * s.ratio, 0.0f, maxTop);
-	const int fit = std::max(1, int(stripH / kLineH));
+	const int fit = std::max(1, int(stripH / d.lineH));
 	if (s.lineCount <= fit)
 	{
 		s.end = s.lineCount - 1;
 	} else
 	{
 		s.start = std::clamp(
-			int(std::floor(scrollY / elh - s.sliderTop / kLineH)), 0, s.lineCount - fit);
+			int(std::floor(scrollY / elh - s.sliderTop / d.lineH)), 0, s.lineCount - fit);
 		s.end = std::min(s.lineCount - 1, s.start + fit - 1);
 	}
 	return s;
@@ -81,10 +104,11 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 	const int rows = key.end - key.start + 1;
 	cacheDots_.reserve(static_cast<size_t>(rows * std::min(key.maxCols, 24)));
 
+	const Density d = densityFromFont();
 	static thread_local std::string line;
 	for (int row = key.start; row <= key.end; ++row)
 	{
-		const float y0 = float(row - key.start) * kLineH;
+		const float y0 = float(row - key.start) * d.lineH;
 		state->lineInto(row, line);
 		const auto &spans = highlight->spansForLine(row);
 		size_t sp = 0;
@@ -109,7 +133,7 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 			ImU32 ink = key.defInk;
 			if (sp < spans.size() && spans[sp].start <= byte)
 				ink = dimInk(highlight->colorForSlot(spans[sp].slot));
-			cacheDots_.push_back(Dot{kPadX + float(col++) * kCharW, y0, ink});
+			cacheDots_.push_back(Dot{d.padX + float(col++) * d.charW, y0, ink});
 			while (i < (int)line.size() && ((unsigned char)line[i] & 0xC0) == 0x80)
 				++i;
 		}
@@ -123,12 +147,13 @@ void MinimapView::replayDensity(ImDrawList *dl, ImVec2 origin) const
 	if (n <= 0 || !dl)
 		return;
 
+	const Density m = densityFromFont();
 	// Batch into the window draw list — avoids per-dot AddRectFilled overhead.
 	dl->PrimReserve(n * 6, n * 4);
 	for (const Dot &d : cacheDots_)
 	{
 		const ImVec2 p0(origin.x + d.x, origin.y + d.y);
-		const ImVec2 p1(p0.x + kCharW, p0.y + kDotH);
+		const ImVec2 p1(p0.x + m.charW, p0.y + m.dotH);
 		dl->PrimRect(p0, p1, d.col);
 	}
 }
@@ -157,7 +182,8 @@ void MinimapView::interact(EditorViewState &view)
 	if (!ImGui::IsMouseHoveringRect(a, b, false))
 		return;
 
-	const Strip s = makeStrip(*state, *layout, view.getScrollPosition().y, stripH);
+	const Density d = densityFromFont();
+	const Strip s = makeStrip(*state, *layout, view.getScrollPosition().y, stripH, d);
 	if (ImGui::GetIO().MouseWheel != 0.0f && layout->lineHeight > 0.0f)
 		req(view.getScrollPosition().y -
 			ImGui::GetIO().MouseWheel * layout->lineHeight * 3.0f);
@@ -167,7 +193,7 @@ void MinimapView::interact(EditorViewState &view)
 		const float local = std::clamp(ImGui::GetIO().MousePos.y - a.y, 0.0f, stripH);
 		const int line = (s.end < s.start)
 							 ? 0
-							 : std::clamp(s.start + int(local / kLineH), s.start, s.end);
+							 : std::clamp(s.start + int(local / d.lineH), s.start, s.end);
 		const float y = float(line) * layout->lineHeight - s.viewH * 0.5f;
 		req(y);
 		dragging_ = true;
@@ -187,7 +213,8 @@ void MinimapView::draw(const EditorViewState &view) const
 		return;
 
 	const ImVec2 a = layout->minimapMin;
-	const Strip s = makeStrip(*state, *layout, view.getScrollPosition().y, h);
+	const Density d = densityFromFont();
+	const Strip s = makeStrip(*state, *layout, view.getScrollPosition().y, h, d);
 	if (s.end < s.start)
 		return;
 
@@ -195,11 +222,16 @@ void MinimapView::draw(const EditorViewState &view) const
 	ImGui::SetCursorScreenPos(a);
 	ImGui::InvisibleButton("##mm", ImVec2(w, h));
 	ImDrawList *dl = ImGui::GetWindowDrawList();
-	const int maxCols = std::max(1, int((w - 4.0f) / kCharW));
+	const int maxCols = std::max(1, int((w - d.padX * 2.0f) / d.charW));
 	const ImU32 defInk = dimInk(highlight->defaultTextColor());
 
-	const CacheKey key{
-		state->version, highlight->visualGeneration(), s.start, s.end, maxCols, defInk};
+	const CacheKey key{state->version,
+					   highlight->visualGeneration(),
+					   s.start,
+					   s.end,
+					   maxCols,
+					   defInk,
+					   ImGui::GetFontSize()};
 	if (!(key == cacheKey_))
 		rebuildDensityCache(key);
 

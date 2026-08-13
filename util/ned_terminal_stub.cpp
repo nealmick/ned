@@ -31,5 +31,6 @@ void NedTerminal::setVisible(bool, bool) {}
 void NedTerminal::renderPanel() {}
 
 void NedTerminal::reloadTerminalFonts(float) {}
+float NedTerminal::configuredFontPx() const { return 0.0f; }
 
 bool NedTerminal::consumeNeedsFontResync() { return false; }
