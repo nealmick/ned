@@ -153,9 +153,10 @@ target_include_directories(nfd PUBLIC
 set(TS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/lib/treesitter)
 
 # Core library
+# lib.c is the amalgamation (includes query.c and the rest). Do not also
+# compile query.c — MSVC LNK2005: ts_query_* defined in lib.obj and query.obj.
 add_library(tree-sitter-lib STATIC
   ${TS_ROOT}/tree-sitter/lib/src/lib.c
-  ${TS_ROOT}/tree-sitter/lib/src/query.c
 )
 target_include_directories(tree-sitter-lib PUBLIC
   ${TS_ROOT}/tree-sitter/lib/include
