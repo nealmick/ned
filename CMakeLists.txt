@@ -452,6 +452,13 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${WINDOWS_RESOURCES}
   )
   ned_apply_feature_defs(ned)
+  if(WIN32)
+    # WINDOWS subsystem (no console). Keep main() — MSVC defaults to WinMain.
+    set_target_properties(ned PROPERTIES WIN32_EXECUTABLE TRUE)
+    if(MSVC)
+      target_link_options(ned PRIVATE /ENTRY:mainCRTStartup)
+    endif()
+  endif()
 endif()
 
 # ================
