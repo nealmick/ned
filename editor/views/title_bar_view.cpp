@@ -1,11 +1,10 @@
 /*
 	File: views/title_bar_view.cpp
-	Description: Title bar rendering (path, git changes, settings).
+	Description: Title bar rendering (path, git changes).
 */
 #include "title_bar_view.h"
 #include "../../util/icons.h"
 #include "../../util/settings.h"
-#include "../editor_api.h"
 #include "../services/git/git_service.h"
 #include "imgui.h"
 #include <algorithm>
@@ -123,29 +122,6 @@ std::string TitleBarView::truncateFilePath(const std::string &path, float maxWid
 	return normalizePathForDisplay(root + "...");
 }
 
-void TitleBarView::renderSettingsIcon(float iconSize)
-{
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-
-	float textHeight = ImGui::GetTextLineHeight();
-	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f - 2.0f);
-
-	ImVec2 cursor_pos = ImGui::GetCursorPos();
-	if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)) && api)
-		settings->toggleSettingsWindow(*api);
-
-	bool isHovered = ImGui::IsItemHovered();
-	ImGui::SetCursorPos(cursor_pos);
-	ImTextureID icon = isHovered ? icons->get("gear-hover") : icons->get("gear");
-	ImGui::Image(icon, ImVec2(iconSize, iconSize));
-
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar();
-}
-
 void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGitChanges)
 {
 	// Light horizontal inset only — parent WindowPadding is 0 so we sit flush
@@ -159,8 +135,6 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 	ImGui::PushFont(font);
 
 	const float iconSize = ImGui::GetFontSize() * 1.15f;
-	const float rightPadding = 25.0f + kPadX;
-	const float totalStatusWidth = iconSize + rightPadding;
 	const bool isTerminal = (filePath == "Terminal");
 	const bool showGit = showGitChanges && settings->settings["git_changed_lines"] &&
 						 !git->currentGitChanges.empty();
@@ -188,8 +162,7 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 		}
 
 		float availableWidth = ImGui::GetWindowWidth() - ImGui::GetCursorPosX() -
-							   ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
-							   gitChangesWidth;
+							   ImGui::GetStyle().ItemSpacing.x - kPadX - gitChangesWidth;
 		if (isTerminal)
 			availableWidth -= 10.0f;
 
@@ -209,19 +182,6 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 			ImGui::Text("%s", git->currentGitChanges.c_str());
 		}
 	}
-
-	float rightEdge = ImGui::GetWindowWidth() - totalStatusWidth;
-	if (isTerminal)
-		rightEdge -= 20.0f;
-	ImGui::SameLine(rightEdge);
-
-	ImGui::BeginGroup();
-	{
-		float textHeight = ImGui::GetTextLineHeight();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f);
-		renderSettingsIcon(iconSize * 0.65f);
-	}
-	ImGui::EndGroup();
 
 	ImGui::PopFont();
 	ImGui::EndGroup();

@@ -25,7 +25,7 @@ Editor::Editor(Settings &settings,
 	  input(commands, viewState, state, projectUndo),
 	  highlight(state, operations, &settings),
 	  git(state, projectRoot, settings),
-	  frame(state, viewState, input, settings, git, highlight, icons, api),
+	  frame(state, viewState, input, settings, git, highlight, icons),
 	  lineJump(commands, input, settings, api),
 	  finder(state, viewState, commands, input, settings, api)
 {

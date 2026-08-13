@@ -18,7 +18,6 @@ struct ImFont;
 class EditorViewState;
 class EditorInput;
 class EditorState;
-class EditorApi;
 class EditorGit;
 class EditorHighlight;
 class Icons;
@@ -42,8 +41,7 @@ class EditorFrame
 				Settings &appSettings,
 				EditorGit &gitService,
 				EditorHighlight &hl,
-				Icons &iconSet,
-				EditorApi &api);
+				Icons &iconSet);
 
 	// Full document pass: title bar → layout → focus → input → scroll → draw.
 	void run(ImFont *font);
