@@ -619,8 +619,9 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 									 bg[2].get<float>() * m,
 									 1.0f));
 	}
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-						ImVec2(ImGui::GetFontSize() * 0.75f, ImGui::GetFontSize() * 0.25f));
+	ImGui::PushStyleVar(
+		ImGuiStyleVar_WindowPadding,
+		ImVec2(ImGui::GetFontSize() * 0.75f, ImGui::GetFontSize() * 0.25f));
 	ImGui::BeginChild("SettingsContent",
 					  ImVec2(0, ImGui::GetContentRegionAvail().y),
 					  false,

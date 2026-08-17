@@ -226,8 +226,7 @@ void EditorFrame::updateLayoutMetrics()
 
 	layout.size = ImGui::GetContentRegionAvail();
 	const float fs = ImGui::GetFontSize();
-	gutter.lineNumberWidth =
-		ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
+	gutter.lineNumberWidth = ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
 	layout.lineHeight = ImGui::GetTextLineHeight();
 	layout.editorTopMargin = fs * 0.1f;
 	layout.textLeftMargin = fs * 0.35f;

@@ -149,8 +149,7 @@ void FileTree::drawNodeRow(FileNode &node, int depth)
 											  : fileExplorer->icons.getForFile(node.name);
 
 	const ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
-	const float requiredWidth =
-		indent + rowPadX + iconSize + iconTextGap + textSize.x;
+	const float requiredWidth = indent + rowPadX + iconSize + iconTextGap + textSize.x;
 	const float buttonWidth = std::max(requiredWidth, ImGui::GetContentRegionAvail().x);
 
 	// Full-width invisible hit target for the row.
