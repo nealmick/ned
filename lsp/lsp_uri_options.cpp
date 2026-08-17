@@ -50,10 +50,9 @@ void LSPUriOptions::render(const std::string &title,
 	const float maxHeight = ImGui::GetIO().DisplaySize.y * 0.5f;
 
 	const float desiredWidth = fs * 30.0f;
-	ImVec2 windowSize(
-		desiredWidth,
-		std::min(totalHeight, maxHeight) +
-			(options.size() <= 1 ? fs * 0.5f : fs * 1.25f));
+	ImVec2 windowSize(desiredWidth,
+					  std::min(totalHeight, maxHeight) +
+						  (options.size() <= 1 ? fs * 0.5f : fs * 1.25f));
 	windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f);
 
 	ImVec2 windowPos;

@@ -807,83 +807,83 @@ void Workbench::drawWindowsTitlebar()
 					gear = hover;
 			}
 			if (gear)
-				dl->AddImage(gear,
-							 ImVec2(a.x + pad, a.y + pad),
-							 ImVec2(b.x - pad, b.y - pad));
+				dl->AddImage(
+					gear, ImVec2(a.x + pad, a.y + pad), ImVec2(b.x - pad, b.y - pad));
 		}))
 	{
 		if (EditorApi *api = activeApi())
 			settings.toggleSettingsWindow(*api);
 	}
 
-	auto capBtn = [&](const char *id,
-					  bool isClose,
-					  WindowsCaptionHit part,
-					  auto glyph) -> bool {
+	auto capBtn =
+		[&](const char *id, bool isClose, WindowsCaptionHit part, auto glyph) -> bool {
 		ImGui::SetCursorPos(ImVec2(capX, 0.0f));
 		const bool hit = ImGui::InvisibleButton(id, ImVec2(btnW, h));
 		const ImVec2 a = ImGui::GetItemRectMin();
 		const ImVec2 b = ImGui::GetItemRectMax();
 		windowsExcludeCaptionRect(a, b, part);
-		const bool hov =
-			ImGui::IsItemHovered() || windowsCaptionHover() == part;
+		const bool hov = ImGui::IsItemHovered() || windowsCaptionHover() == part;
 		if (hov)
 		{
-			dl->AddRectFilled(a,
-							  b,
-							  isClose ? IM_COL32(232, 17, 35, 255)
-									  : IM_COL32(255, 255, 255, 28));
+			dl->AddRectFilled(
+				a, b, isClose ? IM_COL32(232, 17, 35, 255) : IM_COL32(255, 255, 255, 28));
 		}
 		glyph(a, b, hov && isClose ? IM_COL32(255, 255, 255, 255) : ink);
 		capX += btnW;
 		return hit;
 	};
 
-	if (capBtn("##tb_min", false, WindowsCaptionHit::Min, [&](ImVec2 a, ImVec2 b, ImU32 col) {
-			const float cx = (a.x + b.x) * 0.5f;
-			const float cy = (a.y + b.y) * 0.5f;
-			const float w = fs * 0.45f;
-			dl->AddLine(ImVec2(cx - w, cy), ImVec2(cx + w, cy), col, stroke);
-		}))
+	if (capBtn(
+			"##tb_min", false, WindowsCaptionHit::Min, [&](ImVec2 a, ImVec2 b, ImU32 col) {
+				const float cx = (a.x + b.x) * 0.5f;
+				const float cy = (a.y + b.y) * 0.5f;
+				const float w = fs * 0.45f;
+				dl->AddLine(ImVec2(cx - w, cy), ImVec2(cx + w, cy), col, stroke);
+			}))
 		windowsMinimize();
 
-	if (capBtn("##tb_max", false, WindowsCaptionHit::Max, [&](ImVec2 a, ImVec2 b, ImU32 col) {
-			const float cx = (a.x + b.x) * 0.5f;
-			const float cy = (a.y + b.y) * 0.5f;
-			const float s = fs * 0.42f;
-			if (windowsIsMaximized())
-			{
-				dl->AddRect(ImVec2(cx - s + 2.0f, cy - s),
-							ImVec2(cx + s, cy + s - 2.0f),
-							col,
-							0.0f,
-							0,
-							stroke);
-				dl->AddRect(ImVec2(cx - s, cy - s + 3.0f),
-							ImVec2(cx + s - 2.0f, cy + s),
-							col,
-							0.0f,
-							0,
-							stroke);
-			} else
-			{
-				dl->AddRect(ImVec2(cx - s, cy - s),
-							ImVec2(cx + s, cy + s),
-							col,
-							0.0f,
-							0,
-							stroke);
-			}
-		}))
+	if (capBtn(
+			"##tb_max", false, WindowsCaptionHit::Max, [&](ImVec2 a, ImVec2 b, ImU32 col) {
+				const float cx = (a.x + b.x) * 0.5f;
+				const float cy = (a.y + b.y) * 0.5f;
+				const float s = fs * 0.42f;
+				if (windowsIsMaximized())
+				{
+					dl->AddRect(ImVec2(cx - s + 2.0f, cy - s),
+								ImVec2(cx + s, cy + s - 2.0f),
+								col,
+								0.0f,
+								0,
+								stroke);
+					dl->AddRect(ImVec2(cx - s, cy - s + 3.0f),
+								ImVec2(cx + s - 2.0f, cy + s),
+								col,
+								0.0f,
+								0,
+								stroke);
+				} else
+				{
+					dl->AddRect(ImVec2(cx - s, cy - s),
+								ImVec2(cx + s, cy + s),
+								col,
+								0.0f,
+								0,
+								stroke);
+				}
+			}))
 		windowsToggleMaximize();
 
-	if (capBtn("##tb_close", true, WindowsCaptionHit::Close, [&](ImVec2 a, ImVec2 b, ImU32 col) {
-			const float cx = (a.x + b.x) * 0.5f;
-			const float cy = (a.y + b.y) * 0.5f;
-			const float s = fs * 0.38f;
-			dl->AddLine(ImVec2(cx - s, cy - s), ImVec2(cx + s, cy + s), col, stroke);
-			dl->AddLine(ImVec2(cx + s, cy - s), ImVec2(cx - s, cy + s), col, stroke);
-		}))
+	if (capBtn(
+			"##tb_close",
+			true,
+			WindowsCaptionHit::Close,
+			[&](ImVec2 a, ImVec2 b, ImU32 col) {
+				const float cx = (a.x + b.x) * 0.5f;
+				const float cy = (a.y + b.y) * 0.5f;
+				const float s = fs * 0.38f;
+				dl->AddLine(ImVec2(cx - s, cy - s), ImVec2(cx + s, cy + s), col, stroke);
+				dl->AddLine(ImVec2(cx + s, cy - s), ImVec2(cx - s, cy + s), col, stroke);
+			}))
 		windowsClose();
 
 	// Hairline under the bar.

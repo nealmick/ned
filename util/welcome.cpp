@@ -39,9 +39,9 @@ bool drawOpenFolderButton(const Settings &settings, const ImVec2 &size)
 	const ImVec2 mouse = ImGui::GetMousePos();
 	const bool hovered = mouse.x >= pos.x && mouse.x <= pos.x + size.x &&
 						 mouse.y >= pos.y && mouse.y <= pos.y + size.y;
-	ImGui::PushStyleColor(ImGuiCol_Border,
-						  hovered ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
-								  : ImVec4(0.0f, 0.48f, 1.0f, 1.0f));
+	ImGui::PushStyleColor(
+		ImGuiCol_Border,
+		hovered ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : ImVec4(0.0f, 0.48f, 1.0f, 1.0f));
 
 	const bool clicked = ImGui::Button("Open Folder", size);
 	ImGui::PopStyleColor(4);
@@ -196,7 +196,8 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 		const bool isHovered = ImGui::IsItemHovered();
 		if (isHovered)
 		{
-			draw_list->AddRectFilled(rectMin, rectMax, IM_COL32(0, 123, 255, 76), rounding);
+			draw_list->AddRectFilled(
+				rectMin, rectMax, IM_COL32(0, 123, 255, 76), rounding);
 		}
 
 		draw_list->AddRect(
@@ -305,8 +306,8 @@ void Welcome::render()
 	const float minTop = fs;
 	const float maxTop = fs * 4.0f;
 	const float topMargin =
-		minTop + (maxTop - minTop) *
-					 std::min(1.0f, (windowHeight - fs * 20.0f) / (fs * 20.0f));
+		minTop +
+		(maxTop - minTop) * std::min(1.0f, (windowHeight - fs * 20.0f) / (fs * 20.0f));
 	float currentY = topMargin;
 
 	const bool useSideBySide = windowWidth > fs * 40.0f && loadNedLogo();
@@ -331,10 +332,10 @@ void Welcome::render()
 		ImGui::PopFont();
 
 		ImGui::PushFont(font, body * 1.3f);
-		const ImVec2 btnSize(std::max(ImGui::CalcTextSize("Open Folder").x +
-										  ImGui::GetFontSize() * 3.2f,
-									  ImGui::GetFontSize() * 10.8f),
-							 ImGui::GetTextLineHeight() + ImGui::GetFontSize() * 0.9f);
+		const ImVec2 btnSize(
+			std::max(ImGui::CalcTextSize("Open Folder").x + ImGui::GetFontSize() * 3.2f,
+					 ImGui::GetFontSize() * 10.8f),
+			ImGui::GetTextLineHeight() + ImGui::GetFontSize() * 0.9f);
 		ImGui::SetCursorPos(
 			ImVec2(contentX, afterTitle + ImGui::GetTextLineHeight() * 0.35f));
 		if (drawOpenFolderButton(settings, btnSize))
@@ -352,10 +353,8 @@ void Welcome::render()
 			ImGui::PushFont(font, body);
 			const float rowH = ImGui::GetTextLineHeightWithSpacing();
 			const float colW = ImGui::CalcTextSize("CMD+: Line Jump").x + fs * 2.0f;
-			const ImVec4 keybindColor(textColor.x * 0.8f,
-									  textColor.y * 0.8f,
-									  textColor.z * 0.8f,
-									  textColor.w);
+			const ImVec4 keybindColor(
+				textColor.x * 0.8f, textColor.y * 0.8f, textColor.z * 0.8f, textColor.w);
 			const char *keybinds[] = {"CMD+O Open Folder",
 									  "CMD+T Terminal",
 									  "CMD+: Line Jump",
@@ -420,11 +419,11 @@ void Welcome::render()
 	ImGui::SetCursorPosY(windowHeight - ImGui::GetTextLineHeight() * 3.0f);
 	ImGui::SetCursorPosX((windowWidth - ImGui::CalcTextSize(github).x) * 0.5f);
 	ImGui::PushStyleColor(ImGuiCol_Text, textColor);
-	if (ImGui::Selectable(github,
-						  false,
-						  ImGuiSelectableFlags_None,
-						  ImVec2(ImGui::CalcTextSize(github).x,
-								 ImGui::GetTextLineHeight())))
+	if (ImGui::Selectable(
+			github,
+			false,
+			ImGuiSelectableFlags_None,
+			ImVec2(ImGui::CalcTextSize(github).x, ImGui::GetTextLineHeight())))
 	{
 #ifdef __APPLE__
 		system("open https://github.com/nealmick/ned");

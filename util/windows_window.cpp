@@ -116,8 +116,7 @@ LRESULT CALLBACK nedWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 
-	case WM_NCHITTEST:
-	{
+	case WM_NCHITTEST: {
 		POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
 		RECT wr{};
 		GetWindowRect(hwnd, &wr);
@@ -169,8 +168,7 @@ LRESULT CALLBACK nedWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 0;
 		break;
 
-	case WM_NCLBUTTONUP:
-	{
+	case WM_NCLBUTTONUP: {
 		POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
 		ScreenToClient(hwnd, &pt);
 		const int ht = hitTestExcludes((float)pt.x, (float)pt.y);
@@ -254,9 +252,7 @@ float windowsTitlebarInset() { return gCaptionH; }
 
 void windowsClearCaptionExcludes() { gExcludes.clear(); }
 
-void windowsExcludeCaptionRect(const ImVec2 &min,
-							   const ImVec2 &max,
-							   WindowsCaptionHit hit)
+void windowsExcludeCaptionRect(const ImVec2 &min, const ImVec2 &max, WindowsCaptionHit hit)
 {
 	gExcludes.push_back({min.x, min.y, max.x, max.y, htFromPart(hit)});
 }

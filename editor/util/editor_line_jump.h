@@ -40,9 +40,8 @@ class EditorLineJump
 		const ImVec2 panePos = ImGui::GetWindowPos();
 		const ImVec2 paneSize = ImGui::GetWindowSize();
 
-		ImVec2 windowPos =
-			ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
-				   panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);
+		ImVec2 windowPos = ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
+								  panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);
 
 		if (windowPos.x < panePos.x)
 			windowPos.x = panePos.x;
