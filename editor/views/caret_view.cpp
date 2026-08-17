@@ -6,62 +6,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 float CaretView::caretScreenX(const ImVec2 &textPos) const
 {
-	const std::string line = viewState->document().line(viewState->row);
-	float x = textPos.x;
-	const int end = std::min(viewState->column, static_cast<int>(line.size()));
-	for (int i = 0; i < end;)
-	{
-		if (line[i] == '\t')
-		{
-			x += EditorUtils::MeasureGlyphWidth(
-				&line[i], &line[i] + 1, x, textPos.x, EditorUtils::kTabSize);
-			++i;
-		} else
-		{
-			const char *char_start = &line[i];
-			const char *char_end = char_start + 1;
-			while (char_end < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*char_end) & 0xC0) == 0x80)
-				++char_end;
-			x += EditorUtils::MeasureGlyphWidth(
-				char_start, char_end, x, textPos.x, EditorUtils::kTabSize);
-			i = static_cast<int>(char_end - line.data());
-		}
-	}
-	return x;
-}
-
-static float
-caretXOnLine(const EditorState &doc, int row, int column, const ImVec2 &textPos)
-{
-	if (row < 0 || row >= doc.lineCount())
-		return textPos.x;
-	const std::string line = doc.line(row);
-	float x = textPos.x;
-	const int end = std::min(column, static_cast<int>(line.size()));
-	for (int i = 0; i < end;)
-	{
-		if (line[i] == '\t')
-		{
-			x += EditorUtils::MeasureGlyphWidth(
-				&line[i], &line[i] + 1, x, textPos.x, EditorUtils::kTabSize);
-			++i;
-		} else
-		{
-			const char *char_start = &line[i];
-			const char *char_end = char_start + 1;
-			while (char_end < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*char_end) & 0xC0) == 0x80)
-				++char_end;
-			x += EditorUtils::MeasureGlyphWidth(
-				char_start, char_end, x, textPos.x, EditorUtils::kTabSize);
-			i = static_cast<int>(char_end - line.data());
-		}
-	}
-	return x;
+	return std::floor(EditorUtils::LineColumnX(
+		viewState->document().line(viewState->row), viewState->column, textPos.x));
 }
 
 void CaretView::draw() const
@@ -72,7 +22,7 @@ void CaretView::draw() const
 		return;
 
 	ImDrawList *draw_list = ImGui::GetWindowDrawList();
-	const float cursor_thickness = 2.0f;
+	const float thickness = 2.0f;
 	const bool rainbowMode = layout->rainbowMode;
 	const float blink_alpha = (sinf(viewState->cursorBlinkTime * 4.0f) + 1.0f) * 0.5f;
 	const ImU32 primaryColor =
@@ -88,13 +38,16 @@ void CaretView::draw() const
 	for (int i = 0; i < viewState->selectionCount(); ++i)
 	{
 		const Selection &sel = viewState->selections[static_cast<size_t>(i)];
-		const float x = caretXOnLine(doc, sel.headRow, sel.headColumn, layout->textPos);
-		ImVec2 start = layout->textPos;
-		start.x = x;
-		start.y += static_cast<float>(sel.headRow) * layout->lineHeight;
-		ImVec2 end(start.x, start.y + layout->lineHeight - 1.0f);
-		const bool isPrimary = (i == primary);
-		draw_list->AddLine(
-			start, end, isPrimary ? primaryColor : secondaryColor, cursor_thickness);
+		const std::string line = (sel.headRow >= 0 && sel.headRow < doc.lineCount())
+									 ? doc.line(sel.headRow)
+									 : std::string{};
+		const float x =
+			std::floor(EditorUtils::LineColumnX(line, sel.headColumn, layout->textPos.x));
+		const float y0 = std::floor(layout->textPos.y +
+									static_cast<float>(sel.headRow) * layout->lineHeight);
+		const float half = thickness * 0.5f;
+		draw_list->AddRectFilled(ImVec2(x - half, y0),
+								 ImVec2(x + half, y0 + layout->lineHeight - 1.0f),
+								 (i == primary) ? primaryColor : secondaryColor);
 	}
 }
