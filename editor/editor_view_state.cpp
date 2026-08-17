@@ -10,7 +10,6 @@
 #include "views/view_layout.h"
 
 #include <algorithm>
-#include <cfloat>
 #include <cmath>
 #include <string>
 
@@ -632,12 +631,7 @@ float EditorViewState::cursorScreenX() const
 	if (row < 0 || row >= state->lineCount())
 		return 0.0f;
 
-	const std::string line = state->line(row);
-	const int end = std::clamp(column, 0, static_cast<int>(line.size()));
-	return ImGui::GetFont()
-		->CalcTextSizeA(
-			ImGui::GetFontSize(), FLT_MAX, 0.0f, line.data(), line.data() + end)
-		.x;
+	return EditorUtils::LineColumnX(state->line(row), column);
 }
 
 void EditorViewState::revealCursor(const ViewLayout &layout,

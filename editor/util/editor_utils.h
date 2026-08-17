@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h> // For time functions
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -157,7 +158,42 @@ inline std::vector<std::string> SplitOnSeparator(const std::string &text,
 // Monospace tab/glyph width (shared by text view, caret, hit-test).
 inline constexpr int kTabSize = 4;
 
-inline float SpaceWidth() { return ImGui::CalcTextSize(" ").x; }
+// CalcTextSizeA, not ImGui::CalcTextSize — the latter ceils every call
+// and walks the caret to the right of AddText.
+inline float GlyphAdvance(const char *start, const char *end)
+{
+	ImFont *font = ImGui::GetFont();
+	const float fs = ImGui::GetFontSize();
+	if (end == start + 1)
+	{
+		const unsigned char c = static_cast<unsigned char>(*start);
+		if (c < 128)
+		{
+			static ImFont *cachedFont = nullptr;
+			static float cachedFs = 0.0f;
+			static float adv[128];
+			if (font != cachedFont || fs != cachedFs)
+			{
+				cachedFont = font;
+				cachedFs = fs;
+				char buf[2] = {0, 0};
+				for (int i = 0; i < 128; ++i)
+				{
+					buf[0] = static_cast<char>(i);
+					adv[i] = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, buf, buf + 1).x;
+				}
+			}
+			return adv[c];
+		}
+	}
+	return font->CalcTextSizeA(fs, FLT_MAX, 0.0f, start, end).x;
+}
+
+inline float SpaceWidth()
+{
+	static const char kSpace[] = " ";
+	return GlyphAdvance(kSpace, kSpace + 1);
+}
 
 inline float TabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = kTabSize)
 {
@@ -178,7 +214,59 @@ inline float MeasureGlyphWidth(const char *start,
 		const int column = static_cast<int>((drawX - textOriginX) / spaceWidth);
 		return TabAdvanceWidth(spaceWidth, column, tabSize);
 	}
-	return ImGui::CalcTextSize(start, end).x;
+	return GlyphAdvance(start, end);
+}
+
+inline float LineColumnX(const std::string &line, int column, float originX = 0.0f)
+{
+	float x = originX;
+	const int end = std::max(0, std::min(column, static_cast<int>(line.size())));
+	for (int i = 0; i < end;)
+	{
+		const char *start = &line[i];
+		const char *stop = start + 1;
+		if (*start != '\t' && (static_cast<unsigned char>(*start) & 0x80) != 0)
+		{
+			while (stop < line.data() + line.size() &&
+				   (static_cast<unsigned char>(*stop) & 0xC0) == 0x80)
+				++stop;
+		}
+		x += MeasureGlyphWidth(start, stop, x, originX);
+		i = static_cast<int>(stop - line.data());
+	}
+	return x;
+}
+
+inline int ColumnAtX(const std::string &line, float clickX, float originX = 0.0f)
+{
+	if (line.empty())
+		return 0;
+	int best = 0;
+	float bestDist = std::abs(clickX - originX);
+	float x = originX;
+	for (int i = 0; i < static_cast<int>(line.size());)
+	{
+		const char *start = &line[i];
+		const char *stop = start + 1;
+		if (*start != '\t' && (static_cast<unsigned char>(*start) & 0x80) != 0)
+		{
+			while (stop < line.data() + line.size() &&
+				   (static_cast<unsigned char>(*stop) & 0xC0) == 0x80)
+				++stop;
+		}
+		x += MeasureGlyphWidth(start, stop, x, originX);
+		const int next = static_cast<int>(stop - line.data());
+		const float dist = std::abs(clickX - x);
+		if (dist < bestDist)
+		{
+			bestDist = dist;
+			best = next;
+		}
+		if (x >= clickX)
+			break;
+		i = next;
+	}
+	return best;
 }
 
 } // namespace EditorUtils
