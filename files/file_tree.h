@@ -47,8 +47,4 @@ class FileTree
 					   bool isCurrentFile);
 	ImVec4 themeTextColor() const;
 	ImTextureID folderIcon(bool isOpen) const;
-	std::string findReadmeInRoot() const;
-
-	// Open README.md once when a project is first loaded with no active file.
-	bool shouldAutoOpenReadme = true;
 };
