@@ -5,7 +5,6 @@
 #include "../util/icons.h"
 #include "../util/settings.h"
 #include <algorithm>
-#include <cctype>
 #include <iostream>
 
 // ---------------------------------------------------------------------------
@@ -82,38 +81,6 @@ void FileTree::refreshFileTree()
 	rootNode.isOpen = true;
 
 	buildFileTree(folder, rootNode);
-
-	if (shouldAutoOpenReadme)
-	{
-		if (fileExplorer->api && !fileExplorer->api->hasPath())
-		{
-			const std::string readme = findReadmeInRoot();
-			if (!readme.empty())
-				fileExplorer->loadFileContent(readme);
-		}
-		shouldAutoOpenReadme = false;
-	}
-}
-
-std::string FileTree::findReadmeInRoot() const
-{
-	if (!rootNode.isDirectory)
-		return {};
-
-	for (const auto &child : rootNode.children)
-	{
-		if (child.isDirectory)
-			continue;
-
-		std::string lower = child.name;
-		std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
-			return static_cast<char>(std::tolower(c));
-		});
-
-		if (lower == "readme.md" || lower == "readme")
-			return child.fullPath;
-	}
-	return {};
 }
 
 // ---------------------------------------------------------------------------
