@@ -73,6 +73,8 @@ Workbench::Tab Workbench::makeTab(const std::string &path)
 
 Workbench::Workbench() : projectUndo(projectRoot)
 {
+	EditorHighlight::startBackgroundPrewarm();
+
 	// Bootstrap one editor so FileExplorer / LSP can bind an EditorApi.
 	// wireTabEditor needs the editor already constructed; makeTab does that.
 	// initialize() also wires event subscriptions — bootstrap must exist first.

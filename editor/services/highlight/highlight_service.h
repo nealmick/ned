@@ -39,6 +39,7 @@ class EditorHighlight
 	void cancelHighlighting();
 	void forceColorUpdate();
 	void poll();
+	static void startBackgroundPrewarm();
 
 	ImVec4 defaultTextColor() const;
 	ImVec4 colorForSlot(ThemeSlot slot) const;

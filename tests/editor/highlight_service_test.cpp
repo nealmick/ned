@@ -151,6 +151,22 @@ TEST_CASE("language switch replaces c spans with python spans", "[ned][highlight
 	REQUIRE(sawKeyword);
 }
 
+TEST_CASE("startBackgroundPrewarm compiles shipped queries", "[ned][highlight]")
+{
+	TreeSitter::startBackgroundPrewarm();
+	TreeSitter ts;
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+	while (std::chrono::steady_clock::now() < deadline)
+	{
+		if (ts.queryReady("cpp") && ts.queryReady("json") && ts.queryReady("py"))
+			break;
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
+	}
+	REQUIRE(ts.queryReady("cpp"));
+	REQUIRE(ts.queryReady("json"));
+	REQUIRE(ts.queryReady("py"));
+}
+
 TEST_CASE("empty buffer stays spannless", "[ned][highlight]")
 {
 	test::EditorFixture fx;
