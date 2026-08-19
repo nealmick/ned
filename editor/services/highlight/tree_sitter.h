@@ -98,6 +98,8 @@ class TreeSitter
 	void updateThemeColors();
 	// True if this language's .scm is already compiled (safe to query on UI).
 	bool queryReady(const std::string &languageId) const;
+	// Compile every shipped query on a background thread. Once per process.
+	static void startBackgroundPrewarm();
 	ThemeColors cachedColors;
 
   private:
@@ -115,9 +117,10 @@ class TreeSitter
 	std::mutex parserMutex;
 	std::string inputScratch;
 
-	std::pair<TSLanguage *, std::string>
-	detectLanguageAndQuery(const std::string &languageId) const;
-	TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang, const std::string &query_path);
+	static std::pair<TSLanguage *, std::string>
+	detectLanguageAndQuery(const std::string &languageId);
+	static TSQuery *loadQueryFromCacheOrFile(TSLanguage *lang,
+											 const std::string &query_path);
 
 	ParseResult parse(ParseSnapshot &snapshot, uint64_t gen);
 	ParseResult queryWindow(const ParseSnapshot &snapshot, int lineLo, int lineHi);

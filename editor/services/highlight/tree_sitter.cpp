@@ -9,11 +9,14 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <optional>
 #include <regex>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 extern "C" TSLanguage *tree_sitter_cpp();
@@ -39,6 +42,45 @@ namespace {
 // is the expensive part of opening a 10-line file.
 std::mutex gQueryMu;
 std::unordered_map<std::string, TSQuery *> gQueryCache;
+std::unordered_map<std::string, std::shared_future<TSQuery *>> gQueryInflight;
+
+struct LangEntry
+{
+	const char *id;
+	TSLanguage *(*lang)();
+	const char *scm;
+};
+
+const LangEntry kLangs[] = {
+	{"c", tree_sitter_c, "c.scm"},
+	{"cpp", tree_sitter_cpp, "cpp.scm"},
+	{"h", tree_sitter_cpp, "cpp.scm"},
+	{"hpp", tree_sitter_cpp, "cpp.scm"},
+	{"mm", tree_sitter_cpp, "cpp.scm"},
+	{"cc", tree_sitter_cpp, "cpp.scm"},
+	{"cxx", tree_sitter_cpp, "cpp.scm"},
+	{"js", tree_sitter_javascript, "jsx.scm"},
+	{"jsx", tree_sitter_javascript, "jsx.scm"},
+	{"py", tree_sitter_python, "python.scm"},
+	{"cs", tree_sitter_c_sharp, "csharp.scm"},
+	{"html", tree_sitter_html, "html.scm"},
+	{"cshtml", tree_sitter_html, "html.scm"},
+	{"tsx", tree_sitter_tsx, "tsx.scm"},
+	{"ts", tree_sitter_tsx, "tsx.scm"},
+	{"css", tree_sitter_css, "css.scm"},
+	{"java", tree_sitter_java, "java.scm"},
+	{"go", tree_sitter_go, "go.scm"},
+	{"tf", tree_sitter_hcl, "hcl.scm"},
+	{"hcl", tree_sitter_hcl, "hcl.scm"},
+	{"json", tree_sitter_json, "json.scm"},
+	{"sh", tree_sitter_bash, "sh.scm"},
+	{"bash", tree_sitter_bash, "sh.scm"},
+	{"kt", tree_sitter_kotlin, "kotlin.scm"},
+	{"kts", tree_sitter_kotlin, "kotlin.scm"},
+	{"rs", tree_sitter_rust, "rs.scm"},
+	{"toml", tree_sitter_toml, "toml.scm"},
+	{"rb", tree_sitter_ruby, "rb.scm"},
+};
 } // namespace
 
 namespace {
@@ -972,49 +1014,12 @@ void TreeSitter::updateThemeColors()
 // ---------------------------------------------------------------------------
 
 std::pair<TSLanguage *, std::string>
-TreeSitter::detectLanguageAndQuery(const std::string &languageId) const
+TreeSitter::detectLanguageAndQuery(const std::string &languageId)
 {
 	std::string id = languageId;
 	if (!id.empty() && id[0] == '.')
 		id.erase(0, 1);
-
-	struct Entry
-	{
-		const char *id;
-		TSLanguage *(*lang)();
-		const char *scm;
-	};
-	static const Entry kLangs[] = {
-		{"c", tree_sitter_c, "c.scm"},
-		{"cpp", tree_sitter_cpp, "cpp.scm"},
-		{"h", tree_sitter_cpp, "cpp.scm"},
-		{"hpp", tree_sitter_cpp, "cpp.scm"},
-		{"mm", tree_sitter_cpp, "cpp.scm"},
-		{"cc", tree_sitter_cpp, "cpp.scm"},
-		{"cxx", tree_sitter_cpp, "cpp.scm"},
-		{"js", tree_sitter_javascript, "jsx.scm"},
-		{"jsx", tree_sitter_javascript, "jsx.scm"},
-		{"py", tree_sitter_python, "python.scm"},
-		{"cs", tree_sitter_c_sharp, "csharp.scm"},
-		{"html", tree_sitter_html, "html.scm"},
-		{"cshtml", tree_sitter_html, "html.scm"},
-		{"tsx", tree_sitter_tsx, "tsx.scm"},
-		{"ts", tree_sitter_tsx, "tsx.scm"},
-		{"css", tree_sitter_css, "css.scm"},
-		{"java", tree_sitter_java, "java.scm"},
-		{"go", tree_sitter_go, "go.scm"},
-		{"tf", tree_sitter_hcl, "hcl.scm"},
-		{"hcl", tree_sitter_hcl, "hcl.scm"},
-		{"json", tree_sitter_json, "json.scm"},
-		{"sh", tree_sitter_bash, "sh.scm"},
-		{"bash", tree_sitter_bash, "sh.scm"},
-		{"kt", tree_sitter_kotlin, "kotlin.scm"},
-		{"kts", tree_sitter_kotlin, "kotlin.scm"},
-		{"rs", tree_sitter_rust, "rs.scm"},
-		{"toml", tree_sitter_toml, "toml.scm"},
-		{"rb", tree_sitter_ruby, "rb.scm"},
-	};
-	for (const Entry &e : kLangs)
+	for (const LangEntry &e : kLangs)
 	{
 		if (id == e.id)
 			return {e.lang(), e.scm};
@@ -1055,28 +1060,74 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
 {
 	const std::string full_path = resolveQueryFile(query_path).string();
 
-	std::lock_guard<std::mutex> lock(gQueryMu);
-	if (auto it = gQueryCache.find(full_path); it != gQueryCache.end())
-		return it->second;
-
-	std::ifstream file(full_path);
-	if (!file.is_open())
-		return nullptr;
-	std::string query_src((std::istreambuf_iterator<char>(file)),
-						  std::istreambuf_iterator<char>());
-
-	uint32_t error_offset = 0;
-	TSQueryError error_type{};
-	TSQuery *query = ts_query_new(
-		lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
-	if (!query)
+	std::promise<TSQuery *> compiled;
+	std::shared_future<TSQuery *> waiter;
+	bool owner = false;
 	{
-		std::cerr << "Query error (" << error_type << ") at offset " << error_offset
-				  << "\n";
-		return nullptr;
+		std::lock_guard<std::mutex> lock(gQueryMu);
+		if (auto it = gQueryCache.find(full_path); it != gQueryCache.end())
+			return it->second;
+		if (auto it = gQueryInflight.find(full_path); it != gQueryInflight.end())
+			waiter = it->second;
+		else
+		{
+			waiter = compiled.get_future().share();
+			gQueryInflight[full_path] = waiter;
+			owner = true;
+		}
 	}
-	gQueryCache[full_path] = query;
+	if (!owner)
+		return waiter.get();
+
+	// ts_query_new is seconds on cpp/jsx. queryReady() is called from the UI
+	// thread and must not wait on this lock.
+	TSQuery *query = nullptr;
+	try
+	{
+		std::ifstream file(full_path);
+		if (file.is_open())
+		{
+			std::string query_src((std::istreambuf_iterator<char>(file)),
+								  std::istreambuf_iterator<char>());
+			uint32_t error_offset = 0;
+			TSQueryError error_type{};
+			query = ts_query_new(
+				lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
+			if (!query)
+			{
+				std::cerr << "Query error (" << error_type << ") at offset "
+						  << error_offset << "\n";
+			}
+		}
+	} catch (const std::exception &)
+	{
+		query = nullptr;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(gQueryMu);
+		if (query)
+			gQueryCache[full_path] = query;
+		gQueryInflight.erase(full_path);
+	}
+	compiled.set_value(query);
 	return query;
+}
+
+void TreeSitter::startBackgroundPrewarm()
+{
+	static std::once_flag once;
+	std::call_once(once, [] {
+		std::thread([] {
+			std::unordered_set<std::string> seen;
+			for (const LangEntry &e : kLangs)
+			{
+				if (!seen.insert(e.scm).second)
+					continue;
+				loadQueryFromCacheOrFile(e.lang(), e.scm);
+			}
+		}).detach();
+	});
 }
 
 bool TreeSitter::queryReady(const std::string &languageId) const

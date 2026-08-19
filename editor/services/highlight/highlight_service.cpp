@@ -16,6 +16,8 @@ EditorHighlight::EditorHighlight(EditorState &document,
 	treeSitter.updateThemeColors();
 }
 
+void EditorHighlight::startBackgroundPrewarm() { TreeSitter::startBackgroundPrewarm(); }
+
 void EditorHighlight::cancelHighlighting()
 {
 	if (cancelFlag)
