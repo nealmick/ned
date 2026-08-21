@@ -2,10 +2,10 @@
 	File: views/minimap_view.cpp
 	Description: Density minimap — ImGui rects, click/drag/wheel.
 
-	Density glyphs are expensive (lineInto + span walk + UTF-8 per char, every
-	frame). Cache the strip's rect list keyed by doc version / highlight gen /
-	visible line window; only rebuild when that key changes. Idle frames just
-	replay verts. Slider still updates live with scroll.
+	Density glyphs are expensive (lineInto + span walk + UTF-8 per char).
+	Cache merged same-color runs keyed by doc version / highlight gen /
+	visible line window; only rebuild when that key changes. Idle/scroll
+	frames replay a handful of rects. Slider still updates live with scroll.
 */
 #include "minimap_view.h"
 #include "../editor_state.h"
@@ -93,26 +93,48 @@ Strip makeStrip(const EditorState &st,
 
 void MinimapView::rebuildDensityCache(const CacheKey &key) const
 {
-	cacheDots_.clear();
+	cacheRuns_.clear();
 	if (!state || !highlight || key.end < key.start || key.maxCols <= 0)
 	{
 		cacheKey_ = key;
 		return;
 	}
 
-	// Rough upper bound: visible lines * columns (most cells empty).
 	const int rows = key.end - key.start + 1;
-	cacheDots_.reserve(static_cast<size_t>(rows * std::min(key.maxCols, 24)));
+	cacheRuns_.reserve(static_cast<size_t>(rows * 8));
 
 	const Density d = densityFromFont();
+	constexpr size_t kSlotN = static_cast<size_t>(ThemeSlot::Count);
+	ImU32 slotInk[kSlotN];
+	for (size_t i = 0; i < kSlotN; ++i)
+		slotInk[i] = dimInk(highlight->colorForSlot(static_cast<ThemeSlot>(i)));
+
 	static thread_local std::string line;
+	// Density only paints maxCols columns; 4 bytes/col covers UTF-8.
+	const size_t byteCap = static_cast<size_t>(key.maxCols) * 4 + 8;
 	for (int row = key.start; row <= key.end; ++row)
 	{
 		const float y0 = float(row - key.start) * d.lineH;
-		state->lineInto(row, line);
+		state->lineInto(row, line, byteCap);
 		const auto &spans = highlight->spansForLine(row);
 		size_t sp = 0;
-		for (int col = 0, i = 0; i < (int)line.size() && col < key.maxCols;)
+		int runStart = -1;
+		ImU32 runInk = 0;
+		auto flush = [&](int col) {
+			if (runStart < 0 || col <= runStart)
+			{
+				runStart = -1;
+				return;
+			}
+			cacheRuns_.push_back(Run{d.padX + float(runStart) * d.charW,
+									 y0,
+									 float(col - runStart) * d.charW,
+									 d.dotH,
+									 runInk});
+			runStart = -1;
+		};
+		int col = 0;
+		for (int i = 0; i < (int)line.size() && col < key.maxCols;)
 		{
 			const int byte = i;
 			const unsigned char c = (unsigned char)line[i++];
@@ -120,11 +142,13 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 				continue;
 			if (c == '\t')
 			{
+				flush(col);
 				col = std::min(key.maxCols, col + (4 - col % 4));
 				continue;
 			}
 			if (c <= ' ')
 			{
+				flush(col);
 				++col;
 				continue;
 			}
@@ -132,29 +156,37 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 				++sp;
 			ImU32 ink = key.defInk;
 			if (sp < spans.size() && spans[sp].start <= byte)
-				ink = dimInk(highlight->colorForSlot(spans[sp].slot));
-			cacheDots_.push_back(Dot{d.padX + float(col++) * d.charW, y0, ink});
+			{
+				const auto slot = static_cast<size_t>(spans[sp].slot);
+				ink = slot < kSlotN ? slotInk[slot] : key.defInk;
+			}
+			if (runStart < 0 || ink != runInk)
+			{
+				flush(col);
+				runStart = col;
+				runInk = ink;
+			}
+			++col;
 			while (i < (int)line.size() && ((unsigned char)line[i] & 0xC0) == 0x80)
 				++i;
 		}
+		flush(col);
 	}
 	cacheKey_ = key;
 }
 
 void MinimapView::replayDensity(ImDrawList *dl, ImVec2 origin) const
 {
-	const int n = static_cast<int>(cacheDots_.size());
+	const int n = static_cast<int>(cacheRuns_.size());
 	if (n <= 0 || !dl)
 		return;
 
-	const Density m = densityFromFont();
-	// Batch into the window draw list — avoids per-dot AddRectFilled overhead.
 	dl->PrimReserve(n * 6, n * 4);
-	for (const Dot &d : cacheDots_)
+	for (const Run &r : cacheRuns_)
 	{
-		const ImVec2 p0(origin.x + d.x, origin.y + d.y);
-		const ImVec2 p1(p0.x + m.charW, p0.y + m.dotH);
-		dl->PrimRect(p0, p1, d.col);
+		const ImVec2 p0(origin.x + r.x, origin.y + r.y);
+		const ImVec2 p1(p0.x + r.w, p0.y + r.h);
+		dl->PrimRect(p0, p1, r.col);
 	}
 }
 

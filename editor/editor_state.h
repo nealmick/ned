@@ -50,7 +50,11 @@ class EditorState
 	int lineCount() const { return text.lineCount(); }
 	int lineLength(int row) const { return text.lineLength(row); }
 	std::string line(int row) const { return text.line(row); }
-	void lineInto(int row, std::string &out) const { text.lineInto(row, out); }
+	void
+	lineInto(int row, std::string &out, size_t maxBytes = static_cast<size_t>(-1)) const
+	{
+		text.lineInto(row, out, maxBytes);
+	}
 	void linesInto(std::vector<std::string> &out) const;
 	std::vector<std::string> lines() const;
 

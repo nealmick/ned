@@ -31,11 +31,13 @@ class MinimapView
 	void draw(const EditorViewState &view) const;
 
   private:
-	// One density pixel, positions relative to strip top-left (content origin).
-	struct Dot
+	// Merged same-color span, positions relative to strip top-left.
+	struct Run
 	{
 		float x = 0.0f;
 		float y = 0.0f;
+		float w = 0.0f;
+		float h = 0.0f;
 		ImU32 col = 0;
 	};
 
@@ -69,5 +71,5 @@ class MinimapView
 
 	// draw() is const (view API); cache is an implementation detail.
 	mutable CacheKey cacheKey_{};
-	mutable std::vector<Dot> cacheDots_;
+	mutable std::vector<Run> cacheRuns_;
 };

@@ -60,51 +60,8 @@ void TextView::draw() const
 {
 	if (!state || !viewState || !highlight || !layout)
 		return;
-	renderWhitespaceGuides();
 	renderCurrentLineHighlight();
-	renderText();
-}
-
-void TextView::renderWhitespaceGuides() const
-{
-	if (layout->lineHeight <= 0.0f || state->lineCount() <= 0)
-		return;
-
-	int start_line = 0;
-	int end_line = -1;
-	getVisibleLineRange(start_line, end_line);
-	if (start_line > end_line)
-		return;
-
-	const float space_width = EditorUtils::SpaceWidth();
-	const ImU32 guide_color = ImGui::ColorConvertFloat4ToU32(WHITESPACE_GUIDE_COLOR);
-	ImDrawList *draw = ImGui::GetWindowDrawList();
-	for (int line_num = start_line; line_num <= end_line; ++line_num)
-	{
-		const std::string line = state->line(line_num);
-		int whitespace_units = 0;
-		for (char c : line)
-		{
-			if (c == ' ')
-				++whitespace_units;
-			else if (c == '\t')
-				whitespace_units += TAB_SIZE;
-			else
-				break;
-		}
-
-		const float y0 = layout->textPos.y +
-						 static_cast<float>(line_num) * layout->lineHeight -
-						 WHITESPACE_GUIDE_Y_OFFSET;
-		const float y1 = y0 + layout->lineHeight;
-
-		for (int level = 1; level * TAB_SIZE < whitespace_units; ++level)
-		{
-			const float guide_x =
-				layout->textPos.x + static_cast<float>(level * TAB_SIZE) * space_width;
-			draw->AddLine(ImVec2(guide_x, y0), ImVec2(guide_x, y1), guide_color, 1.0f);
-		}
-	}
+	renderVisibleLines();
 }
 
 void TextView::renderCurrentLineHighlight() const
@@ -132,7 +89,7 @@ void TextView::renderCurrentLineHighlight() const
 		ImGui::ColorConvertFloat4ToU32(CURRENT_LINE_COLOR));
 }
 
-void TextView::renderText() const
+void TextView::renderVisibleLines() const
 {
 	if (layout->lineHeight <= 0.0f || state->lineCount() <= 0)
 		return;
@@ -145,19 +102,47 @@ void TextView::renderText() const
 
 	ImDrawList *draw = ImGui::GetWindowDrawList();
 	const ImU32 selCol = ImGui::ColorConvertFloat4ToU32(SELECTION_COLOR);
+	const ImU32 guideCol = ImGui::ColorConvertFloat4ToU32(WHITESPACE_GUIDE_COLOR);
 	const ImVec4 defaultColor = highlight->defaultTextColor();
 	const float originX = layout->textPos.x;
 	const float lineH = layout->lineHeight;
+	const float spaceWidth = EditorUtils::SpaceWidth();
+	const ImVec2 winPos = ImGui::GetWindowPos();
+	const float clipL = winPos.x;
+	const float clipR = winPos.x + ImGui::GetWindowWidth();
+
+	static thread_local std::string line;
 
 	for (int line_num = start_line; line_num <= end_line; ++line_num)
 	{
-		const std::string line = state->line(line_num);
-		ImVec2 draw_pos(originX, layout->textPos.y + static_cast<float>(line_num) * lineH);
+		state->lineInto(line_num, line);
+		const float y0 = layout->textPos.y + static_cast<float>(line_num) * lineH;
 
+		int whitespace_units = 0;
+		for (char c : line)
+		{
+			if (c == ' ')
+				++whitespace_units;
+			else if (c == '\t')
+				whitespace_units += TAB_SIZE;
+			else
+				break;
+		}
+		const float gy0 = y0 - WHITESPACE_GUIDE_Y_OFFSET;
+		const float gy1 = gy0 + lineH;
+		for (int level = 1; level * TAB_SIZE < whitespace_units; ++level)
+		{
+			const float gx = originX + static_cast<float>(level * TAB_SIZE) * spaceWidth;
+			if (gx >= clipR)
+				break;
+			if (gx >= clipL)
+				draw->AddLine(ImVec2(gx, gy0), ImVec2(gx, gy1), guideCol, 1.0f);
+		}
+
+		ImVec2 draw_pos(originX, y0);
 		const LineColorSpans &spans = highlight->spansForLine(line_num);
 		size_t spanIdx = 0;
 
-		// Batch consecutive same-color glyphs into one AddText (tabs break runs).
 		const char *runStart = nullptr;
 		const char *runEnd = nullptr;
 		ImVec2 runPos{};
@@ -199,18 +184,24 @@ void TextView::renderText() const
 			const float width =
 				measureGlyphWidth(char_start, char_end, draw_pos.x, originX);
 
-			if (isSelected(line_num, static_cast<int>(i)))
+			if (draw_pos.x > clipR)
+			{
+				flushRun();
+				break;
+			}
+
+			const bool visible = draw_pos.x + width >= clipL;
+			if (visible && isSelected(line_num, static_cast<int>(i)))
 				draw->AddRectFilled(
 					draw_pos, ImVec2(draw_pos.x + width, draw_pos.y + lineH), selCol);
 
-			if (isTab)
+			if (!visible || isTab)
 			{
 				flushRun();
 			} else if (!runStart || runColor.x != color.x || runColor.y != color.y ||
 					   runColor.z != color.z || runColor.w != color.w ||
 					   runEnd != char_start)
 			{
-				// Color change or non-contiguous bytes → new run.
 				flushRun();
 				runStart = char_start;
 				runEnd = char_end;
