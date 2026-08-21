@@ -50,7 +50,7 @@ class TextView
 
 	void getVisibleLineRange(int &start_line, int &end_line) const;
 	bool isSelected(int row, int col) const;
-	void renderWhitespaceGuides() const;
 	void renderCurrentLineHighlight() const;
-	void renderText() const;
+	// One rope copy per visible row: indent guides + glyphs + selection.
+	void renderVisibleLines() const;
 };
