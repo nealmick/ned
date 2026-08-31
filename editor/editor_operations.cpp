@@ -1,5 +1,6 @@
 #include "editor_operations.h"
 #include "editor_state.h"
+#include "util/utf8.h"
 
 #include <algorithm>
 
@@ -103,18 +104,30 @@ TextOp EditorOperations::invert(const TextOp &op, const std::string &deletedText
 }
 
 // ---------------------------------------------------------------------------
-// Pending tree-sitter edits
+// Pending edits (tree-sitter + LSP sync)
 // ---------------------------------------------------------------------------
 
-void EditorOperations::pushPending(const PendingTreeEdit &edit)
+EditorEvents::DocumentChange PendingEdit::toDocumentChange() const
+{
+	EditorEvents::DocumentChange change;
+	change.startLine = rangeStartLine;
+	change.startCharacter = rangeStartCharacter;
+	change.endLine = rangeEndLine;
+	change.endCharacter = rangeEndCharacter;
+	if (op.kind == OpKind::Insert)
+		change.text = op.text;
+	return change;
+}
+
+void EditorOperations::pushPending(const PendingEdit &edit)
 {
 	pending.push_back(edit);
 	bumpGeneration();
 }
 
-std::vector<PendingTreeEdit> EditorOperations::takePending()
+std::vector<PendingEdit> EditorOperations::takePending()
 {
-	std::vector<PendingTreeEdit> out;
+	std::vector<PendingEdit> out;
 	out.swap(pending);
 	return out;
 }
@@ -130,9 +143,16 @@ ApplyResult EditorOperations::apply(const TextOp &op)
 	if (!state)
 		return {};
 
-	// Snapshot joined offsets before mutation for tree-sitter.
-	PendingTreeEdit treeEdit;
+	// Snapshot joined offsets + UTF-16 range before mutation (tree-sitter + LSP).
+	PendingEdit treeEdit;
 	treeEdit.op = op;
+	const int row = std::clamp(op.row, 0, std::max(0, state->lineCount() - 1));
+	const std::string startLine =
+		state->lineCount() > 0 ? state->line(row) : std::string{};
+	const int col = std::clamp(op.column, 0, static_cast<int>(startLine.size()));
+	treeEdit.rangeStartLine = row;
+	treeEdit.rangeStartCharacter = EditorUtils::Utf8ByteOffsetToUtf16(startLine, col);
+
 	const size_t start = state->offsetFromRowCol(op.row, op.column);
 	treeEdit.startByte = static_cast<uint32_t>(start);
 
@@ -141,12 +161,27 @@ ApplyResult EditorOperations::apply(const TextOp &op)
 	{
 		treeEdit.oldEndByte = treeEdit.startByte;
 		treeEdit.newEndByte = treeEdit.startByte + static_cast<uint32_t>(op.text.size());
+		treeEdit.rangeEndLine = treeEdit.rangeStartLine;
+		treeEdit.rangeEndCharacter = treeEdit.rangeStartCharacter;
 		result = applyInsert(op, start);
 	} else
 	{
 		treeEdit.oldEndByte =
 			treeEdit.startByte + static_cast<uint32_t>(std::max(0, op.length));
 		treeEdit.newEndByte = treeEdit.startByte;
+		int endRow = row;
+		int endCol = col;
+		if (op.length > 0)
+		{
+			const size_t docSize = state->byteSize();
+			const size_t endOff =
+				std::min(start + static_cast<size_t>(op.length), docSize);
+			state->rowColFromOffset(endOff, endRow, endCol);
+		}
+		const std::string endLine =
+			state->lineCount() > 0 ? state->line(endRow) : std::string{};
+		treeEdit.rangeEndLine = endRow;
+		treeEdit.rangeEndCharacter = EditorUtils::Utf8ByteOffsetToUtf16(endLine, endCol);
 		result = applyDelete(op, start);
 		if (result.ok)
 			treeEdit.removedBytes = result.deletedText;

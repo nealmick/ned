@@ -1,146 +1,297 @@
-(identifier) @variable
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
 
-((identifier) @function.method
- (#is-not? local))
+; Variables
+[
+  (identifier)
+  (global_variable)
+] @variable
 
+; Keywords
 [
   "alias"
-  "and"
   "begin"
-  "break"
-  "case"
-  "class"
-  "def"
   "do"
-  "else"
-  "elsif"
   "end"
   "ensure"
-  "for"
-  "if"
-  "in"
   "module"
-  "next"
-  "or"
   "rescue"
-  "retry"
-  "return"
   "then"
-  "unless"
-  "until"
-  "when"
-  "while"
-  "yield"
 ] @keyword
 
-((identifier) @keyword
- (#match? @keyword "^(private|protected|public)$"))
+"class" @keyword.type
 
-(constant) @constructor
+[
+  "return"
+  "yield"
+] @keyword.return
+
+[
+  "and"
+  "or"
+  "in"
+  "not"
+] @keyword.operator
+
+[
+  "def"
+  "undef"
+] @keyword.function
+
+(method
+  "end" @keyword.function)
+
+[
+  "case"
+  "else"
+  "elsif"
+  "if"
+  "unless"
+  "when"
+  "then"
+] @keyword.conditional
+
+(if
+  "end" @keyword.conditional)
+
+[
+  "for"
+  "until"
+  "while"
+  "break"
+  "redo"
+  "retry"
+  "next"
+] @keyword.repeat
+
+(constant) @constant
+
+((identifier) @keyword.modifier
+  (#any-of? @keyword.modifier "private" "protected" "public"))
+
+[
+  "rescue"
+  "ensure"
+] @keyword.exception
 
 ; Function calls
-
-"defined?" @function.method.builtin
+"defined?" @function
 
 (call
-  method: [(identifier) (constant)] @function.method)
+  receiver: (constant)? @type
+  method: [
+    (identifier)
+    (constant)
+  ] @function.call)
 
-((identifier) @function.method.builtin
- (#eq? @function.method.builtin "require"))
+(program
+  (call
+    (identifier) @keyword.import)
+  (#any-of? @keyword.import "require" "require_relative" "load"))
 
 ; Function definitions
+(alias
+  (identifier) @function)
 
-(alias (identifier) @function.method)
-(setter (identifier) @function.method)
-(method name: [(identifier) (constant)] @function.method)
-(singleton_method name: [(identifier) (constant)] @function.method)
+(setter
+  (identifier) @function)
+
+(method
+  name: [
+    (identifier) @function
+    (constant) @type
+  ])
+
+(singleton_method
+  name: [
+    (identifier) @function
+    (constant) @type
+  ])
+
+(class
+  name: (constant) @type)
+
+(module
+  name: (constant) @type)
+
+(superclass
+  (constant) @type)
 
 ; Identifiers
-
 [
   (class_variable)
   (instance_variable)
-] @property
+] @variable.member
 
 ((identifier) @constant.builtin
- (#match? @constant.builtin "^__(FILE|LINE|ENCODING)__$"))
+  (#any-of? @constant.builtin
+    "__callee__" "__dir__" "__id__" "__method__" "__send__" "__ENCODING__" "__FILE__" "__LINE__"))
 
-(file) @constant.builtin
-(line) @constant.builtin
-(encoding) @constant.builtin
+((identifier) @function.builtin
+  (#any-of? @function.builtin "attr_reader" "attr_writer" "attr_accessor" "module_function"))
 
-(hash_splat_nil
-  "**" @operator) @constant.builtin
+((call
+  !receiver
+  method: (identifier) @function.builtin)
+  (#any-of? @function.builtin "include" "extend" "prepend" "refine" "using"))
 
-((constant) @constant
- (#match? @constant "^[A-Z\\d_]+$"))
+((identifier) @keyword.exception
+  (#any-of? @keyword.exception "raise" "fail" "catch" "throw"))
+
+((constant) @type
+  (#not-match? @type "^[A-Z0-9_]+$"))
 
 [
   (self)
   (super)
 ] @variable.builtin
 
-(block_parameter (identifier) @variable.parameter)
-(block_parameters (identifier) @variable.parameter)
-(destructured_parameter (identifier) @variable.parameter)
-(hash_splat_parameter (identifier) @variable.parameter)
-(lambda_parameters (identifier) @variable.parameter)
-(method_parameters (identifier) @variable.parameter)
-(splat_parameter (identifier) @variable.parameter)
+(method_parameters
+  (identifier) @variable.parameter)
 
-(keyword_parameter name: (identifier) @variable.parameter)
-(optional_parameter name: (identifier) @variable.parameter)
+(lambda_parameters
+  (identifier) @variable.parameter)
 
+(block_parameters
+  (identifier) @variable.parameter)
+
+(splat_parameter
+  (identifier) @variable.parameter)
+
+(hash_splat_parameter
+  (identifier) @variable.parameter)
+
+(optional_parameter
+  (identifier) @variable.parameter)
+
+(destructured_parameter
+  (identifier) @variable.parameter)
+
+(block_parameter
+  (identifier) @variable.parameter)
+
+(keyword_parameter
+  (identifier) @variable.parameter)
+
+; TODO: Re-enable this once it is supported
+; ((identifier) @function
+;  (#is-not? local))
 ; Literals
-
 [
-  (string)
-  (bare_string)
-  (subshell)
-  (heredoc_body)
-  (heredoc_beginning)
+  (string_content)
+  (heredoc_content)
+  "\""
+  "`"
 ] @string
 
 [
+  (heredoc_beginning)
+  (heredoc_end)
+] @label
+
+[
+  (bare_symbol)
   (simple_symbol)
   (delimited_symbol)
   (hash_key_symbol)
-  (bare_symbol)
 ] @string.special.symbol
 
-(regex) @string.special.regex
-(escape_sequence) @escape
+(regex
+  (string_content) @string.regexp)
+
+(escape_sequence) @string.escape
+
+(integer) @number
+
+(float) @number.float
 
 [
-  (integer)
-  (float)
-] @number
-
-[
-  (nil)
   (true)
   (false)
-] @constant.builtin
+] @boolean
 
-(interpolation
-  "#{" @punctuation.special
-  "}" @punctuation.special) @embedded
+(nil) @constant.builtin
 
 (comment) @comment
 
-; Operators
+((program
+  .
+  (comment) @keyword.directive)
+  (#match? @keyword.directive "^#!/"))
 
+(program
+  (comment)+ @comment.documentation
+  (class))
+
+(module
+  (comment)+ @comment.documentation
+  (body_statement
+    (class)))
+
+(class
+  (comment)+ @comment.documentation
+  (body_statement
+    (method)))
+
+(body_statement
+  (comment)+ @comment.documentation
+  (method))
+
+; Operators
 [
-"="
-"=>"
-"->"
+  "!"
+  "="
+  "=="
+  "==="
+  "<=>"
+  "=>"
+  "->"
+  ">>"
+  "<<"
+  ">"
+  "<"
+  ">="
+  "<="
+  "**"
+  "*"
+  "/"
+  "%"
+  "+"
+  "-"
+  "&"
+  "|"
+  "^"
+  "&&"
+  "||"
+  "||="
+  "&&="
+  "!="
+  "%="
+  "+="
+  "-="
+  "*="
+  "/="
+  "=~"
+  "!~"
+  "?"
+  ":"
+  ".."
+  "..."
 ] @operator
 
 [
   ","
   ";"
   "."
+  "&."
+  "::"
 ] @punctuation.delimiter
+
+(regex
+  "/" @punctuation.bracket)
+
+(pair
+  ":" @punctuation.delimiter)
 
 [
   "("
@@ -152,3 +303,10 @@
   "%w("
   "%i("
 ] @punctuation.bracket
+
+(block_parameters
+  "|" @punctuation.bracket)
+
+(interpolation
+  "#{" @punctuation.special
+  "}" @punctuation.special)

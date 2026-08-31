@@ -129,7 +129,7 @@ jobs:
           if (-not (Test-Path "build")) { New-Item -ItemType Directory -Path "build" | Out-Null }
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DNED_BUILD_TESTS=ON
           cmake --build build --config Release --target ned_tests --parallel
           $bin = Get-ChildItem -Path build -Recurse -Filter ned_tests.exe | Select-Object -First 1

@@ -1,44 +1,47 @@
 #pragma once
 
 #include "imgui.h"
-#include <future>
+#include "lsp_request.h"
 #include <string>
 
 class EditorApi;
-class FileExplorer;
 class LSPClient;
-class Settings;
 
 class LSPSymbolInfo
 {
   public:
-	LSPSymbolInfo(LSPClient &client,
-				  EditorApi &api,
-				  FileExplorer &fileExplorer,
-				  Settings &settings);
+	LSPSymbolInfo(LSPClient &client, EditorApi &api);
 	~LSPSymbolInfo();
 
-	// Check keybind and trigger symbol info if conditions are met
+	// Ctrl/Cmd+I — show hover for the symbol at the caret (until dismissed).
 	void get();
 
-	// Request hover information from LSP
-	void
-	request(int line, int character, std::function<void(const std::string &)> callback);
-
-	// Render the symbol info UI
 	void render();
 
 	void setApi(EditorApi &editorApi) { api = &editorApi; }
+	// Mouse-hover features target the editor under the mouse, which in split
+	// layouts differs from the focused editor keybinds act on.
+	void setHoverApi(EditorApi &editorApi) { hoverApi = &editorApi; }
 
   private:
-	// State
-	bool show;
-	std::string symbolInfo;
-	LSPClient *client = nullptr;
-	EditorApi *api = nullptr;
-	FileExplorer *fileExplorer = nullptr;
-	Settings *settings = nullptr;
+	void updateMouseHover();
+	void requestAt(int row, int utf8Column);
+	void hideMouseHover();
+	// Anchor != null: tooltip pinned at that screen position (keybind hover),
+	// mouse-stickiness bookkeeping skipped.
+	void renderMouseTooltip(const std::string &markdown, const ImVec2 *anchor = nullptr);
 
-	// Async request handling
-	bool pending;
+	bool atCaret = false; // keybind-triggered: anchored at the caret
+	bool requestedForCell = false;
+	LSPRequestState<std::string> hoverState; // delivered text; nullopt = failure
+	LSPClient *client = nullptr;
+	EditorApi *api = nullptr;	   // focused editor (keybinds, caret hover)
+	EditorApi *hoverApi = nullptr; // hovered editor (mouse tooltip)
+
+	int hoverRow = -1;
+	int hoverCol = -1;
+	// Rendered tooltip rect last frame — moving onto it keeps the popup.
+	bool popupRectValid = false;
+	ImVec2 popupMin{0.0f, 0.0f};
+	ImVec2 popupMax{0.0f, 0.0f};
 };

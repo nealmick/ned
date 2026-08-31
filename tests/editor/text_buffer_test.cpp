@@ -82,6 +82,27 @@ TEST_CASE("TextBuffer multi-line CRLF", "[ned][buffer]")
 	REQUIRE(state.join() == "aa\r\nbbb\r\nc");
 }
 
+TEST_CASE("TextBuffer lineInto reuses buffer and caps bytes", "[ned][buffer]")
+{
+	EditorState state;
+	state.setFromString("hello world\nnext");
+	std::string out = "garbage";
+	state.lineInto(0, out, 5);
+	REQUIRE(out == "hello");
+	state.lineInto(0, out);
+	REQUIRE(out == "hello world");
+	state.lineInto(1, out, 2);
+	REQUIRE(out == "ne");
+	state.lineInto(0, out, 0);
+	REQUIRE(out.empty());
+
+	state.setFromString("hello\r\nnext");
+	state.lineInto(0, out, 5);
+	REQUIRE(out == "hello");
+	state.lineInto(0, out);
+	REQUIRE(out == "hello");
+}
+
 TEST_CASE("TextBuffer large CRLF file keeps line bodies after load", "[ned][buffer]")
 {
 	// Force multi-leaf rope (kMaxLeafBytes == 128) with many CRLF lines.

@@ -111,6 +111,6 @@ Ned is a Dear ImGui text editor aimed at a lightweight, embeddable core with a s
 
 Syntax highlighting uses Tree-sitter with query files for the languages above. Multi-cursor and selection live in view state; document mutation stays a stream of single text ops. LSP is driven by a configurable `lsp.json` (clangd, gopls, pyright/typescript-language-server, rust-analyzer, and others). The terminal is a fullscreen overlay powered by [ImGui-Terminal](https://github.com/nealmick/ImGui-Terminal). Shader effects, theme profiles, and keybinds live under user config (`~/ned/config`) seeded from bundled resources.
 
-Standalone Ned is single-buffer; multi-tab editing is provided by `NedEmbed` for host applications. Platforms tested: macOS ARM64, Windows x64, and Debian. Windows builds use vcpkg via the build script.
+Standalone Ned and `NedEmbed` share one `Workbench` (docked multi-tab explorer + editors). Standalone draws it fullscreen with optional CRT shaders; embed draws it in a moveable ImGui window. Platforms tested: macOS ARM64, Windows x64, and Debian. Windows builds use vcpkg via the build script.
 
 If you have questions or issues, feel free to reach out.

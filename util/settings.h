@@ -54,8 +54,12 @@ class Settings
 	Font font;
 
 	bool showSettingsWindow = false;
-	// True only when running as NedEmbed inside a host app. Standalone Ned leaves false.
+	// True for WorkbenchHostMode::Floating (embed). Fullscreen standalone leaves false.
 	bool isEmbedded = false;
+	// File-tree sidebar visibility (replaces old Splitter::showSidebar).
+	bool sidebarVisible = true;
+	// Bottom terminal panel visibility (Cmd/Ctrl+T).
+	bool terminalVisible = true;
 
 	ImVec2 embeddedWindowPos{200.0f, 200.0f};
 	ImVec2 embeddedWindowSize{900.0f, 600.0f};
@@ -64,6 +68,7 @@ class Settings
 	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPClient &lsp);
 	void toggleSettingsWindow(EditorApi &api);
 	void toggleSidebar();
+	void toggleTerminal();
 	void switchToProfile(const std::string &profileName);
 	void renderNotification(const std::string &message, float duration = 2.0f);
 

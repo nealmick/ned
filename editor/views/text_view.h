@@ -6,12 +6,15 @@
 
 #pragma once
 
+#include "hover_trigger.h"
 #include "imgui.h"
 #include <string>
 
 class EditorState;
 class EditorViewState;
 class EditorHighlight;
+class LSPDiagnostics;
+class TooltipArbiter;
 struct ViewLayout;
 
 class TextView
@@ -26,12 +29,19 @@ class TextView
 	}
 
 	void draw() const;
+	void setDiagnostics(const LSPDiagnostics *store) { diagnostics = store; }
+	void setTooltipArbiter(TooltipArbiter *arbiter) { tooltipArbiter = arbiter; }
+	// Frame's transient hover target (tooltip visibility is trigger-driven).
+	void setHoverInfo(const HoverTrigger::Info *info) { hoverInfo = info; }
 
   private:
 	const EditorState *state;
 	const EditorViewState *viewState;
 	const EditorHighlight *highlight;
 	const ViewLayout *layout;
+	const LSPDiagnostics *diagnostics = nullptr;
+	TooltipArbiter *tooltipArbiter = nullptr;
+	const HoverTrigger::Info *hoverInfo = nullptr;
 
 	static constexpr int TAB_SIZE = 4;
 	static constexpr int VISIBLE_LINE_BUFFER = 2;
@@ -50,7 +60,8 @@ class TextView
 
 	void getVisibleLineRange(int &start_line, int &end_line) const;
 	bool isSelected(int row, int col) const;
-	void renderWhitespaceGuides() const;
 	void renderCurrentLineHighlight() const;
-	void renderText() const;
+	void renderDiagnosticMarks() const;
+	// One rope copy per visible row: indent guides + glyphs + selection.
+	void renderVisibleLines() const;
 };

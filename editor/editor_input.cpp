@@ -303,36 +303,5 @@ std::pair<int, int> EditorInput::rowColFromMouse() const
 		return {clicked_row, 0};
 
 	const float click_x = mouse_pos.x - layout->textPos.x;
-
-	int best_col = 0;
-	float best_dist = std::abs(click_x);
-	float x = 0.0f;
-
-	for (int i = 0; i < static_cast<int>(line.size());)
-	{
-		const char *start = &line[i];
-		const char *end = start + 1;
-		if (*start != '\t' && (static_cast<unsigned char>(*start) & 0x80) != 0)
-		{
-			while (end < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*end) & 0xC0) == 0x80)
-				++end;
-		}
-		const float width =
-			EditorUtils::MeasureGlyphWidth(start, end, x, 0.0f, EditorUtils::kTabSize);
-		const int next = static_cast<int>(end - line.data());
-
-		x += width;
-		const float dist = std::abs(click_x - x);
-		if (dist < best_dist)
-		{
-			best_dist = dist;
-			best_col = next;
-		}
-		if (x >= click_x)
-			break;
-		i = next;
-	}
-
-	return {clicked_row, best_col};
+	return {clicked_row, EditorUtils::ColumnAtX(line, click_x)};
 }

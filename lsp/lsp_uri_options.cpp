@@ -1,5 +1,6 @@
 #include "lsp_uri_options.h"
 #include "../editor/editor_api.h"
+#include "../editor/util/utf8.h"
 #include "../files/files.h"
 #include "../util/settings.h"
 #include "imgui.h"
@@ -16,7 +17,7 @@ LSPUriOptions::LSPUriOptions(EditorApi &api,
 LSPUriOptions::~LSPUriOptions() {}
 
 void LSPUriOptions::render(const std::string &title,
-						   const std::vector<std::map<std::string, std::string>> &options,
+						   const std::vector<LSPLocation> &options,
 						   bool &show)
 {
 	if (!show || !api || !fileExplorer || !settings)
@@ -39,20 +40,20 @@ void LSPUriOptions::render(const std::string &title,
 	api->setBlockInput(true);
 
 	// Height calculations
+	const float fs = ImGui::GetFontSize();
 	float itemHeight = ImGui::GetTextLineHeightWithSpacing();
-	float padding = 16.0f;
+	float padding = fs * 0.8f;
 	float separatorHeight = ImGui::GetTextLineHeight() * 0.4f;
-	float titleHeight = itemHeight + separatorHeight + 4.0f;
+	float titleHeight = itemHeight + separatorHeight + fs * 0.2f;
 	float footerHeight = itemHeight + padding;
 	float contentHeight = itemHeight * std::max(options.size(), size_t(1));
 	float totalHeight = titleHeight + contentHeight + footerHeight + padding * 2;
 	const float maxHeight = ImGui::GetIO().DisplaySize.y * 0.5f;
 
-	float desiredWidth = 600.0f;
-	desiredWidth = std::max(desiredWidth, 500.0f);
-	ImVec2 windowSize(
-		desiredWidth,
-		std::min(totalHeight, maxHeight) + (options.size() <= 1 ? 10.0f : 25.0f));
+	const float desiredWidth = fs * 30.0f;
+	ImVec2 windowSize(desiredWidth,
+					  std::min(totalHeight, maxHeight) +
+						  (options.size() <= 1 ? fs * 0.5f : fs * 1.25f));
 	windowSize.x = std::min(windowSize.x, ImGui::GetIO().DisplaySize.x * 0.9f);
 
 	ImVec2 windowPos;
@@ -87,9 +88,9 @@ void LSPUriOptions::render(const std::string &title,
 
 	// Style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.5f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(fs * 0.4f, fs * 0.4f));
 
 	// Theme colors from settings
 	ImVec4 windowBg = ImVec4(settings->settings["backgroundColor"][0].get<float>() * 0.8f,
@@ -177,14 +178,14 @@ void LSPUriOptions::render(const std::string &title,
 				bool is_selected = (selectedIndex == i);
 
 				// Format filename
-				std::string filename = option.at("file");
+				std::string filename = option.file;
 				size_t lastSlash = filename.find_last_of("/\\");
 				if (lastSlash != std::string::npos)
 				{
 					filename = filename.substr(lastSlash + 1);
 				}
-				std::string label =
-					filename + ":" + option.at("row") + ":" + option.at("col");
+				std::string label = filename + ":" + std::to_string(option.line + 1) +
+									":" + std::to_string(option.character + 1);
 
 				// For selected items, override hover color to maintain selection visibility
 				if (is_selected)
@@ -277,21 +278,18 @@ void LSPUriOptions::handleSelection()
 	if (selectedIndex >= currentOptions.size())
 		return;
 
-	const auto &selected = currentOptions[selectedIndex];
-	std::string filePath = selected.at("file");
-	int line = std::stoi(selected.at("row")) - 1; // Convert back to 0-based
-	int col = std::stoi(selected.at("col")) - 1;  // Convert back to 0-based
+	const LSPLocation &selected = currentOptions[selectedIndex];
 
-	std::cout << "Selected option at " << filePath << " line " << (line + 1) << std::endl;
+	auto jump = [this, line = selected.line, utf16Col = selected.character]() {
+		const int col = EditorUtils::Utf16ToUtf8ByteOffset(api->line(line), utf16Col);
+		api->requestCursorCenter(line, col);
+	};
 
-	// Use the file loading logic from the old system
-
-	if (filePath != fileExplorer->api->path())
+	if (selected.file != api->path())
 	{
-		fileExplorer->loadFileContent(
-			filePath, [this, line, col]() { api->requestCursorCenter(line, col); });
+		fileExplorer->loadFileContent(selected.file, jump);
 	} else
 	{
-		api->centerOn(line, col);
+		jump();
 	}
 }

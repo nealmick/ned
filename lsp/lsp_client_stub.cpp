@@ -29,15 +29,28 @@ void LSPClient::didOpen(const std::string &, const std::string &, int, const std
 {
 }
 
-void LSPClient::didEdit(const std::string &, const std::string &, int) {}
+void LSPClient::didChange(const std::string &,
+						  int,
+						  const std::vector<EditorEvents::DocumentChange> &,
+						  const FullTextProvider &)
+{
+}
+
+void LSPClient::didSave(const std::string &, const FullTextProvider &) {}
 
 void LSPClient::didClose(const std::string &) {}
+
+LSPDiagnostics &LSPClient::diagnostics() { return diagnostics_; }
+
+const LSPDiagnostics &LSPClient::diagnostics() const { return diagnostics_; }
 
 bool LSPClient::isDocumentOpen(const std::string &) const { return false; }
 
 bool LSPClient::keybinds() { return false; }
 
 void LSPClient::bindEditorApi(EditorApi &) {}
+
+void LSPClient::setHoverApi(EditorApi &) {}
 
 void LSPClient::render() {}
 

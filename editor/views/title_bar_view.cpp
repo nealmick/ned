@@ -1,11 +1,10 @@
 /*
 	File: views/title_bar_view.cpp
-	Description: Title bar rendering (path, git changes, settings).
+	Description: Title bar rendering (path, git changes).
 */
 #include "title_bar_view.h"
 #include "../../util/icons.h"
 #include "../../util/settings.h"
-#include "../editor_api.h"
 #include "../services/git/git_service.h"
 #include "imgui.h"
 #include <algorithm>
@@ -123,37 +122,20 @@ std::string TitleBarView::truncateFilePath(const std::string &path, float maxWid
 	return normalizePathForDisplay(root + "...");
 }
 
-void TitleBarView::renderSettingsIcon(float iconSize)
-{
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-
-	float textHeight = ImGui::GetTextLineHeight();
-	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f - 2.0f);
-
-	ImVec2 cursor_pos = ImGui::GetCursorPos();
-	if (ImGui::InvisibleButton("##gear-hitbox", ImVec2(iconSize, iconSize)) && api)
-		settings->toggleSettingsWindow(*api);
-
-	bool isHovered = ImGui::IsItemHovered();
-	ImGui::SetCursorPos(cursor_pos);
-	ImTextureID icon = isHovered ? icons->get("gear-hover") : icons->get("gear");
-	ImGui::Image(icon, ImVec2(iconSize, iconSize));
-
-	ImGui::PopStyleColor(3);
-	ImGui::PopStyleVar();
-}
-
 void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGitChanges)
 {
+	// Light horizontal inset only — parent WindowPadding is 0 so we sit flush
+	// under the ImGui dock tab bar (no extra top gap).
+	const float fs = ImGui::GetFontSize();
+	const float kPadX = fs * 0.4f;
+	const float kPadY = fs * 0.1f;
+	const ImVec2 cursor = ImGui::GetCursorPos();
+	ImGui::SetCursorPos(ImVec2(cursor.x + kPadX, cursor.y + kPadY));
+
 	ImGui::BeginGroup();
 	ImGui::PushFont(font);
 
 	const float iconSize = ImGui::GetFontSize() * 1.15f;
-	const float rightPadding = 25.0f;
-	const float totalStatusWidth = iconSize + rightPadding;
 	const bool isTerminal = (filePath == "Terminal");
 	const bool showGit = showGitChanges && settings->settings["git_changed_lines"] &&
 						 !git->currentGitChanges.empty();
@@ -181,17 +163,16 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 		}
 
 		float availableWidth = ImGui::GetWindowWidth() - ImGui::GetCursorPosX() -
-							   ImGui::GetStyle().ItemSpacing.x - totalStatusWidth -
-							   gitChangesWidth;
+							   ImGui::GetStyle().ItemSpacing.x - kPadX - gitChangesWidth;
 		if (isTerminal)
-			availableWidth -= 10.0f;
+			availableWidth -= fs * 0.5f;
 
 		std::string label = truncateFilePath(filePath, availableWidth);
 
 		if (isTerminal)
 		{
 			ImVec2 pos = ImGui::GetCursorPos();
-			ImGui::SetCursorPos(ImVec2(pos.x - 7.0f, pos.y + 3.0f));
+			ImGui::SetCursorPos(ImVec2(pos.x - fs * 0.35f, pos.y + fs * 0.15f));
 		}
 
 		ImGui::Text("%s", label.c_str());
@@ -203,19 +184,6 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 		}
 	}
 
-	float rightEdge = ImGui::GetWindowWidth() - totalStatusWidth;
-	if (isTerminal)
-		rightEdge -= 20.0f;
-	ImGui::SameLine(rightEdge);
-
-	ImGui::BeginGroup();
-	{
-		float textHeight = ImGui::GetTextLineHeight();
-		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (textHeight - iconSize) * 0.5f);
-		renderSettingsIcon(iconSize * 0.65f);
-	}
-	ImGui::EndGroup();
-
 	ImGui::PopFont();
 	ImGui::EndGroup();
 
@@ -224,7 +192,7 @@ void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGi
 	{
 		ImDrawList *draw_list = ImGui::GetWindowDrawList();
 		ImVec2 p = ImGui::GetCursorScreenPos();
-		const float margin = 19.0f;
+		const float margin = ImGui::GetFontSize() * 0.95f;
 		float left = ImGui::GetWindowPos().x + margin;
 		float width = ImGui::GetWindowWidth() - margin * 2.0f;
 		ImU32 col = ImGui::GetColorU32(ImGuiCol_Separator);

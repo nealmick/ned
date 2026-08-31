@@ -35,7 +35,7 @@ if not exist "%VCPKG_ROOT%" (
 
 REM Install dependencies via vcpkg
 echo Installing dependencies via vcpkg...
-%VCPKG_ROOT%\vcpkg.exe install --triplet x64-windows
+%VCPKG_ROOT%\vcpkg.exe install --triplet x64-windows-static
 if %errorlevel% neq 0 (
     echo Failed to install vcpkg dependencies!
     exit /b 1
@@ -46,12 +46,24 @@ if not exist build (
     mkdir build
 )
 
+REM A leftover x64-windows (dynamic) CMake cache points Fontconfig/ZLIB at
+REM deleted headers and configure dies. Wipe just the cache, keep static libs.
+if exist build\CMakeCache.txt (
+    findstr /C:"vcpkg_installed/x64-windows/" /C:"vcpkg_installed\\x64-windows\\" build\CMakeCache.txt >nul
+    if not errorlevel 1 (
+        echo Clearing stale dynamic-vcpkg CMake cache...
+        del /q build\CMakeCache.txt
+        if exist build\CMakeFiles rmdir /s /q build\CMakeFiles
+    )
+)
+if exist build\vcpkg_installed\x64-windows rmdir /s /q build\vcpkg_installed\x64-windows
+
 cd build
 
 REM Configure with CMake using vcpkg toolchain
 REM NED_BUILD_TESTS=OFF for release package speed; CI runs ned_tests in a separate step.
 echo Configuring with CMake...
-cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_TARGET_TRIPLET=x64-windows -DNED_BUILD_TESTS=OFF
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DNED_BUILD_TESTS=OFF
 
 REM Check if configuration succeeded
 if %errorlevel% neq 0 (
@@ -72,40 +84,36 @@ if %errorlevel% neq 0 (
 echo Build completed successfully!
 echo Executable should be in build\Release\ned.exe
 
-REM Bundle DLLs for distribution
-echo Bundling required DLLs...
-if not exist "Release\dlls" mkdir "Release\dlls"
-
-REM Copy all required DLLs from vcpkg
-copy "vcpkg_installed\x64-windows\bin\*.dll" "Release\" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Warning: Some DLLs may not have been copied
-)
-
-REM Create a distributable package
+REM Create a distributable package (statically linked — no sidecar DLLs)
 echo Creating distributable package...
-if not exist "ned-windows-portable" mkdir "ned-windows-portable"
+if exist "ned-windows-portable" rmdir /s /q "ned-windows-portable"
+mkdir "ned-windows-portable"
 
-REM Copy executable and DLLs
 copy "Release\ned.exe" "ned-windows-portable\" >nul
-copy "Release\*.dll" "ned-windows-portable\" >nul 2>&1
-
-REM Copy Visual C++ Runtime DLLs (required for fresh Windows installs)
-set "VC_REDIST_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC"
-if not exist "%VC_REDIST_PATH%" set "VC_REDIST_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
-if not exist "%VC_REDIST_PATH%" set "VC_REDIST_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC"
-for /d %%i in ("%VC_REDIST_PATH%\*") do (
-    if exist "%%i\x64\Microsoft.VC143.CRT\*.dll" (
-        copy "%%i\x64\Microsoft.VC143.CRT\*.dll" "ned-windows-portable\" >nul 2>&1
-        echo Copied VC++ Runtime DLLs from %%i
-    )
+if %errorlevel% neq 0 (
+    echo Failed to copy ned.exe
+    exit /b 1
 )
 
-REM Copy resource directories
+REM Runtime data the exe loads from disk (fonts, icons, configs, shaders, queries).
 echo Copying resource directories...
 xcopy "..\resources" "ned-windows-portable\resources\" /E /I /Q
-xcopy "..\shaders" "ned-windows-portable\shaders\" /E /I /Q
+mkdir "ned-windows-portable\shaders"
+copy "..\shaders\vertex.glsl" "ned-windows-portable\shaders\" >nul
+copy "..\shaders\fragment.glsl" "ned-windows-portable\shaders\" >nul
+copy "..\shaders\burn_in.frag" "ned-windows-portable\shaders\" >nul
 xcopy "..\editor\services\highlight\queries" "ned-windows-portable\queries\" /E /I /Q
+if exist "rgb.txt" copy "rgb.txt" "ned-windows-portable\" >nul
+if exist "..\lib\imgui-terminal\rgb.txt" copy "..\lib\imgui-terminal\rgb.txt" "ned-windows-portable\" >nul
+
+REM fontconfig configs (FcInit). imgui-terminal looks next to the exe.
+if exist "vcpkg_installed\x64-windows-static\etc\fonts" (
+    xcopy "vcpkg_installed\x64-windows-static\etc\fonts" "ned-windows-portable\fontconfig\" /E /I /Q
+) else if exist "..\vcpkg_installed\x64-windows-static\etc\fonts" (
+    xcopy "..\vcpkg_installed\x64-windows-static\etc\fonts" "ned-windows-portable\fontconfig\" /E /I /Q
+) else if exist "Release\fontconfig" (
+    xcopy "Release\fontconfig" "ned-windows-portable\fontconfig\" /E /I /Q
+)
 
 REM Create clean folder structure for CI
 if "%CI%"=="true" (

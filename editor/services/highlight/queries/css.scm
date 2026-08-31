@@ -1,63 +1,97 @@
+; Source: nvim-treesitter highlights (inherits resolved)
+; Adapted: #lua-match?→#match?, strip #set!/@spell; ned priority in engine
+
+[
+  "@media"
+  "@charset"
+  "@namespace"
+  "@supports"
+  "@keyframes"
+  (at_keyword)
+] @keyword.directive
+
+"@import" @keyword.import
+
+[
+  (to)
+  (from)
+] @keyword
+
 (comment) @comment
 
 (tag_name) @tag
-(nesting_selector) @tag
-(universal_selector) @tag
 
-"~" @operator
-">" @operator
-"+" @operator
-"-" @operator
-"*" @operator
-"/" @operator
-"=" @operator
-"^=" @operator
-"|=" @operator
-"~=" @operator
-"$=" @operator
-"*=" @operator
+(class_name) @type
 
-"and" @operator
-"or" @operator
-"not" @operator
-"only" @operator
+(id_name) @constant
 
-(attribute_selector (plain_value) @string)
+[
+  (property_name)
+  (feature_name)
+] @property
 
-((property_name) @variable
- (#match? @variable "^--"))
-((plain_value) @variable
- (#match? @variable "^--"))
-
-(class_name) @property
-(id_name) @property
-(namespace_name) @property
-(property_name) @property
-(feature_name) @property
-
-(pseudo_element_selector (tag_name) @attribute)
-(pseudo_class_selector (class_name) @attribute)
-(attribute_name) @attribute
+[
+  (nesting_selector)
+  (universal_selector)
+] @character.special
 
 (function_name) @function
 
-"@media" @keyword
-"@import" @keyword
-"@charset" @keyword
-"@namespace" @keyword
-"@supports" @keyword
-"@keyframes" @keyword
-(at_keyword) @keyword
-(to) @keyword
-(from) @keyword
-(important) @keyword
+[
+  "~"
+  ">"
+  "+"
+  "-"
+  "*"
+  "/"
+  "="
+  "^="
+  "|="
+  "~="
+  "$="
+  "*="
+] @operator
 
-(string_value) @string
-(color_value) @string.special
+[
+  "and"
+  "or"
+  "not"
+  "only"
+] @keyword.operator
+
+(important) @keyword.modifier
+
+(attribute_selector
+  (plain_value) @string)
+
+(pseudo_element_selector
+  "::"
+  (tag_name) @attribute)
+
+(pseudo_class_selector
+  (class_name) @attribute)
+
+(attribute_name) @tag.attribute
+
+(namespace_name) @module
+
+(keyframes_name) @variable
+
+((property_name) @variable
+  (#match? @variable "^[-][-]"))
+
+((plain_value) @variable
+  (#match? @variable "^[-][-]"))
+
+[
+  (string_value)
+  (color_value)
+  (unit)
+] @string
 
 (integer_value) @number
-(float_value) @number
-(unit) @type
+
+(float_value) @number.float
 
 [
   "#"
@@ -73,4 +107,6 @@
   ")"
   "("
   "}"
+  "["
+  "]"
 ] @punctuation.bracket
