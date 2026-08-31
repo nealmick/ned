@@ -57,8 +57,15 @@ class EditorFinder
 
 	std::string findText;
 	char inputBuffer[INPUT_CAP] = {};
-	bool ignoreCase = true;
+	char replaceBuffer[INPUT_CAP] = {};
+	// Off (default): match regardless of case. On: exact-case matches only.
+	bool caseSensitive = false;
 	bool shouldFocus = false;
+	// Set each frame in draw() — Enter in the replace box replaces, not steps.
+	bool replaceFieldFocused = false;
+	// True when search/replace/button held focus last frame — Tab between the
+	// boxes must not be overridden by the search box focus re-grab.
+	bool findFieldHoldsFocus = false;
 
 	// Reused across rebuildMatches to avoid per-line allocations.
 	std::string lineScratch;
@@ -67,6 +74,9 @@ class EditorFinder
 	std::vector<Match> matches;
 	bool matchesDirty = true;
 	int matchIndex = -1;
+	// state->version when matches were built — rebuild if the doc changed
+	// (e.g. an LSP edit lands while find is open).
+	int builtVersion = -1;
 
 	ImVec2 boxMin{}, boxMax{};
 	bool boxRectValid = false;
@@ -86,4 +96,8 @@ class EditorFinder
 	// Ctrl/Cmd+Enter: selection on every match; primary near previous caret.
 	void selectAllMatches();
 	void handleEnterShortcuts();
+	// Replace the current (or nearest) match, then select the next one.
+	void replaceCurrent();
+	// Multi-cursor selection over every match + one typed replacement.
+	void replaceAll();
 };
