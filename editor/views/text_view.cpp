@@ -8,6 +8,7 @@
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
 #include "view_layout.h"
+#include "wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -49,6 +50,17 @@ void TextView::getVisibleLineRange(int &start_line, int &end_line) const
 	const float window_height = ImGui::GetWindowHeight();
 	const int last = lineCount - 1;
 
+	if (layout->wrap)
+	{
+		// Wrapped rows occupy >1 visual line; map the visible window back to rows.
+		const int first = layout->wrap->yToRow(scroll_y / layout->lineHeight).row;
+		const int bottom =
+			layout->wrap->yToRow((scroll_y + window_height) / layout->lineHeight).row;
+		start_line = std::max(0, first - VISIBLE_LINE_BUFFER);
+		end_line = std::min(last, bottom + VISIBLE_LINE_BUFFER);
+		return;
+	}
+
 	start_line = std::max(
 		0, static_cast<int>(scroll_y / layout->lineHeight) - VISIBLE_LINE_BUFFER);
 	end_line =
@@ -83,8 +95,14 @@ void TextView::renderCurrentLineHighlight() const
 		return;
 
 	const float y0 =
-		layout->textPos.y + static_cast<float>(viewState->row) * layout->lineHeight;
-	const float y1 = y0 + layout->lineHeight;
+		layout->textPos.y +
+		static_cast<float>(layout->wrap ? layout->wrap->rowStartVisualLine(viewState->row)
+										: viewState->row) *
+			layout->lineHeight;
+	const float y1 =
+		y0 + static_cast<float>(
+				 layout->wrap ? layout->wrap->visualLineCount(viewState->row) : 1) *
+				 layout->lineHeight;
 
 	ImVec2 window_pos = ImGui::GetWindowPos();
 	const float hl_x0 = window_pos.x + CURRENT_LINE_X_OFFSET;
@@ -123,7 +141,9 @@ void TextView::renderVisibleLines() const
 	for (int line_num = start_line; line_num <= end_line; ++line_num)
 	{
 		state->lineInto(line_num, line);
-		const float y0 = layout->textPos.y + static_cast<float>(line_num) * lineH;
+		const int rowVisualStart =
+			layout->wrap ? layout->wrap->rowStartVisualLine(line_num) : line_num;
+		const float y0 = layout->textPos.y + static_cast<float>(rowVisualStart) * lineH;
 
 		int whitespace_units = 0;
 		for (char c : line)
@@ -150,6 +170,11 @@ void TextView::renderVisibleLines() const
 		const LineColorSpans &spans = highlight->spansForLine(line_num);
 		size_t spanIdx = 0;
 
+		// Soft wrap: segments restart at the left edge, one lineHeight down.
+		int wrapSeg = 0;
+		int wrapNext = layout->wrap ? layout->wrap->segmentStartColumn(line_num, 1)
+									: static_cast<int>(line.size()) + 1;
+
 		const char *runStart = nullptr;
 		const char *runEnd = nullptr;
 		ImVec2 runPos{};
@@ -169,6 +194,15 @@ void TextView::renderVisibleLines() const
 			{
 				++i;
 				continue;
+			}
+
+			if (static_cast<int>(i) >= wrapNext)
+			{
+				flushRun();
+				++wrapSeg;
+				wrapNext = layout->wrap->segmentStartColumn(line_num, wrapSeg + 1);
+				draw_pos.x = originX;
+				draw_pos.y = y0 + static_cast<float>(wrapSeg) * lineH;
 			}
 
 			while (spanIdx < spans.size() && spans[spanIdx].end <= static_cast<int>(i))
@@ -191,9 +225,16 @@ void TextView::renderVisibleLines() const
 			const float width =
 				measureGlyphWidth(char_start, char_end, draw_pos.x, originX);
 
+			// Wrap mode: never clip-abort a row — the next segment resets x to
+			// the left edge; only skip the off-viewport glyph.
 			if (draw_pos.x > clipR)
 			{
 				flushRun();
+				if (layout->wrap)
+				{
+					i = advanceUtf8(line, i, line.size());
+					continue;
+				}
 				break;
 			}
 
@@ -295,13 +336,45 @@ void TextView::renderDiagnosticMarks() const
 			if (endCol < startCol)
 				std::swap(endCol, startCol);
 
-			const float x0 = EditorUtils::LineColumnX(text, startCol, originX);
-			float x1 = EditorUtils::LineColumnX(text, endCol, originX);
-			if (x1 - x0 < 4.0f)
-				x1 = x0 + kSquiggleFallbackWidth;
-			const float y = layout->textPos.y + static_cast<float>(line) * lineH + lineH -
-							kSquiggleBaselineLift;
-			squiggle(x0, x1, y, col);
+			const float rowY =
+				layout->textPos.y +
+				static_cast<float>(layout->wrap ? layout->wrap->rowStartVisualLine(line)
+												: line) *
+					lineH;
+			if (layout->wrap)
+			{
+				// A diagnostic can span several wrapped segments — draw the
+				// overlapping [x] range on each segment's own visual line.
+				const int segCount = layout->wrap->segmentCount(line);
+				for (int seg = 0; seg < segCount; ++seg)
+				{
+					const int sStart = layout->wrap->segmentStartColumn(line, seg);
+					const int sEnd = seg + 1 < segCount
+										 ? layout->wrap->segmentStartColumn(line, seg + 1)
+										 : static_cast<int>(text.size());
+					if (endCol <= sStart || startCol >= sEnd)
+						continue;
+					// ColumnsToX: tab stops restart at the segment start.
+					const float x0 =
+						originX +
+						EditorUtils::ColumnsToX(text, sStart, std::max(startCol, sStart));
+					float x1 = originX + EditorUtils::ColumnsToX(
+											 text, sStart, std::min(endCol, sEnd));
+					if (x1 - x0 < 4.0f)
+						x1 = x0 + kSquiggleFallbackWidth;
+					const float y = rowY + static_cast<float>(seg) * lineH + lineH -
+									kSquiggleBaselineLift;
+					squiggle(x0, x1, y, col);
+				}
+			} else
+			{
+				const float x0 = EditorUtils::LineColumnX(text, startCol, originX);
+				float x1 = EditorUtils::LineColumnX(text, endCol, originX);
+				if (x1 - x0 < 4.0f)
+					x1 = x0 + kSquiggleFallbackWidth;
+				const float y = rowY + lineH - kSquiggleBaselineLift;
+				squiggle(x0, x1, y, col);
+			}
 		}
 	}
 

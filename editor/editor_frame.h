@@ -15,6 +15,7 @@
 #include "views/text_view.h"
 #include "views/title_bar_view.h"
 #include "views/view_layout.h"
+#include "views/wrap_layout.h"
 
 struct ImFont;
 class EditorViewState;
@@ -61,7 +62,11 @@ class EditorFrame
 	void run(ImFont *font);
 
 	// Longest-line scroll width (view cache). Composition root only.
-	void invalidateContentWidth() { widthFull = true; }
+	void invalidateContentWidth()
+	{
+		widthFull = true;
+		wrapLayout.invalidate();
+	}
 	void noteContentEdit(int firstRow, int lastRow);
 
   private:
@@ -94,6 +99,9 @@ class EditorFrame
 
 	void recomputeWidthPad();
 	void shiftLongestForLineDelta(int dirtyLo, int lineDelta);
+
+	// Soft-wrap segment cache (valid only when layout.wordWrap).
+	WrapLayout wrapLayout;
 
 	// Per-frame instance (must NOT be static — multi-tab embed has many frames).
 	bool wasEditorFocused = false;

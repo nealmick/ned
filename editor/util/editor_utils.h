@@ -269,4 +269,27 @@ inline int ColumnAtX(const std::string &line, float clickX, float originX = 0.0f
 	return best;
 }
 
+// x of byte column `to`, measured from byte column `from` with tab stops
+// restarting at `from` (soft-wrap segments restart tab stops; do NOT compute
+// this as LineColumnX(to) - LineColumnX(from) — absolute tab stops differ).
+inline float ColumnsToX(const std::string &line, int from, int to)
+{
+	const int end = std::max(0, std::min(to, static_cast<int>(line.size())));
+	float x = 0.0f;
+	for (int i = std::max(0, from); i < end;)
+	{
+		const char *start = &line[i];
+		const char *stop = start + 1;
+		if (*start != '\t' && (static_cast<unsigned char>(*start) & 0x80) != 0)
+		{
+			while (stop < line.data() + line.size() &&
+				   (static_cast<unsigned char>(*stop) & 0xC0) == 0x80)
+				++stop;
+		}
+		x += MeasureGlyphWidth(start, stop, x, 0.0f);
+		i = static_cast<int>(stop - line.data());
+	}
+	return x;
+}
+
 } // namespace EditorUtils

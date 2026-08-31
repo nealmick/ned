@@ -7,6 +7,7 @@
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
 #include "view_layout.h"
+#include "wrap_layout.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -22,12 +23,18 @@ void GutterView::renderLineNumbers() const
 
 	const int lineCount = state->lineCount();
 	const float scrollY = viewState->getScrollPosition().y;
-	int start_line = static_cast<int>(scrollY / layout->lineHeight);
+	int start_line =
+		layout->wrap ? std::max(0, layout->wrap->yToRow(scrollY / layout->lineHeight).row)
+					 : static_cast<int>(scrollY / layout->lineHeight);
+	// In wrap mode rows are >1 visual line tall — end is "first row past the
+	// pane bottom"; loop below stops on y instead of a row count.
 	int end_line =
 		std::min(lineCount,
 				 static_cast<int>((scrollY + (layout->size.y - layout->editorTopMargin)) /
 								  layout->lineHeight) +
 					 1);
+	if (layout->wrap)
+		end_line = lineCount;
 
 	const bool rainbowMode = layout->rainbowMode;
 	ImU32 rainbow_color = CURRENT_LINE_COLOR;
@@ -47,9 +54,13 @@ void GutterView::renderLineNumbers() const
 			? diagnostics->maxSeverityByLine(state->path, lineCount)
 			: std::vector<int>{};
 
+	const float paneBottom = lineNumbersPos.y + layout->size.y - layout->editorTopMargin;
 	for (int i = start_line; i < end_line; i++)
 	{
-		float yPos = lineNumbersPos.y + (i * layout->lineHeight) - scrollY;
+		const int visualStart = layout->wrap ? layout->wrap->rowStartVisualLine(i) : i;
+		float yPos = lineNumbersPos.y + (visualStart * layout->lineHeight) - scrollY;
+		if (yPos >= paneBottom)
+			break;
 
 		snprintf(line_number_buffer, sizeof(line_number_buffer), "%d", i + 1);
 
@@ -74,6 +85,8 @@ void GutterView::renderLineNumbers() const
 							: 0;
 		if (colW > 0.0f && sev > 0)
 		{
+			// Mark spans the row's first visual line only — intentional
+			// (VSCode-style): continuation lines carry no gutter decoration.
 			const ImU32 mark = DiagnosticSeverityMark(sev);
 			const float markW = std::max(3.0f, colW * 0.45f);
 			const float mx = lineNumbersPos.x + (colW - markW) * 0.5f;

@@ -10,6 +10,7 @@
 #include "util/editor_utils.h"
 #include "util/project_undo.h"
 #include "views/view_layout.h"
+#include "views/wrap_layout.h"
 
 #include <algorithm>
 #include <string>
@@ -348,6 +349,22 @@ std::pair<int, int> EditorInput::rowColFromMouse() const
 		return {0, 0};
 
 	const ImVec2 mouse_pos = ImGui::GetMousePos();
+
+	if (layout->wrap)
+	{
+		const WrapLayout::Hit hit =
+			layout->wrap->yToRow((mouse_pos.y - layout->textPos.y) / layout->lineHeight);
+		const int clicked_row = std::clamp(hit.row, 0, state->lineCount() - 1);
+		const std::string wline = state->line(clicked_row);
+		if (wline.empty())
+			return {clicked_row, 0};
+		const int column = EditorUtils::SnapToUtf8CharBoundary(
+			wline,
+			layout->wrap->columnAt(
+				wline, clicked_row, hit.segment, mouse_pos.x - layout->textPos.x));
+		return {clicked_row, column};
+	}
+
 	const int clicked_row = std::clamp(
 		static_cast<int>((mouse_pos.y - layout->textPos.y) / layout->lineHeight),
 		0,

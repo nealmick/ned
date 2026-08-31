@@ -23,6 +23,7 @@
     "mac_background_opacity": 0.6000000238418579,
     "mac_blur_enabled": true,
     "minimap": true,
+    "word_wrap": false,
     "pixel_width": 5000.0,
     "pixelation_intensity": 0.0820000022649765,
     "rainbow": true,

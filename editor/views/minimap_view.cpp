@@ -12,6 +12,7 @@
 #include "../editor_view_state.h"
 #include "../services/highlight/highlight_service.h"
 #include "view_layout.h"
+#include "wrap_layout.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -82,8 +83,11 @@ Strip makeStrip(const EditorState &st,
 		s.end = s.lineCount - 1;
 	} else
 	{
-		s.start = std::clamp(
-			int(std::floor(scrollY / elh - s.sliderTop / d.lineH)), 0, s.lineCount - fit);
+		// Wrapped rows are >1 visual line — map the top scroll position to a row.
+		const int firstVisible = lay.wrap ? lay.wrap->yToRow(scrollY / elh).row
+										  : int(std::floor(scrollY / elh));
+		s.start =
+			std::clamp(int(firstVisible - s.sliderTop / d.lineH), 0, s.lineCount - fit);
 		s.end = std::min(s.lineCount - 1, s.start + fit - 1);
 	}
 	return s;
@@ -226,7 +230,9 @@ void MinimapView::interact(EditorViewState &view)
 		const int line = (s.end < s.start)
 							 ? 0
 							 : std::clamp(s.start + int(local / d.lineH), s.start, s.end);
-		const float y = float(line) * layout->lineHeight - s.viewH * 0.5f;
+		const int visualLine =
+			layout->wrap ? layout->wrap->rowStartVisualLine(line) : line;
+		const float y = float(visualLine) * layout->lineHeight - s.viewH * 0.5f;
 		req(y);
 		dragging_ = true;
 		dragY0_ = ImGui::GetIO().MousePos.y;

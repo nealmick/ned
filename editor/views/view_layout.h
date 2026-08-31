@@ -9,6 +9,8 @@
 
 #include "imgui.h"
 
+class WrapLayout;
+
 struct ViewLayout
 {
 	// Outer "Editor" child window (screen space).
@@ -23,6 +25,11 @@ struct ViewLayout
 	float textLeftMargin = 0.0f;
 	ImVec2 textPos{}; // screen origin of first glyph in the document child
 	bool rainbowMode = true;
+
+	// Soft wrap (settings "word_wrap"). wrap != null ⇒ wrap mode this frame;
+	// consumers map rows/coordinates through it instead of row * lineHeight.
+	bool wordWrap = false;
+	const WrapLayout *wrap = nullptr;
 
 	// Minimap strip (0 width = hidden). Screen-space AABB set before input/draw.
 	float minimapWidth = 0.0f;
