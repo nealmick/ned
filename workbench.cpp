@@ -138,6 +138,36 @@ void Workbench::syncActiveBindings()
 	lspClient->bindEditorApi(*api);
 }
 
+void Workbench::switchToTab(int index)
+{
+	if (index < 0 || index >= static_cast<int>(tabs_.size()))
+		return;
+	// Hidden bootstrap slot — nothing visible to focus.
+	if (tabs_[static_cast<size_t>(index)].path.empty() && tabs_.size() > 1)
+		return;
+
+	setActiveIndex(index);
+	tabs_[static_cast<size_t>(index)].wantFocus = true;
+	tabs_[static_cast<size_t>(index)].editor->api.requestFocus();
+}
+
+void Workbench::handleTabSwitchShortcuts()
+{
+	const ImGuiIO &io = ImGui::GetIO();
+	const bool mod = io.KeyCtrl || io.KeySuper;
+	if (!mod)
+		return;
+
+	for (int i = 0; i < 9; ++i)
+	{
+		if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(ImGuiKey_1 + i), false))
+		{
+			switchToTab(i);
+			return;
+		}
+	}
+}
+
 bool Workbench::initialize(WorkbenchHostMode mode)
 {
 	if (initialized_)
@@ -1038,6 +1068,7 @@ void Workbench::render()
 	if (!fileExplorer->fileFinder.showFFWindow)
 	{
 		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspClient);
+		handleTabSwitchShortcuts(); // Cmd/Ctrl+1..9 — focus tab N
 	}
 
 	if (fileExplorer->handleFileDialog())
