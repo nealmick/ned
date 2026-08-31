@@ -8,6 +8,7 @@
 #include "imgui.h"
 #include "util/editor_utils.h"
 #include "views/view_layout.h"
+#include "views/wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -596,11 +597,12 @@ void EditorViewState::processMouseWheelScrolling(const ViewLayout &layout)
 		return;
 
 	ImVec2 next(ImGui::GetScrollX(), ImGui::GetScrollY());
-	if (io.KeyShift)
+	if (io.KeyShift && !layout.wrap)
 		next.x -= io.MouseWheel * ImGui::GetFontSize();
 	else
 		next.y -= io.MouseWheel * layout.lineHeight * 3.0f;
-	next.x -= io.MouseWheelH * ImGui::GetFontSize();
+	if (!layout.wrap)
+		next.x -= io.MouseWheelH * ImGui::GetFontSize();
 
 	scrollPosition = clampToScrollRange(next);
 	scrollAnimation.active = false;
@@ -610,7 +612,7 @@ void EditorViewState::processMouseWheelScrolling(const ViewLayout &layout)
 
 void EditorViewState::centerCursorVertically(const ViewLayout &layout)
 {
-	const float cursorY = static_cast<float>(row) * layout.lineHeight;
+	const float cursorY = static_cast<float>(caretVisualLine(layout)) * layout.lineHeight;
 	const float viewH = ImGui::GetWindowHeight();
 	float targetY = cursorY - (viewH - layout.lineHeight) * 0.5f;
 
@@ -622,6 +624,13 @@ void EditorViewState::centerCursorVertically(const ViewLayout &layout)
 
 	scrollPosition.y = std::clamp(targetY, 0.0f, std::max(0.0f, maxY));
 	scrollAnimation.active = false; // snap — multi-frame anim was easy to lose
+}
+
+int EditorViewState::caretVisualLine(const ViewLayout &layout) const
+{
+	if (layout.wrap && state && row >= 0 && row < state->lineCount())
+		return layout.wrap->rowStartVisualLine(row) + layout.wrap->segmentOf(row, column);
+	return row;
 }
 
 float EditorViewState::cursorScreenX() const
@@ -644,7 +653,8 @@ void EditorViewState::revealCursor(const ViewLayout &layout,
 	const float marginX = ImGui::GetFontSize() * 2.0f;
 	const float marginY = layout.lineHeight;
 
-	if (horizontal)
+	// No horizontal extent in wrap mode — vertical only.
+	if (horizontal && !layout.wrap)
 	{
 		const float x = cursorScreenX();
 		if (x < target.x + marginX)
@@ -652,10 +662,12 @@ void EditorViewState::revealCursor(const ViewLayout &layout,
 		else if (x + ImGui::GetFontSize() > target.x + viewportWidth - marginX)
 			target.x = x + ImGui::GetFontSize() - viewportWidth + marginX;
 	}
+	if (horizontal && layout.wrap)
+		ImGui::SetScrollX(0.0f);
 
 	if (vertical)
 	{
-		const float y = static_cast<float>(row) * layout.lineHeight;
+		const float y = static_cast<float>(caretVisualLine(layout)) * layout.lineHeight;
 		if (y < target.y + marginY)
 			target.y = y - marginY;
 		else if (y + layout.lineHeight > target.y + viewportHeight - marginY)

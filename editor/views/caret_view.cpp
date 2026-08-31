@@ -3,6 +3,7 @@
 #include "../editor_view_state.h"
 #include "../util/editor_utils.h"
 #include "view_layout.h"
+#include "wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -41,10 +42,19 @@ void CaretView::draw() const
 		const std::string line = (sel.headRow >= 0 && sel.headRow < doc.lineCount())
 									 ? doc.line(sel.headRow)
 									 : std::string{};
-		const float x =
-			std::floor(EditorUtils::LineColumnX(line, sel.headColumn, layout->textPos.x));
+		float x;
+		int visualLine = sel.headRow;
+		if (layout->wrap && sel.headRow < doc.lineCount())
+		{
+			const int seg = layout->wrap->segmentOf(sel.headRow, sel.headColumn);
+			x = std::floor(layout->textPos.x +
+						   layout->wrap->columnX(line, sel.headRow, sel.headColumn));
+			visualLine = layout->wrap->rowStartVisualLine(sel.headRow) + seg;
+		} else
+			x = std::floor(
+				EditorUtils::LineColumnX(line, sel.headColumn, layout->textPos.x));
 		const float y0 = std::floor(layout->textPos.y +
-									static_cast<float>(sel.headRow) * layout->lineHeight);
+									static_cast<float>(visualLine) * layout->lineHeight);
 		const float half = thickness * 0.5f;
 		draw_list->AddRectFilled(ImVec2(x - half, y0),
 								 ImVec2(x + half, y0 + layout->lineHeight - 1.0f),

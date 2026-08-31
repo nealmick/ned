@@ -195,6 +195,8 @@ class EditorViewState
 	void findColumnFromVisualColumn(Selection &sel, int line);
 
 	float cursorScreenX() const;
+	// Visual line of the primary caret (wrap-aware; plain row when not wrapping).
+	int caretVisualLine(const ViewLayout &layout) const;
 	void centerCursorVertically(const ViewLayout &layout);
 	void revealCursor(const ViewLayout &layout, bool horizontal, bool vertical);
 	void animateScrollTo(const ImVec2 &target);

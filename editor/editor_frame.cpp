@@ -92,7 +92,13 @@ void EditorFrame::noteContentEdit(int lo, int hi)
 	// Never force a full width rescan on line-count change — that is O(lines)
 	// and freezes large files on every Enter. Shift the longest-line index and
 	// remeasure only the dirty row span on the next contentWidth() call.
-	if (widthFull || !state)
+	if (!state)
+		return;
+	// Wrap cache dirties unconditionally; the width cache below early-returns
+	// when full-invalidated (invalidateContentWidth invalidates both anyway).
+	wrapLayout.noteEdit(lo, hi);
+
+	if (widthFull)
 		return;
 
 	if (lo > hi)
@@ -246,6 +252,8 @@ void EditorFrame::updateLayoutMetrics()
 	const int lineCount = state->lineCount();
 	layout.totalHeight = layout.lineHeight * static_cast<float>(lineCount);
 	layout.rainbowMode = settings->settings.value("rainbow", true);
+	layout.wordWrap = settings->settings.value("word_wrap", false);
+	layout.wrap = nullptr; // assigned in beginDocumentChild once the wrap width is known
 
 	// Minimap width is layout policy (not a paint-leaf constant leak).
 	// settings["minimap"] gates visibility; pane width still hides on narrow splits.
@@ -277,9 +285,29 @@ void EditorFrame::beginDocumentChild()
 	const int lineCount = state->lineCount();
 	const float remaining_width =
 		std::max(1.0f, layout.size.x - gutter.lineNumberWidth - layout.minimapWidth);
-	const float content_width =
-		contentWidth() + ImGui::GetFontSize() * SCROLL_WIDTH_FONT_MUL;
-	const float content_height = static_cast<float>(lineCount) * layout.lineHeight;
+
+	// Wrap width: child inner width minus the vertical scrollbar and margins.
+	// Computed before BeginChild so the wrapped height drives the content size
+	// (scrollbar extent); re-ensured after the child opens against the real
+	// inner width to catch same-frame resizes.
+	float content_width;
+	float content_height;
+	if (layout.wordWrap)
+	{
+		const float wrapWidth =
+			std::max(50.0f,
+					 remaining_width - ImGui::GetStyle().ScrollbarSize -
+						 layout.textLeftMargin * 2.0f);
+		wrapLayout.ensure(*state, wrapWidth);
+		layout.wrap = &wrapLayout;
+		content_width = 0.0f; // no horizontal extent in wrap mode
+		content_height =
+			static_cast<float>(wrapLayout.totalVisualLines()) * layout.lineHeight;
+	} else
+	{
+		content_width = contentWidth() + ImGui::GetFontSize() * SCROLL_WIDTH_FONT_MUL;
+		content_height = static_cast<float>(lineCount) * layout.lineHeight;
+	}
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
@@ -302,6 +330,18 @@ void EditorFrame::beginDocumentChild()
 	layout.textPos = ImGui::GetCursorScreenPos();
 	layout.textPos.y += layout.editorTopMargin;
 	layout.textPos.x += layout.textLeftMargin;
+
+	// Re-ensure against the child's realized inner width (resize same-frame).
+	if (layout.wrap)
+	{
+		const float inner =
+			std::max(50.0f,
+					 ImGui::GetWindowWidth() - ImGui::GetStyle().ScrollbarSize -
+						 layout.textLeftMargin * 2.0f);
+		wrapLayout.ensure(*state, inner);
+		layout.totalHeight =
+			static_cast<float>(wrapLayout.totalVisualLines()) * layout.lineHeight;
+	}
 }
 
 void EditorFrame::updateFocusPolicy()
@@ -422,8 +462,13 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 		mouse.y >= gutter.lineNumbersPos.y && mouse.y < l.panePos.y + l.paneSize.y)
 	{
 		const float scrollY = viewState->getScrollPosition().y;
-		const int row = static_cast<int>((mouse.y - gutter.lineNumbersPos.y + scrollY) /
-										 l.lineHeight);
+		const int row =
+			l.wrap ? l.wrap
+						 ->yToRow((mouse.y - gutter.lineNumbersPos.y + scrollY) /
+								  l.lineHeight)
+						 .row
+				   : static_cast<int>((mouse.y - gutter.lineNumbersPos.y + scrollY) /
+									  l.lineHeight);
 		if (row >= 0 && row < state->lineCount())
 		{
 			hit.zone = HoverTrigger::Zone::Gutter;
@@ -444,6 +489,22 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 		return hit;
 
 	const int n = state->lineCount();
+	if (l.wrap)
+	{
+		const WrapLayout::Hit hitPos =
+			l.wrap->yToRow((mouse.y - l.textPos.y) / l.lineHeight);
+		if (hitPos.row < 0 || hitPos.row >= n)
+			return hit;
+		const std::string line = state->line(hitPos.row);
+		int column =
+			l.wrap->columnAt(line, hitPos.row, hitPos.segment, mouse.x - l.textPos.x);
+		column = EditorUtils::SnapToUtf8CharBoundary(line, column);
+		hit.zone = HoverTrigger::Zone::Text;
+		hit.row = hitPos.row;
+		hit.column = column;
+		return hit;
+	}
+
 	const int row = static_cast<int>((mouse.y - l.textPos.y) / l.lineHeight);
 	if (row < 0 || row >= n)
 		return hit;

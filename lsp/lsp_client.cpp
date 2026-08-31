@@ -555,6 +555,7 @@ void LSPClient::messageProcessingThread()
 		try
 		{
 			messageHandler->processIncomingMessages();
+			NED_LSP_TRACE("processed incoming message");
 			failures = 0;
 		} catch (const lsp::ConnectionError &)
 		{

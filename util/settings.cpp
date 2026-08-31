@@ -961,6 +961,15 @@ void Settings::renderToggleSettings()
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Code overview strip on the right)");
 
+	bool wordWrap = settings.value("word_wrap", false);
+	if (ImGui::Checkbox("Word Wrap", &wordWrap))
+	{
+		settings["word_wrap"] = wordWrap;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Wrap long lines to the window width)");
+
 	bool treesitter = settings.value("treesitter", true);
 	if (ImGui::Checkbox("TreeSitter Mode", &treesitter))
 	{

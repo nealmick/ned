@@ -33,6 +33,7 @@ set(NED_LAYER_SOURCES
   ${CMAKE_SOURCE_DIR}/editor/editor_state.cpp
   ${CMAKE_SOURCE_DIR}/editor/editor_operations.cpp
   ${CMAKE_SOURCE_DIR}/editor/editor_view_state.cpp
+  ${CMAKE_SOURCE_DIR}/editor/views/wrap_layout.cpp
   ${CMAKE_SOURCE_DIR}/editor/editor_commands.cpp
   ${CMAKE_SOURCE_DIR}/editor/editor_events.cpp
   ${CMAKE_SOURCE_DIR}/util/project_undo.cpp
