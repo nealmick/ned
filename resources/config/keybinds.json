@@ -3,6 +3,7 @@
     "toggle_settings_window" : ",",
     "toggle_sidebar" : "s",
     "toggle_terminal" : "t",
+    "close_tab" : "w",
     "lsp_symbol_info" : "i",
     "lsp_find_ref" : "r",
     "lsp_find_def" : "d",
@@ -18,6 +19,7 @@
 
 //Standard kebinds (can not be edited):
 // cmd/ctrl + 1-9 : switch to tab 1-9
+// cmd/ctrl + w : close active tab
 // cmd + up/down : jump 5 lines up/down
 // cmd + left/right : jump to line start end
 // option + up/down : swap line up/down
