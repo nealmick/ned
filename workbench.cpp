@@ -166,6 +166,16 @@ void Workbench::handleTabSwitchShortcuts()
 			return;
 		}
 	}
+
+	// Cmd/Ctrl+W — close the active tab.
+	ImGuiKey closeKey = settings.keybinds.getActionKey("close_tab");
+	if (closeKey == ImGuiKey_None)
+		closeKey = ImGuiKey_W; // default if keybinds.json omits it
+	if (ImGui::IsKeyPressed(closeKey, false))
+	{
+		if (activeIndex_ >= 0 && activeIndex_ < static_cast<int>(tabs_.size()))
+			closeTab(activeIndex_);
+	}
 }
 
 bool Workbench::initialize(WorkbenchHostMode mode)
@@ -1068,7 +1078,7 @@ void Workbench::render()
 	if (!fileExplorer->fileFinder.showFFWindow)
 	{
 		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspClient);
-		handleTabSwitchShortcuts(); // Cmd/Ctrl+1..9 — focus tab N
+		handleTabSwitchShortcuts(); // Cmd/Ctrl+1..9 — focus tab N, Cmd/Ctrl+W — close tab
 	}
 
 	if (fileExplorer->handleFileDialog())
