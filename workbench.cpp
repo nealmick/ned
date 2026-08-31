@@ -1109,6 +1109,16 @@ void Workbench::render()
 		renderDockedWorkspace(settings.font.getMainFont());
 	endRootChrome();
 
+	// Tab closes during renderDockedWorkspace may have destroyed the editor
+	// the frame-start api points at; re-fetch before the LSP modules and
+	// overlays dereference it.
+	api = activeApi();
+	if (!api)
+	{
+		ImGui::PopFont();
+		return;
+	}
+
 	// Splits: mouse hover belongs to the editor under the mouse, which may
 	// differ from the focused editor the keybind ui is bound to.
 	if (lspClient)
