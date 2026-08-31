@@ -28,6 +28,8 @@ void EditorInput::process()
 	// every frame on unfocused multi-tab editors and yanked scroll to the caret.
 	if (viewState && !viewState->blockInput)
 		processKeyboard();
+
+	renderContextMenu();
 }
 
 // ---------------------------------------------------------------------------
@@ -231,12 +233,65 @@ void EditorInput::processMouse()
 		return;
 	}
 
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+	{
+		ImGui::OpenPopup(kContextMenuId);
+		return;
+	}
+
 	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 		handleMouseClick(row, column);
 	else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && isDragging)
 		handleMouseDrag(row, column);
 	else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
 		handleMouseRelease();
+}
+
+void EditorInput::renderContextMenu()
+{
+	if (!commands || !viewState || !state)
+		return;
+
+	// Editor windows use zero WindowPadding; the popup would inherit it.
+	const ImVec2 menuPadding(6.0f, 5.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, menuPadding);
+
+	// Give the menu a comfortable width relative to the font size
+	// so items do not hug the popup edges.
+	const float fontScale = ImGui::GetFontSize() / 13.0f;
+	ImGui::SetNextWindowSize(ImVec2(150.0f * fontScale, 0.0f), ImGuiCond_Appearing);
+
+	if (!ImGui::BeginPopup(kContextMenuId))
+	{
+		ImGui::PopStyleVar();
+		return;
+	}
+
+	const bool hasSelection = viewState->hasSelection();
+	const char *clipboard = ImGui::GetClipboardText();
+	const bool canPaste = clipboard && clipboard[0] != '\0';
+
+	if (ImGui::MenuItem("Undo", nullptr, false, true))
+		commands->undo();
+	if (ImGui::MenuItem("Redo", nullptr, false, true))
+		commands->redo();
+
+	ImGui::Separator();
+
+	if (ImGui::MenuItem("Cut", nullptr, false, hasSelection))
+		commands->cut();
+	if (ImGui::MenuItem("Copy", nullptr, false, hasSelection))
+		commands->copy();
+	if (ImGui::MenuItem("Paste", nullptr, false, canPaste))
+		commands->paste();
+
+	ImGui::Separator();
+
+	if (ImGui::MenuItem("Select All", nullptr, false, state->lineCount() > 0))
+		commands->selectAll();
+
+	ImGui::EndPopup();
+	ImGui::PopStyleVar();
 }
 
 void EditorInput::handleMouseClick(int row, int column)
