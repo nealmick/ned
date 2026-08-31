@@ -98,6 +98,7 @@ class Workbench
 
 	std::vector<Tab> tabs_;
 	int activeIndex_ = -1;
+	int hoveredIndex_ = -1; // tab under the mouse this frame (hover ui)
 
 	// Floating window chrome (embed).
 	ImVec2 floatingPos_{200.0f, 200.0f};

@@ -10,6 +10,9 @@
 #pragma once
 
 #include "editor_events.h"
+#include "imgui.h"
+#include "services/highlight/capture_map.h"
+#include "views/hover_trigger.h"
 #include "views/view_layout.h"
 #include <string>
 
@@ -36,8 +39,11 @@ class EditorApi
 	const std::string &path() const;
 	bool hasPath() const;
 	std::string text() const;
+	std::string line(int row) const;
 	int version() const;
 	const std::string &languageId() const;
+	ImVec4 defaultTextColor() const;
+	ImVec4 syntaxColor(ThemeSlot slot) const;
 	void getCaret(int &row, int &column) const;
 
 	// --- Navigation actions (via Commands) ---
@@ -68,6 +74,21 @@ class EditorApi
 	// --- Layout (LSP UI / embedded popups) ---
 	const ViewLayout &layout() const;
 	float caretScreenX() const;
+
+	// Optional workspace diagnostics (owned by LSPClient). Null is fine.
+	void bindDiagnostics(const class LSPDiagnostics *store);
+
+	// --- Tooltip arbitration ---
+	// ImGui has one shared tooltip window per frame. Symbol hover must claim it
+	// before rendering, or skip if gutter/squiggle diagnostics already own it.
+	bool claimTooltip() const;
+
+	// --- Transient hover trigger (VSCode-style; updated by the frame) ---
+	// True when a hover may show this frame, with the frozen target cell.
+	HoverTrigger::Info hoverInfo() const;
+	// True when this frame carried a dismissal signal (key/click/scroll/block).
+	// Popup owners must honor it even while being sticky.
+	bool hoverDismissed() const;
 
 	// --- Events (composition root subscribes) ---
 	EditorEvents &events();

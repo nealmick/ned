@@ -1,6 +1,7 @@
 #include "tree_sitter.h"
 #include "../../../util/settings.h"
 #include "../../editor_operations.h"
+#include "../../editor_state.h"
 #include "capture_map.h"
 
 #include <algorithm>
@@ -11,6 +12,8 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <regex>
 #include <string_view>
@@ -54,6 +57,7 @@ struct LangEntry
 const LangEntry kLangs[] = {
 	{"c", tree_sitter_c, "c.scm"},
 	{"cpp", tree_sitter_cpp, "cpp.scm"},
+	{"c++", tree_sitter_cpp, "cpp.scm"},
 	{"h", tree_sitter_cpp, "cpp.scm"},
 	{"hpp", tree_sitter_cpp, "cpp.scm"},
 	{"mm", tree_sitter_cpp, "cpp.scm"},
@@ -61,15 +65,20 @@ const LangEntry kLangs[] = {
 	{"cxx", tree_sitter_cpp, "cpp.scm"},
 	{"js", tree_sitter_javascript, "jsx.scm"},
 	{"jsx", tree_sitter_javascript, "jsx.scm"},
+	{"javascript", tree_sitter_javascript, "jsx.scm"},
 	{"py", tree_sitter_python, "python.scm"},
+	{"python", tree_sitter_python, "python.scm"},
 	{"cs", tree_sitter_c_sharp, "csharp.scm"},
+	{"csharp", tree_sitter_c_sharp, "csharp.scm"},
 	{"html", tree_sitter_html, "html.scm"},
 	{"cshtml", tree_sitter_html, "html.scm"},
 	{"tsx", tree_sitter_tsx, "tsx.scm"},
 	{"ts", tree_sitter_tsx, "tsx.scm"},
+	{"typescript", tree_sitter_tsx, "tsx.scm"},
 	{"css", tree_sitter_css, "css.scm"},
 	{"java", tree_sitter_java, "java.scm"},
 	{"go", tree_sitter_go, "go.scm"},
+	{"golang", tree_sitter_go, "go.scm"},
 	{"tf", tree_sitter_hcl, "hcl.scm"},
 	{"hcl", tree_sitter_hcl, "hcl.scm"},
 	{"json", tree_sitter_json, "json.scm"},
@@ -78,6 +87,7 @@ const LangEntry kLangs[] = {
 	{"kt", tree_sitter_kotlin, "kotlin.scm"},
 	{"kts", tree_sitter_kotlin, "kotlin.scm"},
 	{"rs", tree_sitter_rust, "rs.scm"},
+	{"rust", tree_sitter_rust, "rs.scm"},
 	{"toml", tree_sitter_toml, "toml.scm"},
 	{"rb", tree_sitter_ruby, "rb.scm"},
 };
@@ -650,12 +660,12 @@ void TreeSitter::emitDirtyWindows(TSQuery *query,
 // Incremental tree + parse
 // ---------------------------------------------------------------------------
 
-bool TreeSitter::applyPendingEdits(const std::vector<PendingTreeEdit> &edits)
+bool TreeSitter::applyPendingEdits(const std::vector<PendingEdit> &edits)
 {
 	if (!tree || edits.empty())
 		return false;
 
-	for (const PendingTreeEdit &pe : edits)
+	for (const PendingEdit &pe : edits)
 	{
 		if (pe.oldEndByte < pe.startByte || pe.newEndByte < pe.startByte)
 			return false;
@@ -714,7 +724,7 @@ ParseResult TreeSitter::parse(ParseSnapshot &snapshot, uint64_t gen)
 
 	ts_parser_set_language(parser, lang);
 
-	std::vector<PendingTreeEdit> pendingEdits = std::move(snapshot.pendingEdits);
+	std::vector<PendingEdit> pendingEdits = std::move(snapshot.pendingEdits);
 	const bool hadPending = !pendingEdits.empty();
 
 	if (treeFilePath != snapshot.path || treeLanguageId != snapshot.languageId)
@@ -776,7 +786,7 @@ ParseResult TreeSitter::parse(ParseSnapshot &snapshot, uint64_t gen)
 			std::free(ranges);
 
 		// Also mark lines touched by the edits (structure may not change).
-		for (const PendingTreeEdit &pe : pendingEdits)
+		for (const PendingEdit &pe : pendingEdits)
 		{
 			const uint32_t a = pe.startByte;
 			const uint32_t b = std::max(pe.oldEndByte, pe.newEndByte);
@@ -962,6 +972,63 @@ ParseResult TreeSitter::queryPrefix(const ParseSnapshot &src, int maxLines)
 
 	result.kind = ParseKind::Partial;
 	return result;
+}
+
+ColorRangeMap TreeSitter::highlightSnippet(const std::string &languageId,
+										   const std::string &text)
+{
+	// Hover fences are tiny; 32 entries cover every block of a few tooltips.
+	constexpr size_t kSnippetCacheLimit = 32;
+
+	ColorRangeMap out;
+	if (text.empty())
+		return out;
+
+	// Hover tooltips re-render every frame; parse once per (language, snippet)
+	// instead of per frame. Small bounded cache — hover fences are tiny.
+	static std::mutex cacheMutex;
+	static std::map<std::pair<std::string, std::string>, ColorRangeMap> cache;
+	const std::pair<std::string, std::string> key(languageId, text);
+	{
+		std::lock_guard<std::mutex> lock(cacheMutex);
+		const auto it = cache.find(key);
+		if (it != cache.end())
+			return it->second;
+	}
+
+	EditorState tmp;
+	tmp.setFromString(text);
+	tmp.lineEnding = "\n";
+
+	ParseSnapshot snap;
+	snap.text = tmp.snapshot();
+	snap.lineEnding = "\n";
+	snap.languageId = languageId;
+	tmp.lineStarts(snap.lineStarts);
+
+	TreeSitter engine;
+	const int lines = std::max(1, tmp.lineCount());
+	ParseResult r = engine.queryPrefix(snap, lines);
+	out.assign(static_cast<size_t>(lines), {});
+	if (r.kind == ParseKind::Full && r.fullColors.size() == out.size())
+		out = std::move(r.fullColors);
+	else
+		for (size_t i = 0; i < r.dirtyRows.size() && i < r.dirtySpans.size(); ++i)
+		{
+			const int row = r.dirtyRows[i];
+			if (row >= 0 && row < lines)
+				out[static_cast<size_t>(row)] = std::move(r.dirtySpans[i]);
+		}
+
+	{
+		std::lock_guard<std::mutex> lock(cacheMutex);
+		// Bounded; evict the oldest entry rather than flushing everything so a
+		// long-lived tooltip does not re-parse its fences on cache churn.
+		if (cache.size() >= kSnippetCacheLimit)
+			cache.erase(cache.begin()); // std::map iterates in key order
+		cache.emplace(key, out);
+	}
+	return out;
 }
 
 void TreeSitter::updateThemeColors()

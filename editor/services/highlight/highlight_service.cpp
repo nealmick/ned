@@ -105,7 +105,7 @@ const LineColorSpans &EditorHighlight::spansForLine(int row) const
 	return spans.at(row);
 }
 
-void EditorHighlight::morphSpans(const std::vector<PendingTreeEdit> &edits)
+void EditorHighlight::morphSpans(const std::vector<PendingEdit> &edits)
 {
 	if (!state)
 		return;
@@ -120,7 +120,7 @@ void EditorHighlight::morphSpans(const std::vector<PendingTreeEdit> &edits)
 }
 
 TreeSitter::ParseSnapshot
-EditorHighlight::makeSnapshot(std::vector<PendingTreeEdit> pending) const
+EditorHighlight::makeSnapshot(std::vector<PendingEdit> pending) const
 {
 	TreeSitter::ParseSnapshot snap;
 	if (!state)
@@ -304,7 +304,7 @@ void EditorHighlight::highlightContent()
 
 	treeSitter.updateThemeColors();
 
-	std::vector<PendingTreeEdit> pending;
+	std::vector<PendingEdit> pending;
 	if (operations)
 		pending = operations->takePending();
 

@@ -4,28 +4,56 @@
 #include "../util/keybinds.h"
 #include "../util/settings.h"
 #include "lsp_includes.h"
+#include "lsp_trace.h"
 
-#include "lsp_goto_def.h"
-#include "lsp_goto_ref.h"
+#include "lsp_goto.h"
+
 #include "lsp_symbol_info.h"
 
 #include "../lib/json.hpp"
 #include "imgui.h"
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <future>
 #include <iostream>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
+namespace {
+
+// Single workspace folder for the current workspace (empty array if unset).
+lsp::Array<lsp::WorkspaceFolder> workspaceFoldersFor(const std::string &workspacePath)
+{
+	lsp::Array<lsp::WorkspaceFolder> folders;
+	if (workspacePath.empty())
+		return folders;
+	lsp::WorkspaceFolder folder;
+	folder.uri = lsp::Uri::fileUriFromPath(workspacePath);
+	folder.name = std::filesystem::path(workspacePath).filename().string();
+	if (folder.name.empty())
+		folder.name = workspacePath;
+	folders.push_back(std::move(folder));
+	return folders;
+}
+
+} // namespace
 
 LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings)
 	: dashboard(*this, fileExplorer, settings),
-	  gotoDef(*this, api, fileExplorer),
-	  gotoRef(*this, api, fileExplorer),
-	  symbolInfo(*this, api, fileExplorer, settings),
+	  gotoDef(*this, api, LSPGoto::Kind::Definition),
+	  gotoRef(*this, api, LSPGoto::Kind::References),
+	  symbolInfo(*this, api),
 	  uriOptions(api, fileExplorer, settings),
 	  initialized(false),
 	  running(false),
-	  settings(&settings)
+	  settings(&settings),
+	  sync(diagnostics_,
+		   [this](const std::string &path) { return detectLanguageFromFile(path); })
 {
 	initializeLanguageServers();
 	dashboard.refreshServerInfo();
@@ -39,7 +67,10 @@ void LSPClient::bindEditorApi(EditorApi &api)
 	gotoRef.setApi(api);
 	symbolInfo.setApi(api);
 	uriOptions.setApi(api);
+	setHoverApi(api);
 }
+
+void LSPClient::setHoverApi(EditorApi &api) { symbolInfo.setHoverApi(api); }
 
 void LSPClient::setWorkspace(const std::string &workspacePath)
 {
@@ -48,7 +79,6 @@ void LSPClient::setWorkspace(const std::string &workspacePath)
 		// New workspace, reset everything
 		shutdown();
 		this->workspacePath = workspacePath;
-		// std::cout << "LSP: Set workspace to: " << workspacePath << std::endl;
 	}
 }
 
@@ -71,16 +101,10 @@ bool LSPClient::init(const std::string &filePath)
 		return false;
 	}
 
-	// std::cout << "LSP: First recognized file: " << filePath
 	//	<< " (language: " << detectedLanguage << ")" << std::endl;
 
 	if (startServer(detectedLanguage, ""))
-	{
-		initialized = true;
-		// std::cout << "LSP: Successfully initialized for " << detectedLanguage
-		//	<< std::endl;
 		return true;
-	}
 
 	std::cout << "LSP: Failed to start server for " << detectedLanguage << std::endl;
 	return false;
@@ -157,13 +181,10 @@ std::string LSPClient::findServerPath(const std::string &language) const
 		return "";
 	}
 
-	// std::cout << "LSP: Checking paths for " << language << " server:" << std::endl;
-
 	// Check if any of the paths exist and are executable
 	for (const auto &path : serverInfo->serverPaths)
 	{
 		std::string expandedPath = expandEnvironmentVariables(path);
-		// std::cout << "LSP:   Checking: " << expandedPath;
 		if (std::filesystem::exists(expandedPath))
 		{
 			if (std::filesystem::is_regular_file(expandedPath))
@@ -188,7 +209,6 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 {
 	if (initialized)
 	{
-		// std::cout << "LSP: Server already initialized for language: " << language
 		//			  << std::endl;
 		return true;
 	}
@@ -197,8 +217,6 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 	std::string actualServerPath =
 		serverPath.empty() ? findServerPath(language) : serverPath;
 
-	// std::cout << "LSP: Looking for server for language: " << language << std::endl;
-	// std::cout << "LSP: Server path: "
 	//	<< (actualServerPath.empty() ? "not found" : actualServerPath) << std::endl;
 
 	if (actualServerPath.empty())
@@ -228,26 +246,22 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	try
 	{
-		// std::cout << "LSP: Creating server process..." << std::endl;
 		serverProcess = std::make_unique<lsp::Process>(actualServerPath, args);
 
-		// std::cout << "LSP: Creating connection..." << std::endl;
 		connection = std::make_unique<lsp::Connection>(serverProcess->stdIO());
 
-		// std::cout << "LSP: Creating message handler..." << std::endl;
 		messageHandler = std::make_unique<lsp::MessageHandler>(*connection);
+		sync.connect(*messageHandler);
+		registerServerHandlers();
 
-		// Send LSP initialize request
 		if (!sendLSPInitialize())
 		{
 			std::cerr << "LSP: Failed to send initialize request" << std::endl;
 			return false;
 		}
 
-		// Start message processing loop
 		startMessageProcessingLoop();
-
-		// std::cout << "LSP: Server started successfully for " << language << std::endl;
+		initialized = true;
 		return true;
 
 	} catch (const std::exception &e)
@@ -303,11 +317,12 @@ void LSPClient::shutdown()
 		}
 
 		initialized = false;
-		openDocuments.clear();
+		sync.disconnect();
+		diagnostics_.clearAll();
 		std::cout << "LSP: Shutdown complete" << std::endl;
 	} else
 	{
-		openDocuments.clear();
+		sync.disconnect();
 	}
 }
 void LSPClient::stopServer()
@@ -346,6 +361,7 @@ void LSPClient::stopServer()
 	// Force cleanup regardless of LSP protocol completion
 	messageHandler.reset();
 	connection.reset();
+	sync.disconnect();
 
 	// Force terminate server process if it's still running
 	if (serverProcess)
@@ -357,6 +373,71 @@ void LSPClient::stopServer()
 	currentLanguage.clear();
 }
 
+void LSPClient::registerServerHandlers()
+{
+	if (!messageHandler)
+		return;
+
+	messageHandler->add<lsp::notifications::TextDocument_PublishDiagnostics>(
+		[this](lsp::PublishDiagnosticsParams &&params) {
+			std::vector<DiagnosticItem> items;
+			items.reserve(params.diagnostics.size());
+			for (const auto &d : params.diagnostics)
+			{
+				DiagnosticItem item;
+				item.startLine = static_cast<int>(d.range.start.line);
+				item.startCharacter = static_cast<int>(d.range.start.character);
+				item.endLine = static_cast<int>(d.range.end.line);
+				item.endCharacter = static_cast<int>(d.range.end.character);
+				// 3.18: message is String | MarkupContent. Flatten markup to
+				// plain text — the tooltip renderer re-parses markdown anyway.
+				if (std::holds_alternative<lsp::String>(d.message))
+					item.message = std::get<lsp::String>(d.message);
+				else if (std::holds_alternative<lsp::MarkupContent>(d.message))
+					item.message = std::get<lsp::MarkupContent>(d.message).value;
+				if (d.severity)
+					item.severity = static_cast<int>(d.severity->value());
+				if (d.source)
+					item.source = *d.source;
+				items.push_back(std::move(item));
+			}
+			int version = -1;
+			if (params.version)
+				version = *params.version;
+			diagnostics_.replace(
+				std::string(params.uri.fsPath()), std::move(items), version);
+		});
+
+	messageHandler->add<lsp::requests::Workspace_Configuration>(
+		[](lsp::ConfigurationParams &&params) {
+			lsp::Workspace_ConfigurationResult out;
+			out.reserve(params.items.size());
+			for (size_t i = 0; i < params.items.size(); ++i)
+				out.emplace_back(lsp::json::Object{});
+			return out;
+		});
+
+	messageHandler->add<lsp::requests::Workspace_WorkspaceFolders>([this]() {
+		return lsp::Workspace_WorkspaceFoldersResult{workspaceFoldersFor(workspacePath)};
+	});
+
+	messageHandler->add<lsp::requests::Client_RegisterCapability>(
+		[](lsp::RegistrationParams &&) { return nullptr; });
+
+	messageHandler->add<lsp::requests::Window_WorkDoneProgress_Create>(
+		[](lsp::WorkDoneProgressCreateParams &&) { return nullptr; });
+
+	messageHandler->add<lsp::requests::Window_ShowMessageRequest>(
+		[](lsp::ShowMessageRequestParams &&) {
+			return lsp::Window_ShowMessageRequestResult{nullptr};
+		});
+}
+
+void LSPClient::applyInitializeResult(const lsp::InitializeResult &result)
+{
+	sync.applyCapabilities(result);
+}
+
 bool LSPClient::sendLSPInitialize()
 {
 	if (!messageHandler)
@@ -364,43 +445,52 @@ bool LSPClient::sendLSPInitialize()
 
 	try
 	{
-		// std::cout << "LSP: Sending initialize request..." << std::endl;
-
-		// Create initialize params
 		lsp::InitializeParams params;
-		params.rootUri = lsp::FileUri::fromPath(workspacePath);
+#ifdef _WIN32
+		params.processId = _getpid();
+#else
+		params.processId = static_cast<int>(getpid());
+#endif
+		params.rootUri = lsp::Uri::fileUriFromPath(workspacePath);
+		params.rootPath = workspacePath;
+		params.clientInfo = lsp::ClientInfo{};
+		params.clientInfo->name = "ned";
+		params.workspaceFolders = workspaceFoldersFor(workspacePath);
 
-		// Set up client capabilities properly
+		params.capabilities.workspace = lsp::WorkspaceClientCapabilities{};
+		params.capabilities.workspace->workspaceFolders = true;
+		params.capabilities.workspace->configuration = true;
+
 		params.capabilities.textDocument = lsp::TextDocumentClientCapabilities{};
-		params.capabilities.textDocument->hover = lsp::HoverClientCapabilities{};
-		params.capabilities.textDocument->hover->dynamicRegistration = false;
+		auto &td = *params.capabilities.textDocument;
+		td.synchronization = lsp::TextDocumentSyncClientCapabilities{};
+		td.synchronization->didSave = true;
+		td.hover = lsp::HoverClientCapabilities{};
+		td.definition = lsp::DefinitionClientCapabilities{};
+		td.definition->linkSupport = true;
+		td.references = lsp::ReferenceClientCapabilities{};
+		td.publishDiagnostics = lsp::PublishDiagnosticsClientCapabilities{};
+		td.publishDiagnostics->relatedInformation = true;
 
-		// Send initialize request
-		auto response =
-			messageHandler->sendRequest<lsp::requests::Initialize>(std::move(params));
+		params.capabilities.general = lsp::GeneralClientCapabilities{};
+		params.capabilities.general->positionEncodings = {
+			lsp::PositionEncodingKind::UTF16};
 
-		// Handle response asynchronously to avoid blocking
-		std::thread([this, future = std::move(response.result)]() mutable {
-			try
-			{
-				auto result = future.get();
-				// std::cout << "LSP: Initialize request completed successfully"
-				//	<< std::endl;
-
-				// Send initialized notification
+		messageHandler->sendRequest<lsp::requests::Initialize>(
+			std::move(params),
+			[this](lsp::InitializeResult &&result) {
+				applyInitializeResult(result);
 				lsp::InitializedParams initParams;
 				messageHandler->sendNotification<lsp::notifications::Initialized>(
 					std::move(initParams));
-
-				// std::cout << "LSP: Server is now initialized and ready" << std::endl;
-			} catch (const std::exception &e)
-			{
-				std::cerr << "LSP: Initialize response failed: " << e.what() << std::endl;
-			}
-		}).detach();
+				NED_LSP_TRACE("handshake ready");
+				sync.markHandshakeReady();
+			},
+			[](const lsp::ResponseError &error) {
+				std::cerr << "LSP: Initialize failed: " << error.message() << std::endl;
+			});
 
 		return true;
-
 	} catch (const std::exception &e)
 	{
 		std::cerr << "LSP: Initialize request failed: " << e.what() << std::endl;
@@ -408,26 +498,9 @@ bool LSPClient::sendLSPInitialize()
 	}
 }
 
-std::string LSPClient::documentKey(const std::string &filePath)
-{
-	if (filePath.empty())
-		return {};
-
-	namespace fs = std::filesystem;
-	std::error_code ec;
-	fs::path p = fs::weakly_canonical(filePath, ec);
-	if (ec)
-		p = fs::absolute(filePath, ec);
-	if (ec)
-		return filePath;
-	return p.string();
-}
-
 bool LSPClient::isDocumentOpen(const std::string &filePath) const
 {
-	if (filePath.empty())
-		return false;
-	return openDocuments.count(documentKey(filePath)) > 0;
+	return sync.isDocumentOpen(filePath);
 }
 
 void LSPClient::didOpen(const std::string &filePath,
@@ -435,91 +508,24 @@ void LSPClient::didOpen(const std::string &filePath,
 						int version,
 						const std::string &languageId)
 {
-	if (!initialized || !messageHandler || filePath.empty())
-		return;
-
-	const std::string key = documentKey(filePath);
-	// Spec: must not didOpen twice without didClose — re-sync via full didChange.
-	if (openDocuments.count(key))
-	{
-		didEdit(key, content, version);
-		return;
-	}
-
-	try
-	{
-		lsp::DidOpenTextDocumentParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(key);
-		// Prefer configured server language; fall back to extension id from EditorState.
-		std::string lang = detectLanguageFromFile(filePath);
-		if (lang.empty())
-			lang = languageId.empty() ? "plaintext" : languageId;
-		params.textDocument.languageId = lang;
-		params.textDocument.version = version;
-		params.textDocument.text = content;
-
-		messageHandler->sendNotification<lsp::notifications::TextDocument_DidOpen>(
-			std::move(params));
-		openDocuments.insert(key);
-	} catch (const std::exception &e)
-	{
-		std::cerr << "LSP: Failed to send didOpen: " << e.what() << std::endl;
-	}
+	// Gating (handshake state, handler) lives in LSPDocumentSync.
+	sync.didOpen(filePath, content, version, languageId);
 }
 
-void LSPClient::didEdit(const std::string &filePath,
-						const std::string &content,
-						int version)
+void LSPClient::didChange(const std::string &filePath,
+						  int version,
+						  const std::vector<EditorEvents::DocumentChange> &changes,
+						  const FullTextProvider &fullText)
 {
-	if (!initialized || !messageHandler || filePath.empty())
-		return;
-
-	const std::string key = documentKey(filePath);
-	// didChange without a prior didOpen is invalid for most servers.
-	if (!openDocuments.count(key))
-		return;
-
-	try
-	{
-		lsp::DidChangeTextDocumentParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(key);
-		params.textDocument.version = version;
-
-		lsp::TextDocumentContentChangeEvent_Text change;
-		change.text = content;
-		params.contentChanges.push_back(change);
-
-		messageHandler->sendNotification<lsp::notifications::TextDocument_DidChange>(
-			std::move(params));
-	} catch (const std::exception &e)
-	{
-		std::cerr << "LSP: Failed to send didChange: " << e.what() << std::endl;
-	}
+	sync.didChange(filePath, version, changes, fullText);
 }
 
-void LSPClient::didClose(const std::string &filePath)
+void LSPClient::didSave(const std::string &filePath, const FullTextProvider &fullText)
 {
-	if (!initialized || !messageHandler || filePath.empty())
-		return;
-
-	const std::string key = documentKey(filePath);
-	if (!openDocuments.count(key))
-		return;
-
-	try
-	{
-		lsp::DidCloseTextDocumentParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(key);
-		messageHandler->sendNotification<lsp::notifications::TextDocument_DidClose>(
-			std::move(params));
-		openDocuments.erase(key);
-	} catch (const std::exception &e)
-	{
-		std::cerr << "LSP: Failed to send didClose: " << e.what() << std::endl;
-		// Drop tracking so we can re-open later even if the notify failed.
-		openDocuments.erase(key);
-	}
+	sync.didSave(filePath, fullText);
 }
+
+void LSPClient::didClose(const std::string &filePath) { sync.didClose(filePath); }
 
 void LSPClient::startMessageProcessingLoop()
 {
@@ -527,26 +533,59 @@ void LSPClient::startMessageProcessingLoop()
 		return;
 
 	running = true;
+	// A previous reader thread that died with the server has finished but not
+	// been joined — assigning over a joinable thread would terminate().
+	if (processingThread.joinable())
+		processingThread.join();
 	processingThread = std::thread(&LSPClient::messageProcessingThread, this);
-	// std::cout << "LSP: Message processing thread started" << std::endl;
 }
 
 void LSPClient::messageProcessingThread()
 {
-	// std::cout << "LSP: Message processing thread running" << std::endl;
+	// processIncomingMessages reads ONE message (blocking) and returns — the
+	// loop is the read loop. Malformed messages throw and are skipped (one
+	// bad server message must not kill hover/diagnostics); a ConnectionError
+	// means the pipe is gone — bail immediately.
+	bool connectionLost = false;
+	constexpr int kMaxConsecutiveFailures = 16;
+	int failures = 0;
 
-	try
+	while (running && messageHandler)
 	{
-		while (running && messageHandler)
+		try
 		{
 			messageHandler->processIncomingMessages();
+			failures = 0;
+		} catch (const lsp::ConnectionError &)
+		{
+			std::cerr << "LSP: Server connection lost" << std::endl;
+			connectionLost = true;
+			break;
+		} catch (const std::exception &e)
+		{
+			std::cerr << "LSP: Ignoring malformed server message: " << e.what()
+					  << std::endl;
+			if (++failures >= kMaxConsecutiveFailures)
+			{
+				std::cerr << "LSP: Connection unusable, stopping message loop"
+						  << std::endl;
+				connectionLost = true;
+				break;
+			}
 		}
-	} catch (const std::exception &e)
-	{
-		std::cerr << "LSP: Message processing thread error: " << e.what() << std::endl;
 	}
 
-	// std::cout << "LSP: Message processing thread exiting" << std::endl;
+	// Died mid-session (not a deliberate shutdown()): reset the handshake
+	// state so isInitialized() goes false — the dashboard then shows the
+	// server as Inactive instead of a stale "Active", feature gates stop
+	// sending requests into the dead pipe, and a later init() (next file
+	// open) can start a fresh server.
+	if (connectionLost && running)
+	{
+		sync.disconnect();
+		initialized = false;
+		running = false; // allow startMessageProcessingLoop on restart
+	}
 }
 
 bool LSPClient::keybinds()

@@ -21,7 +21,7 @@ struct SpanMap
 	void remove(int row, int col, int length, int sepLen);
 
 	// False if maps are empty/desynced (caller should rebuild from content).
-	bool applyEdits(const std::vector<PendingTreeEdit> &edits, const std::string &eol);
+	bool applyEdits(const std::vector<PendingEdit> &edits, const std::string &eol);
 
 	static void insertBytes(LineColorSpans &spans, int col, int n);
 	static void deleteBytes(LineColorSpans &spans, int col, int n);

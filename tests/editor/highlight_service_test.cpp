@@ -47,6 +47,22 @@ bool waitSpans(EditorHighlight &hl, int row, int ms = 3000)
 
 } // namespace
 
+TEST_CASE("highlightSnippet colors a C++ signature", "[ned][highlight][hover]")
+{
+	const auto spans = TreeSitter::highlightSnippet("cpp", "int foo(int x);");
+	REQUIRE_FALSE(spans.empty());
+	bool nonText = false;
+	for (const auto &line : spans)
+	{
+		for (const auto &s : line)
+		{
+			if (s.slot != ThemeSlot::Text)
+				nonText = true;
+		}
+	}
+	REQUIRE(nonText);
+}
+
 TEST_CASE("full rebuild colors the prime window before poll", "[ned][highlight]")
 {
 	test::EditorFixture fx;

@@ -1,5 +1,6 @@
 #include "lsp_uri_options.h"
 #include "../editor/editor_api.h"
+#include "../editor/util/utf8.h"
 #include "../files/files.h"
 #include "../util/settings.h"
 #include "imgui.h"
@@ -16,7 +17,7 @@ LSPUriOptions::LSPUriOptions(EditorApi &api,
 LSPUriOptions::~LSPUriOptions() {}
 
 void LSPUriOptions::render(const std::string &title,
-						   const std::vector<std::map<std::string, std::string>> &options,
+						   const std::vector<LSPLocation> &options,
 						   bool &show)
 {
 	if (!show || !api || !fileExplorer || !settings)
@@ -177,14 +178,14 @@ void LSPUriOptions::render(const std::string &title,
 				bool is_selected = (selectedIndex == i);
 
 				// Format filename
-				std::string filename = option.at("file");
+				std::string filename = option.file;
 				size_t lastSlash = filename.find_last_of("/\\");
 				if (lastSlash != std::string::npos)
 				{
 					filename = filename.substr(lastSlash + 1);
 				}
-				std::string label =
-					filename + ":" + option.at("row") + ":" + option.at("col");
+				std::string label = filename + ":" + std::to_string(option.line + 1) +
+									":" + std::to_string(option.character + 1);
 
 				// For selected items, override hover color to maintain selection visibility
 				if (is_selected)
@@ -277,21 +278,18 @@ void LSPUriOptions::handleSelection()
 	if (selectedIndex >= currentOptions.size())
 		return;
 
-	const auto &selected = currentOptions[selectedIndex];
-	std::string filePath = selected.at("file");
-	int line = std::stoi(selected.at("row")) - 1; // Convert back to 0-based
-	int col = std::stoi(selected.at("col")) - 1;  // Convert back to 0-based
+	const LSPLocation &selected = currentOptions[selectedIndex];
 
-	std::cout << "Selected option at " << filePath << " line " << (line + 1) << std::endl;
+	auto jump = [this, line = selected.line, utf16Col = selected.character]() {
+		const int col = EditorUtils::Utf16ToUtf8ByteOffset(api->line(line), utf16Col);
+		api->requestCursorCenter(line, col);
+	};
 
-	// Use the file loading logic from the old system
-
-	if (filePath != fileExplorer->api->path())
+	if (selected.file != api->path())
 	{
-		fileExplorer->loadFileContent(
-			filePath, [this, line, col]() { api->requestCursorCenter(line, col); });
+		fileExplorer->loadFileContent(selected.file, jump);
 	} else
 	{
-		api->centerOn(line, col);
+		jump();
 	}
 }

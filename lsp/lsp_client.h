@@ -24,14 +24,14 @@ struct LanguageServerInfo
 
 #include <functional>
 #include <future>
-#include <map>
 #include <memory>
 #include <thread>
-#include <unordered_set>
 
+#include "../editor/editor_events.h"
+#include "../editor/services/diagnostics/diagnostics_store.h"
 #include "lsp_dashboard.h"
-#include "lsp_goto_def.h"
-#include "lsp_goto_ref.h"
+#include "lsp_document_sync.h"
+#include "lsp_goto.h"
 #include "lsp_symbol_info.h"
 #include "lsp_uri_options.h"
 
@@ -41,6 +41,7 @@ namespace lsp {
 class Connection;
 class MessageHandler;
 class Process;
+struct InitializeResult;
 
 namespace io {
 
@@ -56,8 +57,8 @@ class LSPClient
 	~LSPClient();
 
 	LSPDashboard dashboard;
-	LSPGotoDef gotoDef;
-	LSPGotoRef gotoRef;
+	LSPGoto gotoDef;
+	LSPGoto gotoRef;
 	LSPSymbolInfo symbolInfo;
 	// Shared URI-options picker
 	LSPUriOptions uriOptions;
@@ -66,8 +67,10 @@ class LSPClient
 	void setWorkspace(const std::string &workspacePath);
 	bool init(const std::string &filePath);
 	void shutdown();
-	bool isInitialized() const { return initialized; }
+	bool isInitialized() const { return sync.isReady(); }
 	std::string getCurrentLanguage() const { return currentLanguage; }
+	LSPDiagnostics &diagnostics() { return diagnostics_; }
+	const LSPDiagnostics &diagnostics() const { return diagnostics_; }
 
 	// Language server information access
 	const std::vector<LanguageServerInfo> &getLanguageServers() const
@@ -76,14 +79,18 @@ class LSPClient
 	}
 	std::vector<std::string> getSupportedLanguages() const;
 
-	// Document management (version from EditorState; languageId is file extension id).
-	// Open/close are balanced per path (normalized). Re-open of an already-open path
-	// becomes didChange; didEdit/didClose no-op if the path is not tracked open.
+	// Document management. Delegates to LSPDocumentSync — see that header for
+	// open/close balance and lazy full-text semantics.
+	using FullTextProvider = LSPDocumentSync::FullTextProvider;
 	void didOpen(const std::string &filePath,
 				 const std::string &content,
 				 int version,
 				 const std::string &languageId);
-	void didEdit(const std::string &filePath, const std::string &content, int version);
+	void didChange(const std::string &filePath,
+				   int version,
+				   const std::vector<EditorEvents::DocumentChange> &changes,
+				   const FullTextProvider &fullText);
+	void didSave(const std::string &filePath, const FullTextProvider &fullText);
 	void didClose(const std::string &filePath);
 	bool isDocumentOpen(const std::string &filePath) const;
 
@@ -95,6 +102,9 @@ class LSPClient
 
 	// Point goto/hover/uri UI at a different editor (multi-tab embed).
 	void bindEditorApi(EditorApi &api);
+	// Mouse-hover tooltip targets the editor under the mouse (splits differ
+	// from the focused editor).
+	void setHoverApi(EditorApi &api);
 
 	// Render all LSP UI elements
 	void render();
@@ -113,24 +123,22 @@ class LSPClient
 	// Helper functions
 	std::string findServerPath(const std::string &language) const;
 	std::string detectLanguageFromFile(const std::string &filePath) const;
-	// Absolute/canonical path key so open/edit/close URIs match across hosts.
-	static std::string documentKey(const std::string &filePath);
 	bool sendLSPInitialize();
+	void registerServerHandlers();
+	void applyInitializeResult(const lsp::InitializeResult &result);
 	void startMessageProcessingLoop();
 	void messageProcessingThread();
 
 	// State
-	bool initialized;
-	bool running;
+	bool initialized = false; // process started
+	bool running = false;
 	Settings *settings = nullptr;
 	std::string workspacePath;
 	std::string currentLanguage;
-	// std::string serverArgs = "--log=error";
 	std::string serverArgs = "";
 
-	// Paths currently open on the server (documentKey form). Max open count is 1
-	// per key; multi-tab embed keeps many keys, standalone replaces via close+open.
-	std::unordered_set<std::string> openDocuments;
+	LSPDiagnostics diagnostics_;
+	LSPDocumentSync sync;
 
 	// Language server configurations
 	std::vector<LanguageServerInfo> languageServers;
@@ -145,6 +153,10 @@ class LSPClient
 };
 
 #else // !NED_ENABLE_LSP
+
+#include "../editor/editor_events.h"
+#include "../editor/services/diagnostics/diagnostics_store.h"
+#include <functional>
 
 // Minimal stand-in so App/Ned/keybinds/settings compile without lsp-framework.
 class LSPClient
@@ -170,22 +182,34 @@ class LSPClient
 	const std::vector<LanguageServerInfo> &getLanguageServers() const;
 	std::vector<std::string> getSupportedLanguages() const;
 
+	using FullTextProvider = std::function<std::string()>;
 	void didOpen(const std::string &filePath,
 				 const std::string &content,
 				 int version,
 				 const std::string &languageId);
-	void didEdit(const std::string &filePath, const std::string &content, int version);
+	void didChange(const std::string &filePath,
+				   int version,
+				   const std::vector<EditorEvents::DocumentChange> &changes,
+				   const FullTextProvider &fullText);
+	void didSave(const std::string &filePath, const FullTextProvider &fullText);
 	void didClose(const std::string &filePath);
 	bool isDocumentOpen(const std::string &filePath) const;
 
+	LSPDiagnostics &diagnostics();
+	const LSPDiagnostics &diagnostics() const;
+
 	bool keybinds();
 	void bindEditorApi(EditorApi &api);
+	void setHoverApi(EditorApi &api);
 	void render();
 
 	bool startServer(const std::string &language, const std::string &serverPath);
 	void stopServer();
 	void initializeLanguageServers();
 	std::string expandEnvironmentVariables(const std::string &path) const;
+
+  private:
+	LSPDiagnostics diagnostics_;
 };
 
 #endif // NED_ENABLE_LSP
