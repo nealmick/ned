@@ -112,6 +112,8 @@ class Workbench
 	void wireTabEditor(Editor &ed);
 	void setActiveIndex(int index);
 	void syncActiveBindings();
+	void switchToTab(int index);
+	void handleTabSwitchShortcuts();
 	bool beginRootChrome();
 	void endRootChrome();
 	void renderOverlays(EditorApi &api);
