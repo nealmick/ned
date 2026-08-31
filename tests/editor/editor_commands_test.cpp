@@ -63,6 +63,22 @@ TEST_CASE("EditorCommands typeText replaces selection", "[ned][commands]")
 	REQUIRE(edits == 1); // delete+insert batched into one did-edit
 }
 
+TEST_CASE("EditorCommands DidEdit carries incremental changes", "[ned][commands][lsp]")
+{
+	EditorFixture f;
+	f.setDocument("hello");
+	f.setCaret(0, 5);
+	EditorEvents::DidEdit last;
+	f.events.subscribeDidEdit([&](const EditorEvents::DidEdit &e) { last = e; });
+	f.commands.typeText("!");
+	REQUIRE(last.changes.size() == 1);
+	REQUIRE(last.changes[0].startLine == 0);
+	REQUIRE(last.changes[0].startCharacter == 5);
+	REQUIRE(last.changes[0].endLine == 0);
+	REQUIRE(last.changes[0].endCharacter == 5);
+	REQUIRE(last.changes[0].text == "!");
+}
+
 TEST_CASE("EditorCommands typeText empty is no-op", "[ned][commands]")
 {
 	EditorFixture f;

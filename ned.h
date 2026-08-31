@@ -1,7 +1,6 @@
 /*
 	File: ned.h
-	Description: Main application class for NED text editor.
-	Composition root owns shared shell state (projectRoot, icons) then Editor.
+	Description: Thin standalone host — OS window, main loop, shaders + Workbench.
 */
 
 #pragma once
@@ -12,27 +11,12 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <chrono>
-#include <string>
 
-#include "editor/editor.h"
-#include "files/file_tree.h"
-#include "files/files.h"
-#include "lsp/lsp_client.h"
+#include "workbench.h"
 #if NED_ENABLE_SHADERS
 #include "shaders/shader_manager.h"
 #include "shaders/shader_types.h"
 #endif
-#include "util/app.h"
-#include "util/icons.h"
-#include "util/ned_terminal.h"
-#include "util/project_undo.h"
-#include "util/settings.h"
-#include "util/splitter.h"
-#include "util/welcome.h"
-
-struct GLFWwindow;
-class ImFont;
 
 class Ned
 {
@@ -44,26 +28,27 @@ class Ned
 	void run();
 	void cleanup();
 
-	Settings settings;
-	std::string projectRoot;
-	Icons icons;
-	ProjectUndo projectUndo;
-	Editor editor;
-	FileExplorer fileExplorer;
-	LSPClient lspClient;
-	Welcome welcome;
-	Splitter splitter;
+	Workbench workbench;
 #if NED_ENABLE_SHADERS
 	FramebufferState fb;
 	ShaderQuad quad;
 	AccumulationBuffers accum;
 	ShaderManager shaderManager;
 #endif
-	NedTerminal terminal;
-	App app;
 
   private:
-	bool initialized;
+	bool initialized_ = false;
+	bool windowFocused_ = true;
+	GLFWwindow *window_ = nullptr;
+	double scrollXAccumulator_ = 0.0;
+	double scrollYAccumulator_ = 0.0;
+
+	bool createWindow();
+	void setWindowIcon();
+	bool initializeGLEW();
+	bool initializeImGui();
+	void handleScrollAccumulators();
+	void renderFrame();
 
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 };

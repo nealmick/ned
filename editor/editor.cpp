@@ -23,9 +23,9 @@ Editor::Editor(Settings &settings,
 	  save(state, events),
 	  commands(state, viewState, operations, projectUndo, events, save),
 	  input(commands, viewState, state, projectUndo),
-	  highlight(state, operations, settings),
+	  highlight(state, operations, &settings),
 	  git(state, projectRoot, settings),
-	  frame(state, viewState, input, settings, git, highlight, icons, api),
+	  frame(state, viewState, input, settings, git, highlight, icons),
 	  lineJump(commands, input, settings, api),
 	  finder(state, viewState, commands, input, settings, api)
 {
@@ -57,6 +57,9 @@ void Editor::renderEditor(ImFont *font, float editorWidth)
 		ImGui::SameLine(0, 0);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+	// Bordered children use WindowPadding; zero it so the title bar is flush
+	// under the dock tab strip (no extra gap from default 8px padding).
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.2f, 0.2f, 0.2f, 0.0f));
 
 	const ImVec2 childSize = fill ? ImVec2(0.0f, 0.0f) : ImVec2(editorWidth, -1.0f);
@@ -74,5 +77,5 @@ void Editor::renderEditor(ImFont *font, float editorWidth)
 	ImGui::EndChild();
 
 	ImGui::PopStyleColor();
-	ImGui::PopStyleVar();
+	ImGui::PopStyleVar(2);
 }

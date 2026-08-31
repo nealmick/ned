@@ -2,9 +2,7 @@
 #include "../editor/editor_api.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
-#include "../util/ned_terminal.h"
 #include "../util/settings.h"
-#include "../util/splitter.h"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -233,16 +231,13 @@ ImGuiKey KeybindsManager::stringToImGuiKey(const std::string &keyString)
 
 bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 											  FileExplorer &files,
-											  LSPClient &lsp,
-											  NedTerminal &terminal)
+											  LSPClient &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();
 	const bool mod = io.KeyCtrl || io.KeySuper;
 
-	// Cmd/Ctrl+T — fullscreen terminal (replaces explorer + editor).
-	// Always handled so the terminal can be dismissed; when open, this is the
-	// only app shortcut that may fire (keys go to the PTY otherwise).
+	// Cmd/Ctrl+T — toggle bottom terminal panel (under editor dock).
 	{
 		ImGuiKey termKey = getActionKey("toggle_terminal");
 		if (termKey == ImGuiKey_None)
@@ -252,20 +247,14 @@ bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 			api.closeAllOverlays();
 			api.save();
 			files.showWelcomeScreen = false;
-			terminal.toggle();
+			settings.toggleTerminal();
 			return true;
 		}
 	}
 
-	// Terminal owns the keyboard — skip sidebar/settings/LSP/etc.
-	if (terminal.visible())
-		return false;
-
 	if (mod && ImGui::IsKeyPressed(getActionKey("toggle_sidebar"), false))
 	{
-		Splitter::showSidebar = !Splitter::showSidebar;
-		settings.settings["sidebar_visible"] = Splitter::showSidebar;
-		settings.saveSettings();
+		settings.toggleSidebar();
 		pressed = true;
 	}
 

@@ -17,6 +17,23 @@
 #include <string>
 #include <vector>
 
+namespace {
+
+std::vector<EditorEvents::DocumentChange>
+documentChangesFromPending(const EditorOperations *ops)
+{
+	std::vector<EditorEvents::DocumentChange> out;
+	if (!ops)
+		return out;
+	const auto &pending = ops->pendingEdits();
+	out.reserve(pending.size());
+	for (const PendingEdit &edit : pending)
+		out.push_back(edit.toDocumentChange());
+	return out;
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Undo group + user edit path
 // ---------------------------------------------------------------------------
@@ -188,7 +205,10 @@ void EditorCommands::finishUserEdit()
 	const int hi = hasDirty ? editDirtyHi : std::max(0, state->lineCount() - 1);
 	editDirtyHi = -1;
 	editDirtyLo = 0;
-	events->emitDidEdit({state->version, lo, hi});
+	// The changes list is COPIED into the payload before emit: subscribers
+	// (highlight, registered first) move-consume ops->takePending(), which
+	// would leave nothing for later readers. Don't reorder.
+	events->emitDidEdit({state->version, lo, hi, documentChangesFromPending(ops)});
 	view->ensureCursorVisible.vertical = true;
 	view->ensureCursorVisible.horizontal = true;
 }
@@ -1358,7 +1378,8 @@ void EditorCommands::applyHistory(const HistoryEdit &edit, bool isUndo)
 			dirtyLo = 0;
 			dirtyHi = std::max(0, state->lineCount() - 1);
 		}
-		events->emitDidEdit({state->version, dirtyLo, dirtyHi});
+		events->emitDidEdit(
+			{state->version, dirtyLo, dirtyHi, documentChangesFromPending(ops)});
 	}
 	view->ensureCursorVisible.vertical = true;
 	view->ensureCursorVisible.horizontal = true;

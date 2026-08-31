@@ -139,6 +139,18 @@ set(NED_TEST_SOURCES
   editor/undo_service_test.cpp
   editor/save_service_test.cpp
   editor/utf8_utils_test.cpp
+  editor/diagnostics_store_test.cpp
+  editor/hover_markdown_test.cpp
+  editor/hover_trigger_test.cpp
+  editor/lsp_request_state_test.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/diagnostics/diagnostics_store.cpp
+  ${CMAKE_SOURCE_DIR}/editor/views/hover_markdown.cpp
+  editor/capture_map_test.cpp
+  editor/highlight_queries_test.cpp
+  editor/highlight_service_test.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/highlight_service.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/span_map.cpp
+  ${CMAKE_SOURCE_DIR}/editor/services/highlight/tree_sitter.cpp
 )
 if(NED_ENABLE_GIT)
   list(APPEND NED_TEST_SOURCES editor/git_libgit2_test.cpp)
@@ -146,11 +158,21 @@ endif()
 
 add_executable(ned_tests ${NED_TEST_SOURCES})
 
+if(NED_ENABLE_LSP)
+  target_sources(ned_tests PRIVATE editor/lsp_definition_result_test.cpp)
+  target_include_directories(ned_tests PRIVATE
+    ${CMAKE_BINARY_DIR}/lib/lsp-framework/generated
+    ${CMAKE_SOURCE_DIR}/lib/lsp-framework
+  )
+  target_link_libraries(ned_tests PRIVATE lsp)
+endif()
+
 target_include_directories(ned_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/editor
   ${CMAKE_SOURCE_DIR}/lib/imgui
+  ${CMAKE_SOURCE_DIR}/lib/treesitter/tree-sitter/lib/include
 )
 if(NED_ENABLE_GIT)
   target_include_directories(ned_tests PRIVATE
@@ -161,9 +183,16 @@ if(GLFW_INCLUDE_DIR)
   target_include_directories(ned_tests PRIVATE ${GLFW_INCLUDE_DIR})
 endif()
 
+# Query compile tests resolve scm files under the source tree.
+target_compile_definitions(ned_tests PRIVATE CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 # Monaco tests need text_model + state/ops from layer (avoid duplicate symbols).
 target_sources(ned_tests PRIVATE monaco/text_model.cpp)
-target_link_libraries(ned_tests PRIVATE ned_editor_layer)
+target_link_libraries(ned_tests PRIVATE
+  ned_editor_layer
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
+)
 target_compile_features(ned_tests PRIVATE cxx_std_20)
 ned_apply_feature_defs(ned_tests)
 

@@ -3,7 +3,7 @@
 #include "../editor/editor_events.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
-#include "../util/splitter.h"
+
 #include "imgui.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -271,9 +271,9 @@ void Settings::loadSettings()
 		return;
 	}
 
-	// First launch (or wiped config): copy defaults from app resources.
-	if (!fs::exists(primary))
-		seedUserConfigIfNeeded();
+	// Always seed *missing* profile files from the bundle (new themes, etc.).
+	// Does not overwrite existing user profiles.
+	seedUserConfigIfNeeded();
 
 	json pointer;
 	if (!readJson(primary, pointer))
@@ -282,12 +282,12 @@ void Settings::loadSettings()
 			needsApply = true;
 		return;
 	}
+	// Dual-purpose ned.json: pointer + default profile. If settings_file is
+	// missing, treat primary itself as the active profile.
 	if (!pointer.contains("settings_file") || !pointer["settings_file"].is_string())
 	{
-		std::cerr << "[Settings] Missing settings_file in " << primary << std::endl;
-		if (loadBundledProfile(settings, settingsPath))
-			needsApply = true;
-		return;
+		pointer["settings_file"] = "ned.json";
+		writeJson(primary, pointer);
 	}
 
 	settingsPath =
@@ -412,19 +412,47 @@ bool Settings::apply(bool force, EditorApi &api)
 	ApplySettings(style);
 
 	// Embedded hosts keep the host ImGui theme for window/child backgrounds.
+	// Standalone: match window, child, and editor tab bar to theme background.
 	if (!isEmbedded && settings.contains("backgroundColor") &&
 		settings["backgroundColor"].is_array() && settings["backgroundColor"].size() >= 3)
 	{
 		const auto &bg = settings["backgroundColor"];
 		const float a =
 			settings["backgroundColor"].size() >= 4 ? bg[3].get<float>() : 1.0f;
-		style.Colors[ImGuiCol_ChildBg] =
-			ImVec4(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), 1.0f);
-		style.Colors[ImGuiCol_WindowBg] =
-			ImVec4(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), a);
+		const ImVec4 bgCol(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), a);
+		const ImVec4 bgOpaque(
+			bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>(), 1.0f);
+		style.Colors[ImGuiCol_ChildBg] = bgOpaque;
+		style.Colors[ImGuiCol_WindowBg] = bgCol;
+		// Dock title-bar tabs: no fill by default; slight highlight only on hover.
+		const ImVec4 tabNone(0.0f, 0.0f, 0.0f, 0.0f);
+		style.Colors[ImGuiCol_Tab] = tabNone;
+		style.Colors[ImGuiCol_TabSelected] = tabNone;
+		style.Colors[ImGuiCol_TabDimmed] = tabNone;
+		style.Colors[ImGuiCol_TabDimmedSelected] = tabNone;
+		// Soft lift from text color so hover reads on light and dark themes.
+		const ImVec4 &text = style.Colors[ImGuiCol_Text];
+		style.Colors[ImGuiCol_TabHovered] = ImVec4(text.x, text.y, text.z, 0.12f);
+		// Window/tab close (X) draws ButtonHovered / ButtonActive as its fill.
+		style.Colors[ImGuiCol_Button] = ImVec4(text.x, text.y, text.z, 0.12f);
+		style.Colors[ImGuiCol_ButtonHovered] = ImVec4(text.x, text.y, text.z, 0.18f);
+		style.Colors[ImGuiCol_ButtonActive] = ImVec4(text.x, text.y, text.z, 0.30f);
+		// Hide selected-tab overline so active doesn't look different.
+		style.Colors[ImGuiCol_TabSelectedOverline] = tabNone;
+		style.Colors[ImGuiCol_TabDimmedSelectedOverline] = tabNone;
+		// Window / dock title bars (active, inactive, collapsed) match theme bg.
+		style.Colors[ImGuiCol_TitleBg] = bgOpaque;
+		style.Colors[ImGuiCol_TitleBgActive] = bgOpaque;
+		style.Colors[ImGuiCol_TitleBgCollapsed] = bgOpaque;
+		style.Colors[ImGuiCol_MenuBarBg] = bgOpaque;
+		style.Colors[ImGuiCol_DockingEmptyBg] = bgOpaque;
+		// Hide the dock title-bar / tab-bar window-menu (tab list) button.
+		// See https://github.com/ocornut/imgui/issues/4880
+		style.WindowMenuButtonPosition = ImGuiDir_None;
 	}
 
-	Splitter::showSidebar = settings.value("sidebar_visible", true);
+	sidebarVisible = settings.value("sidebar_visible", true);
+	terminalVisible = settings.value("terminal_visible", true);
 
 	api.forceColorUpdate();
 
@@ -471,7 +499,8 @@ void Settings::ApplySettings(ImGuiStyle &style)
 
 	if (!isEmbedded)
 	{
-		style.ScrollbarSize = 30.0f;
+		const float dpi = std::max(1.0f, style.FontScaleDpi);
+		style.ScrollbarSize = 30.0f * dpi;
 		style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
 		style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0, 0, 0, 0);
 		style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0, 0, 0, 0);
@@ -485,8 +514,15 @@ void Settings::ApplySettings(ImGuiStyle &style)
 
 void Settings::toggleSidebar()
 {
-	Splitter::showSidebar = !Splitter::showSidebar;
-	settings["sidebar_visible"] = Splitter::showSidebar;
+	sidebarVisible = !sidebarVisible;
+	settings["sidebar_visible"] = sidebarVisible;
+	saveSettings();
+}
+
+void Settings::toggleTerminal()
+{
+	terminalVisible = !terminalVisible;
+	settings["terminal_visible"] = terminalVisible;
 	saveSettings();
 }
 
@@ -583,7 +619,9 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 									 bg[2].get<float>() * m,
 									 1.0f));
 	}
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 5.0f));
+	ImGui::PushStyleVar(
+		ImGuiStyleVar_WindowPadding,
+		ImVec2(ImGui::GetFontSize() * 0.75f, ImGui::GetFontSize() * 0.25f));
 	ImGui::BeginChild("SettingsContent",
 					  ImVec2(0, ImGui::GetContentRegionAvail().y),
 					  false,
@@ -610,11 +648,12 @@ void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPCli
 
 void Settings::applyImGuiStyles()
 {
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+	const float fs = ImGui::GetFontSize();
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.5f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 10.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15.0f, 15.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, fs * 0.7f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, fs * 0.5f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.75f, fs * 0.75f));
 
 	// Embedded: keep host ImGui palette for window/frame backgrounds.
 	if (isEmbedded)
@@ -661,13 +700,18 @@ void Settings::renderWindowHeader(EditorApi &api, FileExplorer &files)
 {
 	static bool wasFocused = false;
 	const bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-	if (wasFocused && !isFocused && showSettingsWindow)
+	const bool windowHovered =
+		ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+	// Layout changes (terminal/sidebar) can steal ImGui focus for a frame.
+	// Don't dismiss if the pointer is still over Settings — click-outside
+	// is handled in handleWindowInput.
+	if (wasFocused && !isFocused && showSettingsWindow && !windowHovered)
 		closeSettingsWindow(api);
 	wasFocused = isFocused;
 
 	ImGui::BeginGroup();
 	ImGui::TextUnformatted("Settings");
-	const float closeSize = ImGui::GetFrameHeight() - 10;
+	const float closeSize = ImGui::GetFontSize();
 	const float buttonX = ImGui::GetContentRegionAvail().x - closeSize -
 						  ImGui::GetStyle().FramePadding.x * 2;
 	ImGui::SameLine(buttonX > 0 ? buttonX : ImGui::GetCursorPosX() + 100);
@@ -739,7 +783,7 @@ void Settings::renderMainSettings()
 	ImGui::Spacing();
 
 	float fontSize = settings.value("fontSize", 20.0f);
-	if (ImGui::SliderFloat("Font Size", &fontSize, 4.0f, 32.0f, "%.0f"))
+	if (ImGui::SliderFloat("Font Size", &fontSize, 4.0f, 64.0f, "%.0f"))
 	{
 		settings["fontSize"] = fontSize;
 		needsApply = true;
@@ -804,6 +848,35 @@ void Settings::renderSyntaxColors()
 	}
 
 	auto &colors = settings["themes"][theme];
+
+	// Ensure key exists so older 8-slot themes can gain extras from the picker.
+	auto ensureColor = [&](const char *key, const char *fallbackKey) {
+		if (colors.contains(key) && colors[key].is_array() && colors[key].size() == 4)
+			return;
+		if (colors.contains(fallbackKey) && colors[fallbackKey].is_array() &&
+			colors[fallbackKey].size() == 4)
+			colors[key] = colors[fallbackKey];
+		else
+			colors[key] = {0.75f, 0.75f, 0.75f, 1.0f};
+	};
+
+	// Core
+	ensureColor("text", "text");
+	ensureColor("keyword", "text");
+	ensureColor("string", "text");
+	ensureColor("number", "text");
+	ensureColor("comment", "text");
+	ensureColor("function", "text");
+	ensureColor("type", "text");
+	ensureColor("variable", "text");
+	// Extended (plan: ~15 slots)
+	ensureColor("parameter", "variable");
+	ensureColor("property", "variable");
+	ensureColor("constant", "number");
+	ensureColor("operator", "text");
+	ensureColor("punctuation", "text");
+	ensureColor("special", "keyword");
+
 	auto editColor = [&](const char *label, const char *key) {
 		if (!colors.contains(key) || !colors[key].is_array() || colors[key].size() != 4)
 			return;
@@ -829,17 +902,24 @@ void Settings::renderSyntaxColors()
 	};
 
 	ImGui::Spacing();
-	ImGui::TextUnformatted("Syntax Colors");
-	ImGui::Separator();
-	ImGui::Spacing();
-	editColor("Text Color", "text");
-	editColor("Keywords", "keyword");
-	editColor("Strings", "string");
-	editColor("Numbers", "number");
-	editColor("Comments", "comment");
-	editColor("Functions", "function");
-	editColor("Types", "type");
-	editColor("Identifier", "variable");
+	if (ImGui::CollapsingHeader("Syntax Colors"))
+	{
+		ImGui::Spacing();
+		editColor("Text", "text");
+		editColor("Keywords", "keyword");
+		editColor("Strings", "string");
+		editColor("Numbers", "number");
+		editColor("Comments", "comment");
+		editColor("Functions", "function");
+		editColor("Types", "type");
+		editColor("Identifier", "variable");
+		editColor("Parameter", "parameter");
+		editColor("Property / field", "property");
+		editColor("Constant", "constant");
+		editColor("Operator", "operator");
+		editColor("Punctuation", "punctuation");
+		editColor("Special / builtin", "special");
+	}
 }
 
 void Settings::renderToggleSettings()
@@ -856,6 +936,13 @@ void Settings::renderToggleSettings()
 	ImGui::TextDisabled("(Show/hide file explorer sidebar)");
 	ImGui::Spacing();
 
+	bool term = settings.value("terminal_visible", true);
+	if (ImGui::Checkbox("Terminal", &term))
+		toggleTerminal();
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Show/hide bottom terminal panel)");
+	ImGui::Spacing();
+
 	bool rainbow = settings.value("rainbow", true);
 	if (ImGui::Checkbox("Rainbow Mode", &rainbow))
 	{
@@ -864,6 +951,15 @@ void Settings::renderToggleSettings()
 	}
 	ImGui::SameLine();
 	ImGui::TextDisabled("(Rainbow cursor & line numbers)");
+
+	bool minimap = settings.value("minimap", true);
+	if (ImGui::Checkbox("Minimap", &minimap))
+	{
+		settings["minimap"] = minimap;
+		saveSettings();
+	}
+	ImGui::SameLine();
+	ImGui::TextDisabled("(Code overview strip on the right)");
 
 	bool treesitter = settings.value("treesitter", true);
 	if (ImGui::Checkbox("TreeSitter Mode", &treesitter))

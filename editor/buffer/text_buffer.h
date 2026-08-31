@@ -82,6 +82,8 @@ class TextBuffer
 								  std::vector<uint32_t> &out,
 								  size_t &pendingAfterCR);
 	static bool nodeContainsByte(const Node *n, char c);
+	// Body of `row` (terminator excluded). Sets start; returns byte length.
+	size_t lineBody(int row, size_t &start) const;
 
   public:
 	static constexpr size_t kMaxLeafBytes = 128;
@@ -99,7 +101,9 @@ class TextBuffer
 	void rowColFromOffset(size_t off, int &row, int &col) const;
 
 	std::string line(int row) const;
-	void lineInto(int row, std::string &out) const;
+	// maxBytes caps the copied body (not the terminator). Default = full line.
+	void
+	lineInto(int row, std::string &out, size_t maxBytes = static_cast<size_t>(-1)) const;
 	std::string str() const;
 	void copyBytes(size_t off, size_t len, char *out) const;
 

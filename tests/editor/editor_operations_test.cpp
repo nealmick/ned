@@ -43,6 +43,48 @@ TEST_CASE("EditorOperations multi-line insert", "[ned][ops]")
 	REQUIRE(state.lines() == std::vector<std::string>{"ax", "yb"});
 }
 
+TEST_CASE("EditorOperations pending edit records UTF-16 range", "[ned][ops][lsp]")
+{
+	EditorState state;
+	state.setFromString("caf\xC3\xA9 x");
+	state.lineEnding = "\n";
+	EditorOperations ops(state);
+
+	TextOp ins;
+	ins.kind = OpKind::Insert;
+	ins.row = 0;
+	ins.column = 5; // after é (5 UTF-8 bytes == 4 UTF-16)
+	ins.text = "y";
+	REQUIRE(ops.apply(ins).ok);
+	REQUIRE(ops.pendingEdits().size() == 1);
+	const PendingEdit &edit = ops.pendingEdits().front();
+	REQUIRE(edit.rangeStartLine == 0);
+	REQUIRE(edit.rangeStartCharacter == 4);
+	REQUIRE(edit.rangeEndLine == 0);
+	REQUIRE(edit.rangeEndCharacter == 4);
+	REQUIRE(edit.op.text == "y");
+}
+
+TEST_CASE("EditorOperations pending delete spans UTF-16 range", "[ned][ops][lsp]")
+{
+	EditorState state;
+	state.setFromString("hello");
+	EditorOperations ops(state);
+
+	TextOp del;
+	del.kind = OpKind::Delete;
+	del.row = 0;
+	del.column = 1;
+	del.length = 3;
+	REQUIRE(ops.apply(del).ok);
+	REQUIRE(ops.pendingEdits().size() == 1);
+	const PendingEdit &edit = ops.pendingEdits().front();
+	REQUIRE(edit.rangeStartLine == 0);
+	REQUIRE(edit.rangeStartCharacter == 1);
+	REQUIRE(edit.rangeEndLine == 0);
+	REQUIRE(edit.rangeEndCharacter == 4);
+}
+
 TEST_CASE("EditorState offset/rowCol round-trip", "[ned][state]")
 {
 	EditorState state;

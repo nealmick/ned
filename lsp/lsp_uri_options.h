@@ -1,5 +1,5 @@
 #pragma once
-#include <map>
+#include "lsp_locations.h"
 #include <string>
 #include <vector>
 
@@ -13,9 +13,8 @@ class LSPUriOptions
 	LSPUriOptions(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
 	~LSPUriOptions();
 
-	void render(const std::string &title,
-				const std::vector<std::map<std::string, std::string>> &options,
-				bool &show);
+	void
+	render(const std::string &title, const std::vector<LSPLocation> &options, bool &show);
 
 	void setApi(EditorApi &editorApi) { api = &editorApi; }
 
@@ -23,7 +22,7 @@ class LSPUriOptions
 	void handleSelection();
 
 	std::string currentTitle;
-	std::vector<std::map<std::string, std::string>> currentOptions;
+	std::vector<LSPLocation> currentOptions;
 	size_t selectedIndex = 0;
 
 	EditorApi *api = nullptr;

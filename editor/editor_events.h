@@ -13,11 +13,23 @@
 class EditorEvents
 {
   public:
+	// One sequential document mutation (UTF-16 columns, LSP-style).
+	// Applied in order: insert has start==end; delete has empty text.
+	struct DocumentChange
+	{
+		int startLine = 0;
+		int startCharacter = 0;
+		int endLine = 0;
+		int endCharacter = 0;
+		std::string text;
+	};
+
 	struct DidEdit
 	{
 		int version = 0;
 		int firstRow = 0; // inclusive post-edit dirty span (view caches)
 		int lastRow = 0;
+		std::vector<DocumentChange> changes;
 	};
 
 	struct DidSave

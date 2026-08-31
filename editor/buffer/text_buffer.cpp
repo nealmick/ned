@@ -313,35 +313,41 @@ size_t TextBuffer::size() const { return root ? root->sum.bytes : 0; }
 
 int TextBuffer::lineCount() const { return root ? totalLines(root->sum) : 1; }
 
-int TextBuffer::lineLength(int row) const
+size_t TextBuffer::lineBody(int row, size_t &start) const
 {
-	if (!root || row < 0 || row >= lineCount())
+	start = 0;
+	if (!root || row < 0)
 		return 0;
-	const size_t start = lineStartOffset(root.get(), row);
-	const size_t end =
-		(row + 1 < lineCount()) ? lineStartOffset(root.get(), row + 1) : size();
-	// end points at start of next line (after the terminator of this line).
-	// Line length excludes the terminator between start and end.
-	if (end < start)
+	const int lines = lineCount();
+	if (row >= lines)
+		return 0;
+	start = lineStartOffset(root.get(), row);
+	const size_t end = (row + 1 < lines) ? lineStartOffset(root.get(), row + 1) : size();
+	if (end <= start)
 		return 0;
 	size_t len = end - start;
-	// Strip trailing break belonging to this line (if not last empty after final break).
-	if (row + 1 < lineCount() && len > 0)
+	if (row + 1 >= lines)
+		return len;
+	char buf[2] = {};
+	if (len >= 2)
 	{
-		// Terminator is at the end of [start, end).
-		// Peek last bytes of the line range.
-		char buf[2] = {};
-		if (len >= 2)
-		{
-			copyNode(root.get(), end - 2, 2, buf);
-			if (buf[0] == '\r' && buf[1] == '\n')
-				return static_cast<int>(len - 2);
-		}
-		copyNode(root.get(), end - 1, 1, buf);
-		if (buf[0] == '\n' || buf[0] == '\r')
-			return static_cast<int>(len - 1);
+		copyNode(root.get(), end - 2, 2, buf);
+		if (buf[0] == '\r' && buf[1] == '\n')
+			return len - 2;
+		if (buf[1] == '\n' || buf[1] == '\r')
+			return len - 1;
+		return len;
 	}
-	return static_cast<int>(len);
+	copyNode(root.get(), end - 1, 1, buf);
+	if (buf[0] == '\n' || buf[0] == '\r')
+		return len - 1;
+	return len;
+}
+
+int TextBuffer::lineLength(int row) const
+{
+	size_t start = 0;
+	return static_cast<int>(lineBody(row, start));
 }
 
 size_t TextBuffer::offsetFromRowCol(int row, int col) const
@@ -403,17 +409,19 @@ std::string TextBuffer::line(int row) const
 	return out;
 }
 
-void TextBuffer::lineInto(int row, std::string &out) const
+void TextBuffer::lineInto(int row, std::string &out, size_t maxBytes) const
 {
 	out.clear();
-	if (!root || row < 0 || row >= lineCount())
+	if (maxBytes == 0)
 		return;
-	const size_t start = lineStartOffset(root.get(), row);
-	const int ll = lineLength(row);
-	if (ll <= 0)
+	size_t start = 0;
+	size_t len = lineBody(row, start);
+	if (len == 0)
 		return;
-	out.resize(static_cast<size_t>(ll));
-	copyNode(root.get(), start, static_cast<size_t>(ll), out.data());
+	if (len > maxBytes)
+		len = maxBytes;
+	out.resize(len);
+	copyNode(root.get(), start, len, out.data());
 }
 
 void TextBuffer::collectLineStarts(const Node *n,

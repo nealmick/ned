@@ -222,7 +222,8 @@ ImVec4 FileFinder::dimmedBackground() const
 
 void FileFinder::renderHeader()
 {
-	const ImVec2 windowSize(600, 350);
+	const float fs = ImGui::GetFontSize();
+	const ImVec2 windowSize(fs * 30.0f, fs * 17.5f);
 	ImVec2 windowPos;
 
 	// Embedded: center on editor pane (ViewLayout metrics — no duplicated rect).
@@ -250,9 +251,9 @@ void FileFinder::renderHeader()
 								   ImGuiWindowFlags_NoScrollbar |
 								   ImGuiWindowFlags_NoScrollWithMouse;
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.5f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.8f, fs * 0.8f));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, dimmedBackground());
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, dimmedBackground());
@@ -265,10 +266,11 @@ void FileFinder::renderHeader()
 
 bool FileFinder::renderSearchInput()
 {
+	const float fs = ImGui::GetFontSize();
 	ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.2f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(fs * 0.4f, fs * 0.4f));
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, dimmedBackground());
 
@@ -305,9 +307,10 @@ void FileFinder::renderFileList()
 					  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
 						  ImGuiWindowFlags_NoMouseInputs);
 
+	const float fs = ImGui::GetFontSize();
 	ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
-	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.2f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(fs * 0.4f, fs * 0.2f));
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(1.0f, 0.1f, 0.7f, 0.4f));
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0, 0, 0, 0));
@@ -407,7 +410,7 @@ void FileFinder::renderWindow()
 
 	ImGui::Spacing();
 	ImGui::Spacing();
-	ImGui::Dummy(ImVec2(0, 10.0f));
+	ImGui::Dummy(ImVec2(0, ImGui::GetFontSize() * 0.5f));
 
 	renderFileList();
 

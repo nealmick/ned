@@ -1,19 +1,76 @@
 #include "lsp_symbol_info.h"
 #include "../editor/editor_api.h"
-#include "../files/files.h"
-#include "../util/settings.h"
+#include "../editor/util/utf8.h"
+#include "../editor/views/hover_tooltip.h"
 #include "lsp_includes.h"
+#include "lsp_trace.h"
 
-LSPSymbolInfo::LSPSymbolInfo(LSPClient &client,
-							 EditorApi &api,
-							 FileExplorer &fileExplorer,
-							 Settings &settings)
-	: show(false),
-	  client(&client),
-	  api(&api),
-	  fileExplorer(&fileExplorer),
-	  settings(&settings),
-	  pending(false)
+#include <algorithm>
+#include <variant>
+
+namespace {
+
+// Mouse slack around the popup that still counts as "over the tooltip".
+constexpr float kPopupStickyPadding = 12.0f;
+
+std::string fenceWrap(const std::string &lang, const std::string &body)
+{
+	if (body.empty())
+		return {};
+	// The renderer highlights fenced blocks; plaintext gets the document's
+	// language so it renders as code, which hover plaintext almost always is.
+	return "```" + lang + "\n" + body + "\n```";
+}
+
+std::string markedStringText(const lsp::MarkedString &ms)
+{
+	if (std::holds_alternative<lsp::String>(ms))
+		return std::get<lsp::String>(ms);
+	if (std::holds_alternative<lsp::MarkedStringWithLanguage>(ms))
+	{
+		const auto &block = std::get<lsp::MarkedStringWithLanguage>(ms);
+		return fenceWrap(block.language, block.value);
+	}
+	return {};
+}
+
+std::string formatHoverContents(
+	const lsp::OneOf<lsp::MarkupContent, lsp::MarkedString, lsp::Array<lsp::MarkedString>>
+		&contents,
+	const std::string &fallbackLang)
+{
+	if (std::holds_alternative<lsp::MarkupContent>(contents))
+	{
+		const auto &md = std::get<lsp::MarkupContent>(contents);
+		if (md.kind == lsp::MarkupKind::PlainText)
+			return fenceWrap(fallbackLang, md.value);
+		return md.value;
+	}
+	if (std::holds_alternative<lsp::MarkedString>(contents))
+		return markedStringText(std::get<lsp::MarkedString>(contents));
+	if (std::holds_alternative<lsp::Array<lsp::MarkedString>>(contents))
+	{
+		std::string out;
+		for (const auto &part : std::get<lsp::Array<lsp::MarkedString>>(contents))
+		{
+			const std::string piece = markedStringText(part);
+			if (piece.empty())
+				continue;
+			if (!out.empty())
+				// MarkedString arrays already describe distinct hover sections.
+				// One boundary is enough; two becomes a visible blank paragraph.
+				out += '\n';
+			out += piece;
+		}
+		return out;
+	}
+	return {};
+}
+
+} // namespace
+
+LSPSymbolInfo::LSPSymbolInfo(LSPClient &client, EditorApi &api)
+	: client(&client), api(&api)
 {
 }
 
@@ -21,200 +78,184 @@ LSPSymbolInfo::~LSPSymbolInfo() = default;
 
 void LSPSymbolInfo::get()
 {
-	if (!client || !api || !fileExplorer || !client->isInitialized())
+	if (!client || !api || !client->isInitialized())
 		return;
 
 	int row = 0, column = 0;
 	api->getCaret(row, column);
-
-	// Set pending state
-	pending = true;
-
-	// Request symbol info
-	request(row, column, [this](const std::string &result) {
-		symbolInfo = result;
-		pending = false;
-		if (symbolInfo != "No hover info")
-		{
-			show = true;
-		}
-	});
+	atCaret = true;
+	requestAt(row, column);
 }
 
-void LSPSymbolInfo::request(int line,
-							int character,
-							std::function<void(const std::string &)> callback)
+void LSPSymbolInfo::hideMouseHover()
 {
+	if (atCaret)
+		return;
+	requestedForCell = false;
+	hoverRow = -1;
+	hoverCol = -1;
+	popupRectValid = false;
+	hoverState.cancel();
+}
+
+void LSPSymbolInfo::requestAt(int row, int utf8Column)
+{
+	if (!api || !client || !client->getMessageHandler())
+		return;
+	requestedForCell = true;
+
+	const int utf16 = EditorUtils::Utf8ByteOffsetToUtf16(api->line(row), utf8Column);
+	const auto ticket = hoverState.begin();
+	NED_LSP_TRACE("hover req " << api->path() << " " << row << ":" << utf8Column);
+
+	lsp::HoverParams params;
+	params.textDocument.uri = lsp::Uri::fileUriFromPath(api->path());
+	params.position.line = static_cast<lsp::uint>(row);
+	params.position.character = static_cast<lsp::uint>(utf16);
+	const std::string lang = api->languageId();
+
 	try
 	{
-		// Create the hover request parameters
-		lsp::HoverParams params;
-		params.textDocument.uri = lsp::FileUri::fromPath(fileExplorer->api->path());
-		params.position.line = line;
-		params.position.character = character;
-
 		client->getMessageHandler()->sendRequest<lsp::requests::TextDocument_Hover>(
 			std::move(params),
-			[callback](auto &&result) {
+			[this, ticket, lang](auto &&result) {
+				std::optional<std::string> text;
 				if (!result.isNull())
 				{
-					auto &contents = result.value().contents;
-					if (std::holds_alternative<lsp::MarkupContent>(contents))
-					{
-						callback(std::get<lsp::MarkupContent>(contents).value);
-					} else
-					{
-						callback("Got hover data, but failed to process");
-					}
-				} else
-				{
-					callback("No hover info");
+					text = formatHoverContents(result.value().contents, lang);
+					if (text->empty())
+						text = std::nullopt;
 				}
+				NED_LSP_TRACE("hover result "
+							  << (text ? std::to_string(text->size()) : "none")
+							  << " bytes");
+				hoverState.deliver(ticket, std::move(text));
 			},
-			[callback](auto &error) { callback("LSP error"); });
-
+			[this, ticket](const lsp::ResponseError &err) {
+				NED_LSP_TRACE("hover error: " << err.message());
+				hoverState.deliver(ticket, std::nullopt);
+			});
 	} catch (const std::exception &e)
 	{
-		callback("Error sending hover request: " + std::string(e.what()));
+		std::cerr << "LSP: hover request failed: " << e.what() << std::endl;
+		hoverState.deliver(ticket, std::nullopt);
 	}
+}
+
+void LSPSymbolInfo::updateMouseHover()
+{
+	if (!client || !api || !client->isInitialized())
+		return;
+
+	// Keybind hover: anchored at the caret, immune to mouse logic; any
+	// dismissal signal (key/click/scroll) retires it.
+	if (atCaret)
+	{
+		if (api->hoverDismissed())
+		{
+			atCaret = false;
+			hoverState.cancel();
+		}
+		return;
+	}
+
+	EditorApi *const hover = hoverApi ? hoverApi : api;
+
+	// Sticky popup: moving onto/inside the rendered tooltip keeps it (VSCode
+	// sticky-hover) — but a dismissal signal (key/click/scroll) still wins.
+	// This is purely local: the frame's trigger is never mutated, so it can
+	// not get wedged into a stale "active" state.
+	const ImVec2 mouse = ImGui::GetMousePos();
+	const bool overPopup = popupRectValid && ImGui::IsMousePosValid(&mouse) &&
+						   mouse.x >= popupMin.x - kPopupStickyPadding &&
+						   mouse.x <= popupMax.x + kPopupStickyPadding &&
+						   mouse.y >= popupMin.y - kPopupStickyPadding &&
+						   mouse.y <= popupMax.y + kPopupStickyPadding;
+	if (hover->hoverDismissed())
+	{
+		hideMouseHover();
+		return;
+	}
+	if (overPopup && (hoverState.isPending() || hoverState.snapshot()))
+		return;
+	popupRectValid = false;
+
+	// The frame's trigger owns all VSCode-style logic: armed by real mouse
+	// moves only, dismissed by keys/clicks/scroll/shifted content, target
+	// frozen while showing.
+	const HoverTrigger::Info info = hover->hoverInfo();
+	if (!info.active || info.zone != HoverTrigger::Zone::Text || hover->path().empty() ||
+		!client->isDocumentOpen(hover->path()))
+	{
+		hideMouseHover();
+		return;
+	}
+
+	if (info.row != hoverRow || info.column != hoverCol)
+	{
+		hoverRow = info.row;
+		hoverCol = info.column;
+		requestedForCell = false;
+		hoverState.cancel();
+	}
+
+	if (!requestedForCell)
+		requestAt(info.row, info.column);
 }
 
 void LSPSymbolInfo::render()
 {
-	if (!show || !api || !fileExplorer || !settings)
+	updateMouseHover();
+
+	// Visibility IS the request state: no delivered text, no tooltip (an
+	// empty answer is an answer — deliver clears pending either way).
+	const auto snap = hoverState.snapshot();
+	if (!snap || snap->empty())
 		return;
 
-	const auto &layout = api->layout();
-	const float cursor_x = api->caretScreenX();
-	ImVec2 cursor_screen_pos = layout.textPos;
-	cursor_screen_pos.x = cursor_x;
-	int caretRow = 0, caretCol = 0;
-	api->getCaret(caretRow, caretCol);
-	cursor_screen_pos.y += caretRow * layout.lineHeight;
-
-	// Set initial display position relative to cursor
-	ImVec2 displayPosition = cursor_screen_pos;
-	displayPosition.y += layout.lineHeight + 5.0f; // Position below cursor line
-	displayPosition.x += 5.0f;					   // Small horizontal offset
-
-	// Width configuration
-	const float min_width = 450.0f;
-	const float max_width = 650.0f;
-	const float screen_padding = 20.0f;
-	const float text_wrap_padding = 30.0f;
-
-	// Set initial window position and size constraints
-	ImGui::SetNextWindowPos(displayPosition, ImGuiCond_Appearing);
-	ImGui::SetNextWindowSizeConstraints(ImVec2(min_width, 0), // Minimum size
-										ImVec2(max_width,
-											   FLT_MAX) // Maximum size
-	);
-
-	// Style settings
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 10));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
-	ImGui::PushStyleColor(
-		ImGuiCol_WindowBg,
-		ImVec4(settings->settings["backgroundColor"][0].get<float>() * .8,
-			   settings->settings["backgroundColor"][1].get<float>() * .8,
-			   settings->settings["backgroundColor"][2].get<float>() * .8,
-			   1.0f));
-	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.25f, 1.0f));
-
-	if (ImGui::Begin("SymbolInfoWindow",
-					 &show,
-					 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-						 ImGuiWindowFlags_AlwaysAutoResize |
-						 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
-						 ImGuiWindowFlags_NoNav))
+	if (atCaret)
 	{
-		// Get current window dimensions
-		ImVec2 window_pos = ImGui::GetWindowPos();
-		ImVec2 window_size = ImGui::GetWindowSize();
-		ImVec2 work_size = ImGui::GetMainViewport()->WorkSize;
-
-		// Calculate available space with new width considerations
-		ImVec2 clamped_pos = window_pos;
-		const float right_bound = work_size.x - window_size.x - screen_padding;
-		const float bottom_bound = work_size.y - window_size.y - screen_padding;
-
-		// Horizontal clamping
-		if (window_pos.x < screen_padding)
-		{
-			clamped_pos.x = screen_padding;
-		} else if (window_pos.x > right_bound)
-		{
-			clamped_pos.x = right_bound;
-		}
-
-		// Vertical clamping with flip to above cursor if needed
-		if (window_pos.y < screen_padding)
-		{
-			clamped_pos.y = screen_padding;
-		} else if (window_pos.y > bottom_bound)
-		{
-			// If window would be cutoff at bottom, display above cursor
-			clamped_pos.y = cursor_screen_pos.y - window_size.y - 15.0f;
-			// Ensure we don't go above the screen
-			clamped_pos.y = std::max(clamped_pos.y, screen_padding);
-		}
-
-		// Compare ImVec2 components individually
-		if (clamped_pos.x != window_pos.x || clamped_pos.y != window_pos.y)
-		{
-			ImGui::SetWindowPos(clamped_pos);
-			// Update window size after position change
-			window_size = ImGui::GetWindowSize();
-		}
-
-		// Force reasonable minimum width
-		if (window_size.x < min_width)
-		{
-			ImGui::SetWindowSize(ImVec2(min_width, window_size.y));
-		}
-
-		// Focus handling
-		if (ImGui::IsWindowAppearing())
-		{
-			ImGui::SetWindowFocus();
-		}
-
-		// Dismissal interactions
-		if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-		{
-			if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup))
-			{
-				show = false;
-			}
-		}
-
-		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-		{
-			show = false;
-		}
-
-		// Content rendering
-		ImGui::PushTextWrapPos(max_width - text_wrap_padding);
-
-		if (pending)
-		{
-			ImGui::Text("Loading symbol info...");
-		} else if (symbolInfo.empty())
-		{
-			ImGui::Text("No symbol info available");
-		} else
-		{
-			// Display the hover content with proper wrapping
-			ImGui::TextWrapped("%s", symbolInfo.c_str());
-		}
-
-		ImGui::PopTextWrapPos();
-
-		ImGui::End();
+		// Anchor just below the caret cell; dismissal retires it.
+		const ViewLayout &layout = api->layout();
+		int row = 0, col = 0;
+		api->getCaret(row, col);
+		const float fs = ImGui::GetFontSize();
+		const ImVec2 anchor(api->caretScreenX() + fs * 0.25f,
+							layout.textPos.y +
+								static_cast<float>(row + 1) * layout.lineHeight +
+								fs * 0.25f);
+		renderMouseTooltip(*snap, &anchor);
+		return;
 	}
 
-	// Cleanup
-	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar(3);
+	renderMouseTooltip(*snap);
+}
+
+void LSPSymbolInfo::renderMouseTooltip(const std::string &markdown, const ImVec2 *anchor)
+{
+	if (!api || !api->claimTooltip())
+		return;
+
+	const float fs = ImGui::GetFontSize();
+	if (anchor)
+		ImGui::SetNextWindowPos(*anchor);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(fs * 0.7f, fs * 0.5f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, fs * 0.3f);
+
+	if (ImGui::BeginTooltip())
+	{
+		EditorApi &hover = anchor ? *api : (hoverApi ? *hoverApi : *api);
+		RenderHoverMarkdown(markdown, hover, hover.languageId());
+		if (!anchor)
+		{
+			// Mouse mode: remember the rect for sticky-popup handling.
+			popupMin = ImGui::GetWindowPos();
+			popupMax = ImVec2(popupMin.x + ImGui::GetWindowSize().x,
+							  popupMin.y + ImGui::GetWindowSize().y);
+			popupRectValid = true;
+		}
+		ImGui::EndTooltip();
+	}
+
+	ImGui::PopStyleVar(2);
 }
