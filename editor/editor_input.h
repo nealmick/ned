@@ -48,7 +48,11 @@ class EditorInput
 	int anchorRow = -1;
 	int anchorColumn = -1;
 
+	// Right-click context menu (opened at the click position).
+	static constexpr const char *kContextMenuId = "ned_editor_context_menu";
+
 	void processMouse();
+	void renderContextMenu();
 	void processKeyboard();
 	void processTextInput();
 	void processCharacterInput();
