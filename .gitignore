@@ -106,3 +106,5 @@ Thumbs.db
 # debian packages
 *.deb
 vcpkg/
+
+.zcode/

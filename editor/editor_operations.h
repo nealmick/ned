@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "editor_events.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -28,16 +30,27 @@ struct TextOp
 	int length = 0;	  // Delete: byte length in joined-document space
 };
 
-// Precomputed joined-byte span for tree-sitter (filled at apply time, before mutate).
-struct PendingTreeEdit
+// One sequential document mutation as seen by downstream services
+// (tree-sitter, LSP sync). Filled at apply time, before mutate.
+struct PendingEdit
 {
 	TextOp op;
+	// Joined-byte span for tree-sitter.
 	uint32_t startByte = 0;
 	uint32_t oldEndByte = 0;
 	uint32_t newEndByte = 0;
 	// Delete only: removed joined bytes (for ts_tree_edit points without a full
 	// document clone). Empty on Insert.
 	std::string removedBytes;
+	// LSP-style range of the replaced span, in UTF-16, computed pre-mutation.
+	int rangeStartLine = 0;
+	int rangeStartCharacter = 0;
+	int rangeEndLine = 0;
+	int rangeEndCharacter = 0;
+
+	// LSP-facing view of this mutation (insert has start==end; delete has
+	// empty text).
+	EditorEvents::DocumentChange toDocumentChange() const;
 };
 
 struct ApplyResult
@@ -70,7 +83,8 @@ class EditorOperations
 	std::string normalizeLineEndings(const std::string &text) const;
 
 	// Highlight consumes pending edits after each DidEdit.
-	std::vector<PendingTreeEdit> takePending();
+	std::vector<PendingEdit> takePending();
+	const std::vector<PendingEdit> &pendingEdits() const { return pending; }
 	void clearPending();
 
 	uint64_t generation() const { return gen; }
@@ -78,13 +92,13 @@ class EditorOperations
 	void bumpGeneration() { ++gen; }
 
   private:
-	void pushPending(const PendingTreeEdit &edit);
+	void pushPending(const PendingEdit &edit);
 	ApplyResult applyInsert(const TextOp &op, size_t startByte);
 	ApplyResult applyDelete(const TextOp &op, size_t startByte);
 	// Clamp + order a row/col range. False if document empty.
 	bool normalizeRange(int &startRow, int &startCol, int &endRow, int &endCol) const;
 
 	EditorState *state;
-	std::vector<PendingTreeEdit> pending;
+	std::vector<PendingEdit> pending;
 	uint64_t gen = 0;
 };

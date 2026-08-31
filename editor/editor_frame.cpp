@@ -9,8 +9,10 @@
 #include "editor_input.h"
 #include "editor_state.h"
 #include "editor_view_state.h"
+#include "services/diagnostics/diagnostics_store.h"
 #include "services/git/git_service.h"
 #include "services/highlight/highlight_service.h"
+#include "util/editor_utils.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -34,6 +36,16 @@ EditorFrame::EditorFrame(EditorState &document,
 {
 	// Frame owns layout; input needs it for hit-testing.
 	editorInput.setLayout(layout);
+	textView.setTooltipArbiter(&tooltipArbiter);
+	gutter.setTooltipArbiter(&tooltipArbiter);
+	textView.setHoverInfo(&hoverTrigger.info());
+	gutter.setHoverInfo(&hoverTrigger.info());
+}
+
+void EditorFrame::setDiagnostics(const LSPDiagnostics *store)
+{
+	textView.setDiagnostics(store);
+	gutter.setDiagnostics(store);
 }
 
 void EditorFrame::drawTitleBar(ImFont *font)
@@ -382,7 +394,99 @@ void EditorFrame::run(ImFont *font)
 	if (layout.minimapVisible())
 		minimap.interact(*viewState);
 	viewState->updateScroll(layout);
+
+	updateHoverTrigger();
 	drawDocument();
 
 	ImGui::PopStyleVar();
+}
+
+HoverTrigger::Target EditorFrame::hoverHitTest() const
+{
+	HoverTrigger::Target hit;
+	const ViewLayout &l = layout;
+	if (l.lineHeight <= 0.0f)
+		return hit;
+
+	const ImVec2 mouse = ImGui::GetMousePos();
+	if (!ImGui::IsMousePosValid(&mouse))
+		return hit;
+
+	// Gutter zone: the line-number column left of the text pane. The gutter
+	// child does not scroll; rows are drawn at lineNumbersPos.y + row*lineH -
+	// scrollY (GutterView::renderLineNumbers), so the inverse mapping uses the
+	// gutter's own origin — NOT layout.textPos, which is already
+	// scroll-adjusted (mixing the two double-counts scrollY).
+	if (mouse.x >= gutter.lineNumbersPos.x &&
+		mouse.x < gutter.lineNumbersPos.x + gutter.lineNumberWidth &&
+		mouse.y >= gutter.lineNumbersPos.y && mouse.y < l.panePos.y + l.paneSize.y)
+	{
+		const float scrollY = viewState->getScrollPosition().y;
+		const int row = static_cast<int>((mouse.y - gutter.lineNumbersPos.y + scrollY) /
+										 l.lineHeight);
+		if (row >= 0 && row < state->lineCount())
+		{
+			hit.zone = HoverTrigger::Zone::Gutter;
+			hit.row = row;
+		}
+		return hit;
+	}
+
+	// Text zone: pane minus minimap.
+	if (l.minimapVisible() && mouse.x >= l.minimapMin.x && mouse.x <= l.minimapMax.x &&
+		mouse.y >= l.minimapMin.y && mouse.y <= l.minimapMax.y)
+		return hit;
+	const float right =
+		l.minimapVisible() ? l.minimapMin.x : (l.panePos.x + l.paneSize.x);
+	const float bottom = l.panePos.y + l.paneSize.y;
+	if (mouse.x < l.textPos.x || mouse.x >= right || mouse.y < l.textPos.y ||
+		mouse.y >= bottom)
+		return hit;
+
+	const int n = state->lineCount();
+	const int row = static_cast<int>((mouse.y - l.textPos.y) / l.lineHeight);
+	if (row < 0 || row >= n)
+		return hit;
+
+	const std::string line = state->line(row);
+	int column = EditorUtils::ColumnAtX(line, mouse.x - l.textPos.x);
+	column = EditorUtils::SnapToUtf8CharBoundary(line, column);
+	hit.zone = HoverTrigger::Zone::Text;
+	hit.row = row;
+	hit.column = column;
+	return hit;
+}
+
+void EditorFrame::updateHoverTrigger()
+{
+	// Dismissal: keystrokes, click/drag, blocked input, or scrolled content.
+	frameDismissed = viewState->blockInput || ImGui::IsMouseDown(ImGuiMouseButton_Left);
+	{
+		const ImGuiIO &io = ImGui::GetIO();
+		for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
+		{
+			const ImGuiKeyData &kd = io.KeysData[key - ImGuiKey_NamedKey_BEGIN];
+			if (kd.Down && kd.DownDuration == 0.0f)
+			{
+				frameDismissed = true;
+				break;
+			}
+		}
+	}
+	const ImVec2 scrollNow = viewState->getScrollPosition();
+	if (scrollNow.x != lastScroll.x || scrollNow.y != lastScroll.y)
+		frameDismissed = true;
+	lastScroll = scrollNow;
+
+	const ImVec2 mouse = ImGui::GetMousePos();
+	const bool mouseMoved = ImGui::IsMousePosValid(&mouse) &&
+							(mouse.x != lastMousePos.x || mouse.y != lastMousePos.y);
+	lastMousePos = mouse;
+
+	// Occlusion check: the document child is the current window here. If the
+	// mouse is over anything else (dock tab bar, another window, a popup),
+	// there is no hover zone — rect math alone can't see stacked windows.
+	const HoverTrigger::Target hit =
+		ImGui::IsWindowHovered() ? hoverHitTest() : HoverTrigger::Target{};
+	hoverTrigger.update(mouseMoved, frameDismissed, hit);
 }

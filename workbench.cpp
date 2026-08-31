@@ -181,8 +181,7 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 			if (!api)
 				return;
 			lspClient->init(e.path);
-			if (lspClient->isInitialized())
-				lspClient->didOpen(e.path, api->text(), api->version(), api->languageId());
+			lspClient->didOpen(e.path, api->text(), api->version(), api->languageId());
 		});
 
 	fileExplorer->events.subscribeDidCloseDocument(
@@ -232,6 +231,9 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 
 void Workbench::wireTabEditor(Editor &ed)
 {
+	if (lspClient)
+		ed.api.bindDiagnostics(&lspClient->diagnostics());
+
 	ed.api.events().subscribeDidRequestExclusiveOverlay(
 		[this](const EditorEvents::DidRequestExclusiveOverlay &e) {
 			using Keep = EditorEvents::DidRequestExclusiveOverlay::Keep;
@@ -240,17 +242,17 @@ void Workbench::wireTabEditor(Editor &ed)
 			if (e.keep != Keep::FileFinder && fileExplorer)
 				fileExplorer->fileFinder.showFFWindow = false;
 		});
-	ed.api.events().subscribeDidSave([this](const EditorEvents::DidSave &ev) {
-		if (!lspClient || !lspClient->isInitialized())
+	ed.api.events().subscribeDidEdit([this, &ed](const EditorEvents::DidEdit &e) {
+		if (!lspClient)
 			return;
-		for (auto &t : tabs_)
-		{
-			if (t.editor->api.path() == ev.path)
-			{
-				lspClient->didEdit(ev.path, t.editor->api.text(), ev.version);
-				break;
-			}
-		}
+		// Lazy text: the client joins the rope only for full-sync servers.
+		lspClient->didChange(
+			ed.api.path(), e.version, e.changes, [&ed] { return ed.api.text(); });
+	});
+	ed.api.events().subscribeDidSave([this, &ed](const EditorEvents::DidSave &ev) {
+		if (!lspClient)
+			return;
+		lspClient->didSave(ev.path, [&ed] { return ed.api.text(); });
 	});
 }
 
@@ -628,6 +630,7 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 
 	// ---- Editor tab windows (submitted after DockSpace; peer of host) ----
 	std::vector<int> toClose;
+	hoveredIndex_ = -1;
 
 	for (int i = 0; i < static_cast<int>(tabs_.size()); ++i)
 	{
@@ -669,6 +672,8 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 		bool open = true;
 		if (ImGui::Begin(title.c_str(), &open))
 		{
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows))
+				hoveredIndex_ = i;
 			const bool docked = ImGui::IsWindowDocked();
 			if (docked)
 			{
@@ -703,6 +708,11 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 
 	for (int i = static_cast<int>(toClose.size()) - 1; i >= 0; --i)
 		closeTab(toClose[static_cast<size_t>(i)]);
+
+	// Indices shifted under any capture made this frame — drop the hover
+	// target rather than aim it at the wrong editor for a frame.
+	if (!toClose.empty())
+		hoveredIndex_ = -1;
 
 	// After tabs are submitted (window counts are current), collapse empty
 	// central holes so split editors always fill the editor workspace.
@@ -1068,6 +1078,16 @@ void Workbench::render()
 		renderDockedWorkspace(settings.font.getMainFont());
 	endRootChrome();
 
+	// Splits: mouse hover belongs to the editor under the mouse, which may
+	// differ from the focused editor the keybind ui is bound to.
+	if (lspClient)
+	{
+		Editor *hovered =
+			hoveredIndex_ >= 0 && hoveredIndex_ < static_cast<int>(tabs_.size())
+				? tabs_[static_cast<size_t>(hoveredIndex_)].editor.get()
+				: nullptr;
+		lspClient->setHoverApi(hovered ? hovered->api : *api);
+	}
 	lspClient->render();
 	fileExplorer->renderFileFinder();
 	renderOverlays(*api);

@@ -66,13 +66,13 @@ class EditorHighlight
 	std::mutex pendingMutex;
 	std::shared_ptr<ParseResult> pendingResult;
 	uint64_t pendingGen = 0;
-	std::vector<PendingTreeEdit> heldTreeEdits;
+	std::vector<PendingEdit> heldTreeEdits;
 
-	void morphSpans(const std::vector<PendingTreeEdit> &edits);
+	void morphSpans(const std::vector<PendingEdit> &edits);
 	void syncLensFromContent();
 	void reapTasks();
 	void recolor();
-	TreeSitter::ParseSnapshot makeSnapshot(std::vector<PendingTreeEdit> pending) const;
+	TreeSitter::ParseSnapshot makeSnapshot(std::vector<PendingEdit> pending) const;
 	void applyParseResult(ParseResult &result);
 	void postResult(ParseResult result, uint64_t gen);
 	void publishPending();

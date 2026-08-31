@@ -282,22 +282,20 @@ if(NED_ENABLE_LSP)
     target_compile_definitions(lsp PRIVATE _ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
   endif()
 
-  # Replace problematic connection.cpp with our patched version for all platforms
-  get_target_property(LSP_SOURCES_EXISTING lsp SOURCES)
-  list(REMOVE_ITEM LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lib/lsp-framework/lsp/connection.cpp)
-  list(APPEND LSP_SOURCES_EXISTING ${CMAKE_CURRENT_SOURCE_DIR}/lsp/connection_patched.cpp)
-  set_target_properties(lsp PROPERTIES SOURCES "${LSP_SOURCES_EXISTING}")
-
+  # Upstream (master) rewrote Connection with the fixes our old
+  # connection_patched.cpp carried (which had been formatting-only); use it as-is.
   set(LSP_SOURCES
     lsp/lsp_client.cpp
+    lsp/lsp_document_sync.cpp
     lsp/lsp_symbol_info.cpp
-    lsp/lsp_goto_def.cpp
-    lsp/lsp_goto_ref.cpp
+    lsp/lsp_goto.cpp
     lsp/lsp_uri_options.cpp
     lsp/lsp_dashboard.cpp
   )
 else()
-  set(LSP_SOURCES lsp/lsp_client_stub.cpp)
+  set(LSP_SOURCES
+    lsp/lsp_client_stub.cpp
+  )
 endif()
 
 # Find GLFW headers

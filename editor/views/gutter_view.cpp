@@ -1,12 +1,16 @@
 #include "gutter_view.h"
 #include "../editor_state.h"
 #include "../editor_view_state.h"
+#include "../services/diagnostics/diagnostics_store.h"
 #include "../services/git/git_service.h"
 #include "../util/editor_utils.h"
+#include "diagnostic_style.h"
+#include "hover_tooltip.h"
 #include "view_layout.h"
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
 
 void GutterView::renderLineNumbers() const
 {
@@ -37,6 +41,12 @@ void GutterView::renderLineNumbers() const
 
 	const int current_line = viewState->row;
 
+	// One snapshot for the whole loop — per-line queries copy the full set.
+	const std::vector<int> severityByLine =
+		(diagnostics && !state->path.empty())
+			? diagnostics->maxSeverityByLine(state->path, lineCount)
+			: std::vector<int>{};
+
 	for (int i = start_line; i < end_line; i++)
 	{
 		float yPos = lineNumbersPos.y + (i * layout->lineHeight) - scrollY;
@@ -58,8 +68,38 @@ void GutterView::renderLineNumbers() const
 		float xPos =
 			calculateTextRightAlignedPosition(line_number_buffer, lineNumberWidth);
 
+		const float colW = diagnosticColumnWidth();
+		const int sev = i < static_cast<int>(severityByLine.size())
+							? severityByLine[static_cast<size_t>(i)]
+							: 0;
+		if (colW > 0.0f && sev > 0)
+		{
+			const ImU32 mark = DiagnosticSeverityMark(sev);
+			const float markW = std::max(3.0f, colW * 0.45f);
+			const float mx = lineNumbersPos.x + (colW - markW) * 0.5f;
+			const float gy0 = yPos + 2.0f;
+			const float gy1 = yPos + layout->lineHeight - 2.0f;
+			draw_list->AddRectFilled(ImVec2(mx, gy0), ImVec2(mx + markW, gy1), mark);
+		}
+
 		draw_list->AddText(ImVec2(xPos, yPos), line_number_color, line_number_buffer);
 	}
+
+	// Tooltip is trigger-driven (same machine as symbol hover): the frame's
+	// Gutter-zone target picks the row; TextView handles squiggle hover.
+	if (diagnostics && !state->path.empty() && tooltipArbiter && hoverInfo &&
+		hoverInfo->active && hoverInfo->zone == HoverTrigger::Zone::Gutter)
+	{
+		RenderDiagnosticTooltip(diagnostics->forLine(state->path, hoverInfo->row),
+								*tooltipArbiter);
+	}
+}
+
+float GutterView::diagnosticColumnWidth() const
+{
+	if (!diagnostics)
+		return 0.0f;
+	return std::max(6.0f, ImGui::GetFontSize() * 0.55f);
 }
 
 float GutterView::calculateRequiredLineNumberWidth() const
@@ -73,7 +113,7 @@ float GutterView::calculateRequiredLineNumberWidth() const
 	char test_buffer[32];
 	snprintf(test_buffer, sizeof(test_buffer), "%d", width_reference);
 	float text_width = ImGui::CalcTextSize(test_buffer).x;
-	return text_width + 2.0f + 10.0f;
+	return diagnosticColumnWidth() + text_width + 2.0f + 10.0f;
 }
 
 ImVec2 GutterView::createLineNumbersPanel()
@@ -100,7 +140,7 @@ ImVec2 GutterView::createLineNumbersPanel()
 float GutterView::calculateTextRightAlignedPosition(const char *text, float width) const
 {
 	float text_width = ImGui::CalcTextSize(text).x;
-	return ImGui::GetCursorScreenPos().x + width - text_width - 10.0f;
+	return lineNumbersPos.x + width - text_width - 10.0f;
 }
 
 void GutterView::calculateSelectionLines(int &selectionStartLine,

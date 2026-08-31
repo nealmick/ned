@@ -73,7 +73,7 @@ class TreeSitter
 		std::vector<uint32_t> lineStarts;
 		std::string path;
 		std::string languageId;
-		std::vector<PendingTreeEdit> pendingEdits;
+		std::vector<PendingEdit> pendingEdits;
 		// If non-zero, treat the document as this many bytes (prefix parse).
 		uint32_t byteLimit = 0;
 	};
@@ -94,6 +94,11 @@ class TreeSitter
 
 	// First maxLines only — throwaway parser, no full rope walk, tree untouched.
 	ParseResult queryPrefix(const ParseSnapshot &snapshot, int maxLines);
+
+	// One-shot highlight of a small snippet (hover code fences). `languageId`
+	// is a file extension or fence tag (cpp, python, rust, …).
+	static ColorRangeMap highlightSnippet(const std::string &languageId,
+										  const std::string &text);
 
 	void updateThemeColors();
 	// True if this language's .scm is already compiled (safe to query on UI).
@@ -147,7 +152,7 @@ class TreeSitter
 				  ColorRangeMap &colors,
 				  int rowBase);
 
-	bool applyPendingEdits(const std::vector<PendingTreeEdit> &edits);
+	bool applyPendingEdits(const std::vector<PendingEdit> &edits);
 
 	static int lineLength(const ParseSnapshot &snap, size_t row);
 	static void

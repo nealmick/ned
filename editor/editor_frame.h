@@ -9,6 +9,8 @@
 
 #include "views/caret_view.h"
 #include "views/gutter_view.h"
+#include "views/hover_tooltip.h"
+#include "views/hover_trigger.h"
 #include "views/minimap_view.h"
 #include "views/text_view.h"
 #include "views/title_bar_view.h"
@@ -43,6 +45,18 @@ class EditorFrame
 				EditorHighlight &hl,
 				Icons &iconSet);
 
+	void setDiagnostics(const class LSPDiagnostics *store);
+
+	// One shared ImGui tooltip per frame; first claimer (gutter marks, squiggle
+	// hover, symbol hover) owns it. Exposed to the shell via EditorApi.
+	bool claimTooltip() { return tooltipArbiter.claim(); }
+
+	// Transient hover trigger (VSCode-style, shared by all hover consumers).
+	// Updated each run(); views and the shell read the frozen target.
+	const HoverTrigger::Info &hoverInfo() const { return hoverTrigger.info(); }
+	// True when this frame carried a dismissal signal (key/click/scroll/block).
+	bool hoverDismissed() const { return frameDismissed; }
+
 	// Full document pass: title bar → layout → focus → input → scroll → draw.
 	void run(ImFont *font);
 
@@ -65,6 +79,10 @@ class EditorFrame
 	void beginDocumentChild();
 	void updateFocusPolicy();
 	void drawDocument();
+	// Zone/row/column under the mouse right now (Text or Gutter), for the trigger.
+	HoverTrigger::Target hoverHitTest() const;
+	void updateHoverTrigger();
+	bool frameDismissed = false;
 	float contentWidth();
 
 	// Longest-line width cache (widthDirtyHi < widthDirtyLo => no pending dirty).
@@ -79,4 +97,8 @@ class EditorFrame
 
 	// Per-frame instance (must NOT be static — multi-tab embed has many frames).
 	bool wasEditorFocused = false;
+	TooltipArbiter tooltipArbiter;
+	HoverTrigger hoverTrigger;
+	ImVec2 lastMousePos{0.0f, 0.0f};
+	ImVec2 lastScroll{0.0f, 0.0f};
 };

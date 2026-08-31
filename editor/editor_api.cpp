@@ -1,5 +1,6 @@
 #include "editor_api.h"
 #include "editor.h"
+#include "services/diagnostics/diagnostics_store.h"
 #include "util/project_undo.h"
 
 EditorApi::EditorApi(Editor &editor) : editor(editor) {}
@@ -53,9 +54,18 @@ bool EditorApi::hasPath() const { return !editor.state.path.empty(); }
 
 std::string EditorApi::text() const { return editor.state.join(); }
 
+std::string EditorApi::line(int row) const { return editor.state.line(row); }
+
 int EditorApi::version() const { return editor.state.version; }
 
 const std::string &EditorApi::languageId() const { return editor.state.languageId; }
+
+ImVec4 EditorApi::defaultTextColor() const { return editor.highlight.defaultTextColor(); }
+
+ImVec4 EditorApi::syntaxColor(ThemeSlot slot) const
+{
+	return editor.highlight.colorForSlot(slot);
+}
 
 void EditorApi::getCaret(int &row, int &column) const
 {
@@ -140,6 +150,17 @@ const ViewLayout &EditorApi::layout() const { return editor.frame.layout; }
 float EditorApi::caretScreenX() const
 {
 	return editor.frame.caret.caretScreenX(editor.frame.layout.textPos);
+}
+
+bool EditorApi::claimTooltip() const { return editor.frame.claimTooltip(); }
+
+HoverTrigger::Info EditorApi::hoverInfo() const { return editor.frame.hoverInfo(); }
+
+bool EditorApi::hoverDismissed() const { return editor.frame.hoverDismissed(); }
+
+void EditorApi::bindDiagnostics(const LSPDiagnostics *store)
+{
+	editor.frame.setDiagnostics(store);
 }
 
 EditorEvents &EditorApi::events() { return editor.events; }

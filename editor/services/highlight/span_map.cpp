@@ -190,14 +190,14 @@ void SpanMap::remove(int row, int col, int length, int sepLen)
 	}
 }
 
-bool SpanMap::applyEdits(const std::vector<PendingTreeEdit> &edits, const std::string &eol)
+bool SpanMap::applyEdits(const std::vector<PendingEdit> &edits, const std::string &eol)
 {
 	if (edits.empty())
 		return false;
 	if (lens.size() != lines.size() || lines.empty())
 		return false;
 	const int sepLen = static_cast<int>(eol.size());
-	for (const PendingTreeEdit &pe : edits)
+	for (const PendingEdit &pe : edits)
 	{
 		if (pe.op.kind == OpKind::Insert)
 			insert(pe.op.row, pe.op.column, pe.op.text, eol);

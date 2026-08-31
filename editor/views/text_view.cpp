@@ -1,11 +1,17 @@
 #include "text_view.h"
 #include "../editor_state.h"
 #include "../editor_view_state.h"
+#include "../services/diagnostics/diagnostics_store.h"
 #include "../services/highlight/highlight_service.h"
 #include "../util/editor_utils.h"
+#include "../util/utf8.h"
+#include "diagnostic_style.h"
+#include "hover_tooltip.h"
 #include "view_layout.h"
 
 #include <algorithm>
+#include <cmath>
+#include <vector>
 
 const ImVec4 TextView::SELECTION_COLOR(1.0f, 0.1f, 0.7f, 0.3f);
 const ImVec4 TextView::CURRENT_LINE_COLOR(0.5f, 0.5f, 0.5f, 0.08f);
@@ -62,6 +68,7 @@ void TextView::draw() const
 		return;
 	renderCurrentLineHighlight();
 	renderVisibleLines();
+	renderDiagnosticMarks();
 }
 
 void TextView::renderCurrentLineHighlight() const
@@ -216,5 +223,101 @@ void TextView::renderVisibleLines() const
 			i = advanceUtf8(line, i, line.size());
 		}
 		flushRun();
+	}
+}
+
+void TextView::renderDiagnosticMarks() const
+{
+	if (!diagnostics || !state || state->path.empty() || layout->lineHeight <= 0.0f)
+		return;
+
+	int start_line = 0;
+	int end_line = -1;
+	getVisibleLineRange(start_line, end_line);
+	if (start_line > end_line)
+		return;
+
+	const auto marks = diagnostics->forDocument(state->path);
+	if (marks.empty())
+		return;
+
+	ImDrawList *draw = ImGui::GetWindowDrawList();
+	const float originX = layout->textPos.x;
+	const float lineH = layout->lineHeight;
+	const ImVec2 winPos = ImGui::GetWindowPos();
+	const float clipL = winPos.x;
+	const float clipR = winPos.x + ImGui::GetWindowWidth();
+
+	// Squiggle geometry (pixels): wave amplitude / wavelength step / thickness.
+	constexpr float kSquiggleAmp = 1.25f;
+	constexpr float kSquiggleStep = 2.0f;
+	constexpr float kSquiggleThickness = 1.4f;
+	constexpr float kSquiggleFreq = 1.2f; // radians per pixel
+	// Degenerate ranges still get a visible wave.
+	constexpr float kSquiggleMinWidth = 6.0f;
+	constexpr float kSquiggleFallbackWidth = 8.0f;
+	constexpr float kSquiggleBaselineLift = 3.0f; // above the line bottom
+
+	auto squiggle = [&](float x0, float x1, float y, ImU32 col) {
+		if (x1 <= x0)
+			x1 = x0 + kSquiggleMinWidth;
+		x0 = std::max(x0, clipL);
+		x1 = std::min(x1, clipR);
+		if (x1 <= x0)
+			return;
+		ImVec2 prev(x0, y);
+		for (float x = x0 + kSquiggleStep; x <= x1 + 0.01f; x += kSquiggleStep)
+		{
+			const float yy = y + std::sin((x - x0) * kSquiggleFreq) * kSquiggleAmp;
+			const ImVec2 next(std::min(x, x1), yy);
+			draw->AddLine(prev, next, col, kSquiggleThickness);
+			prev = next;
+		}
+	};
+
+	for (const auto &d : marks)
+	{
+		if (d.endLine < start_line || d.startLine > end_line)
+			continue;
+
+		const ImU32 col = DiagnosticSeverityMark(d.severity);
+		const int from = std::max(d.startLine, start_line);
+		const int to = std::min(d.endLine, end_line);
+		for (int line = from; line <= to; ++line)
+		{
+			const std::string text = state->line(line);
+			int startCol = 0;
+			int endCol = static_cast<int>(text.size());
+			if (line == d.startLine)
+				startCol = EditorUtils::Utf16ToUtf8ByteOffset(text, d.startCharacter);
+			if (line == d.endLine)
+				endCol = EditorUtils::Utf16ToUtf8ByteOffset(text, d.endCharacter);
+			if (endCol < startCol)
+				std::swap(endCol, startCol);
+
+			const float x0 = EditorUtils::LineColumnX(text, startCol, originX);
+			float x1 = EditorUtils::LineColumnX(text, endCol, originX);
+			if (x1 - x0 < 4.0f)
+				x1 = x0 + kSquiggleFallbackWidth;
+			const float y = layout->textPos.y + static_cast<float>(line) * lineH + lineH -
+							kSquiggleBaselineLift;
+			squiggle(x0, x1, y, col);
+		}
+	}
+
+	// Tooltip is trigger-driven (same machine as symbol hover): show only for
+	// the frozen hover target when a diagnostic actually covers it.
+	if (tooltipArbiter && hoverInfo && hoverInfo->active &&
+		hoverInfo->zone == HoverTrigger::Zone::Text)
+	{
+		const std::string text = state->line(hoverInfo->row);
+		const int utf16 = EditorUtils::Utf8ByteOffsetToUtf16(text, hoverInfo->column);
+		const auto items = diagnostics->forLine(state->path, hoverInfo->row);
+		for (const auto &d : items)
+			if (DiagnosticContains(d, hoverInfo->row, utf16))
+			{
+				RenderDiagnosticTooltip(items, *tooltipArbiter);
+				break;
+			}
 	}
 }
