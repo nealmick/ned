@@ -8,6 +8,7 @@
 #include "qt_find_bar.h"
 #include <QFontMetricsF>
 
+#include <QMenu>
 #include <QShortcut>
 
 #include "qt_icons.h"
@@ -726,15 +727,18 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	case Qt::Key_End:
 		commands.moveLineEnd(shift);
 		break;
+	case Qt::Key_Escape:
+		commands.collapseSelection();
+		break;
 	case Qt::Key_Return:
 	case Qt::Key_Enter:
 		commands.insertNewline();
 		break;
 	case Qt::Key_Backspace:
-		commands.deleteLeft(false);
+		commands.deleteLeft(alt); // Alt deletes by word (ImGui: KeyAlt)
 		break;
 	case Qt::Key_Delete:
-		commands.deleteRight(false);
+		commands.deleteRight(alt);
 		break;
 	case Qt::Key_Tab:
 		commands.indent();
@@ -779,15 +783,50 @@ void QtEditorView::wheelEvent(QWheelEvent *event)
 
 void QtEditorView::mousePressEvent(QMouseEvent *event)
 {
+	if (event->button() == Qt::RightButton)
+	{
+		showContextMenu(event->pos());
+		return;
+	}
 	if (event->button() != Qt::LeftButton)
 		return;
 	const int row = rowAtY(static_cast<int>(event->position().y()));
 	const int column = columnAtX(row, static_cast<int>(event->position().x()));
-	commands.setCursor(row, column, event->modifiers() & Qt::ShiftModifier);
 	dragging = true;
 	caretVisible = true;
 	scheduleBlink();
+	if (event->modifiers() & Qt::ShiftModifier)
+	{
+		// Extend from the existing anchor (ImGui handleMouseClick).
+		const Selection &p = viewState.selections[viewState.primaryIndex];
+		commands.setSelection(p.anchorRow, p.anchorColumn, row, column);
+	} else
+	{
+		commands.setCursor(row, column, false);
+	}
 	update();
+}
+
+void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
+{
+	if (event->button() != Qt::LeftButton)
+		return;
+	const int row = rowAtY(static_cast<int>(event->position().y()));
+	const int column = columnAtX(row, static_cast<int>(event->position().x()));
+	commands.selectWordAt(row, column);
+	update();
+}
+
+void QtEditorView::showContextMenu(const QPoint &pos)
+{
+	QMenu menu(this);
+	menu.addAction("Cut", [this] { commands.cut(); afterEdit(); }, QKeySequence("Ctrl+X"));
+	menu.addAction("Copy", [this] { commands.copy(); }, QKeySequence("Ctrl+C"));
+	menu.addAction("Paste", [this] { commands.paste(); afterEdit(); }, QKeySequence("Ctrl+V"));
+	menu.addSeparator();
+	menu.addAction("Select All", [this] { commands.selectAll(); update(); },
+				   QKeySequence("Ctrl+A"));
+	menu.exec(mapToGlobal(pos));
 }
 
 void QtEditorView::mouseMoveEvent(QMouseEvent *event)

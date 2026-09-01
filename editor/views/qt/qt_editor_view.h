@@ -58,6 +58,10 @@ class QtEditorView : public QWidget
 	// Repaint after programmatic edits (find/replace).
 	void repaintAndFollow();
 
+	// Keep the caret inside the viewport (ImGui: revealCursor).
+	void revealCaret();
+	void showContextMenu(const QPoint &pos);
+
 	bool wordWrapEnabled() const;
 	int textAreaWidth() const;
 	// Total scrollable lines (visual lines when wrapping).
@@ -104,6 +108,7 @@ class QtEditorView : public QWidget
 	void wheelEvent(QWheelEvent *event) override;
 	void resizeEvent(QResizeEvent *event) override;
 	void mousePressEvent(QMouseEvent *event) override;
+	void mouseDoubleClickEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
 	bool eventFilter(QObject *watched, QEvent *event) override;
