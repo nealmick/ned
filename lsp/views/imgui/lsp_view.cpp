@@ -39,7 +39,8 @@ bool LspImGuiView::keybinds()
 	bool shortcutPressed = false;
 
 	// LSP Symbol Info keybind
-	const ImGuiKey symbolInfoKey = imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_symbol_info"));
+	const ImGuiKey symbolInfoKey =
+		imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_symbol_info"));
 	if (symbolInfoKey != ImGuiKey_None && ImGui::IsKeyPressed(symbolInfoKey, false))
 	{
 		symbolInfo.get();
@@ -47,7 +48,8 @@ bool LspImGuiView::keybinds()
 	}
 
 	// LSP Goto Definition keybind
-	const ImGuiKey gotoDefKey = imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_find_def"));
+	const ImGuiKey gotoDefKey =
+		imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_find_def"));
 	if (gotoDefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoDefKey, false))
 	{
 		client.gotoDef.get();
@@ -55,7 +57,8 @@ bool LspImGuiView::keybinds()
 	}
 
 	// LSP Goto References keybind
-	const ImGuiKey gotoRefKey = imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_find_ref"));
+	const ImGuiKey gotoRefKey =
+		imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_find_ref"));
 	if (gotoRefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoRefKey, false))
 	{
 		client.gotoRef.get();

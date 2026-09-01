@@ -113,4 +113,3 @@ NedKey KeybindsManager::getActionKey(const std::string &actionName) const
 	const auto it = keys.find(actionName);
 	return it != keys.end() ? it->second : NedKey::None;
 }
-

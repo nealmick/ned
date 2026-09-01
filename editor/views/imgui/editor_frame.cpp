@@ -327,7 +327,8 @@ void EditorFrame::beginDocumentChild()
 
 	viewState->setScrollPosition(NedVec2(ImGui::GetScrollX(), ImGui::GetScrollY()));
 
-	layout.textPos = NedVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y);
+	layout.textPos =
+		NedVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y);
 	layout.textPos.y += layout.editorTopMargin;
 	layout.textPos.x += layout.textLeftMargin;
 

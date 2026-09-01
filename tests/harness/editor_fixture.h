@@ -16,8 +16,8 @@
 
 #include "imgui.h"
 
-#include <initializer_list>
 #include "editor/platform/clipboard.h"
+#include <initializer_list>
 #include <string>
 #include <utility>
 #include <vector>

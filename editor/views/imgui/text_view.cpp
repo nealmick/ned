@@ -1,14 +1,14 @@
 #include "text_view.h"
-#include "ned_color_imgui.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/highlight/highlight_service.h"
 #include "../../util/editor_utils.h"
 #include "../../util/utf8.h"
+#include "../view_layout.h"
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
-#include "../view_layout.h"
+#include "ned_color_imgui.h"
 #include "wrap_layout.h"
 
 #include <algorithm>

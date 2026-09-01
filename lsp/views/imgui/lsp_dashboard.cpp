@@ -1,7 +1,7 @@
 #include "lsp_dashboard.h"
 #include "../../../files/files.h"
-#include "../../lsp_client.h"
 #include "../../../util/settings.h"
+#include "../../lsp_client.h"
 #include "imgui.h"
 #include <filesystem>
 #include <iostream>

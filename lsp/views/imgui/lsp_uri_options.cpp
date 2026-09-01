@@ -1,9 +1,9 @@
 #include "lsp_uri_options.h"
+#include "../../../editor/editor_api.h"
+#include "../../../editor/util/utf8.h"
 #include "../../../files/files.h"
 #include "../../../lsp/lsp_includes.h"
 #include "../../../util/settings.h"
-#include "../../../editor/editor_api.h"
-#include "../../../editor/util/utf8.h"
 #include "imgui.h"
 #include <algorithm>
 

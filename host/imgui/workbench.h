@@ -7,18 +7,18 @@
 #pragma once
 
 #include "editor/editor.h"
+#include "files/files.h"
 #include "files/views/imgui/file_finder_view.h"
 #include "files/views/imgui/file_sidebar_view.h"
+#include "font.h"
+#include "lsp/lsp_client.h"
 #include "lsp/views/imgui/lsp_view.h"
 #include "settings_view.h"
-#include "welcome.h"
-#include "files/files.h"
-#include "lsp/lsp_client.h"
 #include "util/icons.h"
 #include "util/ned_terminal.h"
 #include "util/project_undo.h"
-#include "font.h"
 #include "util/settings.h"
+#include "welcome.h"
 
 #include <imgui.h>
 

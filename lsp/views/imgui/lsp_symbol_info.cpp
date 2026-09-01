@@ -1,8 +1,8 @@
 #include "lsp_symbol_info.h"
-#include "../../../lsp/lsp_includes.h"
-#include "../../../lsp/lsp_trace.h"
 #include "../../../editor/editor_api.h"
 #include "../../../editor/util/utf8.h"
+#include "../../../lsp/lsp_includes.h"
+#include "../../../lsp/lsp_trace.h"
 #include "../../editor/views/imgui/hover_tooltip.h"
 
 #include <algorithm>

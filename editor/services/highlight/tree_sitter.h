@@ -2,8 +2,8 @@
 #pragma once
 #include "../../buffer/text_buffer.h"
 #include "../../editor_operations.h"
-#include "capture_map.h"
 #include "../../platform/ned_types.h"
+#include "capture_map.h"
 #include <cstdint>
 #include <functional>
 #include <mutex>

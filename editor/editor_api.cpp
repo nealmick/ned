@@ -60,7 +60,10 @@ int EditorApi::version() const { return editor.state.version; }
 
 const std::string &EditorApi::languageId() const { return editor.state.languageId; }
 
-NedColor EditorApi::defaultTextColor() const { return editor.highlight.defaultTextColor(); }
+NedColor EditorApi::defaultTextColor() const
+{
+	return editor.highlight.defaultTextColor();
+}
 
 NedColor EditorApi::syntaxColor(ThemeSlot slot) const
 {

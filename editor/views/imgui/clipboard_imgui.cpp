@@ -2,7 +2,10 @@
 
 #include "imgui.h"
 
-void ImGuiClipboard::setText(const std::string &text) { ImGui::SetClipboardText(text.c_str()); }
+void ImGuiClipboard::setText(const std::string &text)
+{
+	ImGui::SetClipboardText(text.c_str());
+}
 
 std::string ImGuiClipboard::text() const
 {

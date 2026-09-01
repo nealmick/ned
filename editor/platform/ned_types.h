@@ -46,7 +46,9 @@ constexpr NedTextureId kNoTexture = 0;
 inline constexpr std::uint32_t nedColorToU32(const NedColor &c)
 {
 	const auto to8 = [](float v) {
-		return static_cast<std::uint32_t>(v >= 1.0f ? 255 : v <= 0.0f ? 0 : v * 255.0f + 0.5f);
+		return static_cast<std::uint32_t>(v >= 1.0f	  ? 255
+										  : v <= 0.0f ? 0
+													  : v * 255.0f + 0.5f);
 	};
 	return (to8(c.a) << 24) | (to8(c.b) << 16) | (to8(c.g) << 8) | to8(c.r);
 }

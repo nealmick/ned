@@ -52,8 +52,7 @@ class HoverTrigger
 	// Clock injectable for tests. The default is a steady wall clock; hosts
 	// with a frame clock (ImGui::GetTime) install it via setProductionClock.
 	explicit HoverTrigger(std::function<double()> clock = {})
-		: clock(clock ? std::move(clock)
-					  : std::function<double()>(defaultClock))
+		: clock(clock ? std::move(clock) : std::function<double()>(defaultClock))
 	{
 	}
 
@@ -91,7 +90,7 @@ class HoverTrigger
 	static void setProductionClock(double (*clock)()) { defaultClock = clock; }
 	static void setStyleHoverDelay(double seconds) { styleHoverDelay() = seconds; }
 
-    private:
+  private:
 	static double steadyClock()
 	{
 		using namespace std::chrono;

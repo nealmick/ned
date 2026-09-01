@@ -18,9 +18,9 @@
 #include <algorithm>
 
 bool handleAppKeyboardShortcuts(EditorApi &api,
-								 FileExplorer &files,
-								 Settings &settings,
-								 LspImGuiView &lsp)
+								FileExplorer &files,
+								Settings &settings,
+								LspImGuiView &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();
@@ -33,7 +33,8 @@ bool handleAppKeyboardShortcuts(EditorApi &api,
 
 	// Cmd/Ctrl+T — toggle bottom terminal panel (under editor dock).
 	{
-		ImGuiKey termKey = imguiKeyFromNed(settings.keybinds.getActionKey("toggle_terminal"));
+		ImGuiKey termKey =
+			imguiKeyFromNed(settings.keybinds.getActionKey("toggle_terminal"));
 		if (termKey == ImGuiKey_None)
 			termKey = ImGuiKey_T; // default if keybinds.json omits it
 		if (mod && ImGui::IsKeyPressed(termKey, false))

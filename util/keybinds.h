@@ -1,8 +1,6 @@
 #pragma once
-#include "../lib/json.hpp"
 #include "../editor/platform/ned_key.h"
-#include <map>
-#include <string>
+#include "../lib/json.hpp"
 #include <filesystem>
 #include <map>
 #include <string>
@@ -24,12 +22,10 @@ class KeybindsManager
 	void checkKeybindsFile(); // re-read if the file changed on disk
 	NedKey getActionKey(const std::string &actionName) const;
 
-
   private:
 	void ensureFileExists();
 	void rebuildMap();
 	void touchDiskTime();
-
 
 	Settings &settings;
 	json keybinds = json::object();

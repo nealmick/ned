@@ -9,8 +9,8 @@
 #ifndef NED_ENABLE_SHADERS
 #define NED_ENABLE_SHADERS 1
 #endif
-#include "../lib/json.hpp"
 #include "../editor/platform/ned_types.h"
+#include "../lib/json.hpp"
 #include "keybinds.h"
 #include <filesystem>
 #include <string>

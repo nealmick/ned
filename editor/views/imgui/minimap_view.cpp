@@ -8,11 +8,11 @@
 	frames replay a handful of rects. Slider still updates live with scroll.
 */
 #include "minimap_view.h"
-#include "ned_color_imgui.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/highlight/highlight_service.h"
 #include "../view_layout.h"
+#include "ned_color_imgui.h"
 #include "wrap_layout.h"
 #include <algorithm>
 #include <cmath>
@@ -202,8 +202,8 @@ void MinimapView::interact(EditorViewState &view)
 {
 	if (!state || !layout || !layout->minimapVisible())
 		return;
-	const ImVec2 a(layout->minimapMin.x, layout->minimapMin.y), b(layout->minimapMax.x,
-															 layout->minimapMax.y);
+	const ImVec2 a(layout->minimapMin.x, layout->minimapMin.y),
+		b(layout->minimapMax.x, layout->minimapMax.y);
 	const float stripH = b.y - a.y;
 	if (stripH <= 1.0f)
 		return;

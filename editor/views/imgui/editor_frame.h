@@ -8,13 +8,13 @@
 #include "imgui.h"
 
 #include "../../util/hover_trigger.h"
+#include "../view_layout.h"
 #include "caret_view.h"
 #include "gutter_view.h"
 #include "hover_tooltip.h"
 #include "minimap_view.h"
 #include "text_view.h"
 #include "title_bar_view.h"
-#include "../view_layout.h"
 #include "wrap_layout.h"
 
 struct ImFont;

@@ -7,8 +7,8 @@
 #include "editor_state.h"
 #include "imgui.h"
 #include "util/editor_utils.h"
-#include "views/view_layout.h"
 #include "views/imgui/wrap_layout.h"
+#include "views/view_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -516,7 +516,8 @@ void EditorViewState::updateBlinkTime() { cursorBlinkTime += ImGui::GetIO().Delt
 
 void EditorViewState::requestCursorCenter(int line, int character)
 {
-	pendingCursorCenter = NedVec2(static_cast<float>(line), static_cast<float>(character));
+	pendingCursorCenter =
+		NedVec2(static_cast<float>(line), static_cast<float>(character));
 }
 
 void EditorViewState::updateScroll(const ViewLayout &layout)
@@ -706,16 +707,16 @@ void EditorViewState::updateScrollAnimation()
 NedVec2 EditorViewState::clampToScrollRange(const NedVec2 &position) const
 {
 	return NedVec2(std::clamp(position.x, 0.0f, std::max(0.0f, ImGui::GetScrollMaxX())),
-				  std::clamp(position.y, 0.0f, std::max(0.0f, ImGui::GetScrollMaxY())));
+				   std::clamp(position.y, 0.0f, std::max(0.0f, ImGui::GetScrollMaxY())));
 }
 
 NedVec2 EditorViewState::clampToScrollRange(const NedVec2 &position,
-										   const ViewLayout &layout) const
+											const ViewLayout &layout) const
 {
 	float maxX = ImGui::GetScrollMaxX();
 	float maxY = ImGui::GetScrollMaxY();
 	if (maxY < 1.0f && layout.totalHeight > layout.size.y)
 		maxY = layout.totalHeight + layout.editorTopMargin - layout.size.y;
 	return NedVec2(std::clamp(position.x, 0.0f, std::max(0.0f, maxX)),
-				  std::clamp(position.y, 0.0f, std::max(0.0f, maxY)));
+				   std::clamp(position.y, 0.0f, std::max(0.0f, maxY)));
 }

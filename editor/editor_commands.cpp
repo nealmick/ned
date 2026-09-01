@@ -4,14 +4,13 @@
 */
 
 #include "editor_commands.h"
-#include "platform/clipboard.h"
 #include "editor_events.h"
 #include "editor_state.h"
 #include "editor_view_state.h"
+#include "platform/clipboard.h"
 #include "services/save_service.h"
 #include "util/editor_utils.h"
 #include "util/project_undo.h"
-
 
 #include <algorithm>
 #include <string>

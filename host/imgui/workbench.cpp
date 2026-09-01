@@ -7,10 +7,10 @@
 #include <GLFW/glfw3.h>
 
 #include "app_shortcuts.h"
-#include "workbench.h"
 #include "editor/util/hover_trigger.h"
-#include "editor/views/imgui/ned_key_imgui.h"
 #include "editor/views/imgui/clipboard_imgui.h"
+#include "editor/views/imgui/ned_key_imgui.h"
+#include "workbench.h"
 
 #include "editor/editor_events.h"
 #include "files/file_explorer_events.h"
@@ -1064,8 +1064,7 @@ void Workbench::applySettings()
 #else
 	const float termScale = 1.0f;
 #endif
-	const float termPx =
-		font.getFontSize() * (dpi > 0.0f ? dpi : 1.0f) * termScale;
+	const float termPx = font.getFontSize() * (dpi > 0.0f ? dpi : 1.0f) * termScale;
 	const bool resync = terminal.consumeNeedsFontResync();
 	const bool sizeChanged = ImAbs(terminal.configuredFontPx() - termPx) > 0.05f;
 	if (!terminal.isStarted())

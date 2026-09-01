@@ -5,13 +5,13 @@
 */
 
 #include "settings_view.h"
-#include "font.h"
-#include "../files/files.h"
-#include "../lsp/lsp_client.h"
-#include "../util/settings.h"
 #include "../editor/editor_api.h"
 #include "../editor/editor_events.h"
+#include "../files/files.h"
+#include "../lsp/lsp_client.h"
 #include "../lsp/views/imgui/lsp_view.h"
+#include "../util/settings.h"
+#include "font.h"
 
 #include "imgui.h"
 #include <GLFW/glfw3.h>
@@ -49,7 +49,7 @@ bool SettingsView::apply(bool force, EditorApi &api)
 	}
 
 	font.setFont(s.settings.value("font", std::string("SourceCodePro-Regular")),
-				   s.settings.value("fontSize", 20.0f));
+				 s.settings.value("fontSize", 20.0f));
 	font.load();
 
 	ImGuiStyle &style = ImGui::GetStyle();
@@ -177,9 +177,9 @@ void SettingsView::renderSettingsWindow(EditorApi &api,
 	if (s.isEmbedded)
 	{
 		ImGui::SetNextWindowPos(ImVec2(s.embeddedWindowPos.x, s.embeddedWindowPos.y),
-								  ImGuiCond_FirstUseEver);
+								ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(s.embeddedWindowSize.x, s.embeddedWindowSize.y),
-								   ImGuiCond_FirstUseEver);
+								 ImGuiCond_FirstUseEver);
 
 		bool windowOpen = true;
 		if (ImGui::Begin("Settings", &windowOpen, ImGuiWindowFlags_NoCollapse))

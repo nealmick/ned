@@ -8,8 +8,8 @@
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../util/editor_utils.h"
-#include "util/project_undo.h"
 #include "../view_layout.h"
+#include "util/project_undo.h"
 #include "wrap_layout.h"
 
 #include <algorithm>
