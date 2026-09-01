@@ -7,7 +7,8 @@
 #pragma once
 
 #include "editor/editor.h"
-#include "files/views/imgui/file_views.h"
+#include "files/views/imgui/file_finder_view.h"
+#include "files/views/imgui/file_sidebar_view.h"
 #include "lsp/views/imgui/lsp_view.h"
 #include "settings_view.h"
 #include "welcome.h"
