@@ -795,7 +795,15 @@ target_include_directories(ned_core PUBLIC
   ${TS_ROOT}/tree-sitter/lib/include
   ${TS_ROOT}/tree-sitter/lib/src
 )
-target_link_libraries(ned_core PUBLIC tree-sitter-lib ${TS_GRAMMAR_LIBS})
+target_link_libraries(ned_core PUBLIC
+  tree-sitter-lib
+  ${TS_GRAMMAR_LIBS}
+  ${NED_PLATFORM_LIBS}
+)
+if(NED_ENABLE_GIT)
+  # Full libgit2 stack (util/llhttp/xdiff/pcre) + platform compression.
+  target_link_libraries(ned_core PUBLIC ${NED_FEATURE_LIBS})
+endif()
 if(NED_ENABLE_GIT)
   target_include_directories(ned_core PUBLIC lib/libgit2/include)
   target_link_libraries(ned_core PUBLIC libgit2)
@@ -820,7 +828,9 @@ if(NED_BUILD_QT)
       host/qt/main.cpp
       host/qt/qt_host.cpp
       editor/views/qt/qt_editor_view.cpp
+      editor/views/qt/qt_find_bar.cpp
       editor/views/qt/qt_finder.cpp
+      editor/views/qt/qt_settings_dialog.cpp
       editor/views/qt/qt_sidebar.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
@@ -845,10 +855,15 @@ if(NED_BUILD_QT)
     )
     if(APPLE)
       # Native title bar treatment shared with the GLFW host. The NSWindow
-      # module's GLFW unwrap wrapper needs glfw at link time.
+      # module's GLFW unwrap wrapper needs glfw at link time; libgit2's
+      # https transport needs the Security frameworks.
       target_link_libraries(ned_qt PRIVATE
         $<TARGET_OBJECTS:macos_window>
         glfw
+        "-framework Security"
+        "-framework CoreFoundation"
+        "-framework GSS"
+        ${NED_PLATFORM_LIBS}
       )
     endif()
   endif()

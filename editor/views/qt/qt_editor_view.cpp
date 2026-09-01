@@ -3,6 +3,9 @@
 #include "../../util/utf8.h"
 #include "../../../util/settings.h"
 #include "ned_color_qt.h"
+#include "qt_find_bar.h"
+
+#include <QShortcut>
 
 #include <QFontMetrics>
 #include <QKeyEvent>
@@ -18,13 +21,8 @@
 QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	: QWidget(parent), appSettings(settings), projectUndo(projectRoot), state(),
 	  events(), ops(state), viewState(state), save(state, events),
-	  highlight(state, ops, &settings), commands(
-																			  state,
-																			  viewState,
-																			  ops,
-																			  projectUndo,
-																			  events,
-																			  save)
+	  highlight(state, ops, &settings), git(state, projectRoot, appSettings),
+	  commands(state, viewState, ops, projectUndo, events, save)
 {
 	setFontFromSettings();
 
@@ -46,6 +44,7 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	serviceTimer->setInterval(30);
 	connect(serviceTimer, &QTimer::timeout, this, [this] {
 		highlight.poll();
+		git.poll();
 		if (highlight.visualGeneration() != lastVisualGen)
 		{
 			lastVisualGen = highlight.visualGeneration();
@@ -56,6 +55,10 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 
 	setFocusPolicy(Qt::StrongFocus);
 	setMouseTracking(true);
+
+	findBar = new QtFindBar(this, this);
+	auto *findShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
+	connect(findShortcut, &QShortcut::activated, this, &QtEditorView::toggleFindBar);
 }
 
 QtEditorView::~QtEditorView() = default;
@@ -78,6 +81,12 @@ QVariant QtEditorView::inputMethodQuery(Qt::InputMethodQuery query) const
 	if (query == Qt::ImEnabled)
 		return true;
 	return QWidget::inputMethodQuery(query);
+}
+
+void QtEditorView::openWorkspaceRoot(const std::string &root)
+{
+	projectRoot = root;
+	git.init();
 }
 
 void QtEditorView::setFontFromSettings()
@@ -117,6 +126,8 @@ void QtEditorView::openFile(const QString &path)
 	viewState.setBoth(0, 0);
 	highlight.resetForDocument(static_cast<size_t>(state.lineCount()));
 	highlight.highlightContent();
+	git.init();
+	git.onDocumentOpened();
 	lastVisualGen = highlight.visualGeneration();
 	scrollBar->setRange(0, maxScrollLine());
 	scrollBar->setValue(0);
@@ -182,6 +193,16 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		painter.drawText(QRect(0, y, gutterWidthPx - 12, lineHeightPx),
 						 Qt::AlignVCenter | Qt::AlignRight,
 						 QString::number(row + 1));
+	}
+
+	// Git gutter marks (added/edited lines vs HEAD).
+	const std::string docPath = state.path;
+	for (int i = 0; i < rows; ++i)
+	{
+		const int row = firstRow + i;
+		if (git.isLineEdited(docPath, row + 1))
+			painter.fillRect(gutterWidthPx - 6, i * lineHeightPx, 3, lineHeightPx,
+							 QColor(0x3f, 0xc1, 0x8c));
 	}
 
 	// Text with syntax colors; spans are half-open byte ranges.
@@ -271,6 +292,22 @@ void QtEditorView::afterEdit()
 	Q_EMIT documentEdited();
 }
 
+void QtEditorView::repaintAndFollow()
+{
+	highlight.poll();
+	highlight.highlightContent();
+	commands.requestEnsureVisible();
+	update();
+}
+
+void QtEditorView::toggleFindBar()
+{
+	if (findBar->isVisible())
+		findBar->closeBar();
+	else
+		findBar->open();
+}
+
 void QtEditorView::scheduleBlink()
 {
 	blinkTimer->start();
@@ -325,6 +362,8 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 void QtEditorView::resizeEvent(QResizeEvent *event)
 {
 	QWidget::resizeEvent(event);
+	if (findBar)
+		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
 	scrollBar->setGeometry(width() - 14, 0, 14, height());
 	scrollBar->setPageStep(std::max(1, visibleLines() - 1));
 	scrollBar->setRange(0, maxScrollLine());

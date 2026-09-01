@@ -30,6 +30,7 @@ class NedQtHost : public QMainWindow
 	void showWelcome();
 	void showEvent(QShowEvent *event) override;
 	void refreshTabTitle(int index);
+	void applyFontToEditors();
 
 	Settings settings;
 	QTabWidget *tabs = nullptr;

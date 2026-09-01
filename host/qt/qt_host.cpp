@@ -1,7 +1,9 @@
 #include "qt_host.h"
 
+#include "editor/services/highlight/highlight_service.h"
 #include "editor/views/qt/qt_editor_view.h"
 #include "editor/views/qt/qt_finder.h"
+#include "editor/views/qt/qt_settings_dialog.h"
 #include "editor/views/qt/qt_sidebar.h"
 #include "util/macos_window.h"
 
@@ -26,6 +28,17 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 {
 	setWindowTitle("Ned Text Editor");
 	resize(1200, 750);
+
+	// Warm the async tree-sitter parser pool (ImGui host does this in
+	// Workbench::initialize) — without it highlighting never starts.
+	EditorHighlight::startBackgroundPrewarm();
+
+	// Dark chrome under the transparent title bar.
+	QPalette dark = palette();
+	dark.setColor(QPalette::Window, QColor(0x1e, 0x1e, 0x1e));
+	dark.setColor(QPalette::Base, QColor(0x1e, 0x1e, 0x1e));
+	dark.setColor(QPalette::Text, QColor(0xd0, 0xd0, 0xd0));
+	setPalette(dark);
 
 	// Sidebar (hidden until a workspace opens).
 	sidebar = new QtFileSidebar(this);
@@ -59,6 +72,12 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		connect(finder, &QtFileFinder::fileSelected, this,
 				[this](const QString &path) { openPath(path, true); });
 		finder->show();
+	});
+	auto *settingsShortcut = new QShortcut(QKeySequence("Ctrl+,"), this);
+	connect(settingsShortcut, &QShortcut::activated, this, [this] {
+		QtSettingsDialog dialog(settings, this);
+		dialog.exec();
+		applyFontToEditors();
 	});
 	auto *openShortcut = new QShortcut(QKeySequence("Ctrl+O"), this);
 	connect(openShortcut, &QShortcut::activated, this, [this] {
@@ -120,10 +139,22 @@ void NedQtHost::openPath(const QString &path, bool focus)
 		tabs->setCurrentIndex(index);
 }
 
+void NedQtHost::applyFontToEditors()
+{
+	// Font size comes from the shared profile; editors repaint with the
+	// service timer's next tick.
+	for (int i = 0; i < tabs->count(); ++i)
+		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
+			editor->update();
+}
+
 void NedQtHost::openWorkspace(const QString &root)
 {
 	workspaceRoot = root;
 	sidebar->openWorkspace(root);
+	for (int i = 0; i < tabs->count(); ++i)
+		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
+			editor->openWorkspaceRoot(root.toStdString());
 	for (QDockWidget *dock : findChildren<QDockWidget *>())
 		dock->show();
 }

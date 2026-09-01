@@ -17,12 +17,14 @@ class Settings;
 #include "../../editor_operations.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
+#include "../../services/git/git_service.h"
 #include "../../services/highlight/highlight_service.h"
 #include "../../services/save_service.h"
 #include "../../../util/project_undo.h"
 
 class QScrollBar;
 class QTimer;
+class QtFindBar;
 
 class QtEditorView : public QWidget
 {
@@ -32,7 +34,19 @@ class QtEditorView : public QWidget
 	explicit QtEditorView(Settings &appSettings, QWidget *parent = nullptr);
 	~QtEditorView() override;
 
+	// Git gutter + status (shared service).
+	void openWorkspaceRoot(const std::string &root);
+
 	// Host-facing queries (tab titles, dedup by path).
+	EditorState &document() { return state; }
+	EditorViewState &viewport() { return viewState; }
+	EditorCommands &commandHandler() { return commands; }
+
+	// Repaint after programmatic edits (find/replace).
+	void repaintAndFollow();
+
+	// Find bar (Cmd/Ctrl+F).
+	void toggleFindBar();
 	QString filePath() const { return QString::fromStdString(state.path); }
 	bool isDirty() const { return state.dirty; }
 
@@ -76,12 +90,14 @@ class QtEditorView : public QWidget
 	EditorViewState viewState;
 	EditorSave save;
 	EditorHighlight highlight;
+	EditorGit git;
 	EditorCommands commands;
 
 	// Presentation
 	QScrollBar *scrollBar = nullptr;
 	QTimer *blinkTimer = nullptr;
 	QTimer *serviceTimer = nullptr;
+	QtFindBar *findBar = nullptr;
 	uint64_t lastVisualGen = 0;
 	bool caretVisible = true;
 	int lineHeightPx = 1;

@@ -17,8 +17,12 @@ void configureNedQtChrome(void *qtWinId, float opacity, bool blurEnabled)
 	NSView *view = reinterpret_cast<NSView *>(qtWinId);
 	if (NSWindow *nswindow = view.window)
 	{
+		nswindow.styleMask |= NSWindowStyleMaskFullSizeContentView;
 		if (@available(macOS 11.0, *))
 			nswindow.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
 		nswindow.titlebarAppearsTransparent = YES;
+		nswindow.titleVisibility = NSWindowTitleHidden;
+		// The (now invisible) titlebar view stays on top of the content and
+		// keeps handling drag + traffic lights — same as the GLFW build.
 	}
 }
