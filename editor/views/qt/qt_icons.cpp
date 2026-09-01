@@ -12,8 +12,7 @@
 
 QString QtIconSet::iconsDir() const
 {
-	return QString::fromStdString(Settings::getAppResourcesPath()) +
-		   "/resources/icons";
+	return QString::fromStdString(Settings::getAppResourcesPath()) + "/resources/icons";
 }
 
 QtIconSet &QtIconSet::instance()

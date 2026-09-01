@@ -387,14 +387,12 @@ void Settings::toggleTerminal()
 	saveSettings();
 }
 
-
 // ---- UI ----
 
 std::string Settings::activeProfile() const
 {
 	if (settingsPath.empty())
 		return "default";
-	const std::string stem =
-		fs::path(settingsPath).stem().string();
+	const std::string stem = fs::path(settingsPath).stem().string();
 	return stem.empty() ? "default" : stem;
 }

@@ -8,7 +8,6 @@
 #include "../util/text_columns.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cfloat>
 #include <cmath>
 
@@ -270,8 +269,7 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
 				++e;
 		}
-		x += glyphWidth ? glyphWidth(s, e) : spaceWidth ? spaceWidth(" ", " ")
-														 : 8.0f;
+		x += glyphWidth ? glyphWidth(s, e) : spaceWidth ? spaceWidth(" ", " ") : 8.0f;
 		const int next = static_cast<int>(e - line.data());
 		const float dist = std::abs(xRel - x);
 		if (dist < bestDist)

@@ -5,9 +5,9 @@
 #include "../../services/git/git_service.h"
 #include "../../util/editor_utils.h"
 #include "../view_layout.h"
+#include "../wrap_layout.h"
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
-#include "../wrap_layout.h"
 
 #include <algorithm>
 #include <cstdio>

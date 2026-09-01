@@ -114,7 +114,8 @@ inline ImGuiKey imguiKeyFromNed(NedKey key)
 		return ImGuiKey_RightBracket;
 	case NedKey::GraveAccent:
 		return ImGuiKey_GraveAccent;
-	default: break; // letters/digits handled above; None/Count fall through
+	default:
+		break; // letters/digits handled above; None/Count fall through
 	}
 	return ImGuiKey_None;
 }

@@ -2,12 +2,12 @@
 
 #include <QKeyEvent>
 #include <QLineEdit>
-#include <QTimer>
 #include <QListWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
-#include <filesystem>
 #include <algorithm>
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -155,8 +155,9 @@ void QtFileFinder::refilter()
 		if (score >= 0)
 			ranked.emplace_back(score, rel);
 	}
-	std::sort(ranked.begin(), ranked.end(),
-			  [](const auto &a, const auto &b) { return a.first > b.first; });
+	std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
+		return a.first > b.first;
+	});
 
 	int shown = 0;
 	for (const auto &[score, rel] : ranked)
@@ -166,8 +167,7 @@ void QtFileFinder::refilter()
 		auto *item = new QListWidgetItem(
 			QString::fromStdString(fs::path(rel.toStdString()).filename().string()) +
 			"  —  " + rel);
-		item->setData(Qt::UserRole,
-					  workspace + "/" + rel);
+		item->setData(Qt::UserRole, workspace + "/" + rel);
 		item->setToolTip(rel);
 		results->addItem(item);
 		if (results->count() == 1)
@@ -184,8 +184,8 @@ bool QtFileFinder::eventFilter(QObject *watched, QEvent *event)
 		if (key->key() == Qt::Key_Down || key->key() == Qt::Key_Up)
 		{
 			const int dir = key->key() == Qt::Key_Down ? 1 : -1;
-			results->setCurrentRow(std::clamp(results->currentRow() + dir, 0,
-											   results->count() - 1));
+			results->setCurrentRow(
+				std::clamp(results->currentRow() + dir, 0, results->count() - 1));
 			return true;
 		}
 	}
@@ -196,7 +196,9 @@ void QtFileFinder::keyPressEvent(QKeyEvent *event)
 {
 	switch (event->key())
 	{
-	case Qt::Key_Escape: reject(); return;
+	case Qt::Key_Escape:
+		reject();
+		return;
 	case Qt::Key_Return:
 	case Qt::Key_Enter:
 		if (QListWidgetItem *item = results->currentItem())
@@ -211,7 +213,8 @@ void QtFileFinder::keyPressEvent(QKeyEvent *event)
 	case Qt::Key_Down:
 		results->setCurrentRow(std::min(results->count() - 1, results->currentRow() + 1));
 		return;
-	default: break;
+	default:
+		break;
 	}
 	QDialog::keyPressEvent(event);
 }

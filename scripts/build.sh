@@ -124,7 +124,12 @@ fi
 
 echo -e "${GREEN}Building...${NC}"
 JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-cmake --build . -j"$JOBS"
+if [ "$BUILD_QT" -eq 1 ]; then
+	# Qt-only session: build the Qt host (and its core deps), not the ImGui app.
+	cmake --build . --target ned_qt -j"$JOBS"
+else
+	cmake --build . -j"$JOBS"
+fi
 if [ $? -ne 0 ]; then
 	echo -e "${RED}Build failed${NC}"
 	exit 1
@@ -152,6 +157,18 @@ fi
 
 if [ "$NO_RUN" -eq 1 ]; then
 	echo -e "${BLUE}Skipping launch (--no-run / CI)${NC}"
+	exit 0
+fi
+
+if [ "$BUILD_QT" -eq 1 ]; then
+	echo -e "${GREEN}Launching NED (Qt)...${NC}"
+	QT_BIN=$(find "$BUILD_DIR" -name ned_qt -type f -perm -111 2>/dev/null | head -1)
+	if [ -n "$QT_BIN" ]; then
+		"$QT_BIN"
+	else
+		echo -e "${RED}Could not find ned_qt to launch${NC}"
+		exit 1
+	fi
 	exit 0
 fi
 

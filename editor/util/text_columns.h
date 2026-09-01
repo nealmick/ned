@@ -148,5 +148,4 @@ inline float TabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = k
 	return static_cast<float>(nextTab - visualColumn) * spaceWidth;
 }
 
-
 } // namespace EditorUtils

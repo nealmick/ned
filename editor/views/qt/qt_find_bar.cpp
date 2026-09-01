@@ -10,8 +10,7 @@
 
 #include <algorithm>
 
-QtFindBar::QtFindBar(QtEditorView *view, QWidget *parent)
-	: QWidget(parent), editor(view)
+QtFindBar::QtFindBar(QtEditorView *view, QWidget *parent) : QWidget(parent), editor(view)
 {
 	auto *layout = new QHBoxLayout(this);
 	layout->setContentsMargins(6, 2, 6, 2);
@@ -33,8 +32,10 @@ QtFindBar::QtFindBar(QtEditorView *view, QWidget *parent)
 	countLabel = new QPushButton("0 matches", this);
 	countLabel->setFlat(true);
 	countLabel->setEnabled(false);
-	for (QWidget *w : {static_cast<QWidget *>(prev), static_cast<QWidget *>(next),
-					   static_cast<QWidget *>(replaceBtn), static_cast<QWidget *>(allBtn),
+	for (QWidget *w : {static_cast<QWidget *>(prev),
+					   static_cast<QWidget *>(next),
+					   static_cast<QWidget *>(replaceBtn),
+					   static_cast<QWidget *>(allBtn),
 					   static_cast<QWidget *>(countLabel)})
 		layout->addWidget(w);
 	layout->addStretch();
@@ -101,8 +102,7 @@ void QtFindBar::find(bool backwards)
 			const size_t hit = line.find(needle, pos);
 			if (hit == std::string::npos)
 				break;
-			matches.push_back({r, static_cast<int>(hit),
-							   static_cast<int>(needle.size())});
+			matches.push_back({r, static_cast<int>(hit), static_cast<int>(needle.size())});
 			pos = hit + 1;
 		}
 	}
@@ -115,7 +115,8 @@ void QtFindBar::find(bool backwards)
 		return;
 	}
 
-	const Selection &caret = editor->viewport().selections[editor->viewport().primaryIndex];
+	const Selection &caret =
+		editor->viewport().selections[editor->viewport().primaryIndex];
 	if (backwards)
 	{
 		// Last match strictly before the caret.
@@ -130,8 +131,7 @@ void QtFindBar::find(bool backwards)
 	{
 		auto it = std::find_if(matches.begin(), matches.end(), [&](const Match &m) {
 			return m.row > caret.headRow ||
-				   (m.row == caret.headRow &&
-					m.col + m.len > caret.headColumn);
+				   (m.row == caret.headRow && m.col + m.len > caret.headColumn);
 		});
 		if (it == matches.end())
 			it = matches.begin();
@@ -177,15 +177,15 @@ void QtFindBar::replaceAll()
 			const size_t hit = line.find(needle, pos);
 			if (hit == std::string::npos)
 				break;
-			matches.push_back({r, static_cast<int>(hit),
-							   static_cast<int>(needle.size())});
+			matches.push_back({r, static_cast<int>(hit), static_cast<int>(needle.size())});
 			pos = hit + 1;
 		}
 	}
 
 	for (auto it = matches.rbegin(); it != matches.rend(); ++it)
 	{
-		editor->commandHandler().setSelection(it->row, it->col, it->row, it->col + it->len);
+		editor->commandHandler().setSelection(
+			it->row, it->col, it->row, it->col + it->len);
 		editor->commandHandler().typeText(replacement);
 	}
 	editor->repaintAndFollow();

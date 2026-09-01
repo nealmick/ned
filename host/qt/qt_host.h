@@ -33,7 +33,7 @@ class NedQtHost : public QMainWindow
 	void refreshTabTitle(int index);
 	void applyFontToEditors();
 
-	Q_SIGNALS:
+  Q_SIGNALS:
 	void sidebarToggleRequested();
 	void settingsRequested();
 

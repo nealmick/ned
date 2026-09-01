@@ -33,12 +33,10 @@ Editor::Editor(Settings &settings,
 	  finder(state, viewState, commands, input, settings, api)
 {
 	// Backend glyph metrics for the shared wrap layout (ImFont advances).
-	WrapLayout::setGlyphWidthFn([](const char *s, const char *e) {
-		return EditorUtils::GlyphAdvance(s, e);
-	});
-	WrapLayout::setSpaceWidthFn([](const char *, const char *) {
-		return EditorUtils::SpaceWidth();
-	});
+	WrapLayout::setGlyphWidthFn(
+		[](const char *s, const char *e) { return EditorUtils::GlyphAdvance(s, e); });
+	WrapLayout::setSpaceWidthFn(
+		[](const char *, const char *) { return EditorUtils::SpaceWidth(); });
 
 	events.clear();
 

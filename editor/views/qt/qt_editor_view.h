@@ -9,12 +9,13 @@
 #pragma once
 
 #include <QElapsedTimer>
-#include <QWidget>
 #include <QIcon>
 #include <QPixmap>
+#include <QWidget>
 
 class Settings;
 
+#include "../../../util/project_undo.h"
 #include "../../editor_commands.h"
 #include "../../editor_events.h"
 #include "../../editor_operations.h"
@@ -24,7 +25,6 @@ class Settings;
 #include "../../services/highlight/highlight_service.h"
 #include "../../services/save_service.h"
 #include "../wrap_layout.h"
-#include "../../../util/project_undo.h"
 
 class QElapsedTimer;
 class QLineEdit;
@@ -44,7 +44,11 @@ class QtEditorView : public QWidget
 	void openWorkspaceRoot(const std::string &root);
 
 	// Reload font + metrics from the settings profile.
-	void applyProfileFont() { setFontFromSettings(); update(); }
+	void applyProfileFont()
+	{
+		setFontFromSettings();
+		update();
+	}
 
 	// Host-facing queries (tab titles, dedup by path).
 	EditorState &document() { return state; }
@@ -66,9 +70,9 @@ class QtEditorView : public QWidget
 	// selection and hit-testing all read the same maps (no drift).
 	struct RowText
 	{
-		QString expanded;				 // tab-expanded text
-		std::vector<int> byteToVisual;	 // index by byte offset
-		std::vector<int> visualToByte;	 // index by visual column
+		QString expanded;			   // tab-expanded text
+		std::vector<int> byteToVisual; // index by byte offset
+		std::vector<int> visualToByte; // index by visual column
 	};
 	RowText expandRow(int row) const;
 	// Pixel x (from textLeft) of a byte column on a row.
@@ -89,7 +93,7 @@ class QtEditorView : public QWidget
 	void openFile(const QString &path);
 
 	// Emitted after edits (host refreshes tab title dirty marker).
-	Q_SIGNALS:
+  Q_SIGNALS:
 	void documentEdited();
 
   protected:
@@ -103,6 +107,7 @@ class QtEditorView : public QWidget
 	void mouseMoveEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
 	bool eventFilter(QObject *watched, QEvent *event) override;
+	bool event(QEvent *event) override;
 	QSize sizeHint() const override;
 
   private:

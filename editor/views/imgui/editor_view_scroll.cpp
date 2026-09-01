@@ -6,10 +6,10 @@
 */
 
 #include "../../editor_state.h"
-#include "../../util/editor_utils.h"
-#include "../wrap_layout.h"
-#include "../../views/view_layout.h"
 #include "../../editor_view_state.h"
+#include "../../util/editor_utils.h"
+#include "../../views/view_layout.h"
+#include "../wrap_layout.h"
 
 #include "imgui.h"
 
@@ -19,7 +19,6 @@ void EditorViewState::updateBlinkTime(double deltaTime)
 {
 	cursorBlinkTime += static_cast<float>(deltaTime);
 }
-
 
 // ---------------------------------------------------------------------------
 // Viewport scroll (reveal / wheel / animation)

@@ -3,13 +3,14 @@
 #include "../../util/text_columns.h"
 #include "../../util/utf8.h"
 
-#include <QFontMetricsF>
 #include "../../../util/settings.h"
 #include "ned_color_qt.h"
 #include "qt_find_bar.h"
+#include <QFontMetricsF>
 
 #include <QShortcut>
 
+#include "qt_icons.h"
 #include <QFontMetrics>
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -17,7 +18,6 @@
 #include <QPainter>
 #include <QScrollBar>
 #include <QTimer>
-#include "qt_icons.h"
 #include <QWheelEvent>
 
 #include <cmath>
@@ -25,9 +25,16 @@
 #include <sstream>
 
 QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
-	: QWidget(parent), appSettings(settings), projectUndo(projectRoot), state(),
-	  events(), ops(state), viewState(state), save(state, events),
-	  highlight(state, ops, &settings), git(state, projectRoot, appSettings),
+	: QWidget(parent),
+	  appSettings(settings),
+	  projectUndo(projectRoot),
+	  state(),
+	  events(),
+	  ops(state),
+	  viewState(state),
+	  save(state, events),
+	  highlight(state, ops, &settings),
+	  git(state, projectRoot, appSettings),
 	  commands(state, viewState, ops, projectUndo, events, save)
 {
 	setFontFromSettings();
@@ -43,8 +50,7 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	blinkTimer->start();
 
 	scrollBar = new QScrollBar(Qt::Vertical, this);
-	connect(scrollBar, &QScrollBar::valueChanged, this,
-			[this](int) { update(); });
+	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int) { update(); });
 
 	// Services (async tree-sitter, autosave, git status) expect per-frame
 	// polling; the Qt backend has no frame loop, so a short timer drives
@@ -73,14 +79,12 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 		const QFontMetricsF m(font());
 		return m.horizontalAdvance(QString::fromUtf8(s, static_cast<int>(e - s)));
 	});
-	WrapLayout::setSpaceWidthFn([this](const char *, const char *) {
-		return charWidthF();
-	});
+	WrapLayout::setSpaceWidthFn(
+		[this](const char *, const char *) { return charWidthF(); });
 
 	findBar = new QtFindBar(this, this);
 	auto *lineJumpShortcut = new QShortcut(QKeySequence("Ctrl+;"), this);
-	connect(lineJumpShortcut, &QShortcut::activated, this,
-			&QtEditorView::goToLineDialog);
+	connect(lineJumpShortcut, &QShortcut::activated, this, &QtEditorView::goToLineDialog);
 	auto *findShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
 	connect(findShortcut, &QShortcut::activated, this, &QtEditorView::toggleFindBar);
 }
@@ -120,8 +124,7 @@ void QtEditorView::setFontFromSettings()
 	font.setFamily("Consolas");
 #endif
 	// Profile font (registered from resources/fonts by the settings dialog).
-	const std::string profileFont =
-		appSettings.settings.value("font", std::string());
+	const std::string profileFont = appSettings.settings.value("font", std::string());
 	if (!profileFont.empty() && profileFont != "System Default")
 	{
 		font.setFamily(QString::fromStdString(profileFont));
@@ -129,8 +132,7 @@ void QtEditorView::setFontFromSettings()
 	}
 	font.setStyleHint(QFont::Monospace);
 	font.setFixedPitch(true);
-	font.setPointSize(
-		static_cast<int>(appSettings.settings.value("fontSize", 13)));
+	font.setPointSize(static_cast<int>(appSettings.settings.value("fontSize", 13)));
 	setFont(font);
 
 	const QFontMetrics metrics(font);
@@ -209,7 +211,8 @@ int QtEditorView::columnAtX(int row, int x) const
 		(void)v;
 	}
 	return std::clamp(byteColumnAtX(row, static_cast<qreal>(textX), segmentStart),
-					  0, state.lineLength(row));
+					  0,
+					  state.lineLength(row));
 }
 
 // --- Tab-expanded rendering model ------------------------------------------
@@ -309,14 +312,13 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		appSettings.settings["backgroundColor"].size() >= 3)
 	{
 		const auto &bg = appSettings.settings["backgroundColor"];
-		background = QColor::fromRgbF(bg[0].get<float>(), bg[1].get<float>(),
-									  bg[2].get<float>());
+		background =
+			QColor::fromRgbF(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>());
 	}
 	painter.fillRect(rect(), background);
 
 	const int firstRow = scrollBar->value();
-	const int rows = std::min(visibleLines() + 2,
-							  state.lineCount() - firstRow);
+	const int rows = std::min(visibleLines() + 2, state.lineCount() - firstRow);
 
 	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
 	if (!state.path.empty())
@@ -372,7 +374,10 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	{
 		const int row = firstRow + i;
 		if (git.isLineEdited(docPath, row + 1))
-			painter.fillRect(gutterWidthPx - 6, titleBarPx + i * lineHeightPx, 3, lineHeightPx,
+			painter.fillRect(gutterWidthPx - 6,
+							 titleBarPx + i * lineHeightPx,
+							 3,
+							 lineHeightPx,
 							 QColor(0x3f, 0xc1, 0x8c));
 	}
 
@@ -396,30 +401,30 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		const qreal cw = charWidthF();
 		int vis = vFrom;
 		QColor ink = defaultInk;
+		// Every glyph paints inside its own grid cell (per-char, like the
+		// ImGui path): font-level space/tab advance quirks can't drift.
 		const auto slice = [&](int nextVis) {
-			if (nextVis <= vis)
-				return;
-			painter.setPen(ink);
-			painter.drawText(QRectF(textLeft + vis * cw, y, (nextVis - vis) * cw,
-									lineHeightPx),
-							 Qt::AlignVCenter | Qt::AlignLeft,
-							 rt.expanded.mid(vis, nextVis - vis));
-			vis = nextVis;
+			for (; vis < nextVis; ++vis)
+			{
+				painter.setPen(ink);
+				painter.drawText(QRectF(textLeft + vis * cw, y, cw, lineHeightPx),
+								 Qt::AlignCenter, rt.expanded.mid(vis, 1));
+			}
 		};
 		for (const ColorSpan &span : spans)
 		{
 			if (span.start > toByte)
 				break;
-			const int spanVis = rt.byteToVisual[std::clamp(span.start, 0,
-														   static_cast<int>(rt.byteToVisual.size() - 1))];
+			const int spanVis = rt.byteToVisual[std::clamp(
+				span.start, 0, static_cast<int>(rt.byteToVisual.size() - 1))];
 			if (spanVis > vis)
 			{
 				ink = defaultInk;
 				slice(spanVis);
 			}
 			ink = toQColor(highlight.colorForSlot(span.slot));
-			const int endVis = rt.byteToVisual[std::clamp(span.end, 0,
-														  static_cast<int>(rt.byteToVisual.size() - 1))];
+			const int endVis = rt.byteToVisual[std::clamp(
+				span.end, 0, static_cast<int>(rt.byteToVisual.size() - 1))];
 			slice(std::min(endVis, vTo));
 		}
 		ink = defaultInk;
@@ -442,7 +447,9 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	} else
 	{
 		for (int i = 0; i < rows; ++i)
-			drawRowSegment(firstRow + i, titleBarPx + i * lineHeightPx, 0,
+			drawRowSegment(firstRow + i,
+						   titleBarPx + i * lineHeightPx,
+						   0,
 						   state.lineLength(firstRow + i));
 	}
 
@@ -470,15 +477,15 @@ void QtEditorView::paintEvent(QPaintEvent *)
 				if (i < 0 || i >= rows)
 					continue;
 				const int fromB = (v == vStart && row == sr) ? sc : 0;
-				const int toB = (v == vEnd && row == er)
-									? ec
-									: (wrapping ? wrap.segmentStartColumn(
-											  row, wrap.segmentOf(row, 0))
-												: state.lineLength(row));
+				const int toB =
+					(v == vEnd && row == er)
+						? ec
+						: (wrapping ? wrap.segmentStartColumn(row, wrap.segmentOf(row, 0))
+									: state.lineLength(row));
 				const qreal x0 = textLeft + xAtByteColumn(row, fromB, fromB);
 				const qreal x1 = textLeft + xAtByteColumn(row, toB, fromB);
-				painter.drawRect(QRectF(x0, titleBarPx + i * lineHeightPx,
-										x1 - x0, lineHeightPx));
+				painter.drawRect(
+					QRectF(x0, titleBarPx + i * lineHeightPx, x1 - x0, lineHeightPx));
 			}
 		}
 	}
@@ -493,13 +500,11 @@ void QtEditorView::paintEvent(QPaintEvent *)
 			const int i = v - firstRow;
 			if (i < 0 || i >= rows)
 				continue;
-			const int seg = wrapping
-								 ? wrap.segmentStartColumn(sel.headRow,
-														   wrap.segmentOf(sel.headRow,
-																		  sel.headColumn))
-								 : 0;
-			const qreal x = textLeft +
-							xAtByteColumn(sel.headRow, sel.headColumn, seg);
+			const int seg =
+				wrapping ? wrap.segmentStartColumn(
+							   sel.headRow, wrap.segmentOf(sel.headRow, sel.headColumn))
+						 : 0;
+			const qreal x = textLeft + xAtByteColumn(sel.headRow, sel.headColumn, seg);
 			painter.drawLine(QPointF(x, titleBarPx + i * lineHeightPx + 2),
 							 QPointF(x, titleBarPx + (i + 1) * lineHeightPx - 2));
 		}
@@ -546,8 +551,8 @@ void QtEditorView::goToLineDialog()
 		lineJumpInput->setAutoFillBackground(true);
 		lineJumpInput->installEventFilter(this);
 	}
-	lineJumpInput->setText(QString::number(
-		viewState.selections[viewState.primaryIndex].headRow + 1));
+	lineJumpInput->setText(
+		QString::number(viewState.selections[viewState.primaryIndex].headRow + 1));
 	lineJumpInput->show();
 	lineJumpInput->setFocus();
 	lineJumpInput->selectAll();
@@ -572,9 +577,10 @@ bool QtEditorView::eventFilter(QObject *watched, QEvent *event)
 			if (line >= 1 && line <= state.lineCount())
 			{
 				commands.goToLine(line - 1); // commands API is 0-based
-				scrollBar->setValue(std::max(
-					0, viewState.selections[viewState.primaryIndex].headRow -
-						   visibleLines() / 2));
+				scrollBar->setValue(
+					std::max(0,
+							 viewState.selections[viewState.primaryIndex].headRow -
+								 visibleLines() / 2));
 				scheduleBlink();
 				update();
 			}
@@ -591,6 +597,21 @@ void QtEditorView::scheduleBlink()
 	blinkTimer->start();
 }
 
+bool QtEditorView::event(QEvent *event)
+{
+	// Qt routes Tab through focus traversal before keyPressEvent; claim it
+	// first so the editor always receives it.
+	if (event->type() == QEvent::KeyPress)
+	{
+		auto *key = static_cast<QKeyEvent *>(event);
+		if (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab)
+		{
+			keyPressEvent(key);
+			return true;
+		}
+	}
+	return QWidget::event(event);
+}
 
 void QtEditorView::keyPressEvent(QKeyEvent *event)
 {
@@ -605,11 +626,21 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	{
 		switch (event->key())
 		{
-		case Qt::Key_Left: commands.moveWordLeft(shift); break;
-		case Qt::Key_Right: commands.moveWordRight(shift); break;
-		case Qt::Key_Up: commands.addCursorAbove(); break;
-		case Qt::Key_Down: commands.addCursorBelow(); break;
-		default: QWidget::keyPressEvent(event); return;
+		case Qt::Key_Left:
+			commands.moveWordLeft(shift);
+			break;
+		case Qt::Key_Right:
+			commands.moveWordRight(shift);
+			break;
+		case Qt::Key_Up:
+			commands.addCursorAbove();
+			break;
+		case Qt::Key_Down:
+			commands.addCursorBelow();
+			break;
+		default:
+			QWidget::keyPressEvent(event);
+			return;
 		}
 		afterEdit();
 		return;
@@ -619,35 +650,57 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	{
 		switch (event->key())
 		{
-			case Qt::Key_A: commands.selectAll(); break;
+		case Qt::Key_A:
+			commands.selectAll();
+			break;
 		case Qt::Key_Plus:
-		case Qt::Key_Equal:
-		{
+		case Qt::Key_Equal: {
 			appSettings.settings["fontSize"] =
 				appSettings.settings.value("fontSize", 13) + 2;
 			applyProfileFont();
 			appSettings.saveSettings();
 			break;
 		}
-		case Qt::Key_Minus:
-		{
-			appSettings.settings["fontSize"] = std::max(
-				8.0, appSettings.settings.value("fontSize", 13) - 2.0);
+		case Qt::Key_Minus: {
+			appSettings.settings["fontSize"] =
+				std::max(8.0, appSettings.settings.value("fontSize", 13) - 2.0);
 			applyProfileFont();
 			appSettings.saveSettings();
 			break;
 		}
-		case Qt::Key_Z: commands.undo(); break;
-		case Qt::Key_Y: commands.redo(); break;
-		case Qt::Key_C: commands.copy(); break;
-		case Qt::Key_X: commands.cut(); break;
-		case Qt::Key_V: commands.paste(); break;
-		case Qt::Key_S: commands.save(); break;
-		case Qt::Key_Left: commands.moveLineStart(shift); break;
-		case Qt::Key_Right: commands.moveLineEnd(shift); break;
-		case Qt::Key_Up: commands.moveLines(-5, shift); break;
-		case Qt::Key_Down: commands.moveLines(5, shift); break;
-		default: QWidget::keyPressEvent(event); return;
+		case Qt::Key_Z:
+			commands.undo();
+			break;
+		case Qt::Key_Y:
+			commands.redo();
+			break;
+		case Qt::Key_C:
+			commands.copy();
+			break;
+		case Qt::Key_X:
+			commands.cut();
+			break;
+		case Qt::Key_V:
+			commands.paste();
+			break;
+		case Qt::Key_S:
+			commands.save();
+			break;
+		case Qt::Key_Left:
+			commands.moveLineStart(shift);
+			break;
+		case Qt::Key_Right:
+			commands.moveLineEnd(shift);
+			break;
+		case Qt::Key_Up:
+			commands.moveLines(-5, shift);
+			break;
+		case Qt::Key_Down:
+			commands.moveLines(5, shift);
+			break;
+		default:
+			QWidget::keyPressEvent(event);
+			return;
 		}
 		afterEdit();
 		return;
@@ -655,20 +708,41 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 
 	switch (event->key())
 	{
-	case Qt::Key_Left: commands.moveLeft(shift); break;
-	case Qt::Key_Right: commands.moveRight(shift); break;
-	case Qt::Key_Up: commands.moveUp(shift); break;
-	case Qt::Key_Down: commands.moveDown(shift); break;
-	case Qt::Key_Home: commands.moveLineStart(shift); break;
-	case Qt::Key_End: commands.moveLineEnd(shift); break;
+	case Qt::Key_Left:
+		commands.moveLeft(shift);
+		break;
+	case Qt::Key_Right:
+		commands.moveRight(shift);
+		break;
+	case Qt::Key_Up:
+		commands.moveUp(shift);
+		break;
+	case Qt::Key_Down:
+		commands.moveDown(shift);
+		break;
+	case Qt::Key_Home:
+		commands.moveLineStart(shift);
+		break;
+	case Qt::Key_End:
+		commands.moveLineEnd(shift);
+		break;
 	case Qt::Key_Return:
-	case Qt::Key_Enter: commands.insertNewline(); break;
-	case Qt::Key_Backspace: commands.deleteLeft(false); break;
-	case Qt::Key_Delete: commands.deleteRight(false); break;
-	case Qt::Key_Tab: commands.indent(); break;
-	case Qt::Key_Backtab: commands.outdent(); break;
-	default:
-	{
+	case Qt::Key_Enter:
+		commands.insertNewline();
+		break;
+	case Qt::Key_Backspace:
+		commands.deleteLeft(false);
+		break;
+	case Qt::Key_Delete:
+		commands.deleteRight(false);
+		break;
+	case Qt::Key_Tab:
+		commands.indent();
+		break;
+	case Qt::Key_Backtab:
+		commands.outdent();
+		break;
+	default: {
 		const QString text = event->text();
 		if (!text.isEmpty())
 		{

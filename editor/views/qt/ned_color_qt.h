@@ -9,7 +9,4 @@
 #include "../../platform/ned_types.h"
 #include <QColor>
 
-inline QColor toQColor(const NedColor &c)
-{
-	return QColor::fromRgbF(c.r, c.g, c.b, c.a);
-}
+inline QColor toQColor(const NedColor &c) { return QColor::fromRgbF(c.r, c.g, c.b, c.a); }

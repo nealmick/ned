@@ -20,7 +20,7 @@ class QtFindBar : public QWidget
   public:
 	explicit QtFindBar(QtEditorView *editor, QWidget *parent = nullptr);
 
-	void open();   // show, focus input, keep last term
+	void open(); // show, focus input, keep last term
 	void closeBar();
 
   protected:

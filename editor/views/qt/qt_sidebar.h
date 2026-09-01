@@ -21,7 +21,7 @@ class QtFileSidebar : public QTreeWidget
 	void openWorkspace(const QString &root);
 	QString workspace() const { return rootPath; }
 
-Q_SIGNALS:
+  Q_SIGNALS:
 	void fileActivated(const QString &path);
 
   private:

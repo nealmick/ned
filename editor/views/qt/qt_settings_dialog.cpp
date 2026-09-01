@@ -5,13 +5,13 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QFormLayout>
 #include <QDir>
 #include <QFontDatabase>
+#include <QFormLayout>
 #include <QSpinBox>
 
-#include <filesystem>
 #include <QVBoxLayout>
+#include <filesystem>
 
 QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 	: QDialog(parent), appSettings(settings)
@@ -35,8 +35,7 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 			const std::string name = entry.path().filename().string();
 			if (name.ends_with(".json") && name != "keybinds.json" &&
 				name != "lsp.json" && name != "ned.json")
-				themeBox->addItem(QString::fromStdString(
-					name.substr(0, name.size() - 5)));
+				themeBox->addItem(QString::fromStdString(name.substr(0, name.size() - 5)));
 		}
 	}
 	themeBox->addItem("default");
@@ -45,19 +44,17 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 
 	// Bundled fonts (resources/fonts) registered into QFontDatabase.
 	fontBox = new QComboBox(this);
-	const QString fontsDir = QString::fromStdString(
-		Settings::getAppResourcesPath()) + "/resources/fonts";
+	const QString fontsDir =
+		QString::fromStdString(Settings::getAppResourcesPath()) + "/resources/fonts";
 	QDir dir(fontsDir);
-	const QStringList fonts =
-		dir.entryList({"*.ttf", "*.otf"}, QDir::Files, QDir::Name);
+	const QStringList fonts = dir.entryList({"*.ttf", "*.otf"}, QDir::Files, QDir::Name);
 	QStringList families;
 	for (const QString &file : fonts)
 	{
 		const int id = QFontDatabase::addApplicationFont(dir.filePath(file));
 		if (id >= 0)
 		{
-			const QStringList fam =
-				QFontDatabase::applicationFontFamilies(id);
+			const QStringList fam = QFontDatabase::applicationFontFamilies(id);
 			if (!fam.isEmpty())
 				families << fam.first();
 		}
@@ -83,8 +80,7 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 	form->addRow("", lineNumbersBox);
 
 	gitGutterBox = new QCheckBox("Git changed-line markers", this);
-	gitGutterBox->setChecked(
-		appSettings.settings.value("git_changed_lines", true));
+	gitGutterBox->setChecked(appSettings.settings.value("git_changed_lines", true));
 	form->addRow("", gitGutterBox);
 
 	rainbowBox = new QCheckBox("Rainbow cursor (steady) vs blinking", this);
@@ -97,10 +93,12 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 
 	layout->addLayout(form);
 
-	auto *buttons = new QDialogButtonBox(
-		QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-	connect(buttons, &QDialogButtonBox::accepted, this,
-			[this] { save(); accept(); });
+	auto *buttons =
+		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+	connect(buttons, &QDialogButtonBox::accepted, this, [this] {
+		save();
+		accept();
+	});
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 	layout->addWidget(buttons);
 }

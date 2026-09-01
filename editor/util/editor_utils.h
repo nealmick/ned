@@ -74,7 +74,6 @@ inline float SpaceWidth()
 	return GlyphAdvance(kSpace, kSpace + 1);
 }
 
-
 // Width of one glyph (or tab) at drawX relative to text origin.
 inline float MeasureGlyphWidth(const char *start,
 							   const char *end,

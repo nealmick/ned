@@ -6,10 +6,10 @@
 #include "../../util/editor_utils.h"
 #include "../../util/utf8.h"
 #include "../view_layout.h"
+#include "../wrap_layout.h"
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
 #include "ned_color_imgui.h"
-#include "../wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>

@@ -25,7 +25,7 @@ class QtFileFinder : public QDialog
 	explicit QtFileFinder(const QString &workspace, QWidget *parent = nullptr);
 	~QtFileFinder() override;
 
-Q_SIGNALS:
+  Q_SIGNALS:
 	void fileSelected(const QString &path);
 
   protected:

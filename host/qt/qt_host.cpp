@@ -75,8 +75,9 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		if (tabs->count() == 0)
 			showWelcome();
 	});
-	connect(sidebar, &QtFileSidebar::fileActivated, this,
-			[this](const QString &path) { openPath(path, true); });
+	connect(sidebar, &QtFileSidebar::fileActivated, this, [this](const QString &path) {
+		openPath(path, true);
+	});
 
 	// Global shortcuts (keybinds.json parity comes with the NedKey host layer).
 	// Cmd/Ctrl+1..9 — switch tab N; Cmd/Ctrl+W — close active tab (ImGui parity).
@@ -99,8 +100,9 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		if (workspaceRoot.isEmpty())
 			return;
 		auto *finder = new QtFileFinder(workspaceRoot, this);
-		connect(finder, &QtFileFinder::fileSelected, this,
-				[this](const QString &path) { openPath(path, true); });
+		connect(finder, &QtFileFinder::fileSelected, this, [this](const QString &path) {
+			openPath(path, true);
+		});
 		finder->show();
 	});
 	auto *settingsShortcut = new QShortcut(QKeySequence("Ctrl+,"), this);
@@ -139,9 +141,15 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	gQtHost = this;
 #ifdef __APPLE__
 	setMacOSTitlebarActions(
-		[] { if (gQtHost) Q_EMIT gQtHost->sidebarToggleRequested(); },
+		[] {
+			if (gQtHost)
+				Q_EMIT gQtHost->sidebarToggleRequested();
+		},
 		nullptr,
-		[] { if (gQtHost) Q_EMIT gQtHost->settingsRequested(); });
+		[] {
+			if (gQtHost)
+				Q_EMIT gQtHost->settingsRequested();
+		});
 #endif
 	chromeApplied = false;
 	untitledCounter = 1;
@@ -180,11 +188,12 @@ void NedQtHost::openPath(const QString &path, bool focus)
 			delete welcome;
 			break;
 		}
-	const QString tabName =
-		path.isEmpty() ? QString("Untitled %1").arg(untitledCounter++) : QFileInfo(path).fileName();
+	const QString tabName = path.isEmpty() ? QString("Untitled %1").arg(untitledCounter++)
+										   : QFileInfo(path).fileName();
 	const int index = tabs->addTab(editor, tabName);
-	connect(editor, &QtEditorView::documentEdited, this,
-			[this, editor] { refreshTabTitle(tabs->indexOf(editor)); });
+	connect(editor, &QtEditorView::documentEdited, this, [this, editor] {
+		refreshTabTitle(tabs->indexOf(editor));
+	});
 	if (focus)
 	{
 		tabs->setCurrentIndex(index);
@@ -215,8 +224,7 @@ void NedQtHost::refreshTabTitle(int index)
 	QWidget *page = tabs->widget(index);
 	if (QtEditorView *editor = qobject_cast<QtEditorView *>(page))
 	{
-		const QString name =
-			QFileInfo(editor->filePath()).fileName();
+		const QString name = QFileInfo(editor->filePath()).fileName();
 		tabs->setTabText(index, editor->isDirty() ? "● " + name : name);
 	}
 }
