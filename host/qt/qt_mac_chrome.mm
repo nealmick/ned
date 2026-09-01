@@ -12,6 +12,31 @@ static NSColor *gNedWindowColor = nil;
 
 // Theme color for the window/title bar (RGB 0..1). Called at startup and
 // whenever the settings profile changes.
+// The titlebar's own container view (behind the traffic lights). We paint
+// it directly — this works regardless of style-mask state, so even if Qt
+// strips the transparency bits the bar still shows the theme color.
+static NSView *nedTitlebarBackdrop(NSWindow *w)
+{
+	NSView *bar = [w standardWindowButton:NSWindowCloseButton].superview;
+	return bar;
+}
+
+void nedQtApplyTitlebarColor(NSWindow *w, NSColor *color)
+{
+	NSView *bar = nedTitlebarBackdrop(w);
+	if (!bar)
+		return;
+	static NSView *backdrop = nil;
+	if (!backdrop)
+	{
+		backdrop = [[NSView alloc] initWithFrame:bar.bounds];
+		backdrop.wantsLayer = YES;
+		backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+		[bar addSubview:backdrop positioned:NSWindowBelow relativeTo:nil];
+	}
+	backdrop.layer.backgroundColor = color.CGColor;
+}
+
 void applyNedQtWindowColor(void *qtWinId, float r, float g, float b)
 {
 	NSView *view = reinterpret_cast<NSView *>(qtWinId);
@@ -19,7 +44,7 @@ void applyNedQtWindowColor(void *qtWinId, float r, float g, float b)
 	{
 		// Opaque window background: the transparent title bar shows this
 		// color, matching the editor theme like the GLFW build.
-		gNedWindowColor = [NSColor colorWithCalibratedRed:r green:g blue:b alpha:1.0];
+		gNedWindowColor = [NSColor colorWithSRGBRed:r green:g blue:b alpha:1.0];
 		nswindow.backgroundColor = gNedWindowColor;
 		[nswindow setOpaque:YES];
 		[nswindow invalidateShadow];
@@ -63,7 +88,15 @@ void nedQtChromeWatch(void *qtWinId)
 												w.titlebarAppearsTransparent = YES;
 												w.titleVisibility = NSWindowTitleHidden;
 												if (gNedWindowColor)
+												{
 													w.backgroundColor = gNedWindowColor;
+													nedQtApplyTitlebarColor(w, gNedWindowColor);
+												}
+												static int logged = 0;
+												if (logged++ < 3)
+													NSLog(@"[ned-chrome] tick mask=%lu transparent=%d",
+														  (unsigned long)w.styleMask,
+														  w.titlebarAppearsTransparent);
 											  }];
 	[[NSRunLoop mainRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
 }

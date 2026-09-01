@@ -233,7 +233,6 @@ void NedQtHost::applyFontToEditors()
 		applyNedQtWindowColor(
 			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
-	nedQtChromeWatch(reinterpret_cast<void *>(winId()));
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
 			editor->applyProfileFont();
@@ -326,5 +325,6 @@ void NedQtHost::applyNativeChrome()
 		applyNedQtWindowColor(
 			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
+	nedQtChromeWatch(reinterpret_cast<void *>(winId()));
 #endif
 }
