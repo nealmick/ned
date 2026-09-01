@@ -172,7 +172,14 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 
 NedQtHost::~NedQtHost() = default;
 
-void NedQtHost::showEvent(QShowEvent *event) { QMainWindow::showEvent(event); }
+void NedQtHost::showEvent(QShowEvent *event)
+{
+	QMainWindow::showEvent(event);
+	// Qt re-asserts window flags on show and can clobber the custom
+	// titlebar style mask — re-apply chrome (idempotent) after every show.
+	if (chromeApplied)
+		applyNativeChrome();
+}
 
 void NedQtHost::openPath(const QString &path, bool focus)
 {
@@ -222,8 +229,8 @@ void NedQtHost::applyFontToEditors()
 	QApplication::setPalette(NedQtTheme::palette(settings));
 	{
 		const QColor bg = NedQtTheme::background(settings);
-		applyNedQtWindowColor(reinterpret_cast<void *>(winId()),
-							  bg.redF(), bg.greenF(), bg.blueF());
+		applyNedQtWindowColor(
+			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
@@ -314,8 +321,8 @@ void NedQtHost::applyNativeChrome()
 						 settings.settings.value("mac_blur_enabled", true));
 	{
 		const QColor bg = NedQtTheme::background(settings);
-		applyNedQtWindowColor(reinterpret_cast<void *>(winId()),
-							  bg.redF(), bg.greenF(), bg.blueF());
+		applyNedQtWindowColor(
+			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
 #endif
 }
