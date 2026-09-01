@@ -260,6 +260,9 @@ endif()
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES "editor/*.cpp")
+# LSP UI widgets live under editor/views/imgui but belong to LSP_SOURCES
+# (they need the lsp-framework and must drop out of minimal builds).
+list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/views/imgui/lsp_.*\.cpp$")
 if(NED_ENABLE_GIT)
   # Drop stub if present so real implementation is the only TU.
   list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/git_service_stub\\.cpp$")
@@ -287,10 +290,11 @@ if(NED_ENABLE_LSP)
   set(LSP_SOURCES
     lsp/lsp_client.cpp
     lsp/lsp_document_sync.cpp
-    lsp/lsp_symbol_info.cpp
     lsp/lsp_goto.cpp
-    lsp/lsp_uri_options.cpp
-    lsp/lsp_dashboard.cpp
+    editor/views/imgui/lsp_symbol_info.cpp
+    editor/views/imgui/lsp_uri_options.cpp
+    editor/views/imgui/lsp_dashboard.cpp
+    editor/views/imgui/lsp_view.cpp
   )
 else()
   set(LSP_SOURCES

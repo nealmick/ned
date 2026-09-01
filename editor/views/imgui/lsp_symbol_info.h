@@ -1,7 +1,7 @@
 #pragma once
 
 #include "imgui.h"
-#include "lsp_request.h"
+#include "../../../lsp/lsp_request.h"
 #include <string>
 
 class EditorApi;

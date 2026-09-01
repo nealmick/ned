@@ -1,4 +1,5 @@
 #include "keybinds.h"
+#include "editor/views/imgui/lsp_view.h"
 #include "../editor/editor_api.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
@@ -231,7 +232,7 @@ ImGuiKey KeybindsManager::stringToImGuiKey(const std::string &keyString)
 
 bool KeybindsManager::handleKeyboardShortcuts(EditorApi &api,
 											  FileExplorer &files,
-											  LSPClient &lsp)
+											  LspImGuiView &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();

@@ -1,10 +1,10 @@
 #include "lsp_uri_options.h"
-#include "../editor/editor_api.h"
-#include "../editor/util/utf8.h"
-#include "../files/files.h"
-#include "../util/settings.h"
+#include "../../editor_api.h"
+#include "../../util/utf8.h"
+#include "../../../files/files.h"
+#include "../../../util/settings.h"
 #include "imgui.h"
-#include "lsp_includes.h"
+#include "../../../lsp/lsp_includes.h"
 #include <algorithm>
 
 LSPUriOptions::LSPUriOptions(EditorApi &api,

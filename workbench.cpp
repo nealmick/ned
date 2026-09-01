@@ -91,6 +91,8 @@ Workbench::Workbench() : projectUndo(projectRoot)
 		tabs_[0].editor->api, settings, projectRoot, icons);
 	lspClient =
 		std::make_unique<LSPClient>(tabs_[0].editor->api, *fileExplorer, settings);
+	lspView = std::make_unique<LspImGuiView>(
+		*lspClient, tabs_[0].editor->api, *fileExplorer, settings);
 	welcome = std::make_unique<Welcome>(settings, *fileExplorer);
 
 	fileExplorer->openOverride = [this](const std::string &path,
@@ -136,6 +138,8 @@ void Workbench::syncActiveBindings()
 		return;
 	fileExplorer->api = api;
 	lspClient->bindEditorApi(*api);
+	if (lspView)
+		lspView->bindEditorApi(*api);
 }
 
 void Workbench::switchToTab(int index)
@@ -997,8 +1001,8 @@ void Workbench::endRootChrome()
 
 void Workbench::renderOverlays(EditorApi &api)
 {
-	settings.renderSettingsWindow(api, *fileExplorer, *lspClient);
-	lspClient->dashboard.render();
+	settings.renderSettingsWindow(api, *fileExplorer, *lspView);
+	lspView->dashboard.render();
 	settings.renderNotification("");
 }
 
@@ -1077,7 +1081,7 @@ void Workbench::render()
 
 	if (!fileExplorer->fileFinder.showFFWindow)
 	{
-		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspClient);
+		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspView);
 		handleTabSwitchShortcuts(); // Cmd/Ctrl+1..9 — focus tab N, Cmd/Ctrl+W — close tab
 	}
 
@@ -1131,15 +1135,15 @@ void Workbench::render()
 
 	// Splits: mouse hover belongs to the editor under the mouse, which may
 	// differ from the focused editor the keybind ui is bound to.
-	if (lspClient)
+	if (lspView)
 	{
 		Editor *hovered =
 			hoveredIndex_ >= 0 && hoveredIndex_ < static_cast<int>(tabs_.size())
 				? tabs_[static_cast<size_t>(hoveredIndex_)].editor.get()
 				: nullptr;
-		lspClient->setHoverApi(hovered ? hovered->api : *api);
+		lspView->setHoverApi(hovered ? hovered->api : *api);
+		lspView->render();
 	}
-	lspClient->render();
 	fileExplorer->renderFileFinder();
 	renderOverlays(*api);
 

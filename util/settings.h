@@ -19,7 +19,7 @@
 
 class EditorApi;
 class FileExplorer;
-class LSPClient;
+class LspImGuiView;
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -65,7 +65,7 @@ class Settings
 	ImVec2 embeddedWindowSize{900.0f, 600.0f};
 	bool embeddedWindowCollapsed{false};
 
-	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPClient &lsp);
+	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
 	void toggleSettingsWindow(EditorApi &api);
 	void toggleSidebar();
 	void toggleTerminal();
@@ -81,7 +81,7 @@ class Settings
 	std::vector<std::string> listProfiles() const;
 	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
 
-	void renderSettingsContent(EditorApi &api, FileExplorer &files, LSPClient &lsp);
+	void renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
 	void renderWindowHeader(EditorApi &api, FileExplorer &files);
 	void renderProfileSelector();
 	void renderMainSettings();
@@ -95,7 +95,7 @@ class Settings
 							float max_val,
 							const char *format,
 							float default_val);
-	void renderKeybindsSettings(FileExplorer &files, LSPClient &lsp);
+	void renderKeybindsSettings(FileExplorer &files, LspImGuiView &lsp);
 	void handleWindowInput(EditorApi &api);
 	void applyImGuiStyles();
 	void closeSettingsWindow(EditorApi &api);

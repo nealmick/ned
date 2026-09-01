@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 /*
 	One class for goto-definition and goto-references: identical flow
 	(keybind -> caret position -> request -> shared picker), different LSP
@@ -30,6 +32,13 @@ class LSPGoto
 
 	// Render the picker UI
 	void render();
+
+	// UI-layer hook: renders results through the shared picker. Set by the
+	// active backend view so the LSP core stays UI-free.
+	std::function<void(const std::string &title,
+					   const std::vector<LSPLocation> &locations,
+					   bool &show)>
+		resultRenderer;
 
 	void setApi(EditorApi &editorApi) { api = &editorApi; }
 

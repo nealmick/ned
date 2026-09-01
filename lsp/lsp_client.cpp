@@ -8,10 +8,7 @@
 
 #include "lsp_goto.h"
 
-#include "lsp_symbol_info.h"
-
 #include "../lib/json.hpp"
-#include "imgui.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -44,11 +41,8 @@ lsp::Array<lsp::WorkspaceFolder> workspaceFoldersFor(const std::string &workspac
 } // namespace
 
 LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings)
-	: dashboard(*this, fileExplorer, settings),
-	  gotoDef(*this, api, LSPGoto::Kind::Definition),
+	: gotoDef(*this, api, LSPGoto::Kind::Definition),
 	  gotoRef(*this, api, LSPGoto::Kind::References),
-	  symbolInfo(*this, api),
-	  uriOptions(api, fileExplorer, settings),
 	  initialized(false),
 	  running(false),
 	  settings(&settings),
@@ -56,7 +50,6 @@ LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &setti
 		   [this](const std::string &path) { return detectLanguageFromFile(path); })
 {
 	initializeLanguageServers();
-	dashboard.refreshServerInfo();
 }
 
 LSPClient::~LSPClient() { shutdown(); }
@@ -65,12 +58,9 @@ void LSPClient::bindEditorApi(EditorApi &api)
 {
 	gotoDef.setApi(api);
 	gotoRef.setApi(api);
-	symbolInfo.setApi(api);
-	uriOptions.setApi(api);
-	setHoverApi(api);
 }
 
-void LSPClient::setHoverApi(EditorApi &api) { symbolInfo.setHoverApi(api); }
+const KeybindsManager &LSPClient::settingsKeybinds() const { return settings->keybinds; }
 
 void LSPClient::setWorkspace(const std::string &workspacePath)
 {
@@ -587,54 +577,6 @@ void LSPClient::messageProcessingThread()
 		initialized = false;
 		running = false; // allow startMessageProcessingLoop on restart
 	}
-}
-
-bool LSPClient::keybinds()
-{
-	if (!initialized)
-		return false;
-
-	bool modPressed = ImGui::GetIO().KeyCtrl;
-	if (!modPressed)
-		return false;
-
-	bool shortcutPressed = false;
-
-	// LSP Symbol Info keybind
-	if (!settings)
-		return false;
-
-	ImGuiKey symbolInfoKey = settings->keybinds.getActionKey("lsp_symbol_info");
-	if (symbolInfoKey != ImGuiKey_None && ImGui::IsKeyPressed(symbolInfoKey, false))
-	{
-		symbolInfo.get();
-		shortcutPressed = true;
-	}
-
-	// LSP Goto Definition keybind
-	ImGuiKey gotoDefKey = settings->keybinds.getActionKey("lsp_find_def");
-	if (gotoDefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoDefKey, false))
-	{
-		gotoDef.get();
-		shortcutPressed = true;
-	}
-
-	// LSP Goto References keybind
-	ImGuiKey gotoRefKey = settings->keybinds.getActionKey("lsp_find_ref");
-	if (gotoRefKey != ImGuiKey_None && ImGui::IsKeyPressed(gotoRefKey, false))
-	{
-		gotoRef.get();
-		shortcutPressed = true;
-	}
-
-	return shortcutPressed;
-}
-
-void LSPClient::render()
-{
-	symbolInfo.render();
-	gotoDef.render();
-	gotoRef.render();
 }
 
 void LSPClient::initializeLanguageServers()

@@ -1,5 +1,5 @@
 #pragma once
-#include "lsp_locations.h"
+#include "../../../lsp/lsp_locations.h"
 #include <string>
 #include <vector>
 

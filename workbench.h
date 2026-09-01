@@ -8,6 +8,7 @@
 
 #include "editor/editor.h"
 #include "files/files.h"
+#include "editor/views/imgui/lsp_view.h"
 #include "lsp/lsp_client.h"
 #include "util/icons.h"
 #include "util/ned_terminal.h"
@@ -51,6 +52,7 @@ class Workbench
 
 	std::unique_ptr<FileExplorer> fileExplorer;
 	std::unique_ptr<LSPClient> lspClient;
+	std::unique_ptr<LspImGuiView> lspView;
 	std::unique_ptr<Welcome> welcome;
 	NedTerminal terminal;
 

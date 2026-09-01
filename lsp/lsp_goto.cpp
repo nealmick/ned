@@ -3,7 +3,6 @@
 #include "../editor/util/utf8.h"
 #include "lsp_includes.h"
 #include "lsp_trace.h"
-#include "lsp_uri_options.h"
 
 LSPGoto::LSPGoto(LSPClient &client, EditorApi &api, Kind kind)
 	: kind(kind), client(&client), api(&api)
@@ -98,8 +97,9 @@ void LSPGoto::get()
 
 void LSPGoto::render()
 {
-	if (!client || !show)
+	if (!client || !show || !resultRenderer)
 		return;
-	client->uriOptions.render(
-		gotoTitle(kind), state.snapshot().value_or(std::vector<LSPLocation>{}), show);
+	resultRenderer(gotoTitle(kind),
+				   state.snapshot().value_or(std::vector<LSPLocation>{}),
+				   show);
 }

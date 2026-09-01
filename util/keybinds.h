@@ -10,7 +10,7 @@ using json = nlohmann::json;
 
 class EditorApi;
 class FileExplorer;
-class LSPClient;
+class LspImGuiView;
 class Settings;
 
 // Loads ~/ned/config/keybinds.json into a map of action → ImGuiKey.
@@ -23,7 +23,7 @@ class KeybindsManager
 	bool loadKeybinds();
 	void checkKeybindsFile(); // re-read if the file changed on disk
 	ImGuiKey getActionKey(const std::string &actionName) const;
-	bool handleKeyboardShortcuts(EditorApi &api, FileExplorer &files, LSPClient &lsp);
+	bool handleKeyboardShortcuts(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
 
   private:
 	void ensureFileExists();

@@ -3,8 +3,8 @@
 	Description: Title bar rendering (path, git changes).
 */
 #include "title_bar_view.h"
-#include "../../../../util/icons.h"
-#include "../../../../util/settings.h"
+#include "../../../util/icons.h"
+#include "../../../util/settings.h"
 #include "../../services/git/git_service.h"
 #include "imgui.h"
 #include <algorithm>

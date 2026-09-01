@@ -46,13 +46,10 @@ const LSPDiagnostics &LSPClient::diagnostics() const { return diagnostics_; }
 
 bool LSPClient::isDocumentOpen(const std::string &) const { return false; }
 
-bool LSPClient::keybinds() { return false; }
 
 void LSPClient::bindEditorApi(EditorApi &) {}
 
-void LSPClient::setHoverApi(EditorApi &) {}
 
-void LSPClient::render() {}
 
 bool LSPClient::startServer(const std::string &, const std::string &) { return false; }
 

@@ -29,11 +29,8 @@ struct LanguageServerInfo
 
 #include "../editor/editor_events.h"
 #include "../editor/services/diagnostics/diagnostics_store.h"
-#include "lsp_dashboard.h"
 #include "lsp_document_sync.h"
 #include "lsp_goto.h"
-#include "lsp_symbol_info.h"
-#include "lsp_uri_options.h"
 
 // Forward declarations
 namespace lsp {
@@ -56,12 +53,9 @@ class LSPClient
 	LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
 	~LSPClient();
 
-	LSPDashboard dashboard;
+	// Goto-definition/references requests (results rendered by the UI layer).
 	LSPGoto gotoDef;
 	LSPGoto gotoRef;
-	LSPSymbolInfo symbolInfo;
-	// Shared URI-options picker
-	LSPUriOptions uriOptions;
 
 	// Core LSP functionality
 	void setWorkspace(const std::string &workspacePath);
@@ -97,17 +91,11 @@ class LSPClient
 	// Direct access to message handler
 	lsp::MessageHandler *getMessageHandler() { return messageHandler.get(); }
 
-	// Handle all LSP keybinds
-	bool keybinds();
-
-	// Point goto/hover/uri UI at a different editor (multi-tab embed).
+	// Point goto requests at a different editor (multi-tab embed).
 	void bindEditorApi(EditorApi &api);
-	// Mouse-hover tooltip targets the editor under the mouse (splits differ
-	// from the focused editor).
-	void setHoverApi(EditorApi &api);
 
-	// Render all LSP UI elements
-	void render();
+	// Keybind lookup for the UI layer (ImGui/Qt views poll their own keys).
+	const class KeybindsManager &settingsKeybinds() const;
 
 	// Server management
 	bool startServer(const std::string &language, const std::string &serverPath);
@@ -162,16 +150,8 @@ class LSPClient
 class LSPClient
 {
   public:
-	struct DashboardStub
-	{
-		void render() {}
-		void setShow(bool) {}
-	};
-
 	LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
 	~LSPClient();
-
-	DashboardStub dashboard;
 
 	void setWorkspace(const std::string &workspacePath);
 	bool init(const std::string &filePath);
@@ -198,10 +178,8 @@ class LSPClient
 	LSPDiagnostics &diagnostics();
 	const LSPDiagnostics &diagnostics() const;
 
-	bool keybinds();
 	void bindEditorApi(EditorApi &api);
-	void setHoverApi(EditorApi &api);
-	void render();
+	const class KeybindsManager &settingsKeybinds() const;
 
 	bool startServer(const std::string &language, const std::string &serverPath);
 	void stopServer();

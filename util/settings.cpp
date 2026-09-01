@@ -2,6 +2,7 @@
 #include "../editor/editor_api.h"
 #include "../editor/editor_events.h"
 #include "../files/files.h"
+#include "../editor/views/imgui/lsp_view.h"
 #include "../lsp/lsp_client.h"
 
 #include "imgui.h"
@@ -546,7 +547,7 @@ std::string Settings::displayFontName(const std::string &fontFile)
 	return name;
 }
 
-void Settings::renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPClient &lsp)
+void Settings::renderSettingsWindow(EditorApi &api, FileExplorer &files, LspImGuiView &lsp)
 {
 	if (!showSettingsWindow)
 		return;
@@ -597,7 +598,7 @@ void Settings::renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPClie
 	ImGui::PopStyleVar(6);
 }
 
-void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPClient &lsp)
+void Settings::renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp)
 {
 	if (!isEmbedded)
 	{
@@ -1038,7 +1039,7 @@ void Settings::renderShaderSlider(const char *label,
 	ImGui::Spacing();
 }
 
-void Settings::renderKeybindsSettings(FileExplorer &files, LSPClient &lsp)
+void Settings::renderKeybindsSettings(FileExplorer &files, LspImGuiView &lsp)
 {
 	ImGui::Spacing();
 	ImGui::Separator();
