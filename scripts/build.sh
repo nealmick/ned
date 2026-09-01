@@ -14,6 +14,7 @@ BUILD_DIR=".build"
 NO_RUN=0
 CLEAN=0
 SKIP_FORMAT=0
+BUILD_QT=0
 
 # Optional features (default ON — same as CMake). Use --no-* / --minimal to trim.
 ENABLE_TERMINAL=1
@@ -30,6 +31,11 @@ for arg in "$@"; do
 	--no-git) ENABLE_GIT=0 ;;
 	--no-lsp) ENABLE_LSP=0 ;;
 	--no-shaders) ENABLE_SHADERS=0 ;;
+	--qt)
+		# Build the Qt host (ned_qt) alongside the ImGui host. Qt6 required.
+		BUILD_QT=1
+		BUILD_DIR=".build-qt"
+		;;
 	--minimal)
 		# Editor core only: no terminal, git, LSP, or CRT shaders.
 		ENABLE_TERMINAL=0
@@ -47,6 +53,7 @@ for arg in "$@"; do
 		echo "  --no-lsp        Disable language server client"
 		echo "  --no-shaders    Disable CRT/burn-in postprocess"
 		echo "  --minimal       All of --no-terminal --no-git --no-lsp --no-shaders"
+		echo "  --qt            Also build the Qt host (ned_qt; requires Qt6, uses .build-qt)"
 		echo "  CI=true         Implies --no-run (and skips format if clang-format missing)"
 		echo ""
 		echo "Examples:"
@@ -96,6 +103,7 @@ fi
 
 # Always pass feature flags so re-running with different --no-* updates the cache.
 CMAKE_ARGS=(
+	-DNED_BUILD_QT="$BUILD_QT"
 	-DNED_ENABLE_TERMINAL="$ENABLE_TERMINAL"
 	-DNED_ENABLE_GIT="$ENABLE_GIT"
 	-DNED_ENABLE_LSP="$ENABLE_LSP"

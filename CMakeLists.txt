@@ -395,6 +395,7 @@ endif()
 
 # Utility library
 set(NED_UTIL_SOURCES
+  util/settings_app.cpp
   util/settings.cpp
   util/keybinds.cpp
   util/icons.cpp
@@ -545,6 +546,8 @@ if(APPLE)
   # Add Objective-C++ support
   set(CMAKE_OBJCXX_STANDARD 11)
   add_library(macos_window OBJECT util/macos_window.mm)
+  # macos_window.mm unwraps GLFWwindow -> NSWindow via glfwGetCocoaWindow.
+  target_link_libraries(macos_window PRIVATE glfw)
   
   # Add GLFW includes with verified path
   target_include_directories(macos_window PRIVATE
@@ -790,6 +793,54 @@ target_link_libraries(ned_core PUBLIC tree-sitter-lib)
 if(NED_ENABLE_GIT)
   target_include_directories(ned_core PUBLIC lib/libgit2/include)
   target_link_libraries(ned_core PUBLIC libgit2)
+endif()
+
+
+# ================
+# Qt host (optional second UI backend)
+# ================
+option(NED_BUILD_QT "Build the Qt host (ned_qt)" OFF)
+if(NED_BUILD_QT)
+  # Homebrew installs Qt outside CMake's default search path.
+  if(APPLE AND EXISTS /opt/homebrew/opt/qt)
+    list(APPEND CMAKE_PREFIX_PATH /opt/homebrew/opt/qt)
+  endif()
+  find_package(Qt6 COMPONENTS Widgets QUIET)
+  if(NOT Qt6_FOUND)
+    message(STATUS "Qt6 not found - skipping ned_qt (install qt or set CMAKE_PREFIX_PATH)")
+  else()
+    message(STATUS "Building ned_qt with Qt${Qt6_VERSION}")
+    add_executable(ned_qt
+      host/qt/main.cpp
+      host/qt/qt_host.cpp
+    )
+    set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
+    if(APPLE)
+      target_sources(ned_qt PRIVATE host/qt/qt_mac_chrome.mm)
+    endif()
+    set_target_properties(ned_qt PROPERTIES
+      MACOSX_BUNDLE_BUNDLE_GUILENTIFIER "com.ned.ned-qt"
+      MACOSX_BUNDLE_BUNDLE_NAME "Ned"
+    )
+    ned_apply_feature_defs(ned_qt)
+    target_include_directories(ned_qt PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      editor
+      files
+    )
+    target_link_libraries(ned_qt PRIVATE
+      ned_core
+      Qt6::Widgets
+    )
+    if(APPLE)
+      # Native title bar treatment shared with the GLFW host. The NSWindow
+      # module's GLFW unwrap wrapper needs glfw at link time.
+      target_link_libraries(ned_qt PRIVATE
+        $<TARGET_OBJECTS:macos_window>
+        glfw
+      )
+    endif()
+  endif()
 endif()
 
 # ================

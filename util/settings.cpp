@@ -1,6 +1,4 @@
 #include "settings.h"
-#include "../editor/editor_api.h"
-#include "../editor/editor_events.h"
 #include "../files/files.h"
 
 #include <algorithm>
@@ -389,13 +387,5 @@ void Settings::toggleTerminal()
 	saveSettings();
 }
 
-void Settings::toggleSettingsWindow(EditorApi &api)
-{
-	showSettingsWindow = !showSettingsWindow;
-	if (showSettingsWindow)
-		api.requestExclusiveOverlay(
-			EditorEvents::DidRequestExclusiveOverlay::Keep::Settings);
-	api.setBlockInput(showSettingsWindow);
-}
 
 // ---- UI ----

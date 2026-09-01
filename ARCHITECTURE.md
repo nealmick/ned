@@ -79,9 +79,14 @@ file first. Nothing else.
   clipboard, font metrics, input events, textures). ImGui implements them;
   the Qt backend will implement them too. This is what finally lets rule
   1 cover the four exception files above.
-- `host/qt/` — Qt host reusing `configureMacOSNSWindow` for the same
-  native title bar treatment. Drops initially: terminal, LSP dashboard,
-  CRT shaders.
+- `host/qt/` — Qt host skeleton has landed (`NED_BUILD_QT=ON`,
+  `scripts/build.sh --qt`): QMainWindow with native title bar, macOS
+  NSWindow chrome shared with the GLFW host, links `ned_core`. Editor
+  surface views (`editor/views/qt/`) are the next milestone. Drops
+  initially: terminal, LSP dashboard, CRT shaders.
+- `Settings::toggleSettingsWindow` lives in `util/settings_app.cpp`
+  (outside ned_core) because it drives EditorApi overlays — the same
+  rule will apply to any future core method that wants presenter access.
 - On-demand rendering (dirty-flag frame pacing) in the ImGui host.
 
 ## Analogy check (VSCode)
