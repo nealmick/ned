@@ -160,7 +160,6 @@ class QtEditorView : public QWidget
 
 	// Presentation
 	QScrollBar *scrollBar = nullptr;
-	QTimer *blinkTimer = nullptr;
 	QTimer *serviceTimer = nullptr;
 	QElapsedTimer blinkClock;
 	WrapLayout wrap;

@@ -44,15 +44,9 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 {
 	setFontFromSettings();
 
-	blinkTimer = new QTimer(this);
-	blinkTimer->setInterval(530);
-	// Blink state is computed in the service timer; this timer restarts the
-	// blink phase whenever typing/moving keeps the caret "alive".
-	connect(blinkTimer, &QTimer::timeout, this, [this] {
-		blinkClock.restart();
-		caretVisible = true;
-	});
-	blinkTimer->start();
+	// Blink runs entirely off blinkClock in the service timer — a second
+	// timer restarting the clock raced the sampler and could strand the
+	// caret in the invisible phase permanently.
 
 	scrollBar = new QScrollBar(Qt::Vertical, this);
 	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int) { update(); });
@@ -414,6 +408,23 @@ void QtEditorView::minimapScrollTo(int y)
 // Batched glyph rendering (ImGui draw-list parity): each visible row is
 // converted once into per-color-run QGlyphRuns on the monospace grid and
 // cached by edit generation — paints become a few drawGlyphRun calls.
+// Keep the caret inside the viewport after edits/navigation (ImGui:
+// EditorViewState::revealCursor). Wrap-aware via visual lines.
+void QtEditorView::revealCaret()
+{
+	const Selection &caret = viewState.selections[viewState.primaryIndex];
+	const int v = wordWrapEnabled()
+					  ? wrap.rowStartVisualLine(caret.headRow) +
+							wrap.segmentOf(caret.headRow, caret.headColumn)
+					  : caret.headRow;
+	const int first = scrollBar->value();
+	const int visible = visibleLines();
+	if (v < first)
+		scrollBar->setValue(v);
+	else if (v >= first + visible - 1)
+		scrollBar->setValue(v - visible + 2);
+}
+
 // Direct per-glyph painting on the monospace grid. Simple by design:
 // no glyph-run engines, no pixmap caches, nothing to go stale. Perf is
 // measured (render-check repaint timing) before any optimization is
@@ -634,7 +645,7 @@ void QtEditorView::afterEdit()
 	highlight.highlightContent();
 	refreshWrap();
 	scrollBar->setRange(0, maxScrollLine());
-	commands.requestEnsureVisible();
+	revealCaret();
 	caretVisible = true;
 	scheduleBlink();
 	update();
@@ -645,7 +656,7 @@ void QtEditorView::repaintAndFollow()
 {
 	highlight.poll();
 	highlight.highlightContent();
-	commands.requestEnsureVisible();
+	revealCaret();
 	update();
 }
 
@@ -709,9 +720,10 @@ bool QtEditorView::eventFilter(QObject *watched, QEvent *event)
 
 void QtEditorView::scheduleBlink()
 {
+	// Activity: caret solid, blink phase restarts (single-clock blink).
 	blinkClock.restart();
 	caretVisible = true;
-	blinkTimer->start();
+	update();
 }
 
 bool QtEditorView::event(QEvent *event)
