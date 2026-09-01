@@ -838,6 +838,13 @@ if(NED_BUILD_QT)
       editor/views/qt/qt_sidebar.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
+    # Configure-time stamp (git + clock) so "is this the latest build?" is
+    # checkable: ./scripts/build.sh reconfigures every run.
+    execute_process(COMMAND git rev-parse --short HEAD OUTPUT_VARIABLE _git)
+    string(STRIP "${_git}" _git)
+    string(TIMESTAMP _ts "%H:%M:%S")
+    target_compile_definitions(ned_qt PRIVATE
+      NED_QT_BUILD_STAMP="${_git} ${_ts}")
     # Core headers use plain identifiers ("slots") that Qt defines as macros.
     target_compile_definitions(ned_qt PRIVATE QT_NO_KEYWORDS)
     if(APPLE)

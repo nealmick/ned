@@ -12,6 +12,13 @@
 
 int main(int argc, char *argv[])
 {
+	for (int i = 1; i < argc; ++i)
+		if (std::string(argv[i]) == "--version")
+		{
+			std::cout << "ned_qt " << NED_QT_BUILD_STAMP << std::endl;
+			return 0;
+		}
+
 	QApplication app(argc, argv);
 	app.setApplicationName("Ned");
 

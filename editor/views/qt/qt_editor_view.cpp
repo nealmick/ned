@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QShortcut>
 
+#include "qt_fonts.h"
 #include "qt_icons.h"
 #include <QFontMetrics>
 #include <QInputDialog>
@@ -132,9 +133,11 @@ void QtEditorView::setFontFromSettings()
 #endif
 	// Profile font (registered from resources/fonts by the settings dialog).
 	const std::string profileFont = appSettings.settings.value("font", std::string());
-	if (!profileFont.empty() && profileFont != "System Default")
+	const QString resolved =
+		NedQtFonts::resolveFamily(QString::fromStdString(profileFont));
+	if (!profileFont.empty() && profileFont != "System Default" && !resolved.isEmpty())
 	{
-		font.setFamily(QString::fromStdString(profileFont));
+		font.setFamily(resolved);
 		font.setFixedPitch(true);
 	}
 	font.setStyleHint(QFont::Monospace);

@@ -2,6 +2,7 @@
 
 #include "editor/services/highlight/highlight_service.h"
 #include "editor/views/qt/qt_editor_view.h"
+#include "editor/views/qt/qt_fonts.h"
 #include "editor/views/qt/qt_finder.h"
 #include "editor/views/qt/qt_settings_dialog.h"
 #include "editor/views/qt/qt_sidebar.h"
@@ -50,7 +51,9 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		const QDir fontsDir(QString::fromStdString(Settings::getAppResourcesPath()) +
 							"/resources/fonts");
 		for (const QString &file : fontsDir.entryList({"*.ttf", "*.otf"}, QDir::Files))
-			QFontDatabase::addApplicationFont(fontsDir.filePath(file));
+			NedQtFonts::registerFontFile(
+				fontsDir.filePath(file),
+				QFontDatabase::addApplicationFont(fontsDir.filePath(file)));
 	}
 
 	// Warm the async tree-sitter parser pool (ImGui host does this in
