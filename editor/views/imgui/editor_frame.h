@@ -7,15 +7,15 @@
 #pragma once
 #include "imgui.h"
 
-#include "views/caret_view.h"
-#include "views/gutter_view.h"
-#include "views/hover_tooltip.h"
-#include "views/hover_trigger.h"
-#include "views/minimap_view.h"
-#include "views/text_view.h"
-#include "views/title_bar_view.h"
-#include "views/view_layout.h"
-#include "views/wrap_layout.h"
+#include "caret_view.h"
+#include "gutter_view.h"
+#include "hover_tooltip.h"
+#include "../hover_trigger.h"
+#include "minimap_view.h"
+#include "text_view.h"
+#include "title_bar_view.h"
+#include "view_layout.h"
+#include "wrap_layout.h"
 
 struct ImFont;
 class EditorViewState;

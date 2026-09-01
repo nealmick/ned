@@ -1,9 +1,9 @@
 #include "hover_tooltip.h"
-#include "../editor_api.h"
-#include "../services/diagnostics/diagnostics_store.h"
-#include "../services/highlight/tree_sitter.h"
+#include "../../editor_api.h"
+#include "../../services/diagnostics/diagnostics_store.h"
+#include "../../services/highlight/tree_sitter.h"
 #include "diagnostic_style.h"
-#include "hover_markdown.h"
+#include "../hover_markdown.h"
 
 #include "imgui.h"
 

@@ -1,11 +1,11 @@
 /*
-	File: views/wrap_layout.cpp
+	File: views/imgui/wrap_layout.cpp
 	Description: Soft-wrap segment cache implementation.
 */
 
 #include "wrap_layout.h"
-#include "../editor_state.h"
-#include "../util/editor_utils.h"
+#include "../../editor_state.h"
+#include "../../util/editor_utils.h"
 
 #include <algorithm>
 #include <cfloat>

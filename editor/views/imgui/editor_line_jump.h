@@ -4,8 +4,8 @@
 */
 
 #pragma once
-#include "../../util/keybinds.h"
-#include "../../util/settings.h"
+#include "../../../util/keybinds.h"
+#include "../../../util/settings.h"
 #include "imgui.h"
 
 #include <cstdio>

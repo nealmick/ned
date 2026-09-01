@@ -1,8 +1,8 @@
 #include "editor_line_jump.h"
-#include "../editor_api.h"
-#include "../editor_commands.h"
-#include "../editor_events.h"
-#include "../editor_input.h"
+#include "../../editor_api.h"
+#include "../../editor_commands.h"
+#include "../../editor_events.h"
+#include "editor_input.h"
 #include <cstring>
 #include <iostream>
 

@@ -1,12 +1,12 @@
 /*
-	File: views/text_view.h
+	File: views/imgui/text_view.h
 	Description: Draws document text, selection, whitespace guides, current line.
 	Read-only: document, view state, highlight colors, layout metrics.
 */
 
 #pragma once
 
-#include "hover_trigger.h"
+#include "../hover_trigger.h"
 #include "imgui.h"
 #include <string>
 

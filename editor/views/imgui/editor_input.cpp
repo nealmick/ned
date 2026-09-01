@@ -4,13 +4,13 @@
 */
 
 #include "editor_input.h"
-#include "editor_commands.h"
-#include "editor_state.h"
-#include "editor_view_state.h"
-#include "util/editor_utils.h"
+#include "../../editor_commands.h"
+#include "../../editor_state.h"
+#include "../../editor_view_state.h"
+#include "../../util/editor_utils.h"
 #include "util/project_undo.h"
-#include "views/view_layout.h"
-#include "views/wrap_layout.h"
+#include "view_layout.h"
+#include "wrap_layout.h"
 
 #include <algorithm>
 #include <string>

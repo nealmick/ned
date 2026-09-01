@@ -1,7 +1,7 @@
 #include "caret_view.h"
-#include "../editor_state.h"
-#include "../editor_view_state.h"
-#include "../util/editor_utils.h"
+#include "../../editor_state.h"
+#include "../../editor_view_state.h"
+#include "../../util/editor_utils.h"
 #include "view_layout.h"
 #include "wrap_layout.h"
 

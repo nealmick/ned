@@ -1,11 +1,11 @@
 /*
-	File: views/gutter_view.h
+	File: views/imgui/gutter_view.h
 	Description: Line-number gutter; reads git line-edit status (const service leaf).
 */
 
 #pragma once
 
-#include "hover_trigger.h"
+#include "../hover_trigger.h"
 #include "imgui.h"
 
 class EditorState;

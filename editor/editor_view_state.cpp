@@ -7,8 +7,8 @@
 #include "editor_state.h"
 #include "imgui.h"
 #include "util/editor_utils.h"
-#include "views/view_layout.h"
-#include "views/wrap_layout.h"
+#include "views/imgui/view_layout.h"
+#include "views/imgui/wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>

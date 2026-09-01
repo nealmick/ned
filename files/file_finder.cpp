@@ -5,7 +5,7 @@
 #include "file_finder.h"
 #include "../editor/editor_api.h"
 #include "../editor/editor_events.h"
-#include "../editor/views/view_layout.h"
+#include "../editor/views/imgui/view_layout.h"
 #include "../files/files.h"
 #include "../util/keybinds.h"
 #include "../util/settings.h"

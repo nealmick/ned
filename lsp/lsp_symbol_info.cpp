@@ -1,7 +1,7 @@
 #include "lsp_symbol_info.h"
 #include "../editor/editor_api.h"
 #include "../editor/util/utf8.h"
-#include "../editor/views/hover_tooltip.h"
+#include "../editor/views/imgui/hover_tooltip.h"
 #include "lsp_includes.h"
 #include "lsp_trace.h"
 

@@ -1,5 +1,5 @@
 /*
-	File: views/minimap_view.cpp
+	File: views/imgui/minimap_view.cpp
 	Description: Density minimap — ImGui rects, click/drag/wheel.
 
 	Density glyphs are expensive (lineInto + span walk + UTF-8 per char).
@@ -8,9 +8,9 @@
 	frames replay a handful of rects. Slider still updates live with scroll.
 */
 #include "minimap_view.h"
-#include "../editor_state.h"
-#include "../editor_view_state.h"
-#include "../services/highlight/highlight_service.h"
+#include "../../editor_state.h"
+#include "../../editor_view_state.h"
+#include "../../services/highlight/highlight_service.h"
 #include "view_layout.h"
 #include "wrap_layout.h"
 #include <algorithm>

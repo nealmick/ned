@@ -1,5 +1,5 @@
 /*
-	File: views/minimap_view.h
+	File: views/imgui/minimap_view.h
 	Description: Density strip + viewport slider.
 */
 #pragma once

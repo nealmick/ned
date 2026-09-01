@@ -1,5 +1,5 @@
 /*
-	File: views/view_layout.h
+	File: views/imgui/view_layout.h
 	Description: Per-frame layout metrics for the editor pane (view-layer POD,
 	not a paint leaf). Owned by EditorFrame; read const by input, view state,
 	paint views, and overlays.

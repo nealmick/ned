@@ -1,5 +1,5 @@
 /*
-	File: views/caret_view.h
+	File: views/imgui/caret_view.h
 	Description: Draws the caret. Read-only view state + layout metrics.
 */
 

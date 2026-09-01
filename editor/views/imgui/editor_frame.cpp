@@ -4,15 +4,15 @@
 */
 
 #include "editor_frame.h"
-#include "../util/icons.h"
-#include "../util/settings.h"
+#include "../../../util/icons.h"
+#include "../../../util/settings.h"
 #include "editor_input.h"
-#include "editor_state.h"
-#include "editor_view_state.h"
-#include "services/diagnostics/diagnostics_store.h"
-#include "services/git/git_service.h"
-#include "services/highlight/highlight_service.h"
-#include "util/editor_utils.h"
+#include "../../editor_state.h"
+#include "../../editor_view_state.h"
+#include "../../services/diagnostics/diagnostics_store.h"
+#include "../../services/git/git_service.h"
+#include "../../services/highlight/highlight_service.h"
+#include "../../util/editor_utils.h"
 
 #include <algorithm>
 #include <cfloat>

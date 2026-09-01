@@ -1,5 +1,5 @@
 /*
-	File: views/wrap_layout.h
+	File: views/imgui/wrap_layout.h
 	Description: Soft-wrap segment cache. Maps document rows → visual segments
 	(byte start column per segment) plus a cumulative visual-line index.
 	Owned by EditorFrame; consumers reach it via ViewLayout.wrap (null = off).
