@@ -13,6 +13,7 @@
 #include <QPainter>
 #include <QScrollBar>
 #include <QTimer>
+#include <QFileIconProvider>
 #include <QWheelEvent>
 
 #include <fstream>
@@ -115,11 +116,13 @@ void QtEditorView::openFile(const QString &path)
 		buffer << file.rdbuf();
 		raw = buffer.str();
 		state.path = path.toStdString();
+		state.languageId = EditorState::languageIdFromPath(state.path);
 	} else
 	{
 		state.path = "";
 	}
 
+	fileIcon = QFileIconProvider().icon(QFileInfo(path)).pixmap(18, 18);
 	state.setFromString(raw);
 	ops.clearPending();
 	ops.bumpGeneration();
@@ -148,7 +151,7 @@ int QtEditorView::maxScrollLine() const
 
 int QtEditorView::rowAtY(int y) const
 {
-	int row = scrollBar->value() + y / lineHeightPx;
+	int row = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
 	return std::clamp(row, 0, std::max(0, state.lineCount() - 1));
 }
 
@@ -179,13 +182,40 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	const int rows = std::min(visibleLines() + 1,
 							  state.lineCount() - firstRow);
 
+	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
+	if (!state.path.empty())
+	{
+		painter.fillRect(0, 0, width(), titleBarPx, QColor(0x24, 0x24, 0x2c));
+		painter.setPen(QColor(0x9a, 0x9a, 0xa8));
+		QFont small = font();
+		small.setPointSize(std::max(9, font().pointSize() - 3));
+		painter.setFont(small);
+		int tx = 10;
+		if (!fileIcon.isNull())
+		{
+			painter.drawPixmap(tx, (titleBarPx - 18) / 2, fileIcon);
+			tx += 26;
+		}
+		painter.drawText(QRect(tx, 0, width() - tx - 160, titleBarPx),
+						 Qt::AlignVCenter | Qt::AlignLeft,
+						 QString::fromStdString(state.path));
+		const std::string changes = git.currentGitChanges;
+		if (!changes.empty())
+		{
+			painter.setPen(QColor(0x3f, 0xc1, 0x8c));
+			painter.drawText(QRect(width() - 150, 0, 140, titleBarPx),
+							 Qt::AlignVCenter | Qt::AlignRight,
+							 QString::fromStdString(changes));
+		}
+	}
+
 	// Gutter + current-line highlight.
 	const Selection &primary = viewState.selections[viewState.primaryIndex];
 	painter.setFont(font());
 	for (int i = 0; i < rows; ++i)
 	{
 		const int row = firstRow + i;
-		const int y = i * lineHeightPx;
+		const int y = titleBarPx + i * lineHeightPx;
 		if (row == primary.headRow)
 			painter.fillRect(0, y, width(), lineHeightPx, QColor(0x2a, 0x2a, 0x2a));
 
@@ -201,7 +231,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	{
 		const int row = firstRow + i;
 		if (git.isLineEdited(docPath, row + 1))
-			painter.fillRect(gutterWidthPx - 6, i * lineHeightPx, 3, lineHeightPx,
+			painter.fillRect(gutterWidthPx - 6, titleBarPx + i * lineHeightPx, 3, lineHeightPx,
 							 QColor(0x3f, 0xc1, 0x8c));
 	}
 
@@ -214,7 +244,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		const std::string text = state.line(row);
 		if (text.empty())
 			continue;
-		const int y = i * lineHeightPx;
+		const int y = titleBarPx + i * lineHeightPx;
 		const LineColorSpans &spans = highlight.spansForLine(row);
 
 		int bytePos = 0;
@@ -259,7 +289,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 			const int i = row - firstRow;
 			const int from = row == sr ? sc : 0;
 			const int to = row == er ? ec : state.lineLength(row);
-			painter.drawRect(textLeft + from * charWidthPx, i * lineHeightPx,
+			painter.drawRect(textLeft + from * charWidthPx, titleBarPx + i * lineHeightPx,
 							 (to - from) * charWidthPx, lineHeightPx);
 		}
 	}
@@ -273,9 +303,9 @@ void QtEditorView::paintEvent(QPaintEvent *)
 			if (i < 0 || i >= rows + 1)
 				continue;
 			painter.drawLine(textLeft + sel.headColumn * charWidthPx,
-							 i * lineHeightPx + 2,
+							 titleBarPx + i * lineHeightPx + 2,
 							 textLeft + sel.headColumn * charWidthPx,
-							 (i + 1) * lineHeightPx - 2);
+							 titleBarPx + (i + 1) * lineHeightPx - 2);
 		}
 	}
 }

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QPixmap>
 
 class Settings;
 
@@ -103,5 +104,7 @@ class QtEditorView : public QWidget
 	int lineHeightPx = 1;
 	int charWidthPx = 1;
 	int gutterWidthPx = 0;
+	int titleBarPx = 26;
+	QPixmap fileIcon;
 	bool dragging = false;
 };
