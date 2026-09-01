@@ -13,6 +13,7 @@
 #include <QShortcut>
 
 #include "qt_fonts.h"
+#include "qt_theme.h"
 #include "qt_icons.h"
 #include <QFontMetrics>
 #include <QInputDialog>
@@ -65,6 +66,11 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 			lastVisualGen = highlight.visualGeneration();
 			update();
 		}
+		if (git.currentGitChanges != lastGitChanges)
+		{
+			lastGitChanges = git.currentGitChanges;
+			update();
+		}
 		// Blink at ~1.9 Hz; repaint only when the caret flips visibility.
 		const bool next = (blinkClock.elapsed() % 1060) < 530;
 		if (next != caretVisible)
@@ -85,6 +91,14 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	});
 	WrapLayout::setSpaceWidthFn(
 		[this](const char *, const char *) { return charWidthF(); });
+
+	// DidEdit fan-out mirrors the ImGui Editor: highlight, autosave, git
+	// gutter. Without this subscription the git marks never update.
+	events.subscribeDidEdit([this](const EditorEvents::DidEdit &e) {
+		highlight.highlightContent();
+		save.onDidEdit();
+		git.onDidEdit(e.firstRow, e.lastRow);
+	});
 
 	findBar = new QtFindBar(this, this);
 	auto *lineJumpShortcut = new QShortcut(QKeySequence("Ctrl+;"), this);
@@ -481,6 +495,20 @@ void QtEditorView::minimapScrollTo(int y)
 // Batched glyph rendering (ImGui draw-list parity): each visible row is
 // converted once into per-color-run QGlyphRuns on the monospace grid and
 // cached by edit generation — paints become a few drawGlyphRun calls.
+int QtEditorView::gitDirtyLineCount() const
+{
+	int n = 0;
+	for (int l = 1; l <= state.lineCount(); ++l)
+		if (git.isLineEdited(state.path, l))
+			++n;
+	return n;
+}
+
+std::string QtEditorView::gitChangesSummary() const
+{
+	return git.currentGitChanges;
+}
+
 // Keep the caret inside the viewport after edits/navigation (ImGui:
 // EditorViewState::revealCursor). Wrap-aware via visual lines.
 void QtEditorView::revealCaret()
@@ -538,15 +566,7 @@ void QtEditorView::paintTextRow(
 void QtEditorView::paintEvent(QPaintEvent *)
 {
 	QPainter painter(this);
-	// Background follows the active settings profile when present.
-	QColor background(0x1e, 0x1e, 0x1e);
-	if (appSettings.settings.contains("backgroundColor") &&
-		appSettings.settings["backgroundColor"].size() >= 3)
-	{
-		const auto &bg = appSettings.settings["backgroundColor"];
-		background =
-			QColor::fromRgbF(bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>());
-	}
+	const QColor background = NedQtTheme::background(appSettings);
 	painter.fillRect(rect(), background);
 
 	const int firstRow = scrollBar->value();
@@ -555,8 +575,8 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
 	if (!state.path.empty())
 	{
-		painter.fillRect(0, 0, width(), titleBarPx, QColor(0x24, 0x24, 0x2c));
-		painter.setPen(QColor(0x9a, 0x9a, 0xa8));
+		painter.fillRect(0, 0, width(), titleBarPx, NedQtTheme::raised(background));
+		painter.setPen(NedQtTheme::text(appSettings).darker(130));
 		QFont small = font();
 		small.setPointSize(std::max(9, font().pointSize() - 3));
 		painter.setFont(small);
@@ -714,7 +734,6 @@ void QtEditorView::paintEvent(QPaintEvent *)
 void QtEditorView::afterEdit()
 {
 	highlight.poll();
-	highlight.highlightContent();
 	refreshWrap();
 	scrollBar->setRange(0, maxScrollLine());
 	revealCaret();

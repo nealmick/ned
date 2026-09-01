@@ -3,6 +3,7 @@
 	Description: Entry point for the Qt backend of ned.
 */
 
+#include "editor/views/qt/qt_editor_view.h"
 #include "qt_host.h"
 
 #include <QApplication>
@@ -101,6 +102,10 @@ int main(int argc, char *argv[])
 								.count();
 			std::cerr << "[interact] 100 keys in " << ms << "ms (" << ms / 100.0
 					  << "ms/key)" << std::endl;
+			// Git gutter check: after edits, dirty lines + summary must update.
+			if (auto *ed = qobject_cast<QtEditorView *>(editor))
+				std::cerr << "[interact] git dirty lines=" << ed->gitDirtyLineCount()
+						  << " summary='" << ed->gitChangesSummary() << "'" << std::endl;
 		} else
 			std::cerr << "[interact] no editor found" << std::endl;
 		return 0;

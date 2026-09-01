@@ -46,6 +46,9 @@ class QtEditorView : public QWidget
 	~QtEditorView() override;
 
 	// Git gutter + status (shared service).
+	int gitDirtyLineCount() const;
+	std::string gitChangesSummary() const;
+
 	void openWorkspaceRoot(const std::string &root);
 
 	// Reload font + metrics from the settings profile.
@@ -182,6 +185,7 @@ class QtEditorView : public QWidget
 	QLineEdit *lineJumpInput = nullptr;
 	QtFindBar *findBar = nullptr;
 	uint64_t lastVisualGen = 0;
+	std::string lastGitChanges;
 	bool caretVisible = true;
 	int lineHeightPx = 1;
 	qreal cellWidth = 9.0;

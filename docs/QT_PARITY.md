@@ -59,7 +59,7 @@ Status legend: ✅ verified by user · 🟡 partial (works, known gaps) ·
 | File finder (Ctrl+P) | FileFinder shared model | 🟡 Qt-local scan + own fuzzy (⚠️ not the shared matcher) |
 | File sidebar | FileTree shared, git dirty tint | 🟡 tree shared; ⚠️ dirty-file tint not rendered |
 | Settings window | full (all profile keys, live apply) | 🟡 11 controls; many profile keys missing |
-| Git gutter/±N | shared EditorGit | 🟡 wired; probe-verified core, needs app verify |
+| Git gutter/±N | shared EditorGit | 🟡 DidEdit subscribed (ImGui parity); interact-verified dirty lines + ±N; needs user verify |
 | LSP (goto/ref/hover) | EditorApi-bound popups | 🟥 blocked: LSPClient binds to EditorApi (ImGui presenter seam) |
 | Multi-cursor rendering | all carets + selections | ✅ renders |
 | Multi-cursor edits | per-caret reverse order | ✅ via shared commands |

@@ -4,6 +4,7 @@
 #include "editor/views/qt/qt_editor_view.h"
 #include "editor/views/qt/qt_finder.h"
 #include "editor/views/qt/qt_fonts.h"
+#include "editor/views/qt/qt_theme.h"
 #include "editor/views/qt/qt_settings_dialog.h"
 #include "editor/views/qt/qt_sidebar.h"
 #include "util/macos_window.h"
@@ -60,12 +61,11 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	// Workbench::initialize) — without it highlighting never starts.
 	EditorHighlight::startBackgroundPrewarm();
 
-	// Dark chrome under the transparent title bar.
-	QPalette dark = palette();
-	dark.setColor(QPalette::Window, QColor(0x1e, 0x1e, 0x1e));
-	dark.setColor(QPalette::Base, QColor(0x1e, 0x1e, 0x1e));
-	dark.setColor(QPalette::Text, QColor(0xd0, 0xd0, 0xd0));
-	setPalette(dark);
+	// Whole-app palette from the profile theme (sidebar, welcome, title
+	// bars match the editor like the ImGui build). Fusion style: the
+	// macOS native style overrides palette roles with system colors.
+	QApplication::setStyle("Fusion");
+	QApplication::setPalette(NedQtTheme::palette(settings));
 
 	// Sidebar (hidden until a workspace opens).
 	sidebar = new QtFileSidebar(this);
@@ -215,6 +215,7 @@ void NedQtHost::openPath(const QString &path, bool focus)
 
 void NedQtHost::applyFontToEditors()
 {
+	QApplication::setPalette(NedQtTheme::palette(settings));
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
 			editor->applyProfileFont();
