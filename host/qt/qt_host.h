@@ -26,6 +26,8 @@ class NedQtHost : public QMainWindow
   private:
 	void applyNativeChrome();
 
+  public:
+	// Test hooks (NED_QT_WORKSPACE flow) + internal use.
 	void openPath(const QString &path, bool focus);
 	void openWorkspace(const QString &root);
 	void showWelcome();

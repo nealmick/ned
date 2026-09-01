@@ -7,6 +7,8 @@
 
 #include <QApplication>
 #include <QImage>
+#include <QKeyEvent>
+#include <QWidget>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -59,6 +61,48 @@ int main(int argc, char *argv[])
 		std::cerr << "[render-check] " << grab.width() << "x" << grab.height()
 				  << " lit=" << lit << " paintMs=" << paintMs << std::endl;
 		grab.save("/tmp/ned_qt_grab.png");
+		return 0;
+	}
+
+	// Test hook: reproduce the user's project-open flow without GUI
+	// driving — open workspace + file, then measure input latency.
+	if (qEnvironmentVariableIsSet("NED_QT_WORKSPACE"))
+	{
+		window.openWorkspace(QString::fromUtf8(qgetenv("NED_QT_WORKSPACE")));
+		window.openPath(QString::fromUtf8(qgetenv("NED_QT_FILE")), true);
+	}
+
+	// Synthetic interaction test: open editor, hammer keys, time latency.
+	if (qEnvironmentVariableIsSet("NED_QT_INTERACT"))
+	{
+		QWidget *editor = window.findChild<QWidget *>("__ned_editor");
+		if (!editor)
+		{
+			for (QWidget *w : window.findChildren<QWidget *>())
+				if (w->metaObject()->className() == QByteArray("QtEditorView"))
+				{
+					editor = w;
+					break;
+				}
+		}
+		if (editor)
+		{
+			editor->setFocus();
+			const auto t0 = std::chrono::steady_clock::now();
+			for (int i = 0; i < 100; ++i)
+			{
+				QApplication::postEvent(
+					editor,
+					new QKeyEvent(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, "x"));
+				app.processEvents(); // one full input->command->paint cycle
+			}
+			const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+								std::chrono::steady_clock::now() - t0)
+								.count();
+			std::cerr << "[interact] 100 keys in " << ms << "ms (" << ms / 100.0
+					  << "ms/key)" << std::endl;
+		} else
+			std::cerr << "[interact] no editor found" << std::endl;
 		return 0;
 	}
 

@@ -67,12 +67,28 @@ class QtEditorView : public QWidget
 	void revealCaret();
 	void showContextMenu(const QPoint &pos);
 
-	// Minimap (right strip): renders one 2px row per document line with
-	// syntax colors; click/drag scrolls. ImGui minimap_view parity.
+	// Minimap (right strip): density map like the ImGui backend — per-line
+	// colored runs (syntax spans dimmed), visible window only, continuous
+	// slider, click/drag/wheel scroll. Vertical scrollbar hides while the
+	// minimap is on.
 	bool minimapEnabled() const;
 	int minimapWidth() const;
 	void paintMinimap(QPainter &painter);
 	void minimapScrollTo(int y);
+
+	// Cached density runs for the visible window (rebuild on scroll window /
+	// edits / highlight gen / geometry change only).
+	struct MRun
+	{
+		qreal x, y, w, h;
+		QColor ink;
+	};
+	struct MinimapCache
+	{
+		QString key;
+		std::vector<MRun> runs;
+	};
+	MinimapCache minimapRuns;
 
 	bool wordWrapEnabled() const;
 	int textAreaWidth() const;
@@ -174,8 +190,6 @@ class QtEditorView : public QWidget
 	QIcon fileIcon;
 	bool dragging = false;
 	bool minimapDragging = false;
-	QString minimapCacheKey;
-	QPixmap minimapCache;
 
 	void paintTextRow(
 		QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft);

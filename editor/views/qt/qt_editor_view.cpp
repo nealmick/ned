@@ -332,75 +332,147 @@ void QtEditorView::paintMinimap(QPainter &painter)
 	const int mw = minimapWidth();
 	if (mw <= 0)
 		return;
+	const int x0 = width() - mw;
 
-	// The strip is cached; only the (cheap) viewport box paints per frame.
-	// Rebuild when document, colors, or geometry change — never per paint.
-	const int rows = state.lineCount();
-	QString key = QString("%1|%2|%3|%4")
-					  .arg(rows)
-					  .arg(highlight.visualGeneration())
-					  .arg(QString::fromStdString(state.path))
-					  .arg(height());
-	if (key != minimapCacheKey)
+	// Density model (ImGui minimap_view parity): ~2px rows, 1px cols,
+	// dots at 75% row height, colors dimmed to 72%.
+	const qreal rowH = 2.0;
+	const qreal charW = 1.0;
+	const qreal dotH = rowH * 0.75;
+	const qreal padX = 2.0;
+	const int stripTop = titleBarPx;
+	const qreal stripH = static_cast<qreal>(height() - stripTop);
+	const int maxCols = std::max(1, static_cast<int>((mw - 2 * padX) / charW));
+
+	// Visible-window strip math (mirrors makeStrip): fit rows in the
+	// strip, anchor so the slider position stays continuous with scroll.
+	const int lineCount = state.lineCount();
+	const int fit = std::max(1, static_cast<int>(stripH / rowH));
+	const int viewLines = visibleLines();
+	const qreal sliderH =
+		std::clamp(static_cast<qreal>(viewLines) * rowH, 4.0, stripH);
+	const qreal maxTop =
+		std::min(stripH - sliderH,
+				 std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
+	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
+	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
+	const qreal sliderTop = std::clamp(static_cast<qreal>(scrollBar->value()) * ratio,
+									   0.0, maxTop);
+	int startRow = 0;
+	int endRow = lineCount - 1;
+	if (lineCount > fit)
 	{
-		minimapCacheKey = key;
-		minimapCache = QPixmap(mw, std::max(1, height()));
-		minimapCache.fill(QColor(0x1a, 0x1a, 0x22));
+		startRow = std::clamp(
+			static_cast<int>(scrollBar->value() - sliderTop / rowH), 0,
+			lineCount - fit);
+		endRow = std::min(lineCount - 1, startRow + fit - 1);
+	}
 
-		QPainter mp(&minimapCache);
-		const qreal available = static_cast<qreal>(height() - titleBarPx);
-		qreal rowH = 2.0;
-		if (rows * rowH > available && rows > 0)
-			rowH = available / rows;
-
-		const QColor ink = toQColor(highlight.defaultTextColor());
-		const QColor dirtyInk(0x3f, 0xc1, 0x8c);
-		for (int row = 0; row < rows; ++row)
+	// Rebuild density runs only when the window/content/key changes.
+	QString key = QString("mm|%1|%2|%3|%4|%5")
+					  .arg(startRow)
+					  .arg(endRow)
+					  .arg(lineCount)
+					  .arg(highlight.visualGeneration())
+					  .arg(ops.generation());
+	if (key != minimapRuns.key)
+	{
+		minimapRuns.key = key;
+		minimapRuns.runs.clear();
+		constexpr qreal kDim = 0.72f;
+		const auto dim = [&](const NedColor &c) {
+			return QColor::fromRgbF(c.r * kDim, c.g * kDim, c.b * kDim);
+		};
+		std::string line;
+		for (int row = startRow; row <= endRow; ++row)
 		{
-			const qreal y = titleBarPx + row * rowH;
-			if (y > height())
-				break;
-			// Density from raw byte length (no tab expansion / allocation);
-			// color from the first syntax span when present, git-dirty green.
-			const int len = state.lineLength(row);
-			if (len <= 0)
-				continue;
+			const qreal y0 = stripTop + static_cast<qreal>(row - startRow) * rowH;
+			line = state.line(row);
 			const LineColorSpans &spans = highlight.spansForLine(row);
-			QColor rowInk = spans.empty()
-								? ink
-								: toQColor(highlight.colorForSlot(spans.front().slot));
-			if (git.isLineEdited(state.path, row + 1))
-				rowInk = dirtyInk;
-			mp.setPen(rowInk);
-			const qreal w = std::min<qreal>(len, mw - 6);
-			mp.drawLine(QPointF(3, y), QPointF(3 + w, y));
+			size_t sp = 0;
+			int runStart = -1;
+			QColor runInk;
+			const auto flush = [&](int col) {
+				if (runStart >= 0 && col > runStart)
+					minimapRuns.runs.push_back(
+						{x0 + padX + static_cast<qreal>(runStart) * charW, y0,
+						 static_cast<qreal>(col - runStart) * charW, dotH, runInk});
+				runStart = -1;
+			};
+			int col = 0;
+			for (int i = 0; i < static_cast<int>(line.size()) && col < maxCols;)
+			{
+				const int byte = i;
+				const unsigned char c = static_cast<unsigned char>(line[i++]);
+				if ((c & 0xC0) == 0x80)
+					continue;
+				if (c == '\t')
+				{
+					flush(col);
+					col = std::min(maxCols, col + (4 - col % 4));
+					continue;
+				}
+				if (c <= ' ')
+				{
+					flush(col);
+					++col;
+					continue;
+				}
+				while (sp < spans.size() && spans[sp].end <= byte)
+					++sp;
+				QColor ink = dim(highlight.defaultTextColor());
+				if (sp < spans.size() && spans[sp].start <= byte)
+					ink = dim(highlight.colorForSlot(spans[sp].slot));
+				if (runStart < 0 || ink != runInk)
+				{
+					flush(col);
+					runStart = col;
+					runInk = ink;
+				}
+				++col;
+			}
+			flush(col);
 		}
 	}
 
-	painter.drawPixmap(width() - mw, 0, minimapCache);
+	// Strip background + density runs (flat rect blits).
+	painter.fillRect(x0, 0, mw, height(), QColor(0x1a, 0x1a, 0x22));
+	painter.setPen(Qt::NoPen);
+	for (const MRun &r : minimapRuns.runs)
+	{
+		painter.setBrush(r.ink);
+		painter.drawRect(QRectF(r.x, r.y, r.w, r.h));
+	}
 
-	// Viewport indicator (live).
-	const qreal available = static_cast<qreal>(height() - titleBarPx);
-	qreal rowH = 2.0;
-	if (rows * rowH > available && rows > 0)
-		rowH = available / rows;
-	const qreal visH = visibleLines() * rowH;
-	const qreal visY = titleBarPx + scrollBar->value() * rowH;
-	painter.setPen(QColor(255, 255, 255, 40));
-	painter.setBrush(QColor(255, 255, 255, 25));
-	painter.drawRect(QRectF(width() - mw, visY, mw, visH));
+	// Continuous slider (viewport indicator).
+	painter.setPen(QColor(255, 255, 255, 36));
+	painter.setBrush(QColor(255, 255, 255, 26));
+	painter.drawRect(QRectF(x0, stripTop + sliderTop, mw, sliderH));
 }
+
 
 void QtEditorView::minimapScrollTo(int y)
 {
-	const int rows = state.lineCount();
-	if (rows <= 0)
+	// y -> target scroll line via the strip's slider mapping (continuous).
+	const qreal stripTop = titleBarPx;
+	const qreal stripH = static_cast<qreal>(height() - stripTop);
+	const qreal rowH = 2.0;
+	const int lineCount = state.lineCount();
+	const int fit = std::max(1, static_cast<int>(stripH / rowH));
+	const qreal sliderH =
+		std::clamp(static_cast<qreal>(visibleLines()) * rowH, 4.0, stripH);
+	const qreal maxTop =
+		std::min(stripH - sliderH,
+				 std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
+	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
+	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
+	if (ratio <= 0.0)
 		return;
-	qreal rowH = 2.0;
-	const qreal available = static_cast<qreal>(height() - titleBarPx);
-	if (rows * rowH > available)
-		rowH = available / rows;
-	const int target = static_cast<int>((y - titleBarPx) / rowH) - visibleLines() / 2;
+	const int target =
+		static_cast<int>((std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0,
+											 maxTop)) /
+						 ratio) -
+		visibleLines() / 2;
 	scrollBar->setValue(std::clamp(target, 0, maxScrollLine()));
 	update();
 }
@@ -413,10 +485,9 @@ void QtEditorView::minimapScrollTo(int y)
 void QtEditorView::revealCaret()
 {
 	const Selection &caret = viewState.selections[viewState.primaryIndex];
-	const int v = wordWrapEnabled()
-					  ? wrap.rowStartVisualLine(caret.headRow) +
-							wrap.segmentOf(caret.headRow, caret.headColumn)
-					  : caret.headRow;
+	const int v = wordWrapEnabled() ? wrap.rowStartVisualLine(caret.headRow) +
+										  wrap.segmentOf(caret.headRow, caret.headColumn)
+									: caret.headRow;
 	const int first = scrollBar->value();
 	const int visible = visibleLines();
 	if (v < first)
@@ -891,6 +962,8 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 void QtEditorView::resizeEvent(QResizeEvent *event)
 {
 	QWidget::resizeEvent(event);
+	// Minimap replaces the scrollbar when enabled (ImGui parity).
+	scrollBar->setVisible(!minimapEnabled());
 	refreshWrap();
 	if (findBar && findBar->isVisible())
 		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
@@ -904,6 +977,7 @@ void QtEditorView::resizeEvent(QResizeEvent *event)
 void QtEditorView::wheelEvent(QWheelEvent *event)
 {
 	// Trackpads report small pixel-ish deltas; mice report 120/notch.
+	// Over the minimap strip the wheel scrolls like the editor.
 	const int notches = event->angleDelta().y() / 40;
 	scrollBar->setValue(scrollBar->value() - notches);
 	update();

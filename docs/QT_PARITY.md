@@ -18,7 +18,7 @@ Status legend: ✅ verified by user · 🟡 partial (works, known gaps) ·
 | Scroll-follow caret | `revealCursor` every edit | 🟥 | `commands.requestEnsureVisible()` is a NO-OP in Qt — caret can leave the viewport while typing |
 | Word wrap | `WrapLayout` (shared) | 🟡 | shared engine wired; visual-line hit-testing incomplete (⚠️ segment not resolved from y) |
 | Gutter | line numbers, git tint + marks | 🟡 | wired; git tint shows only after workspace-root fix — needs user verify |
-| Minimap | full (drag, density) | 🟡 | strip + drag + viewport box; flat-color rows (no per-span colors yet) |
+| Minimap | full (drag, density) | 🟡 | density runs ported (per-span colors dimmed 72%, visible-window strip, continuous slider, wheel); scrollbar hides when minimap on — needs user verify |
 | Editor title bar | icon + path + git ±N | 🟡 | present; icon from ned SVG set |
 
 ## 2. Keyboard input
