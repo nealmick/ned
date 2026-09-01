@@ -108,3 +108,5 @@ Thumbs.db
 vcpkg/
 
 .zcode/
+.build-qt/
+.build-min/

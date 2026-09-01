@@ -25,6 +25,7 @@
 
 #include <cmath>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
@@ -472,6 +473,7 @@ void QtEditorView::buildRowGlyphs(int row, const RowText &rt)
 		entry.runs.push_back(run);
 		entry.colors.push_back(b.color);
 	}
+
 }
 
 void QtEditorView::paintTextRowGlyphs(

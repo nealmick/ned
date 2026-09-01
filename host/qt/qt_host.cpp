@@ -2,8 +2,8 @@
 
 #include "editor/services/highlight/highlight_service.h"
 #include "editor/views/qt/qt_editor_view.h"
-#include "editor/views/qt/qt_fonts.h"
 #include "editor/views/qt/qt_finder.h"
+#include "editor/views/qt/qt_fonts.h"
 #include "editor/views/qt/qt_settings_dialog.h"
 #include "editor/views/qt/qt_sidebar.h"
 #include "util/macos_window.h"
