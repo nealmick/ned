@@ -1033,8 +1033,8 @@ ColorRangeMap TreeSitter::highlightSnippet(const std::string &languageId,
 
 void TreeSitter::updateThemeColors()
 {
-	const ImVec4 fbText(0.85f, 0.85f, 0.85f, 1.0f);
-	const ImVec4 fbComment(0.5f, 0.5f, 0.5f, 1.0f);
+	const NedColor fbText(0.85f, 0.85f, 0.85f, 1.0f);
+	const NedColor fbComment(0.5f, 0.5f, 0.5f, 1.0f);
 	for (auto &s : cachedColors.slots)
 		s = fbText;
 	cachedColors[ThemeSlot::Comment] = fbComment;
@@ -1049,17 +1049,17 @@ void TreeSitter::updateThemeColors()
 		return;
 
 	auto &theme = settings->settings["themes"][themeName];
-	auto load = [&theme](const char *key, const ImVec4 &fb) -> ImVec4 {
+	auto load = [&theme](const char *key, const NedColor &fb) -> NedColor {
 		if (!theme.contains(key) || !theme[key].is_array() || theme[key].size() < 4)
 			return fb;
 		auto &a = theme[key];
-		return ImVec4(
+		return NedColor(
 			a[0].get<float>(), a[1].get<float>(), a[2].get<float>(), a[3].get<float>());
 	};
 
 	cachedColors[ThemeSlot::Text] = load("text", fbText);
 	cachedColors[ThemeSlot::Comment] = load("comment", fbComment);
-	const ImVec4 text = cachedColors[ThemeSlot::Text];
+	const NedColor text = cachedColors[ThemeSlot::Text];
 	cachedColors[ThemeSlot::Keyword] = load("keyword", text);
 	cachedColors[ThemeSlot::String] = load("string", text);
 	cachedColors[ThemeSlot::Number] = load("number", text);

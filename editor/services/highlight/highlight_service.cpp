@@ -52,12 +52,12 @@ void EditorHighlight::forceColorUpdate()
 	highlightContent();
 }
 
-ImVec4 EditorHighlight::defaultTextColor() const
+NedColor EditorHighlight::defaultTextColor() const
 {
 	return treeSitter.cachedColors[ThemeSlot::Text];
 }
 
-ImVec4 EditorHighlight::colorForSlot(ThemeSlot slot) const
+NedColor EditorHighlight::colorForSlot(ThemeSlot slot) const
 {
 	return treeSitter.cachedColors[slot];
 }

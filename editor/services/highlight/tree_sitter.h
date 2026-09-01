@@ -3,7 +3,7 @@
 #include "../../buffer/text_buffer.h"
 #include "../../editor_operations.h"
 #include "capture_map.h"
-#include "imgui.h"
+#include "../../platform/ned_types.h"
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -17,14 +17,14 @@ class Settings;
 // Syntax palette. Index is ThemeSlot; JSON keys are kThemeKeys.
 struct ThemeColors
 {
-	ImVec4 slots[static_cast<size_t>(ThemeSlot::Count)]{};
+	NedColor slots[static_cast<size_t>(ThemeSlot::Count)]{};
 
-	const ImVec4 &operator[](ThemeSlot slot) const
+	const NedColor &operator[](ThemeSlot slot) const
 	{
 		const auto i = static_cast<uint8_t>(slot);
 		return slots[i < static_cast<uint8_t>(ThemeSlot::Count) ? i : 0];
 	}
-	ImVec4 &operator[](ThemeSlot slot)
+	NedColor &operator[](ThemeSlot slot)
 	{
 		const auto i = static_cast<uint8_t>(slot);
 		return slots[i < static_cast<uint8_t>(ThemeSlot::Count) ? i : 0];

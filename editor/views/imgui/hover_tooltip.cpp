@@ -1,4 +1,5 @@
 #include "hover_tooltip.h"
+#include "ned_color_imgui.h"
 #include "../../editor_api.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/highlight/tree_sitter.h"
@@ -31,7 +32,7 @@ float drawCodeLine(const std::string &line, const LineColorSpans &spans, EditorA
 	}
 
 	ImDrawList *dl = ImGui::GetWindowDrawList();
-	const ImVec4 fallback = api.defaultTextColor();
+	const ImVec4 fallback = toImVec4(api.defaultTextColor());
 	float x = pos.x;
 	size_t spanIdx = 0;
 	int i = 0;
@@ -45,7 +46,7 @@ float drawCodeLine(const std::string &line, const LineColorSpans &spans, EditorA
 		int runEnd = n;
 		if (spanIdx < spans.size() && spans[spanIdx].start <= i)
 		{
-			color = api.syntaxColor(spans[spanIdx].slot);
+			color = toImVec4(api.syntaxColor(spans[spanIdx].slot));
 			runEnd = std::min(n, spans[spanIdx].end);
 		} else if (spanIdx < spans.size() && spans[spanIdx].start > i)
 		{
@@ -86,8 +87,8 @@ void drawCodeBlock(const HoverMdBlock &block, const ColorRangeMap &colors, Edito
 
 void drawProseLine(const std::string &line, EditorApi &api)
 {
-	const ImVec4 text = api.defaultTextColor();
-	const ImVec4 code = api.syntaxColor(ThemeSlot::String);
+	const ImVec4 text = toImVec4(api.defaultTextColor());
+	const ImVec4 code = toImVec4(api.syntaxColor(ThemeSlot::String));
 
 	std::string_view s = line;
 

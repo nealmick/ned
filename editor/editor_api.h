@@ -10,6 +10,7 @@
 #pragma once
 
 #include "editor_events.h"
+#include "platform/ned_types.h"
 #include "imgui.h"
 #include "services/highlight/capture_map.h"
 #include "util/hover_trigger.h"
@@ -42,8 +43,8 @@ class EditorApi
 	std::string line(int row) const;
 	int version() const;
 	const std::string &languageId() const;
-	ImVec4 defaultTextColor() const;
-	ImVec4 syntaxColor(ThemeSlot slot) const;
+	NedColor defaultTextColor() const;
+	NedColor syntaxColor(ThemeSlot slot) const;
 	void getCaret(int &row, int &column) const;
 
 	// --- Navigation actions (via Commands) ---

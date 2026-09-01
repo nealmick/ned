@@ -60,9 +60,9 @@ int EditorApi::version() const { return editor.state.version; }
 
 const std::string &EditorApi::languageId() const { return editor.state.languageId; }
 
-ImVec4 EditorApi::defaultTextColor() const { return editor.highlight.defaultTextColor(); }
+NedColor EditorApi::defaultTextColor() const { return editor.highlight.defaultTextColor(); }
 
-ImVec4 EditorApi::syntaxColor(ThemeSlot slot) const
+NedColor EditorApi::syntaxColor(ThemeSlot slot) const
 {
 	return editor.highlight.colorForSlot(slot);
 }

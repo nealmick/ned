@@ -8,7 +8,7 @@
 */
 
 #pragma once
-#include "imgui.h"
+#include "../../platform/ned_types.h"
 #include "span_map.h"
 #include "tree_sitter.h"
 #include <atomic>
@@ -41,8 +41,8 @@ class EditorHighlight
 	void poll();
 	static void startBackgroundPrewarm();
 
-	ImVec4 defaultTextColor() const;
-	ImVec4 colorForSlot(ThemeSlot slot) const;
+	NedColor defaultTextColor() const;
+	NedColor colorForSlot(ThemeSlot slot) const;
 	const LineColorSpans &spansForLine(int row) const;
 
 	// Bumps when span map or theme colors change — minimap/other caches key off this.

@@ -1,4 +1,5 @@
 #include "text_view.h"
+#include "ned_color_imgui.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
@@ -128,7 +129,7 @@ void TextView::renderVisibleLines() const
 	ImDrawList *draw = ImGui::GetWindowDrawList();
 	const ImU32 selCol = ImGui::ColorConvertFloat4ToU32(SELECTION_COLOR);
 	const ImU32 guideCol = ImGui::ColorConvertFloat4ToU32(WHITESPACE_GUIDE_COLOR);
-	const ImVec4 defaultColor = highlight->defaultTextColor();
+	const ImVec4 defaultColor = toImVec4(highlight->defaultTextColor());
 	const float originX = layout->textPos.x;
 	const float lineH = layout->lineHeight;
 	const float spaceWidth = EditorUtils::SpaceWidth();
@@ -210,7 +211,7 @@ void TextView::renderVisibleLines() const
 
 			ImVec4 color = defaultColor;
 			if (spanIdx < spans.size() && spans[spanIdx].start <= static_cast<int>(i))
-				color = highlight->colorForSlot(spans[spanIdx].slot);
+				color = toImVec4(highlight->colorForSlot(spans[spanIdx].slot));
 
 			const char *char_start = &line[i];
 			const char *char_end = char_start + 1;

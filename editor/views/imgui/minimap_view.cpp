@@ -8,6 +8,7 @@
 	frames replay a handful of rects. Slider still updates live with scroll.
 */
 #include "minimap_view.h"
+#include "ned_color_imgui.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/highlight/highlight_service.h"
@@ -114,7 +115,7 @@ void MinimapView::rebuildDensityCache(const CacheKey &key) const
 	constexpr size_t kSlotN = static_cast<size_t>(ThemeSlot::Count);
 	ImU32 slotInk[kSlotN];
 	for (size_t i = 0; i < kSlotN; ++i)
-		slotInk[i] = dimInk(highlight->colorForSlot(static_cast<ThemeSlot>(i)));
+		slotInk[i] = dimInk(toImVec4(highlight->colorForSlot(static_cast<ThemeSlot>(i))));
 
 	static thread_local std::string line;
 	// Density only paints maxCols columns; 4 bytes/col covers UTF-8.
@@ -264,7 +265,7 @@ void MinimapView::draw(const EditorViewState &view) const
 	ImGui::InvisibleButton("##mm", ImVec2(w, h));
 	ImDrawList *dl = ImGui::GetWindowDrawList();
 	const int maxCols = std::max(1, int((w - d.padX * 2.0f) / d.charW));
-	const ImU32 defInk = dimInk(highlight->defaultTextColor());
+	const ImU32 defInk = dimInk(toImVec4(highlight->defaultTextColor()));
 
 	const CacheKey key{state->version,
 					   highlight->visualGeneration(),
