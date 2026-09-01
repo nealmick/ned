@@ -48,7 +48,7 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 			showWelcome();
 	});
 	connect(sidebar, &QtFileSidebar::fileActivated, this,
-			[this](const QString &path) { openPath(path, false); });
+			[this](const QString &path) { openPath(path, true); });
 
 	// Global shortcuts (keybinds.json parity comes with the NedKey host layer).
 	auto *finderShortcut = new QShortcut(QKeySequence("Ctrl+P"), this);
@@ -81,10 +81,21 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		openWorkspace(QFileInfo(positional.first()).absolutePath());
 	}
 
-	applyNativeChrome();
+	chromeApplied = false;
 }
 
 NedQtHost::~NedQtHost() = default;
+
+void NedQtHost::showEvent(QShowEvent *event)
+{
+	QMainWindow::showEvent(event);
+	// winId()/NSWindow are only valid once the native window exists.
+	if (!chromeApplied)
+	{
+		chromeApplied = true;
+		applyNativeChrome();
+	}
+}
 
 void NedQtHost::openPath(const QString &path, bool focus)
 {

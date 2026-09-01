@@ -49,6 +49,7 @@ class QtEditorView : public QWidget
 	void inputMethodEvent(QInputMethodEvent *event) override;
 	QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 	void wheelEvent(QWheelEvent *event) override;
+	void resizeEvent(QResizeEvent *event) override;
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
@@ -80,6 +81,8 @@ class QtEditorView : public QWidget
 	// Presentation
 	QScrollBar *scrollBar = nullptr;
 	QTimer *blinkTimer = nullptr;
+	QTimer *serviceTimer = nullptr;
+	uint64_t lastVisualGen = 0;
 	bool caretVisible = true;
 	int lineHeightPx = 1;
 	int charWidthPx = 1;

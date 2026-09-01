@@ -1,6 +1,7 @@
 #include "qt_editor_view.h"
 
 #include "../../util/utf8.h"
+#include "../../../util/settings.h"
 #include "ned_color_qt.h"
 
 #include <QFontMetrics>
@@ -38,6 +39,20 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	scrollBar = new QScrollBar(Qt::Vertical, this);
 	connect(scrollBar, &QScrollBar::valueChanged, this,
 			[this](int) { update(); });
+
+	// Services (async tree-sitter, autosave) expect per-frame polling; the
+	// Qt backend has no frame loop, so a short timer drives them.
+	serviceTimer = new QTimer(this);
+	serviceTimer->setInterval(30);
+	connect(serviceTimer, &QTimer::timeout, this, [this] {
+		highlight.poll();
+		if (highlight.visualGeneration() != lastVisualGen)
+		{
+			lastVisualGen = highlight.visualGeneration();
+			update();
+		}
+	});
+	serviceTimer->start();
 
 	setFocusPolicy(Qt::StrongFocus);
 	setMouseTracking(true);
@@ -102,6 +117,8 @@ void QtEditorView::openFile(const QString &path)
 	viewState.setBoth(0, 0);
 	highlight.resetForDocument(static_cast<size_t>(state.lineCount()));
 	highlight.highlightContent();
+	lastVisualGen = highlight.visualGeneration();
+	scrollBar->setRange(0, maxScrollLine());
 	scrollBar->setValue(0);
 	update();
 }
@@ -136,7 +153,16 @@ int QtEditorView::columnAtX(int row, int x) const
 void QtEditorView::paintEvent(QPaintEvent *)
 {
 	QPainter painter(this);
-	painter.fillRect(rect(), QColor(0x1e, 0x1e, 0x1e));
+	// Background follows the active settings profile when present.
+	QColor background(0x1e, 0x1e, 0x1e);
+	if (appSettings.settings.contains("backgroundColor") &&
+		appSettings.settings["backgroundColor"].size() >= 3)
+	{
+		const auto &bg = appSettings.settings["backgroundColor"];
+		background = QColor::fromRgbF(bg[0].get<float>(), bg[1].get<float>(),
+									  bg[2].get<float>());
+	}
+	painter.fillRect(rect(), background);
 
 	const int firstRow = scrollBar->value();
 	const int rows = std::min(visibleLines() + 1,
@@ -296,10 +322,19 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	afterEdit();
 }
 
+void QtEditorView::resizeEvent(QResizeEvent *event)
+{
+	QWidget::resizeEvent(event);
+	scrollBar->setGeometry(width() - 14, 0, 14, height());
+	scrollBar->setPageStep(std::max(1, visibleLines() - 1));
+	scrollBar->setRange(0, maxScrollLine());
+}
+
 void QtEditorView::wheelEvent(QWheelEvent *event)
 {
-	const int steps = event->angleDelta().y() / 120;
-	scrollBar->setValue(scrollBar->value() - steps * 3);
+	// Trackpads report small pixel-ish deltas; mice report 120/notch.
+	const int notches = event->angleDelta().y() / 40;
+	scrollBar->setValue(scrollBar->value() - notches);
 	update();
 }
 

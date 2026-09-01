@@ -28,10 +28,12 @@ class NedQtHost : public QMainWindow
 	void openPath(const QString &path, bool focus);
 	void openWorkspace(const QString &root);
 	void showWelcome();
+	void showEvent(QShowEvent *event) override;
 	void refreshTabTitle(int index);
 
 	Settings settings;
 	QTabWidget *tabs = nullptr;
 	QtFileSidebar *sidebar = nullptr;
 	QString workspaceRoot;
+	bool chromeApplied = false;
 };

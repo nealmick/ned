@@ -1,16 +1,24 @@
 /*
 	File: host/qt/qt_mac_chrome.mm
-	Description: macOS chrome for the Qt host — applies the same NSWindow
-	treatment as the GLFW host (transparent title bar, vibrancy blur).
+	Description: macOS chrome for the Qt host. Deliberately gentler than
+	the GLFW path (configureMacOSNSWindow): no content-view reparenting
+	(that breaks QNSView responders and window dragging) and no ImGui
+	titlebar accessory buttons. Just a transparent title bar so the window
+	looks at home next to the ImGui build while keeping fully native drag,
+	traffic lights and title.
 */
 
 #import <Cocoa/Cocoa.h>
-#include "../../util/macos_window.h"
 
 void configureNedQtChrome(void *qtWinId, float opacity, bool blurEnabled)
 {
-	// Qt hands out the platform view (QNSView*), not the window.
+	(void)opacity;
+	(void)blurEnabled; // vibrancy needs content reparenting; deferred for Qt
 	NSView *view = reinterpret_cast<NSView *>(qtWinId);
 	if (NSWindow *nswindow = view.window)
-		configureMacOSNSWindow(nswindow, opacity, blurEnabled);
+	{
+		if (@available(macOS 11.0, *))
+			nswindow.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
+		nswindow.titlebarAppearsTransparent = YES;
+	}
 }
