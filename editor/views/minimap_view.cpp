@@ -84,8 +84,11 @@ Strip makeStrip(const EditorState &st,
 	} else
 	{
 		// Wrapped rows are >1 visual line — map the top scroll position to a row.
-		const int firstVisible = lay.wrap ? lay.wrap->yToRow(scrollY / elh).row
-										  : int(std::floor(scrollY / elh));
+		// Keep this continuous (no premature floor): quantizing firstVisible while
+		// sliderTop stays continuous makes their difference sawtooth, which shows
+		// up as a one-line jitter of the minimap during small scrolls.
+		const float firstVisible =
+			lay.wrap ? float(lay.wrap->yToRow(scrollY / elh).row) : scrollY / elh;
 		s.start =
 			std::clamp(int(firstVisible - s.sliderTop / d.lineH), 0, s.lineCount - fit);
 		s.end = std::min(s.lineCount - 1, s.start + fit - 1);
