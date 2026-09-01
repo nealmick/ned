@@ -484,10 +484,11 @@ void QtEditorView::minimapScrollTo(int y)
 	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
 	if (ratio <= 0.0)
 		return;
-	const int target =
-		static_cast<int>(
-			(std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0, maxTop)) / ratio) -
-		visibleLines() / 2;
+	// The strip maps slider-top positions; the clicked point becomes the
+	// viewport top directly (no centering offset — it undershot the bottom
+	// by visible/2 before, since clamp can't raise an undershot value).
+	const int target = static_cast<int>(
+		std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0, maxTop) / ratio);
 	scrollBar->setValue(std::clamp(target, 0, maxScrollLine()));
 	update();
 }
@@ -505,6 +506,17 @@ int QtEditorView::gitDirtyLineCount() const
 }
 
 std::string QtEditorView::gitChangesSummary() const { return git.currentGitChanges; }
+
+// Diagnostic: scroll via minimap at the very bottom; report resulting
+// position vs the maximum (interact test).
+void QtEditorView::debugMinimapBottom()
+{
+	scrollBar->setValue(0);
+	minimapScrollTo(height());
+	std::cerr << "[minimap] scrollTo(bottom) -> value=" << scrollBar->value()
+			  << " max=" << maxScrollLine() << " lines=" << state.lineCount()
+			  << " visible=" << visibleLines() << std::endl;
+}
 
 // Keep the caret inside the viewport after edits/navigation (ImGui:
 // EditorViewState::revealCursor). Wrap-aware via visual lines.
@@ -605,7 +617,9 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		const int row = firstRow + i;
 		const int y = titleBarPx + i * lineHeightPx;
 		if (row == primary.headRow)
-			painter.fillRect(0, y, width(), lineHeightPx, QColor(0x2a, 0x2a, 0x2a));
+			// Neutral gray line highlight: background lifted by luminance (no tint).
+			painter.fillRect(0, y, width(), lineHeightPx,
+							 background.lighter(118));
 
 		// Changed lines tint their number (green) like the ImGui gutter.
 		if (git.isLineEdited(state.path, row + 1))

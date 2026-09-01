@@ -70,7 +70,6 @@ inline QPalette palette(const Settings &s)
 	return p;
 }
 
-
 // Rounded styling throughout; all tabs keep identical geometry (the
 // active tab changes color, never size).
 inline QString styleSheet(const Settings &s)
@@ -111,7 +110,8 @@ inline QString styleSheet(const Settings &s)
 		QMenu { border-radius: 8px; background: %2; color: %3; }
 		QMenu::item { padding: 4px 24px 4px 12px; border-radius: 4px; }
 		QScrollBar:vertical, QScrollBar:horizontal { width: 0; height: 0; }
-	)").arg(bg, raised, ink, ink, accent);
+	)")
+		.arg(bg, raised, ink, ink, accent);
 }
 
 } // namespace NedQtTheme

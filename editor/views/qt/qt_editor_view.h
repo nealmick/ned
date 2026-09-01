@@ -58,6 +58,9 @@ class QtEditorView : public QWidget
 		update();
 	}
 
+	// Test hooks.
+	void debugMinimapBottom();
+
 	// Host-facing queries (tab titles, dedup by path).
 	EditorState &document() { return state; }
 	EditorViewState &viewport() { return viewState; }

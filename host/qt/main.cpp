@@ -102,6 +102,8 @@ int main(int argc, char *argv[])
 								.count();
 			std::cerr << "[interact] 100 keys in " << ms << "ms (" << ms / 100.0
 					  << "ms/key)" << std::endl;
+			if (auto *ed = qobject_cast<QtEditorView *>(editor))
+				ed->debugMinimapBottom();
 			// Git gutter check: after edits, dirty lines + summary must update.
 			if (auto *ed = qobject_cast<QtEditorView *>(editor))
 				std::cerr << "[interact] git dirty lines=" << ed->gitDirtyLineCount()
