@@ -68,6 +68,7 @@ QtFileFinder::QtFileFinder(const QString &root, QWidget *parent)
 	results->setMinimumSize(520, 260);
 	layout->addWidget(results);
 
+	input->installEventFilter(this);
 	connect(input, &QLineEdit::textChanged, this, &QtFileFinder::refilter);
 	connect(results, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
 		Q_EMIT fileSelected(item->data(Qt::UserRole).toString());
@@ -172,6 +173,23 @@ void QtFileFinder::refilter()
 		if (results->count() == 1)
 			results->setCurrentItem(item);
 	}
+}
+
+bool QtFileFinder::eventFilter(QObject *watched, QEvent *event)
+{
+	// Up/Down in the input move the list selection (no Tab needed).
+	if (watched == input && event->type() == QEvent::KeyPress)
+	{
+		auto *key = static_cast<QKeyEvent *>(event);
+		if (key->key() == Qt::Key_Down || key->key() == Qt::Key_Up)
+		{
+			const int dir = key->key() == Qt::Key_Down ? 1 : -1;
+			results->setCurrentRow(std::clamp(results->currentRow() + dir, 0,
+											   results->count() - 1));
+			return true;
+		}
+	}
+	return QDialog::eventFilter(watched, event);
 }
 
 void QtFileFinder::keyPressEvent(QKeyEvent *event)

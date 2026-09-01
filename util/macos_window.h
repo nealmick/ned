@@ -6,6 +6,9 @@ extern "C" {
 #endif
 void configureMacOSWindow(void *window, float initialOpacity, bool initialBlurEnabled);
 // Same configuration for any NSWindow (GLFW host, Qt host, ...).
+// Reparent-free chrome for non-GLFW hosts: title bar look + accessory
+// buttons without touching the content view (keeps host drag/responses).
+void configureMacOSNSWindowChrome(void *nsWindow, float opacity, bool blur);
 void configureMacOSNSWindow(void *nsWindow, float initialOpacity, bool initialBlurEnabled);
 void updateMacOSWindowProperties(float opacity, bool blurEnabled);
 void setupMacOSApplicationDelegate(void);

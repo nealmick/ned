@@ -7,6 +7,8 @@
 #include "editor/views/qt/qt_sidebar.h"
 #include "util/macos_window.h"
 
+#include <QDockWidget>
+
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDockWidget>
@@ -24,10 +26,23 @@
 extern void configureNedQtChrome(void *nsWindow, float opacity, bool blurEnabled);
 #endif
 
+namespace {
+NedQtHost *gQtHost = nullptr; // macOS titlebar accessory callbacks
+}
+
 NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 {
 	setWindowTitle("Ned Text Editor");
 	resize(1200, 750);
+
+	connect(this, &NedQtHost::sidebarToggleRequested, this, [this] {
+		for (QDockWidget *dock : findChildren<QDockWidget *>())
+			dock->setVisible(!dock->isVisible());
+	});
+	connect(this, &NedQtHost::settingsRequested, this, [this] {
+		QtSettingsDialog dialog(settings, this);
+		dialog.exec();
+	});
 
 	// Warm the async tree-sitter parser pool (ImGui host does this in
 	// Workbench::initialize) — without it highlighting never starts.
@@ -100,6 +115,13 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		openWorkspace(QFileInfo(positional.first()).absolutePath());
 	}
 
+	gQtHost = this;
+#ifdef __APPLE__
+	setMacOSTitlebarActions(
+		[] { if (gQtHost) Q_EMIT gQtHost->sidebarToggleRequested(); },
+		nullptr,
+		[] { if (gQtHost) Q_EMIT gQtHost->settingsRequested(); });
+#endif
 	chromeApplied = false;
 }
 

@@ -294,6 +294,30 @@ void configureMacOSNSWindow(void *nsWindow, float opacity, bool blurEnabled)
 	}
 }
 
+void configureMacOSNSWindowChrome(void *nsWindow, float opacity, bool blurEnabled)
+{
+	// Reparent-free variant for non-GLFW hosts (Qt): transparent title bar,
+	// hidden system title, SF-symbol accessory buttons and centered native
+	// title label — without touching the content view hierarchy, so the
+	// host toolkit keeps its responders and native window dragging.
+	(void)opacity;
+	(void)blurEnabled; // vibrancy needs the GLFW-style reparent; not applied here
+	NSWindow *nswindow = (NSWindow *)nsWindow;
+
+	nswindow.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+						 NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable |
+						 NSWindowStyleMaskFullSizeContentView;
+	nswindow.titlebarAppearsTransparent = YES;
+	nswindow.titleVisibility = NSWindowTitleHidden;
+	if (@available(macOS 11.0, *))
+		nswindow.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
+	nswindow.hasShadow = YES;
+
+	installTitlebarControls(nswindow);
+	installTitlebarTitle(nswindow);
+	[nswindow invalidateShadow];
+}
+
 void setMacOSTitlebarActions(MacTitlebarFn sidebar,
 							 MacTitlebarFn terminal,
 							 MacTitlebarFn settings)

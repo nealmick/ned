@@ -49,6 +49,11 @@ QtFindBar::QtFindBar(QtEditorView *view, QWidget *parent)
 		find(false);
 	});
 
+	setAutoFillBackground(true);
+	QPalette barPalette = palette();
+	barPalette.setColor(QPalette::Window, QColor(0x26, 0x26, 0x2e));
+	setPalette(barPalette);
+
 	hide();
 }
 

@@ -25,6 +25,7 @@ class NedQtHost : public QMainWindow
 
   private:
 	void applyNativeChrome();
+
 	void openPath(const QString &path, bool focus);
 	void openWorkspace(const QString &root);
 	void showWelcome();
@@ -32,6 +33,11 @@ class NedQtHost : public QMainWindow
 	void refreshTabTitle(int index);
 	void applyFontToEditors();
 
+	Q_SIGNALS:
+	void sidebarToggleRequested();
+	void settingsRequested();
+
+  private:
 	Settings settings;
 	QTabWidget *tabs = nullptr;
 	QtFileSidebar *sidebar = nullptr;

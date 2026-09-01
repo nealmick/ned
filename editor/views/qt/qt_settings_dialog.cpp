@@ -7,6 +7,8 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QSpinBox>
+
+#include <filesystem>
 #include <QVBoxLayout>
 
 QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
@@ -18,17 +20,26 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 	auto *layout = new QVBoxLayout(this);
 	auto *form = new QFormLayout();
 
+	// Profiles are files in the user config dir (same list as the ImGui
+	// settings window); switching reloads the whole profile.
 	themeBox = new QComboBox(this);
-	if (appSettings.settings.contains("themes") &&
-		appSettings.settings["themes"].is_object())
+	namespace fs = std::filesystem;
+	const fs::path configDir = Settings::getUserConfigDir();
+	std::error_code ec;
+	if (fs::is_directory(configDir, ec))
 	{
-		for (auto it = appSettings.settings["themes"].begin();
-			 it != appSettings.settings["themes"].end(); ++it)
-			themeBox->addItem(QString::fromStdString(it.key()));
+		for (const auto &entry : fs::directory_iterator(configDir, ec))
+		{
+			const std::string name = entry.path().filename().string();
+			if (name.ends_with(".json") && name != "keybinds.json" &&
+				name != "lsp.json" && name != "ned.json")
+				themeBox->addItem(QString::fromStdString(
+					name.substr(0, name.size() - 5)));
+		}
 	}
-	themeBox->setCurrentText(QString::fromStdString(
-		appSettings.settings.value("theme", std::string("default"))));
-	form->addRow("Theme", themeBox);
+	themeBox->addItem("default");
+	themeBox->setCurrentText(QString::fromStdString(appSettings.activeProfile()));
+	form->addRow("Profile", themeBox);
 
 	fontSizeBox = new QSpinBox(this);
 	fontSizeBox->setRange(8, 40);
@@ -55,7 +66,8 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 
 void QtSettingsDialog::save()
 {
-	appSettings.settings["theme"] = themeBox->currentText().toStdString();
+	if (themeBox->currentText() != QString::fromStdString(appSettings.activeProfile()))
+		appSettings.switchToProfile(themeBox->currentText().toStdString());
 	appSettings.settings["fontSize"] = fontSizeBox->value();
 	appSettings.settings["git_changed_lines"] = gitGutterBox->isChecked();
 	appSettings.saveSettings();

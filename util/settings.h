@@ -70,6 +70,8 @@ class Settings
 	void toggleSidebar();
 	void toggleTerminal();
 	void switchToProfile(const std::string &profileName);
+	// Active profile name (file stem of settingsPath), e.g. "tokyo".
+	std::string activeProfile() const;
 
   private:
 	friend class SettingsView;
