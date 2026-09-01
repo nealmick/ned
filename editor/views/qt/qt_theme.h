@@ -72,7 +72,7 @@ inline QPalette palette(const Settings &s)
 
 // Rounded styling throughout; all tabs keep identical geometry (the
 // active tab changes color, never size).
-inline QString styleSheet(const Settings &s)
+inline QString appStyleSheet(const Settings &s)
 {
 	const QString bg = background(s).name();
 	const QString raised = NedQtTheme::raised(background(s)).name();
@@ -115,6 +115,12 @@ inline QString styleSheet(const Settings &s)
 			outline: none;
 		}
 		QTreeWidget::item { border-radius: 5px; padding: 2px; }
+		/* Branch/indicator column: transparent in every state, else it
+		   paints its own hover box next to the item's (double hover). */
+		QTreeView::branch,
+		QTreeView::branch:hover,
+		QTreeView::branch:selected,
+		QTreeView::branch:has-children:hover { background: transparent; border: none; }
 		QTreeWidget::item:hover { background: rgba(255,255,255,0.06); }
 		QTreeWidget::item:selected { background: rgba(13,110,253,0.32); }
 		QListWidget::item { border-radius: 5px; padding: 3px 6px; }
@@ -132,7 +138,11 @@ inline QString styleSheet(const Settings &s)
 		QLabel { color: %3; background: transparent; }
 		QScrollBar:vertical, QScrollBar:horizontal { width: 0; height: 0; }
 		QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
-	)").arg(bg, raised, ink, ink, accent);
+	)")
+		// NOTE: the template no longer uses %1 — pass only %2..%5 in order,
+		// or QString::arg shifts every color by one (the dark-on-dark bug).
+		.arg(raised, ink, ink, accent);
+	(void)bg;
 }
 
 } // namespace NedQtTheme

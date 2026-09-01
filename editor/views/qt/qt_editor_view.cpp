@@ -618,8 +618,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		const int y = titleBarPx + i * lineHeightPx;
 		if (row == primary.headRow)
 			// Neutral gray line highlight: background lifted by luminance (no tint).
-			painter.fillRect(0, y, width(), lineHeightPx,
-							 background.lighter(118));
+			painter.fillRect(0, y, width(), lineHeightPx, background.lighter(118));
 
 		// Changed lines tint their number (green) like the ImGui gutter.
 		if (git.isLineEdited(state.path, row + 1))

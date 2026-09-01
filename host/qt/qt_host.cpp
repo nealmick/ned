@@ -69,6 +69,7 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	// macOS native style overrides palette roles with system colors.
 	QApplication::setStyle("Fusion");
 	QApplication::setPalette(NedQtTheme::palette(settings));
+	qApp->setStyleSheet(NedQtTheme::appStyleSheet(settings));
 
 	// Sidebar (hidden until a workspace opens).
 	sidebar = new QtFileSidebar(this);
@@ -249,6 +250,13 @@ void NedQtHost::openPath(const QString &path, bool focus)
 void NedQtHost::applyFontToEditors()
 {
 	QApplication::setPalette(NedQtTheme::palette(settings));
+	qApp->setStyleSheet(NedQtTheme::appStyleSheet(settings));
+	// Font size applies app-wide (tabs, sidebar, dialogs), like ImGui.
+	{
+		QFont appFont = QApplication::font();
+		appFont.setPointSize(static_cast<int>(settings.settings.value("fontSize", 13)));
+		QApplication::setFont(appFont);
+	}
 	{
 		const QColor bg = NedQtTheme::background(settings);
 		applyNedQtWindowColor(

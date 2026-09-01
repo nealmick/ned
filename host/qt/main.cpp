@@ -38,6 +38,10 @@ int main(int argc, char *argv[])
 		{
 			app.processEvents();
 			window.repaint();
+			if (qApp->styleSheet().isEmpty())
+			{
+				break;
+			}
 		}
 		const auto paintMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 								 std::chrono::steady_clock::now() - t0)
