@@ -151,8 +151,6 @@ void QtEditorView::setFontFromSettings()
 	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
 	cellWidth = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
 	// Glyph-run rendering needs a raw font at the real pixel size.
-	glyphFontKey++;
-	rowPixCache.clear();
 	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
 }
 
@@ -415,55 +413,10 @@ void QtEditorView::minimapScrollTo(int y)
 // Batched glyph rendering (ImGui draw-list parity): each visible row is
 // converted once into per-color-run QGlyphRuns on the monospace grid and
 // cached by edit generation — paints become a few drawGlyphRun calls.
-void QtEditorView::buildRowPix(int row, const RowText &rt)
-{
-	RowPix &entry = rowPixCache[row];
-	entry.gen = ops.generation() * 1000003ULL + glyphFontKey;
-
-	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
-	const int visEnd = rt.byteToVisual[std::clamp(state.lineLength(row), 0, lastByte)];
-	const qreal cw = charWidthF();
-	entry.widthPx = visEnd * cw;
-	if (visEnd <= 0)
-	{
-		entry.pixmap = QPixmap();
-		return;
-	}
-
-	const qreal dpr = devicePixelRatioF();
-	QPixmap pm(QSize(static_cast<int>(entry.widthPx + 4), lineHeightPx));
-	pm.setDevicePixelRatio(dpr);
-	pm.fill(Qt::transparent);
-
-	QPainter p(&pm);
-	p.setFont(font());
-	const LineColorSpans &spans = highlight.spansForLine(row);
-	QFontMetrics fm(font());
-
-	// Per-glyph at grid cells — font-engine-portable, runs once per change.
-	int vis = 0;
-	QColor ink = toQColor(highlight.defaultTextColor());
-	const auto flushTo = [&](int nextVis, QColor color) {
-		for (; vis < nextVis; ++vis)
-		{
-			p.setPen(color);
-			p.drawText(QRectF(vis * cw, 0, cw, lineHeightPx), Qt::AlignCenter,
-					   rt.expanded.mid(vis, 1));
-		}
-	};
-	for (const ColorSpan &span : spans)
-	{
-		const int sVis = rt.byteToVisual[std::clamp(span.start, 0, lastByte)];
-		const int eVis = rt.byteToVisual[std::clamp(span.end, 0, lastByte)];
-		if (sVis > vis)
-			flushTo(std::min(sVis, visEnd), ink);
-		ink = toQColor(highlight.colorForSlot(span.slot));
-		flushTo(std::min(eVis, visEnd), ink);
-	}
-	flushTo(visEnd, ink);
-	entry.pixmap = pm;
-}
-
+// Direct per-glyph painting on the monospace grid. Simple by design:
+// no glyph-run engines, no pixmap caches, nothing to go stale. Perf is
+// measured (render-check repaint timing) before any optimization is
+// allowed back in.
 void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
 								int toByte, qreal textLeft)
 {
@@ -474,26 +427,27 @@ void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
 	if (vTo <= vFrom)
 		return;
 
-	RowPix &entry = rowPixCache[row];
-	const uint64_t key = ops.generation() * 1000003ULL + glyphFontKey;
-	if (entry.gen != key || entry.pixmap.devicePixelRatio() != devicePixelRatioF())
-		buildRowPix(row, rt);
-	if (entry.pixmap.isNull())
-		return;
+	const qreal cw = charWidthF();
+	const LineColorSpans &spans = highlight.spansForLine(row);
+	QColor ink = toQColor(highlight.defaultTextColor());
 
-	if (vFrom > 0 || vTo < static_cast<int>(rt.expanded.size()))
+	int vis = vFrom;
+	const auto flushTo = [&](int nextVis, const QColor &color) {
+		painter.setPen(color);
+		for (; vis < nextVis; ++vis)
+			painter.drawText(QRectF(textLeft + vis * cw, y, cw, lineHeightPx),
+							 Qt::AlignCenter, rt.expanded.mid(vis, 1));
+	};
+	for (const ColorSpan &span : spans)
 	{
-		// Wrapped segment: clip to the visual range, shift to the edge.
-		painter.save();
-		painter.setClipRect(QRectF(textLeft, y, (vTo - vFrom) * charWidthF() + 2,
-								   lineHeightPx),
-							Qt::IntersectClip);
-		painter.drawPixmap(QPointF(textLeft - vFrom * charWidthF(), y),
-						   entry.pixmap);
-		painter.restore();
-		return;
+		const int sVis = rt.byteToVisual[std::clamp(span.start, 0, lastByte)];
+		const int eVis = rt.byteToVisual[std::clamp(span.end, 0, lastByte)];
+		if (sVis > vis)
+			flushTo(std::min(sVis, vTo), ink);
+		ink = toQColor(highlight.colorForSlot(span.slot));
+		flushTo(std::min(eVis, vTo), ink);
 	}
-	painter.drawPixmap(QPointF(textLeft, y), entry.pixmap);
+	flushTo(vTo, ink);
 }
 
 

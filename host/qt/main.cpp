@@ -7,6 +7,7 @@
 
 #include <QApplication>
 #include <QImage>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 
@@ -29,11 +30,17 @@ int main(int argc, char *argv[])
 	// Usage: NED_QT_RENDER_CHECK=1 ned_qt <file>
 	if (qEnvironmentVariableIsSet("NED_QT_RENDER_CHECK"))
 	{
+		const auto t0 = std::chrono::steady_clock::now();
 		for (int i = 0; i < 20; ++i)
 		{
 			app.processEvents();
 			window.repaint();
 		}
+		const auto paintMs =
+			std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - t0)
+				.count() /
+			20.0;
 		const QImage grab = window.grab().toImage();
 		// Count pixels that differ from the editor background (corner):
 		// gutter numbers, text glyphs, caret, minimap strip.
@@ -51,7 +58,7 @@ int main(int argc, char *argv[])
 					++lit;
 			}
 		std::cerr << "[render-check] " << grab.width() << "x" << grab.height()
-				  << " lit=" << lit << std::endl;
+				  << " lit=" << lit << " paintMs=" << paintMs << std::endl;
 		grab.save("/tmp/ned_qt_grab.png");
 		return 0;
 	}
