@@ -151,9 +151,8 @@ void QtEditorView::setFontFromSettings()
 	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
 	cellWidth = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
 	// Glyph-run rendering needs a raw font at the real pixel size.
-	rawFont = QRawFont::fromFont(font);
 	glyphFontKey++;
-	rowGlyphCache.clear();
+	rowPixCache.clear();
 	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
 }
 
@@ -416,68 +415,57 @@ void QtEditorView::minimapScrollTo(int y)
 // Batched glyph rendering (ImGui draw-list parity): each visible row is
 // converted once into per-color-run QGlyphRuns on the monospace grid and
 // cached by edit generation — paints become a few drawGlyphRun calls.
-void QtEditorView::buildRowGlyphs(int row, const RowText &rt)
+void QtEditorView::buildRowPix(int row, const RowText &rt)
 {
-	RowGlyphs &entry = rowGlyphCache[row];
-	entry.gen = ops.generation();
-	entry.gen = entry.gen * 1000003ULL + glyphFontKey;
-	entry.runs.clear();
-	entry.colors.clear();
+	RowPix &entry = rowPixCache[row];
+	entry.gen = ops.generation() * 1000003ULL + glyphFontKey;
 
-	const QVector<quint32> indexes = rawFont.glyphIndexesForString(rt.expanded);
-	if (indexes.isEmpty())
-		return;
 	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
 	const int visEnd = rt.byteToVisual[std::clamp(state.lineLength(row), 0, lastByte)];
+	const qreal cw = charWidthF();
+	entry.widthPx = visEnd * cw;
 	if (visEnd <= 0)
-		return;
-
-	// Contiguous color blocks over visual columns.
-	const LineColorSpans &spans = highlight.spansForLine(row);
-	struct Block
 	{
-		int from, to;
-		NedColor color;
-	};
-	std::vector<Block> blocks;
+		entry.pixmap = QPixmap();
+		return;
+	}
+
+	const qreal dpr = devicePixelRatioF();
+	QPixmap pm(QSize(static_cast<int>(entry.widthPx + 4), lineHeightPx));
+	pm.setDevicePixelRatio(dpr);
+	pm.fill(Qt::transparent);
+
+	QPainter p(&pm);
+	p.setFont(font());
+	const LineColorSpans &spans = highlight.spansForLine(row);
+	QFontMetrics fm(font());
+
+	// Per-glyph at grid cells — font-engine-portable, runs once per change.
 	int vis = 0;
+	QColor ink = toQColor(highlight.defaultTextColor());
+	const auto flushTo = [&](int nextVis, QColor color) {
+		for (; vis < nextVis; ++vis)
+		{
+			p.setPen(color);
+			p.drawText(QRectF(vis * cw, 0, cw, lineHeightPx), Qt::AlignCenter,
+					   rt.expanded.mid(vis, 1));
+		}
+	};
 	for (const ColorSpan &span : spans)
 	{
 		const int sVis = rt.byteToVisual[std::clamp(span.start, 0, lastByte)];
 		const int eVis = rt.byteToVisual[std::clamp(span.end, 0, lastByte)];
 		if (sVis > vis)
-			blocks.push_back({vis, std::min(sVis, visEnd), highlight.defaultTextColor()});
-		blocks.push_back({std::min(sVis, visEnd),
-						  std::min(eVis, visEnd),
-						  highlight.colorForSlot(span.slot)});
-		vis = std::max(vis, eVis);
+			flushTo(std::min(sVis, visEnd), ink);
+		ink = toQColor(highlight.colorForSlot(span.slot));
+		flushTo(std::min(eVis, visEnd), ink);
 	}
-	if (vis < visEnd)
-		blocks.push_back({vis, visEnd, highlight.defaultTextColor()});
-
-	const qreal cw = charWidthF();
-	QFontMetricsF fm(font());
-	const qreal baseline =
-		(lineHeightPx - (fm.ascent() + fm.descent())) / 2.0 + fm.ascent();
-	for (const Block &b : blocks)
-	{
-		if (b.to <= b.from)
-			continue;
-		QVector<QPointF> positions;
-		positions.reserve(b.to - b.from);
-		for (int i = b.from; i < b.to; ++i)
-			positions.append(QPointF(i * cw, baseline));
-		QGlyphRun run;
-		run.setRawFont(rawFont);
-		run.setRawData(indexes.constData() + b.from, positions.constData(), b.to - b.from);
-		entry.runs.push_back(run);
-		entry.colors.push_back(b.color);
-	}
-
+	flushTo(visEnd, ink);
+	entry.pixmap = pm;
 }
 
-void QtEditorView::paintTextRowGlyphs(
-	QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft)
+void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
+								int toByte, qreal textLeft)
 {
 	const RowText rt = expandRow(row);
 	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
@@ -486,33 +474,28 @@ void QtEditorView::paintTextRowGlyphs(
 	if (vTo <= vFrom)
 		return;
 
-	RowGlyphs &entry = rowGlyphCache[row];
+	RowPix &entry = rowPixCache[row];
 	const uint64_t key = ops.generation() * 1000003ULL + glyphFontKey;
-	if (entry.gen != key)
-		buildRowGlyphs(row, rt);
+	if (entry.gen != key || entry.pixmap.devicePixelRatio() != devicePixelRatioF())
+		buildRowPix(row, rt);
+	if (entry.pixmap.isNull())
+		return;
 
-	// Wrapped segments clip to their visual range and shift to the edge.
 	if (vFrom > 0 || vTo < static_cast<int>(rt.expanded.size()))
 	{
+		// Wrapped segment: clip to the visual range, shift to the edge.
 		painter.save();
-		painter.setClipRect(
-			QRectF(textLeft, y, (vTo - vFrom) * charWidthF() + 2, lineHeightPx),
-			Qt::IntersectClip);
-		painter.translate(textLeft - vFrom * charWidthF(), y);
-		for (size_t i = 0; i < entry.runs.size(); ++i)
-		{
-			painter.setPen(toQColor(entry.colors[i]));
-			painter.drawGlyphRun(QPointF(0, 0), entry.runs[i]);
-		}
+		painter.setClipRect(QRectF(textLeft, y, (vTo - vFrom) * charWidthF() + 2,
+								   lineHeightPx),
+							Qt::IntersectClip);
+		painter.drawPixmap(QPointF(textLeft - vFrom * charWidthF(), y),
+						   entry.pixmap);
 		painter.restore();
 		return;
 	}
-	for (size_t i = 0; i < entry.runs.size(); ++i)
-	{
-		painter.setPen(toQColor(entry.colors[i]));
-		painter.drawGlyphRun(QPointF(textLeft, y), entry.runs[i]);
-	}
+	painter.drawPixmap(QPointF(textLeft, y), entry.pixmap);
 }
+
 
 void QtEditorView::paintEvent(QPaintEvent *)
 {
@@ -602,7 +585,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	const auto drawRowSegment = [&](int row, int y, int fromByte, int toByte) {
 		if (toByte <= fromByte)
 			return;
-		paintTextRowGlyphs(painter, row, y, fromByte, toByte, textLeft);
+		paintTextRow(painter, row, y, fromByte, toByte, textLeft);
 	};
 
 	if (wrapping)

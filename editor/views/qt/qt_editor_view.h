@@ -178,19 +178,20 @@ class QtEditorView : public QWidget
 	QString minimapCacheKey;
 	QPixmap minimapCache;
 
-	// Batched glyph rendering: one drawGlyphRun per color run (ImGui-style
-	// batching) instead of one text-engine drawText per character.
-	struct RowGlyphs
+	// Row-text cache: each row renders once into a device-ratio-aware
+	// pixmap (plain drawText per glyph — portable across platforms and
+	// font engines) and paints as a blit. Rebuilt only when the row's
+	// edit generation or the font changes.
+	struct RowPix
 	{
-		uint64_t gen = 0; // edit-generation + font key this was built for
-		std::vector<QGlyphRun> runs;
-		std::vector<NedColor> colors;
+		uint64_t gen = 0;
+		qreal widthPx = 0.0;
+		QPixmap pixmap;
 	};
-	std::map<int, RowGlyphs> rowGlyphCache;
-	QRawFont rawFont;
+	std::map<int, RowPix> rowPixCache;
 	uint64_t glyphFontKey = 0;
 
-	void buildRowGlyphs(int row, const RowText &rt);
-	void paintTextRowGlyphs(
-		QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft);
+	void buildRowPix(int row, const RowText &rt);
+	void paintTextRow(QPainter &painter, int row, int y, int fromByte,
+					  int toByte, qreal textLeft);
 };
