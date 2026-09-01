@@ -13,10 +13,12 @@ class FileExplorer;
 class LspImGuiView;
 struct ImGuiStyle;
 
+class Font;
+
 class SettingsView
 {
   public:
-	SettingsView(Settings &settings) : s(settings) {}
+	SettingsView(Settings &settings, Font &appFont) : s(settings), font(appFont) {}
 
 	// Reapply fonts/theme (fonts, style, editor colors). Returns true when
 	// fonts were reloaded (atlas may have been rebuilt).
@@ -28,6 +30,7 @@ class SettingsView
 
   private:
 	Settings &s;
+	Font &font;
 
 	void renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
 	void renderWindowHeader(EditorApi &api, FileExplorer &files);

@@ -249,6 +249,7 @@ set(APP_SOURCES
   host/imgui/main.cpp
   host/imgui/ned.cpp
   host/imgui/workbench.cpp
+  host/imgui/font.cpp
   host/imgui/settings_view.cpp
   host/imgui/welcome.cpp
 )
@@ -395,7 +396,6 @@ endif()
 set(NED_UTIL_SOURCES
   util/settings.cpp
   util/keybinds.cpp
-  util/font.cpp
   util/icons.cpp
   util/project_undo.cpp
 )
@@ -518,6 +518,7 @@ endif()
 add_library(ned_embed STATIC
   host/imgui/ned_embed.cpp
   host/imgui/workbench.cpp
+  host/imgui/font.cpp
   host/imgui/settings_view.cpp
   host/imgui/welcome.cpp
   ${EDITOR_SOURCES}

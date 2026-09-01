@@ -5,6 +5,7 @@
 */
 
 #include "settings_view.h"
+#include "font.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
 #include "../util/settings.h"
@@ -47,9 +48,9 @@ bool SettingsView::apply(bool force, EditorApi &api)
 			s.settingsPath = path;
 	}
 
-	s.font.setFont(s.settings.value("s.font", std::string("SourceCodePro-Regular")),
+	font.setFont(s.settings.value("font", std::string("SourceCodePro-Regular")),
 				   s.settings.value("fontSize", 20.0f));
-	s.font.load();
+	font.load();
 
 	ImGuiStyle &style = ImGui::GetStyle();
 	ApplySettings(style);
@@ -211,7 +212,7 @@ void SettingsView::renderSettingsWindow(EditorApi &api,
 				 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
 					 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
 					 ImGuiWindowFlags_Modal);
-	ImGui::PushFont(s.font.getMainFont());
+	ImGui::PushFont(font.getMainFont());
 	renderSettingsContent(api, files, lsp);
 	ImGui::PopFont();
 	ImGui::End();
@@ -388,15 +389,15 @@ void SettingsView::renderProfileSelector()
 void SettingsView::renderMainSettings()
 {
 	const std::string currentFont =
-		s.settings.value("s.font", std::string("SourceCodePro-Regular"));
+		s.settings.value("font", std::string("SourceCodePro-Regular"));
 	if (ImGui::BeginCombo("Font", displayFontName(currentFont).c_str()))
 	{
-		for (const auto &fontFile : s.font.availableFonts())
+		for (const auto &fontFile : font.availableFonts())
 		{
 			const bool selected = (fontFile == currentFont);
 			if (ImGui::Selectable(displayFontName(fontFile).c_str(), selected))
 			{
-				s.settings["s.font"] = fontFile;
+				s.settings["font"] = fontFile;
 				s.needsApply = true;
 				s.saveSettings();
 			}
@@ -671,7 +672,7 @@ void SettingsView::renderKeybindsSettings(FileExplorer &files, LspImGuiView &lsp
 	ImGui::Spacing();
 
 	const fs::path configDir = s.getUserConfigDir();
-	const std::string keybindsPath = (configDir / "s.keybinds.json").string();
+	const std::string keybindsPath = (configDir / "keybinds.json").string();
 	const std::string defaultKeybindsPath =
 		(configDir / "default-s.keybinds.json").string();
 

@@ -1060,7 +1060,7 @@ void Workbench::applySettings()
 	const float termScale = 1.0f;
 #endif
 	const float termPx =
-		settings.font.getFontSize() * (dpi > 0.0f ? dpi : 1.0f) * termScale;
+		font.getFontSize() * (dpi > 0.0f ? dpi : 1.0f) * termScale;
 	const bool resync = terminal.consumeNeedsFontResync();
 	const bool sizeChanged = ImAbs(terminal.configuredFontPx() - termPx) > 0.05f;
 	if (!terminal.isStarted())
@@ -1070,7 +1070,7 @@ void Workbench::applySettings()
 	} else if (settingsApplied || resync || sizeChanged)
 	{
 		terminal.reloadTerminalFonts(termPx);
-		settings.font.load(/*clearAtlas=*/false);
+		font.load(/*clearAtlas=*/false);
 	}
 }
 
@@ -1097,7 +1097,7 @@ void Workbench::render()
 	if (fileExplorer->fileFinder.showFFWindow)
 		fileExplorer->setEditorsBlockInput(true);
 
-	ImGui::PushFont(settings.font.getMainFont());
+	ImGui::PushFont(font.getMainFont());
 
 #ifdef _WIN32
 	if (mode_ == WorkbenchHostMode::Fullscreen)
@@ -1124,7 +1124,7 @@ void Workbench::render()
 	}
 
 	if (beginRootChrome())
-		renderDockedWorkspace(settings.font.getMainFont());
+		renderDockedWorkspace(font.getMainFont());
 	endRootChrome();
 
 	// Tab closes during renderDockedWorkspace may have destroyed the editor

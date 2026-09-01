@@ -17,6 +17,7 @@
 #include "util/icons.h"
 #include "util/ned_terminal.h"
 #include "util/project_undo.h"
+#include "font.h"
 #include "util/settings.h"
 
 #include <imgui.h>
@@ -48,7 +49,8 @@ class Workbench
 	EditorApi *activeApi();
 
 	Settings settings;
-	SettingsView settingsView{settings};
+	Font font;
+	SettingsView settingsView{settings, font};
 	std::string projectRoot;
 	Icons icons;
 	// Shared across all tabs — single JSON writer for the project.

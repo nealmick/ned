@@ -10,7 +10,6 @@
 #define NED_ENABLE_SHADERS 1
 #endif
 #include "../lib/json.hpp"
-#include "font.h"
 #include "imgui.h"
 #include "keybinds.h"
 #include <filesystem>
@@ -47,7 +46,6 @@ class Settings
 	void requestApply() { needsApply = true; }
 
 	KeybindsManager keybinds;
-	Font font;
 
 	bool showSettingsWindow = false;
 	// True for WorkbenchHostMode::Floating (embed). Fullscreen standalone leaves false.
