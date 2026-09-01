@@ -78,40 +78,61 @@ inline QString styleSheet(const Settings &s)
 	const QString raised = NedQtTheme::raised(background(s)).name();
 	const QString ink = text(s).name();
 	const QString accent = QStringLiteral("#0d6efd");
+	// Modern flat macOS styling: pill tabs with FIXED geometry (the
+	// selected tab changes color only), hairline borders, no bevels.
 	return QStringLiteral(R"(
-		QTabWidget::pane { border: none; }
+		QTabWidget::pane { border: none; border-top: 1px solid rgba(255,255,255,0.06); }
+		QTabBar { background: transparent; spacing: 2px; }
 		QTabBar::tab {
-			padding: 5px 12px;
-			border-top-left-radius: 6px;
-			border-top-right-radius: 6px;
-			background: transparent;
-			color: %4;
-		}
-		QTabBar::tab:selected { background: %2; }
-		QTabBar::tab:hover:!selected { background: rgba(255,255,255,0.06); }
-		QLineEdit, QSpinBox, QComboBox, QListWidget, QTreeWidget {
-			border: 1px solid rgba(255,255,255,0.10);
+			padding: 4px 12px;
+			min-height: 24px; max-height: 24px;
+			margin: 4px 1px 2px 1px;
+			border: none;
 			border-radius: 6px;
-			padding: 3px 6px;
-			background: %1;
+			background: rgba(255,255,255,0.045);
+			color: %3;
+		}
+		QTabBar::tab:selected { background: rgba(255,255,255,0.13); color: %4; }
+		QTabBar::tab:hover:!selected { background: rgba(255,255,255,0.08); }
+		QToolButton {
+			border: none; border-radius: 5px;
+			padding: 1px 5px;
+			background: transparent; color: %3;
+			font-size: 11px;
+		}
+		QToolButton:hover { background: rgba(255,255,255,0.14); }
+		QLineEdit, QSpinBox, QComboBox {
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 7px;
+			padding: 4px 8px;
+			background: rgba(255,255,255,0.04);
 			color: %3;
 			selection-background-color: %5;
 		}
-		QTreeWidget::item { border-radius: 4px; }
-		QTreeWidget::item:selected { background: rgba(13,110,253,0.35); }
-		QPushButton {
-			border: 1px solid rgba(255,255,255,0.12);
-			border-radius: 6px;
-			padding: 5px 14px;
-			background: %2;
-			color: %3;
+		QLineEdit:focus { border-color: %5; }
+		QTreeWidget, QListWidget, QTreeView, QListView {
+			border: none; background: transparent; color: %3;
+			outline: none;
 		}
-		QPushButton:hover { border-color: %5; }
-		QMenu { border-radius: 8px; background: %2; color: %3; }
-		QMenu::item { padding: 4px 24px 4px 12px; border-radius: 4px; }
+		QTreeWidget::item { border-radius: 5px; padding: 2px; }
+		QTreeWidget::item:hover { background: rgba(255,255,255,0.06); }
+		QTreeWidget::item:selected { background: rgba(13,110,253,0.32); }
+		QListWidget::item { border-radius: 5px; padding: 3px 6px; }
+		QListWidget::item:selected { background: rgba(13,110,253,0.32); }
+		QPushButton {
+			border: none; border-radius: 7px;
+			padding: 6px 16px;
+			background: rgba(255,255,255,0.09); color: %3;
+		}
+		QPushButton:hover { background: rgba(255,255,255,0.15); }
+		QPushButton:pressed { background: rgba(255,255,255,0.22); }
+		QMenu { border: 1px solid rgba(255,255,255,0.08); border-radius: 9px; background: %2; color: %3; padding: 5px; }
+		QMenu::item { padding: 5px 26px 5px 14px; border-radius: 5px; }
+		QMenu::item:selected { background: rgba(13,110,253,0.4); }
+		QLabel { color: %3; background: transparent; }
 		QScrollBar:vertical, QScrollBar:horizontal { width: 0; height: 0; }
-	)")
-		.arg(bg, raised, ink, ink, accent);
+		QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
+	)").arg(bg, raised, ink, ink, accent);
 }
 
 } // namespace NedQtTheme

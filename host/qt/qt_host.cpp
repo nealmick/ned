@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QTabWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #ifdef __APPLE__
@@ -80,9 +81,28 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	addDockWidget(Qt::LeftDockWidgetArea, dock);
 
 	tabs = new QTabWidget(this);
-	tabs->setTabsClosable(true);
-	tabs->setDocumentMode(true);
+	// No documentMode: the native style ignores stylesheets and resizes the
+	// selected tab. The stylesheet fully owns tab geometry (uniform pills).
+	// Close ✕ shows on the ACTIVE tab only (managed below).
+	tabs->setTabsClosable(false);
 	setCentralWidget(tabs);
+	connect(tabs, &QTabWidget::currentChanged, this, [this](int current) {
+		for (int i = 0; i < tabs->count(); ++i)
+		{
+			if (i == current)
+			{
+				auto *close = new QToolButton(tabs);
+				close->setText(QStringLiteral("✕"));
+				close->setAutoRaise(true);
+				close->setCursor(Qt::PointingHandCursor);
+				connect(close, &QToolButton::clicked, this, [this, i] {
+					Q_EMIT tabs->tabCloseRequested(i);
+				});
+				tabs->tabBar()->setTabButton(i, QTabBar::RightSide, close);
+			} else
+				tabs->tabBar()->setTabButton(i, QTabBar::RightSide, nullptr);
+		}
+	});
 
 	connect(tabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
 		QWidget *page = tabs->widget(index);
