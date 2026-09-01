@@ -11,7 +11,11 @@
 #include <QElapsedTimer>
 #include <QIcon>
 #include <QPixmap>
+#include <QGlyphRun>
+#include <QRawFont>
 #include <QString>
+#include <map>
+#include <vector>
 #include <QWidget>
 
 class Settings;
@@ -173,4 +177,20 @@ class QtEditorView : public QWidget
 	bool minimapDragging = false;
 	QString minimapCacheKey;
 	QPixmap minimapCache;
+
+	// Batched glyph rendering: one drawGlyphRun per color run (ImGui-style
+	// batching) instead of one text-engine drawText per character.
+	struct RowGlyphs
+	{
+		uint64_t gen = 0; // edit-generation + font key this was built for
+		std::vector<QGlyphRun> runs;
+		std::vector<NedColor> colors;
+	};
+	std::map<int, RowGlyphs> rowGlyphCache;
+	QRawFont rawFont;
+	uint64_t glyphFontKey = 0;
+
+	void buildRowGlyphs(int row, const RowText &rt);
+	void paintTextRowGlyphs(QPainter &painter, int row, int y, int fromByte,
+							int toByte, qreal textLeft);
 };

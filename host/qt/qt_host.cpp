@@ -13,8 +13,8 @@
 #include <QCommandLineParser>
 #include <QDockWidget>
 #include <QFileDialog>
-#include <QFontDatabase>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -47,11 +47,9 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 
 	// Register ned's bundled fonts before editors load the profile family.
 	{
-		const QDir fontsDir(
-			QString::fromStdString(Settings::getAppResourcesPath()) +
-			"/resources/fonts");
-		for (const QString &file :
-			 fontsDir.entryList({"*.ttf", "*.otf"}, QDir::Files))
+		const QDir fontsDir(QString::fromStdString(Settings::getAppResourcesPath()) +
+							"/resources/fonts");
+		for (const QString &file : fontsDir.entryList({"*.ttf", "*.otf"}, QDir::Files))
 			QFontDatabase::addApplicationFont(fontsDir.filePath(file));
 	}
 
