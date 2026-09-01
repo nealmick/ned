@@ -9,14 +9,14 @@
 #pragma once
 
 #include <QElapsedTimer>
+#include <QGlyphRun>
 #include <QIcon>
 #include <QPixmap>
-#include <QGlyphRun>
 #include <QRawFont>
 #include <QString>
+#include <QWidget>
 #include <map>
 #include <vector>
-#include <QWidget>
 
 class Settings;
 
@@ -191,6 +191,6 @@ class QtEditorView : public QWidget
 	uint64_t glyphFontKey = 0;
 
 	void buildRowGlyphs(int row, const RowText &rt);
-	void paintTextRowGlyphs(QPainter &painter, int row, int y, int fromByte,
-							int toByte, qreal textLeft);
+	void paintTextRowGlyphs(
+		QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft);
 };

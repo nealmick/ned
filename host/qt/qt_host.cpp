@@ -286,6 +286,12 @@ void NedQtHost::showWelcome()
 
 void NedQtHost::applyNativeChrome()
 {
+#if defined(__APPLE__)
+	// Only the cocoa platform hands out NSView winIds (offscreen/other
+	// platforms would be garbage pointers).
+	if (QGuiApplication::platformName() != "cocoa")
+		return;
+#endif
 #ifdef __APPLE__
 	// Same treatment as the GLFW host: transparent title bar, vibrancy
 	// blur behind, and the content extending under the title bar.

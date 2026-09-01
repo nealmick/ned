@@ -6,6 +6,7 @@
 #include "../../../util/settings.h"
 #include "ned_color_qt.h"
 #include "qt_find_bar.h"
+#include <QFontInfo>
 #include <QFontMetricsF>
 
 #include <QMenu>
@@ -145,6 +146,10 @@ void QtEditorView::setFontFromSettings()
 	lineHeightPx = metrics.height();
 	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
 	cellWidth = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
+	// Glyph-run rendering needs a raw font at the real pixel size.
+	rawFont = QRawFont::fromFont(font);
+	glyphFontKey++;
+	rowGlyphCache.clear();
 	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
 }
 
@@ -437,9 +442,9 @@ void QtEditorView::buildRowGlyphs(int row, const RowText &rt)
 		const int sVis = rt.byteToVisual[std::clamp(span.start, 0, lastByte)];
 		const int eVis = rt.byteToVisual[std::clamp(span.end, 0, lastByte)];
 		if (sVis > vis)
-			blocks.push_back(
-				{vis, std::min(sVis, visEnd), highlight.defaultTextColor()});
-		blocks.push_back({std::min(sVis, visEnd), std::min(eVis, visEnd),
+			blocks.push_back({vis, std::min(sVis, visEnd), highlight.defaultTextColor()});
+		blocks.push_back({std::min(sVis, visEnd),
+						  std::min(eVis, visEnd),
 						  highlight.colorForSlot(span.slot)});
 		vis = std::max(vis, eVis);
 	}
@@ -460,15 +465,14 @@ void QtEditorView::buildRowGlyphs(int row, const RowText &rt)
 			positions.append(QPointF(i * cw, baseline));
 		QGlyphRun run;
 		run.setRawFont(rawFont);
-		run.setRawData(indexes.constData() + b.from, positions.constData(),
-					   b.to - b.from);
+		run.setRawData(indexes.constData() + b.from, positions.constData(), b.to - b.from);
 		entry.runs.push_back(run);
 		entry.colors.push_back(b.color);
 	}
 }
 
-void QtEditorView::paintTextRowGlyphs(QPainter &painter, int row, int y,
-									   int fromByte, int toByte, qreal textLeft)
+void QtEditorView::paintTextRowGlyphs(
+	QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft)
 {
 	const RowText rt = expandRow(row);
 	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
@@ -486,9 +490,9 @@ void QtEditorView::paintTextRowGlyphs(QPainter &painter, int row, int y,
 	if (vFrom > 0 || vTo < static_cast<int>(rt.expanded.size()))
 	{
 		painter.save();
-		painter.setClipRect(QRectF(textLeft, y, (vTo - vFrom) * charWidthF() + 2,
-								   lineHeightPx),
-							Qt::IntersectClip);
+		painter.setClipRect(
+			QRectF(textLeft, y, (vTo - vFrom) * charWidthF() + 2, lineHeightPx),
+			Qt::IntersectClip);
 		painter.translate(textLeft - vFrom * charWidthF(), y);
 		for (size_t i = 0; i < entry.runs.size(); ++i)
 		{
@@ -504,7 +508,6 @@ void QtEditorView::paintTextRowGlyphs(QPainter &painter, int row, int y,
 		painter.drawGlyphRun(QPointF(textLeft, y), entry.runs[i]);
 	}
 }
-
 
 void QtEditorView::paintEvent(QPaintEvent *)
 {
