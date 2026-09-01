@@ -1,6 +1,6 @@
 #include "file_tree.h"
 #include "../editor/editor_api.h"
-#include "../editor/util/editor_utils.h"
+#include "../editor/util/text_columns.h"
 #include "../files/files.h"
 #include "../util/icons.h"
 #include "../util/settings.h"

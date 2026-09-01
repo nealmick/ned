@@ -8,7 +8,6 @@
 */
 #pragma once
 
-#include "imgui.h"
 #include "platform/ned_types.h"
 #include <optional>
 #include <vector>
@@ -154,7 +153,7 @@ class EditorViewState
 	void moveWordForward(Selection &sel);
 	void moveWordBackward(Selection &sel);
 
-	void updateBlinkTime();
+	void updateBlinkTime(double deltaTime);
 
 	// --- Viewport scroll ---
 	// Needs current ImGui editor child window active when applying.

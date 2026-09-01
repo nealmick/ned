@@ -12,6 +12,7 @@
 #include <QMainWindow>
 
 class QTabWidget;
+class QtEditorView;
 
 class NedQtHost : public QMainWindow
 {

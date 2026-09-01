@@ -240,7 +240,7 @@ float EditorFrame::contentWidth()
 
 void EditorFrame::updateLayoutMetrics()
 {
-	viewState->updateBlinkTime();
+	viewState->updateBlinkTime(ImGui::GetIO().DeltaTime);
 
 	layout.size = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
 	const float fs = ImGui::GetFontSize();

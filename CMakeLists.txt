@@ -264,6 +264,8 @@ endif()
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES "editor/*.cpp")
+# Qt backend views are compiled by the ned_qt target only (they need Qt).
+list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/views/qt/.*\\.cpp$")
 if(NED_ENABLE_GIT)
   # Drop stub if present so real implementation is the only TU.
   list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/git_service_stub\\.cpp$")
@@ -758,12 +760,15 @@ set(NED_CORE_SOURCES
   editor/buffer/text_buffer.cpp
   editor/editor_state.cpp
   editor/editor_operations.cpp
+  editor/editor_commands.cpp
   editor/editor_events.cpp
+  editor/editor_view_state.cpp
   editor/platform/ned_key.cpp
   editor/platform/clipboard.cpp
   editor/services/save_service.cpp
   editor/services/diagnostics/diagnostics_store.cpp
   editor/services/highlight/highlight_service.cpp
+  editor/services/highlight/span_map.cpp
   editor/services/highlight/tree_sitter.cpp
   editor/util/hover_markdown.cpp
   files/file_explorer_events.cpp
@@ -789,7 +794,7 @@ target_include_directories(ned_core PUBLIC
   ${TS_ROOT}/tree-sitter/lib/include
   ${TS_ROOT}/tree-sitter/lib/src
 )
-target_link_libraries(ned_core PUBLIC tree-sitter-lib)
+target_link_libraries(ned_core PUBLIC tree-sitter-lib ${TS_GRAMMAR_LIBS})
 if(NED_ENABLE_GIT)
   target_include_directories(ned_core PUBLIC lib/libgit2/include)
   target_link_libraries(ned_core PUBLIC libgit2)
@@ -813,8 +818,11 @@ if(NED_BUILD_QT)
     add_executable(ned_qt
       host/qt/main.cpp
       host/qt/qt_host.cpp
+      editor/views/qt/qt_editor_view.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
+    # Core headers use plain identifiers ("slots") that Qt defines as macros.
+    target_compile_definitions(ned_qt PRIVATE QT_NO_KEYWORDS)
     if(APPLE)
       target_sources(ned_qt PRIVATE host/qt/qt_mac_chrome.mm)
     endif()

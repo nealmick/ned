@@ -1,9 +1,12 @@
 #include "qt_host.h"
 
+#include "editor/views/qt/qt_editor_view.h"
 #include "util/macos_window.h"
 #include "util/settings.h"
 
 #include <QApplication>
+#include <QCommandLineParser>
+#include <QFileInfo>
 #include <QTabWidget>
 
 #ifdef __APPLE__
@@ -20,6 +23,25 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	tabs->setTabsClosable(true);
 	tabs->setDocumentMode(true);
 	setCentralWidget(tabs);
+
+	// Files from the command line; otherwise one untitled buffer.
+	QCommandLineParser args;
+	args.process(*QApplication::instance());
+	const QStringList positional = args.positionalArguments();
+	if (positional.isEmpty())
+	{
+		auto *editor = new QtEditorView(this);
+		editor->openFile(QString());
+		tabs->addTab(editor, "Untitled");
+	} else
+	{
+		for (const QString &path : positional)
+		{
+			auto *editor = new QtEditorView(this);
+			editor->openFile(path);
+			tabs->addTab(editor, QFileInfo(path).fileName());
+		}
+	}
 
 	applyNativeChrome();
 }

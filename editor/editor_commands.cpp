@@ -9,7 +9,7 @@
 #include "editor_view_state.h"
 #include "platform/clipboard.h"
 #include "services/save_service.h"
-#include "util/editor_utils.h"
+#include "util/text_columns.h"
 #include "util/project_undo.h"
 
 #include <algorithm>

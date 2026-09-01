@@ -1,5 +1,5 @@
 #include "span_map.h"
-#include "../../util/editor_utils.h"
+#include "../../util/text_columns.h"
 
 #include <algorithm>
 
