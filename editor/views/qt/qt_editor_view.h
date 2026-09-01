@@ -120,8 +120,15 @@ class QtEditorView : public QWidget
 	int visibleLines() const;
 	int maxScrollLine() const;
 	// Widget position -> (row, column). x snap uses the monospace advance.
+	// y -> row + wrap-segment start (byte column of the segment).
+	struct RowHit
+	{
+		int row = 0;
+		int segmentStart = 0;
+	};
+	RowHit hitTestY(int y) const;
 	int rowAtY(int y) const;
-	int columnAtX(int row, int x) const;
+	int columnAtX(int row, int x, int segmentStart = 0) const;
 	void setFontFromSettings();
 	void afterEdit();
 
@@ -150,7 +157,7 @@ class QtEditorView : public QWidget
 	uint64_t lastVisualGen = 0;
 	bool caretVisible = true;
 	int lineHeightPx = 1;
-	int charWidthPx = 1;
+	qreal cellWidth = 9.0;
 	int gutterWidthPx = 0;
 	int titleBarPx = 26;
 	QIcon fileIcon;

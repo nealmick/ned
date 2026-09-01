@@ -139,7 +139,7 @@ void QtEditorView::setFontFromSettings()
 	const QFontMetrics metrics(font);
 	lineHeightPx = metrics.height();
 	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
-	charWidthPx = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
+	cellWidth = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
 	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
 }
 
@@ -200,17 +200,11 @@ int QtEditorView::rowAtY(int y) const
 	return std::clamp(v, 0, std::max(0, state.lineCount() - 1));
 }
 
-int QtEditorView::columnAtX(int row, int x) const
+int QtEditorView::columnAtX(int row, int x, int segmentStart) const
 {
 	const int textX = x - gutterWidthPx;
 	if (textX <= 0)
-		return 0;
-	int segmentStart = 0;
-	if (wordWrapEnabled())
-	{
-		const int v = scrollBar->value() + 0; // segment resolved by caller
-		(void)v;
-	}
+		return segmentStart;
 	return std::clamp(byteColumnAtX(row, static_cast<qreal>(textX), segmentStart),
 					  0,
 					  state.lineLength(row));
@@ -220,7 +214,8 @@ int QtEditorView::columnAtX(int row, int x) const
 
 qreal QtEditorView::charWidthF() const
 {
-	return QFontMetricsF(font()).horizontalAdvance(QLatin1String("0000")) / 4.0;
+	// Cached at font-set time; the single width source for the whole view.
+	return cellWidth;
 }
 
 QtEditorView::RowText QtEditorView::expandRow(int row) const
@@ -302,6 +297,21 @@ void QtEditorView::refreshWrap()
 	else
 		wrap.invalidate();
 	scrollBar->setRange(0, maxScrollLine());
+}
+
+// y -> document row + wrap-segment start (byte column of the segment).
+QtEditorView::RowHit QtEditorView::hitTestY(int y) const
+{
+	const int v = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
+	if (wordWrapEnabled())
+	{
+		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+		RowHit out;
+		out.row = std::clamp(hit.row, 0, std::max(0, state.lineCount() - 1));
+		out.segmentStart = wrap.segmentStartColumn(out.row, hit.segment);
+		return out;
+	}
+	return {std::clamp(v, 0, std::max(0, state.lineCount() - 1)), 0};
 }
 
 void QtEditorView::paintEvent(QPaintEvent *)
@@ -481,8 +491,12 @@ void QtEditorView::paintEvent(QPaintEvent *)
 				const int toB =
 					(v == vEnd && row == er)
 						? ec
-						: (wrapping ? wrap.segmentStartColumn(row, wrap.segmentOf(row, 0))
-									: state.lineLength(row));
+						: (wrapping
+							   ? (wrap.segmentOf(row, 0) + 1 < wrap.segmentCount(row)
+									  ? wrap.segmentStartColumn(
+											row, wrap.segmentOf(row, 0) + 1)
+									  : state.lineLength(row))
+							   : state.lineLength(row));
 				const qreal x0 = textLeft + xAtByteColumn(row, fromB, fromB);
 				const qreal x1 = textLeft + xAtByteColumn(row, toB, fromB);
 				painter.drawRect(
@@ -790,8 +804,10 @@ void QtEditorView::mousePressEvent(QMouseEvent *event)
 	}
 	if (event->button() != Qt::LeftButton)
 		return;
-	const int row = rowAtY(static_cast<int>(event->position().y()));
-	const int column = columnAtX(row, static_cast<int>(event->position().x()));
+	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
+	const int row = hit.row;
+	const int column = columnAtX(row, static_cast<int>(event->position().x()),
+								 hit.segmentStart);
 	dragging = true;
 	caretVisible = true;
 	scheduleBlink();
@@ -811,9 +827,10 @@ void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
 {
 	if (event->button() != Qt::LeftButton)
 		return;
-	const int row = rowAtY(static_cast<int>(event->position().y()));
-	const int column = columnAtX(row, static_cast<int>(event->position().x()));
-	commands.selectWordAt(row, column);
+	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
+	const int column = columnAtX(hit.row, static_cast<int>(event->position().x()),
+								 hit.segmentStart);
+	commands.selectWordAt(hit.row, column);
 	update();
 }
 
@@ -833,9 +850,10 @@ void QtEditorView::mouseMoveEvent(QMouseEvent *event)
 {
 	if (!dragging)
 		return;
-	const int row = rowAtY(static_cast<int>(event->position().y()));
-	const int column = columnAtX(row, static_cast<int>(event->position().x()));
-	commands.setCursor(row, column, true);
+	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
+	const int column = columnAtX(hit.row, static_cast<int>(event->position().x()),
+								 hit.segmentStart);
+	commands.setCursor(hit.row, column, true);
 	update();
 }
 
