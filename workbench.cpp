@@ -549,7 +549,7 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 						  ImVec2(explorerWidth_, 0.0f),
 						  ImGuiChildFlags_None,
 						  ImGuiWindowFlags_NoScrollbar);
-		fileExplorer->renderFileExplorer(/*fill*/ -1.0f);
+		renderFileSidebar(*fileExplorer, /*fill*/ -1.0f);
 		ImGui::EndChild();
 
 		// Explicit vertical splitter (##ned_main_column used to sit on top of
@@ -1144,7 +1144,7 @@ void Workbench::render()
 		lspView->setHoverApi(hovered ? hovered->api : *api);
 		lspView->render();
 	}
-	fileExplorer->renderFileFinder();
+	renderFileFinder(fileExplorer->fileFinder);
 	renderOverlays(*api);
 
 	ImGui::PopFont();

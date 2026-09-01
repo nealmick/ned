@@ -1,6 +1,5 @@
 #pragma once
 
-#include "imgui.h"
 #include <atomic>
 #include <filesystem>
 #include <mutex>
@@ -37,9 +36,18 @@ class FileFinder
 
 	void startBackgroundThread();
 	void toggleWindow();
-	void renderWindow();
+
+	// Called by the UI layer (friend renderFileFinder) — logic, no widgets.
+	void commitSelection(); // Enter: open selected file, close
+	void cancelAndClose();	// Esc / click-outside: close without opening
+	void updateFilteredList();
 
   private:
+	friend void renderFileFinder(FileFinder &f);
+	friend void renderFileFinderHeader(FileFinder &f);
+	friend bool renderFileFinderSearchInput(FileFinder &f);
+	friend void renderFileFinderList(FileFinder &f);
+
 	static constexpr size_t INPUT_CAP = 256;
 	static constexpr int SCAN_INTERVAL_SEC = 3;
 
@@ -59,14 +67,4 @@ class FileFinder
 
 	void backgroundRefresh();
 	void refreshFileListBackground(const std::string &projectDir);
-	void updateFilteredList();
-
-	void commitSelection(); // Enter: open selected file, close
-	void cancelAndClose();	// Esc / click-outside: close without opening
-
-	void renderHeader();
-	bool renderSearchInput();
-	void renderFileList();
-
-	ImVec4 dimmedBackground() const;
 };

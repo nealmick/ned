@@ -9,7 +9,6 @@
 #include "file_explorer_events.h"
 #include "file_finder.h"
 #include "file_tree.h"
-#include "imgui.h"
 
 #include <filesystem>
 #include <functional>
@@ -60,6 +59,4 @@ class FileExplorer
 
 	void openFolderDialog();
 	bool handleFileDialog();
-	void renderFileExplorer(float explorerWidth);
-	void renderFileFinder();
 };

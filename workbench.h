@@ -8,6 +8,7 @@
 
 #include "editor/editor.h"
 #include "files/files.h"
+#include "editor/views/imgui/file_views.h"
 #include "editor/views/imgui/lsp_view.h"
 #include "editor/views/imgui/settings_view.h"
 #include "lsp/lsp_client.h"
