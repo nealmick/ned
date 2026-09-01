@@ -738,6 +738,49 @@ if(APPLE)
   )
 endif()
 
+
+# ================
+# ned_core: backend-neutral editor core. Compiled WITHOUT imgui on the
+# include path — this target is the enforcement gate: any new ImGui usage
+# in core files breaks this build. UI backends (host/imgui, host/qt) and
+# higher layers must not be added here.
+# ================
+set(NED_CORE_SOURCES
+  editor/buffer/text_buffer.cpp
+  editor/editor_state.cpp
+  editor/editor_operations.cpp
+  editor/editor_events.cpp
+  editor/services/save_service.cpp
+  editor/services/diagnostics/diagnostics_store.cpp
+  editor/views/hover_markdown.cpp
+  files/file_explorer_events.cpp
+  util/project_undo.cpp
+)
+if(NED_ENABLE_GIT)
+  # git_service.cpp reads Settings (which owns the ImGui-bound Font) — it
+  # joins ned_core in Phase 2 once Font leaves the Settings header.
+  list(APPEND NED_CORE_SOURCES
+    editor/services/git/git_repo.cpp
+    editor/services/git/line_diff.cpp
+  )
+else()
+  list(APPEND NED_CORE_SOURCES editor/services/git/git_service_stub.cpp)
+endif()
+add_library(ned_core STATIC ${NED_CORE_SOURCES})
+ned_apply_feature_defs(ned_core)
+target_include_directories(ned_core PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  editor
+  files
+  ${TS_ROOT}/tree-sitter/lib/include
+  ${TS_ROOT}/tree-sitter/lib/src
+)
+target_link_libraries(ned_core PUBLIC tree-sitter-lib)
+if(NED_ENABLE_GIT)
+  target_include_directories(ned_core PUBLIC lib/libgit2/include)
+  target_link_libraries(ned_core PUBLIC libgit2)
+endif()
+
 # ================
 # Resources
 # ================
