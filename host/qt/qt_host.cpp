@@ -27,6 +27,7 @@
 #ifdef __APPLE__
 // Defined in qt_mac_chrome.mm (ObjC++).
 extern void configureNedQtChrome(void *nsWindow, float opacity, bool blurEnabled);
+extern void applyNedQtWindowColor(void *nsWindow, float r, float g, float b);
 #endif
 
 namespace {
@@ -219,6 +220,11 @@ void NedQtHost::openPath(const QString &path, bool focus)
 void NedQtHost::applyFontToEditors()
 {
 	QApplication::setPalette(NedQtTheme::palette(settings));
+	{
+		const QColor bg = NedQtTheme::background(settings);
+		applyNedQtWindowColor(reinterpret_cast<void *>(winId()),
+							  bg.redF(), bg.greenF(), bg.blueF());
+	}
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
 			editor->applyProfileFont();
@@ -306,5 +312,10 @@ void NedQtHost::applyNativeChrome()
 	configureNedQtChrome(reinterpret_cast<void *>(winId()),
 						 settings.settings.value("mac_background_opacity", 0.5f),
 						 settings.settings.value("mac_blur_enabled", true));
+	{
+		const QColor bg = NedQtTheme::background(settings);
+		applyNedQtWindowColor(reinterpret_cast<void *>(winId()),
+							  bg.redF(), bg.greenF(), bg.blueF());
+	}
 #endif
 }
