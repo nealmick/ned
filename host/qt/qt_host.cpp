@@ -13,6 +13,7 @@
 #include <QCommandLineParser>
 #include <QDockWidget>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -43,6 +44,16 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		QtSettingsDialog dialog(settings, this);
 		dialog.exec();
 	});
+
+	// Register ned's bundled fonts before editors load the profile family.
+	{
+		const QDir fontsDir(
+			QString::fromStdString(Settings::getAppResourcesPath()) +
+			"/resources/fonts");
+		for (const QString &file :
+			 fontsDir.entryList({"*.ttf", "*.otf"}, QDir::Files))
+			QFontDatabase::addApplicationFont(fontsDir.filePath(file));
+	}
 
 	// Warm the async tree-sitter parser pool (ImGui host does this in
 	// Workbench::initialize) — without it highlighting never starts.

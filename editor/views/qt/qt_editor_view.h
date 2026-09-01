@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QIcon>
 #include <QPixmap>
+#include <QString>
 #include <QWidget>
 
 class Settings;
@@ -170,4 +171,6 @@ class QtEditorView : public QWidget
 	QIcon fileIcon;
 	bool dragging = false;
 	bool minimapDragging = false;
+	QString minimapCacheKey;
+	QPixmap minimapCache;
 };

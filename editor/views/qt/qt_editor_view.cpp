@@ -67,8 +67,13 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 			lastVisualGen = highlight.visualGeneration();
 			update();
 		}
-		// Blink at ~1.9 Hz; rainbow hue cycles continuously.
-		caretVisible = (blinkClock.elapsed() % 1060) < 530;
+		// Blink at ~1.9 Hz; repaint only when the caret flips visibility.
+		const bool next = (blinkClock.elapsed() % 1060) < 530;
+		if (next != caretVisible)
+		{
+			caretVisible = next;
+			update();
+		}
 	});
 	serviceTimer->start();
 
@@ -319,55 +324,72 @@ bool QtEditorView::minimapEnabled() const
 	return appSettings.settings.value("minimap", true);
 }
 
-int QtEditorView::minimapWidth() const
-{
-	return minimapEnabled() ? 70 : 0;
-}
+int QtEditorView::minimapWidth() const { return minimapEnabled() ? 70 : 0; }
 
 void QtEditorView::paintMinimap(QPainter &painter)
 {
 	const int mw = minimapWidth();
-	const int x0 = width() - mw;
 	if (mw <= 0)
 		return;
 
-	painter.fillRect(x0, 0, mw, height(), QColor(0x1a, 0x1a, 0x22));
-
-	// Fit the whole document: 2px per line, scaled down when huge.
+	// The strip is cached; only the (cheap) viewport box paints per frame.
+	// Rebuild when document, colors, or geometry change — never per paint.
 	const int rows = state.lineCount();
+	QString key = QString("%1|%2|%3|%4")
+					  .arg(rows)
+					  .arg(highlight.visualGeneration())
+					  .arg(QString::fromStdString(state.path))
+					  .arg(height());
+	if (key != minimapCacheKey)
+	{
+		minimapCacheKey = key;
+		minimapCache = QPixmap(mw, std::max(1, height()));
+		minimapCache.fill(QColor(0x1a, 0x1a, 0x22));
+
+		QPainter mp(&minimapCache);
+		const qreal available = static_cast<qreal>(height() - titleBarPx);
+		qreal rowH = 2.0;
+		if (rows * rowH > available && rows > 0)
+			rowH = available / rows;
+
+		const QColor ink = toQColor(highlight.defaultTextColor());
+		const QColor dirtyInk(0x3f, 0xc1, 0x8c);
+		for (int row = 0; row < rows; ++row)
+		{
+			const qreal y = titleBarPx + row * rowH;
+			if (y > height())
+				break;
+			// Density from raw byte length (no tab expansion / allocation);
+			// color from the first syntax span when present, git-dirty green.
+			const int len = state.lineLength(row);
+			if (len <= 0)
+				continue;
+			const LineColorSpans &spans = highlight.spansForLine(row);
+			QColor rowInk = spans.empty()
+								? ink
+								: toQColor(highlight.colorForSlot(spans.front().slot));
+			if (git.isLineEdited(state.path, row + 1))
+				rowInk = dirtyInk;
+			mp.setPen(rowInk);
+			const qreal w = std::min<qreal>(len, mw - 6);
+			mp.drawLine(QPointF(3, y), QPointF(3 + w, y));
+		}
+	}
+
+	painter.drawPixmap(width() - mw, 0, minimapCache);
+
+	// Viewport indicator (live).
 	const qreal available = static_cast<qreal>(height() - titleBarPx);
 	qreal rowH = 2.0;
 	if (rows * rowH > available && rows > 0)
 		rowH = available / rows;
-
-	const qreal cw = 1.0; // one pixel per visual column
-	for (int row = 0; row < rows; ++row)
-	{
-		const qreal y = titleBarPx + row * rowH;
-		if (y > height())
-			break;
-		const RowText rt = expandRow(row);
-		const int cols = static_cast<int>(
-			std::min<qsizetype>(rt.expanded.size(), mw - 6));
-		if (cols <= 0)
-			continue;
-
-		// One flat color per row: dominant = default ink; git-dirty rows
-		// use the gutter green (ImGui shows density + git state, not text).
-		const QColor ink = git.isLineEdited(state.path, row + 1)
-							   ? QColor(0x3f, 0xc1, 0x8c)
-							   : toQColor(highlight.defaultTextColor());
-		painter.setPen(ink);
-		painter.drawLine(QPointF(x0 + 3, y), QPointF(x0 + 3 + cols * cw, y));
-	}
-
-	// Viewport indicator.
 	const qreal visH = visibleLines() * rowH;
 	const qreal visY = titleBarPx + scrollBar->value() * rowH;
 	painter.setPen(QColor(255, 255, 255, 40));
 	painter.setBrush(QColor(255, 255, 255, 25));
-	painter.drawRect(QRectF(x0, visY, mw, visH));
+	painter.drawRect(QRectF(width() - mw, visY, mw, visH));
 }
+
 
 void QtEditorView::minimapScrollTo(int y)
 {
@@ -488,7 +510,8 @@ void QtEditorView::paintEvent(QPaintEvent *)
 			{
 				painter.setPen(ink);
 				painter.drawText(QRectF(textLeft + vis * cw, y, cw, lineHeightPx),
-								 Qt::AlignCenter, rt.expanded.mid(vis, 1));
+								 Qt::AlignCenter,
+								 rt.expanded.mid(vis, 1));
 			}
 		};
 		for (const ColorSpan &span : spans)
@@ -560,12 +583,11 @@ void QtEditorView::paintEvent(QPaintEvent *)
 				const int toB =
 					(v == vEnd && row == er)
 						? ec
-						: (wrapping
-							   ? (wrap.segmentOf(row, 0) + 1 < wrap.segmentCount(row)
-									  ? wrap.segmentStartColumn(
-											row, wrap.segmentOf(row, 0) + 1)
-									  : state.lineLength(row))
-							   : state.lineLength(row));
+						: (wrapping ? (wrap.segmentOf(row, 0) + 1 < wrap.segmentCount(row)
+										   ? wrap.segmentStartColumn(
+												 row, wrap.segmentOf(row, 0) + 1)
+										   : state.lineLength(row))
+									: state.lineLength(row));
 				const qreal x0 = textLeft + xAtByteColumn(row, fromB, fromB);
 				const qreal x1 = textLeft + xAtByteColumn(row, toB, fromB);
 				painter.drawRect(
@@ -883,8 +905,8 @@ void QtEditorView::mousePressEvent(QMouseEvent *event)
 		return;
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
 	const int row = hit.row;
-	const int column = columnAtX(row, static_cast<int>(event->position().x()),
-								 hit.segmentStart);
+	const int column =
+		columnAtX(row, static_cast<int>(event->position().x()), hit.segmentStart);
 	dragging = true;
 	caretVisible = true;
 	scheduleBlink();
@@ -905,8 +927,8 @@ void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
 	if (event->button() != Qt::LeftButton)
 		return;
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
-	const int column = columnAtX(hit.row, static_cast<int>(event->position().x()),
-								 hit.segmentStart);
+	const int column =
+		columnAtX(hit.row, static_cast<int>(event->position().x()), hit.segmentStart);
 	commands.selectWordAt(hit.row, column);
 	update();
 }
@@ -914,12 +936,29 @@ void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
 void QtEditorView::showContextMenu(const QPoint &pos)
 {
 	QMenu menu(this);
-	menu.addAction("Cut", [this] { commands.cut(); afterEdit(); }, QKeySequence("Ctrl+X"));
+	menu.addAction(
+		"Cut",
+		[this] {
+			commands.cut();
+			afterEdit();
+		},
+		QKeySequence("Ctrl+X"));
 	menu.addAction("Copy", [this] { commands.copy(); }, QKeySequence("Ctrl+C"));
-	menu.addAction("Paste", [this] { commands.paste(); afterEdit(); }, QKeySequence("Ctrl+V"));
+	menu.addAction(
+		"Paste",
+		[this] {
+			commands.paste();
+			afterEdit();
+		},
+		QKeySequence("Ctrl+V"));
 	menu.addSeparator();
-	menu.addAction("Select All", [this] { commands.selectAll(); update(); },
-				   QKeySequence("Ctrl+A"));
+	menu.addAction(
+		"Select All",
+		[this] {
+			commands.selectAll();
+			update();
+		},
+		QKeySequence("Ctrl+A"));
 	menu.exec(mapToGlobal(pos));
 }
 
@@ -933,8 +972,8 @@ void QtEditorView::mouseMoveEvent(QMouseEvent *event)
 	if (!dragging)
 		return;
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
-	const int column = columnAtX(hit.row, static_cast<int>(event->position().x()),
-								 hit.segmentStart);
+	const int column =
+		columnAtX(hit.row, static_cast<int>(event->position().x()), hit.segmentStart);
 	commands.setCursor(hit.row, column, true);
 	update();
 }
