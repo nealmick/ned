@@ -70,6 +70,8 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 	// Sidebar (hidden until a workspace opens).
 	sidebar = new QtFileSidebar(this);
 	auto *dock = new QDockWidget("Files", this);
+	// No dock title bar ("Files" strip) — tree flush like the ImGui sidebar.
+	dock->setTitleBarWidget(new QWidget(dock));
 	dock->setWidget(sidebar);
 	dock->setFeatures(QDockWidget::DockWidgetMovable);
 	dock->hide();
@@ -203,6 +205,7 @@ void NedQtHost::openPath(const QString &path, bool focus)
 	const QString tabName = path.isEmpty() ? QString("Untitled %1").arg(untitledCounter++)
 										   : QFileInfo(path).fileName();
 	const int index = tabs->addTab(editor, tabName);
+	tabs->tabBar()->setVisible(true);
 	connect(editor, &QtEditorView::documentEdited, this, [this, editor] {
 		refreshTabTitle(tabs->indexOf(editor));
 	});
@@ -286,6 +289,7 @@ void NedQtHost::showWelcome()
 
 	layout->addWidget(buttons);
 	tabs->addTab(welcome, "Welcome");
+	tabs->tabBar()->hide(); // welcome is a page, not a tab
 }
 
 void NedQtHost::applyNativeChrome()

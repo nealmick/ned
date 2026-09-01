@@ -380,7 +380,7 @@ void QtEditorView::paintMinimap(QPainter &painter)
 	}
 
 	// Rebuild density runs only when the window/content/key changes.
-	QString key = QString("mm|%1|%2|%3|%4|%5")
+	QString key = QString("mm|%1|%2|%3|%4|%5|%6")
 					  .arg(startRow)
 					  .arg(endRow)
 					  .arg(lineCount)
@@ -674,7 +674,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	};
 
 	painter.setPen(Qt::transparent);
-	painter.setBrush(QColor(255, 30, 170, 70));
+	painter.setBrush(QColor(0x0d, 0x6e, 0xfd, 90));
 	for (const Selection &sel : viewState.selections)
 	{
 		int sr, sc, er, ec;

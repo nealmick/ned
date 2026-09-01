@@ -63,7 +63,8 @@ inline QPalette palette(const Settings &s)
 	p.setColor(QPalette::ButtonText, ink);
 	p.setColor(QPalette::ToolTipBase, raised(bg));
 	p.setColor(QPalette::ToolTipText, ink);
-	p.setColor(QPalette::Highlight, QColor(255, 30, 170));
+	// Selection/accent: bootstrap-like blue (#0d6efd), softer for chrome.
+	p.setColor(QPalette::Highlight, QColor(0x0d, 0x6e, 0xfd));
 	p.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
 	p.setColor(QPalette::PlaceholderText, ink.darker(140));
 	return p;
