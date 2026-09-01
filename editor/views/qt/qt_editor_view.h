@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <QElapsedTimer>
 #include <QWidget>
 #include <QIcon>
 #include <QPixmap>
@@ -24,6 +25,8 @@ class Settings;
 #include "../../services/save_service.h"
 #include "../../../util/project_undo.h"
 
+class QElapsedTimer;
+class QLineEdit;
 class QScrollBar;
 class QTimer;
 class QtFindBar;
@@ -39,6 +42,9 @@ class QtEditorView : public QWidget
 	// Git gutter + status (shared service).
 	void openWorkspaceRoot(const std::string &root);
 
+	// Reload font + metrics from the settings profile.
+	void applyProfileFont() { setFontFromSettings(); update(); }
+
 	// Host-facing queries (tab titles, dedup by path).
 	EditorState &document() { return state; }
 	EditorViewState &viewport() { return viewState; }
@@ -49,6 +55,7 @@ class QtEditorView : public QWidget
 
 	// Find bar (Cmd/Ctrl+F).
 	void toggleFindBar();
+	bool rainbowMode() const;
 
 	// Go-to-line (Cmd/Ctrl+;).
 	void goToLineDialog();
@@ -72,6 +79,7 @@ class QtEditorView : public QWidget
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
+	bool eventFilter(QObject *watched, QEvent *event) override;
 	QSize sizeHint() const override;
 
   private:
@@ -102,6 +110,8 @@ class QtEditorView : public QWidget
 	QScrollBar *scrollBar = nullptr;
 	QTimer *blinkTimer = nullptr;
 	QTimer *serviceTimer = nullptr;
+	QElapsedTimer blinkClock;
+	QLineEdit *lineJumpInput = nullptr;
 	QtFindBar *findBar = nullptr;
 	uint64_t lastVisualGen = 0;
 	bool caretVisible = true;

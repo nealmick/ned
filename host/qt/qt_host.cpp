@@ -101,6 +101,12 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 			openPath(path, true);
 	});
 
+	// Force native window creation now so the titlebar chrome is in place
+	// before the first paint (no layout flash at open).
+	(void)winId();
+	applyNativeChrome();
+	chromeApplied = true;
+
 	// Files from the command line; otherwise welcome screen.
 	QCommandLineParser args;
 	args.process(*QApplication::instance());
@@ -128,16 +134,7 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 
 NedQtHost::~NedQtHost() = default;
 
-void NedQtHost::showEvent(QShowEvent *event)
-{
-	QMainWindow::showEvent(event);
-	// winId()/NSWindow are only valid once the native window exists.
-	if (!chromeApplied)
-	{
-		chromeApplied = true;
-		applyNativeChrome();
-	}
-}
+void NedQtHost::showEvent(QShowEvent *event) { QMainWindow::showEvent(event); }
 
 void NedQtHost::openPath(const QString &path, bool focus)
 {
@@ -154,7 +151,11 @@ void NedQtHost::openPath(const QString &path, bool focus)
 	}
 
 	auto *editor = new QtEditorView(settings, this);
+	// Git needs the workspace root before the document opens.
+	if (!workspaceRoot.isEmpty())
+		editor->openWorkspaceRoot(workspaceRoot.toStdString());
 	editor->openFile(path);
+	editor->setFocusPolicy(Qt::StrongFocus);
 	// Drop the welcome tab once a real document opens.
 	for (int i = 0; i < tabs->count(); ++i)
 		if (tabs->tabText(i) == "Welcome")
@@ -170,16 +171,17 @@ void NedQtHost::openPath(const QString &path, bool focus)
 	connect(editor, &QtEditorView::documentEdited, this,
 			[this, editor] { refreshTabTitle(tabs->indexOf(editor)); });
 	if (focus)
+	{
 		tabs->setCurrentIndex(index);
+		tabs->currentWidget()->setFocus(Qt::OtherFocusReason);
+	}
 }
 
 void NedQtHost::applyFontToEditors()
 {
-	// Font size comes from the shared profile; editors repaint with the
-	// service timer's next tick.
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
-			editor->update();
+			editor->applyProfileFont();
 }
 
 void NedQtHost::openWorkspace(const QString &root)

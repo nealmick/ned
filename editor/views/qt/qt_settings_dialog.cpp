@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QDir>
+#include <QFontDatabase>
 #include <QSpinBox>
 
 #include <filesystem>
@@ -41,10 +43,41 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 	themeBox->setCurrentText(QString::fromStdString(appSettings.activeProfile()));
 	form->addRow("Profile", themeBox);
 
+	// Bundled fonts (resources/fonts) registered into QFontDatabase.
+	fontBox = new QComboBox(this);
+	const QString fontsDir = QString::fromStdString(
+		Settings::getAppResourcesPath()) + "/resources/fonts";
+	QDir dir(fontsDir);
+	const QStringList fonts =
+		dir.entryList({"*.ttf", "*.otf"}, QDir::Files, QDir::Name);
+	QStringList families;
+	for (const QString &file : fonts)
+	{
+		const int id = QFontDatabase::addApplicationFont(dir.filePath(file));
+		if (id >= 0)
+		{
+			const QStringList fam =
+				QFontDatabase::applicationFontFamilies(id);
+			if (!fam.isEmpty())
+				families << fam.first();
+		}
+	}
+	families.removeDuplicates();
+	fontBox->addItem("System Default");
+	fontBox->addItems(families);
+	fontBox->setCurrentText(QString::fromStdString(
+		appSettings.settings.value("font", std::string("System Default"))));
+	form->addRow("Font", fontBox);
+
 	fontSizeBox = new QSpinBox(this);
 	fontSizeBox->setRange(8, 40);
 	fontSizeBox->setValue(appSettings.settings.value("fontSize", 13));
 	form->addRow("Font size", fontSizeBox);
+
+	minimapBox = new QCheckBox("Minimap (coming soon)", this);
+	minimapBox->setChecked(appSettings.settings.value("minimap", true));
+	minimapBox->setEnabled(false); // not yet ported
+	form->addRow("", minimapBox);
 
 	lineNumbersBox = new QCheckBox("Line numbers", this);
 	form->addRow("", lineNumbersBox);
@@ -76,7 +109,9 @@ void QtSettingsDialog::save()
 {
 	if (themeBox->currentText() != QString::fromStdString(appSettings.activeProfile()))
 		appSettings.switchToProfile(themeBox->currentText().toStdString());
+	appSettings.settings["font"] = fontBox->currentText().toStdString();
 	appSettings.settings["fontSize"] = fontSizeBox->value();
+	appSettings.settings["minimap"] = minimapBox->isChecked();
 	appSettings.settings["git_changed_lines"] = gitGutterBox->isChecked();
 	appSettings.settings["rainbow"] = rainbowBox->isChecked();
 	appSettings.settings["treesitter"] = treeSitterBox->isChecked();

@@ -32,4 +32,6 @@ class QtSettingsDialog : public QDialog
 	QCheckBox *gitGutterBox = nullptr;
 	QCheckBox *rainbowBox = nullptr;
 	QCheckBox *treeSitterBox = nullptr;
+	QCheckBox *minimapBox = nullptr;
+	QComboBox *fontBox = nullptr;
 };

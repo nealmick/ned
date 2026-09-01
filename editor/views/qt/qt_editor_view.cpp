@@ -31,10 +31,11 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 
 	blinkTimer = new QTimer(this);
 	blinkTimer->setInterval(530);
+	// Blink state is computed in the service timer; this timer restarts the
+	// blink phase whenever typing/moving keeps the caret "alive".
 	connect(blinkTimer, &QTimer::timeout, this, [this] {
-		caretVisible = !caretVisible;
-		++rainbowPhase;
-		update();
+		blinkClock.restart();
+		caretVisible = true;
 	});
 	blinkTimer->start();
 
@@ -42,10 +43,12 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	connect(scrollBar, &QScrollBar::valueChanged, this,
 			[this](int) { update(); });
 
-	// Services (async tree-sitter, autosave) expect per-frame polling; the
-	// Qt backend has no frame loop, so a short timer drives them.
+	// Services (async tree-sitter, autosave, git status) expect per-frame
+	// polling; the Qt backend has no frame loop, so a short timer drives
+	// them — plus smooth caret blink/rainbow animation.
 	serviceTimer = new QTimer(this);
 	serviceTimer->setInterval(30);
+	blinkClock.start();
 	connect(serviceTimer, &QTimer::timeout, this, [this] {
 		highlight.poll();
 		git.poll();
@@ -54,6 +57,11 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 			lastVisualGen = highlight.visualGeneration();
 			update();
 		}
+		// Blink at ~1.9 Hz; rainbow hue cycles continuously.
+		caretVisible = (blinkClock.elapsed() % 1060) < 530;
+		++rainbowPhase;
+		if (rainbowMode())
+			update();
 	});
 	serviceTimer->start();
 
@@ -98,17 +106,28 @@ void QtEditorView::openWorkspaceRoot(const std::string &root)
 
 void QtEditorView::setFontFromSettings()
 {
-	QFont font("Menlo"); // macOS monospace; falls back elsewhere
+	QFont font("Menlo"); // fallback; profile font wins when registered
 #ifdef _WIN32
 	font.setFamily("Consolas");
 #endif
+	// Profile font (registered from resources/fonts by the settings dialog).
+	const std::string profileFont =
+		appSettings.settings.value("font", std::string());
+	if (!profileFont.empty() && profileFont != "System Default")
+	{
+		font.setFamily(QString::fromStdString(profileFont));
+		font.setFixedPitch(true);
+	}
 	font.setStyleHint(QFont::Monospace);
-	font.setPointSize(13);
+	font.setFixedPitch(true);
+	font.setPointSize(
+		static_cast<int>(appSettings.settings.value("fontSize", 13)));
 	setFont(font);
 
 	const QFontMetrics metrics(font);
 	lineHeightPx = metrics.height();
-	charWidthPx = metrics.horizontalAdvance(' ');
+	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
+	charWidthPx = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
 	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
 }
 
@@ -228,7 +247,11 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		if (row == primary.headRow)
 			painter.fillRect(0, y, width(), lineHeightPx, QColor(0x2a, 0x2a, 0x2a));
 
-		painter.setPen(QColor(0x88, 0x88, 0x88));
+		// Changed lines tint their number (green) like the ImGui gutter.
+		if (git.isLineEdited(state.path, row + 1))
+			painter.setPen(QColor(0x3f, 0xc1, 0x8c));
+		else
+			painter.setPen(QColor(0x88, 0x88, 0x88));
 		painter.drawText(QRect(0, y, gutterWidthPx - 12, lineHeightPx),
 						 Qt::AlignVCenter | Qt::AlignRight,
 						 QString::number(row + 1));
@@ -258,14 +281,20 @@ void QtEditorView::paintEvent(QPaintEvent *)
 
 		int bytePos = 0;
 		QColor ink = defaultInk;
+		const QFontMetrics metrics = painter.fontMetrics();
 		const auto drawSegment = [&](int nextByte) {
 			if (nextByte <= bytePos)
 				return;
 			const QByteArray seg(text.data() + bytePos, nextByte - bytePos);
-			const int x = textLeft + bytePos * charWidthPx;
+			// x from the prefix advance so caret/selection/text agree exactly.
+			const int x = textLeft + metrics.horizontalAdvance(
+				QString::fromUtf8(text.data(), bytePos));
 			painter.setPen(ink);
-			painter.drawText(x, y, charWidthPx * seg.size(), lineHeightPx,
-							 Qt::AlignVCenter, QString::fromUtf8(seg));
+			painter.drawText(x, y, metrics.horizontalAdvance(
+									 QString::fromUtf8(text.data(), nextByte)) -
+										(x - textLeft),
+							 lineHeightPx, Qt::AlignVCenter,
+							 QString::fromUtf8(seg));
 			bytePos = nextByte;
 		};
 
@@ -303,13 +332,11 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		}
 	}
 
-	const bool rainbowMode =
-		appSettings.settings.value("rainbow", true);
-	if (rainbowMode || caretVisible)
+	if (rainbowMode() || caretVisible)
 	{
-		if (rainbowMode)
+		if (rainbowMode())
 		{
-			const float hue = std::fmod(rainbowPhase * 0.01f, 1.0f);
+			const float hue = std::fmod(blinkClock.elapsed() * 0.00025f, 1.0f);
 			painter.setPen(QColor::fromHsvF(hue, 0.85f, 1.0f));
 		} else
 		{
@@ -358,25 +385,63 @@ void QtEditorView::toggleFindBar()
 
 void QtEditorView::goToLineDialog()
 {
-	bool ok = false;
-	const int line = QInputDialog::getInt(this, "Go to Line",
-										  QString("Line (1 - %1):").arg(state.lineCount()),
-										  viewState.selections[viewState.primaryIndex].headRow + 1,
-										  1, state.lineCount(), 1, &ok);
-	if (!ok)
-		return;
-	commands.goToLine(line - 1); // commands API is 0-based
-	// Ensure the target is scrolled into view.
-	scrollBar->setValue(std::max(0, viewState.selections[viewState.primaryIndex].headRow -
-										  visibleLines() / 2));
-	caretVisible = true;
-	scheduleBlink();
-	update();
+	// In-editor overlay (ImGui parity): small floating input, same window.
+	if (!lineJumpInput)
+	{
+		lineJumpInput = new QLineEdit(this);
+		lineJumpInput->setPlaceholderText("Go to line…");
+		lineJumpInput->setFixedWidth(160);
+		lineJumpInput->setAutoFillBackground(true);
+		lineJumpInput->installEventFilter(this);
+	}
+	lineJumpInput->setText(QString::number(
+		viewState.selections[viewState.primaryIndex].headRow + 1));
+	lineJumpInput->show();
+	lineJumpInput->setFocus();
+	lineJumpInput->selectAll();
+}
+
+bool QtEditorView::eventFilter(QObject *watched, QEvent *event)
+{
+	if (watched == lineJumpInput && event->type() == QEvent::KeyPress)
+	{
+		auto *key = static_cast<QKeyEvent *>(event);
+		if (key->key() == Qt::Key_Escape)
+		{
+			lineJumpInput->hide();
+			setFocus();
+			return true;
+		}
+		if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+		{
+			const int line = lineJumpInput->text().toInt();
+			lineJumpInput->hide();
+			setFocus();
+			if (line >= 1 && line <= state.lineCount())
+			{
+				commands.goToLine(line - 1); // commands API is 0-based
+				scrollBar->setValue(std::max(
+					0, viewState.selections[viewState.primaryIndex].headRow -
+						   visibleLines() / 2));
+				scheduleBlink();
+				update();
+			}
+			return true;
+		}
+	}
+	return QWidget::eventFilter(watched, event);
 }
 
 void QtEditorView::scheduleBlink()
 {
+	blinkClock.restart();
+	caretVisible = true;
 	blinkTimer->start();
+}
+
+bool QtEditorView::rainbowMode() const
+{
+	return appSettings.settings.value("rainbow", true);
 }
 
 void QtEditorView::keyPressEvent(QKeyEvent *event)
@@ -457,6 +522,8 @@ void QtEditorView::resizeEvent(QResizeEvent *event)
 	QWidget::resizeEvent(event);
 	if (findBar && findBar->isVisible())
 		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
+	if (lineJumpInput && lineJumpInput->isVisible())
+		lineJumpInput->move(width() - lineJumpInput->width() - 24, titleBarPx + 6);
 	scrollBar->setGeometry(width() - 14, 0, 14, height());
 	scrollBar->setPageStep(std::max(1, visibleLines() - 1));
 	scrollBar->setRange(0, maxScrollLine());
