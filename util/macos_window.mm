@@ -202,8 +202,13 @@ static NEDAppDelegate *gAppDelegate = nil;
 
 void configureMacOSWindow(void *window, float opacity, bool blurEnabled)
 {
-	GLFWwindow *glfwWindow = (GLFWwindow *)window;
-	NSWindow *nswindow = glfwGetCocoaWindow(glfwWindow);
+	// GLFW wrapper: unwrap to NSWindow, then share the host-agnostic path.
+	configureMacOSNSWindow(glfwGetCocoaWindow((GLFWwindow *)window), opacity, blurEnabled);
+}
+
+void configureMacOSNSWindow(void *nsWindow, float opacity, bool blurEnabled)
+{
+	NSWindow *nswindow = (NSWindow *)nsWindow;
 
 	if (configuredWindow == nswindow)
 	{

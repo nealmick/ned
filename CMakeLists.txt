@@ -246,9 +246,9 @@ endforeach()
 # ================
 # Core application
 set(APP_SOURCES
-  main.cpp
-  ned.cpp
-  workbench.cpp
+  host/imgui/main.cpp
+  host/imgui/ned.cpp
+  host/imgui/workbench.cpp
 )
 if(NED_ENABLE_SHADERS)
   list(APPEND APP_SOURCES
@@ -517,8 +517,8 @@ endif()
 # Embeddable Library
 # ================
 add_library(ned_embed STATIC
-  ned_embed.cpp
-  workbench.cpp
+  host/imgui/ned_embed.cpp
+  host/imgui/workbench.cpp
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
   ${FILES_SOURCES}
