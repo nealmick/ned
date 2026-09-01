@@ -240,7 +240,7 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 	if (!settings.keybinds.loadKeybinds())
 		std::cerr << "Failed to load keybinds\n";
 
-	settings.apply(true, tabs_[0].editor->api);
+	settingsView.apply(true, tabs_[0].editor->api);
 	icons.load();
 
 	initialized_ = true;
@@ -1001,9 +1001,9 @@ void Workbench::endRootChrome()
 
 void Workbench::renderOverlays(EditorApi &api)
 {
-	settings.renderSettingsWindow(api, *fileExplorer, *lspView);
+	settingsView.renderSettingsWindow(api, *fileExplorer, *lspView);
 	lspView->dashboard.render();
-	settings.renderNotification("");
+	settingsView.renderNotification();
 }
 
 // ---------------------------------------------------------------------------
@@ -1039,7 +1039,7 @@ void Workbench::applySettings()
 	if (!api)
 		return;
 
-	const bool settingsApplied = settings.apply(false, *api);
+	const bool settingsApplied = settingsView.apply(false, *api);
 	if (settingsApplied)
 	{
 		for (auto &tab : tabs_)

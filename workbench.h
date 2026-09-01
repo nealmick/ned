@@ -9,12 +9,13 @@
 #include "editor/editor.h"
 #include "files/files.h"
 #include "editor/views/imgui/lsp_view.h"
+#include "editor/views/imgui/settings_view.h"
 #include "lsp/lsp_client.h"
 #include "util/icons.h"
 #include "util/ned_terminal.h"
 #include "util/project_undo.h"
 #include "util/settings.h"
-#include "util/welcome.h"
+#include "editor/views/imgui/welcome.h"
 
 #include <imgui.h>
 
@@ -45,6 +46,7 @@ class Workbench
 	EditorApi *activeApi();
 
 	Settings settings;
+	SettingsView settingsView{settings};
 	std::string projectRoot;
 	Icons icons;
 	// Shared across all tabs — single JSON writer for the project.

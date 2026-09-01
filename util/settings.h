@@ -45,10 +45,6 @@ class Settings
 	void saveSettings();
 	void checkSettingsFile(); // re-read profile if someone edited it on disk
 	void requestApply() { needsApply = true; }
-	// Returns true if fonts/style were reapplied (atlas may have been rebuilt).
-	bool apply(bool force, EditorApi &api);
-
-	void ApplySettings(ImGuiStyle &style);
 
 	KeybindsManager keybinds;
 	Font font;
@@ -65,40 +61,30 @@ class Settings
 	ImVec2 embeddedWindowSize{900.0f, 600.0f};
 	bool embeddedWindowCollapsed{false};
 
-	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
 	void toggleSettingsWindow(EditorApi &api);
+
+	// Notification toast state (drawn by the UI backend's SettingsView).
+	void showNotification(const std::string &message, float duration = 2.0f)
+	{
+		notificationText = message;
+		notificationTimer = duration;
+	}
 	void toggleSidebar();
 	void toggleTerminal();
 	void switchToProfile(const std::string &profileName);
-	void renderNotification(const std::string &message, float duration = 2.0f);
 
   private:
+	friend class SettingsView;
 	bool needsApply = false;
+	std::string notificationText;
+	float notificationTimer = 0.0f;
 	std::string settingsPath; // e.g. ~/ned/config/amber.json
 	fs::file_time_type diskTime = fs::file_time_type::min();
 
 	void touchDiskTime();
+	static bool loadBundledProfile(json &out, std::string &outPath);
 	std::vector<std::string> listProfiles() const;
 	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
 
-	void renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
-	void renderWindowHeader(EditorApi &api, FileExplorer &files);
-	void renderProfileSelector();
-	void renderMainSettings();
-	void renderMacSettings();
-	void renderSyntaxColors();
-	void renderToggleSettings();
-	void renderShaderSettings();
-	void renderShaderSlider(const char *label,
-							const char *key,
-							float min_val,
-							float max_val,
-							const char *format,
-							float default_val);
-	void renderKeybindsSettings(FileExplorer &files, LspImGuiView &lsp);
-	void handleWindowInput(EditorApi &api);
-	void applyImGuiStyles();
-	void closeSettingsWindow(EditorApi &api);
 
-	static std::string displayFontName(const std::string &fontFile);
 };

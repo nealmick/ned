@@ -83,7 +83,7 @@ bool KeybindsManager::loadKeybinds()
 			rebuildMap();
 			return false;
 		}
-		settings.renderNotification(
+		settings.showNotification(
 			"Error in keybinds.json\nLoaded default backup keybinds");
 	}
 

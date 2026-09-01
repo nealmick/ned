@@ -78,7 +78,7 @@ void LSPDashboard::render()
 
 			// Show notification with server count
 			std::string message = "LSP Servers: " + std::to_string(serverInfos.size());
-			settings->renderNotification(message, 2.0f);
+			settings->showNotification(message, 2.0f);
 		}
 
 		ImGui::SameLine();

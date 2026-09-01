@@ -396,7 +396,7 @@ endif()
 set(NED_UTIL_SOURCES
   util/settings.cpp
   util/keybinds.cpp
-  util/welcome.cpp
+  editor/views/imgui/welcome.cpp
   util/font.cpp
   util/icons.cpp
   util/project_undo.cpp

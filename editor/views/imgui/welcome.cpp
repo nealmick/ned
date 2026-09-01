@@ -1,14 +1,14 @@
 #include "welcome.h"
-#include "../files/files.h"
-#include "macos_window.h"
-#include "settings.h"
+#include "../../../files/files.h"
+#include "../../../util/macos_window.h"
+#include "../../../util/settings.h"
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
 
 // PNG loading with stb_image
 #define STB_IMAGE_IMPLEMENTATION
-#include "../lib/stb_image.h"
+#include "../../../lib/stb_image.h"
 
 namespace {
 ImVec4 colorFromJson(const json &color)
