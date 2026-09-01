@@ -23,6 +23,7 @@
 #include <QTimer>
 #include <QWheelEvent>
 
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -417,8 +418,8 @@ void QtEditorView::minimapScrollTo(int y)
 // no glyph-run engines, no pixmap caches, nothing to go stale. Perf is
 // measured (render-check repaint timing) before any optimization is
 // allowed back in.
-void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
-								int toByte, qreal textLeft)
+void QtEditorView::paintTextRow(
+	QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft)
 {
 	const RowText rt = expandRow(row);
 	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
@@ -436,7 +437,8 @@ void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
 		painter.setPen(color);
 		for (; vis < nextVis; ++vis)
 			painter.drawText(QRectF(textLeft + vis * cw, y, cw, lineHeightPx),
-							 Qt::AlignCenter, rt.expanded.mid(vis, 1));
+							 Qt::AlignCenter,
+							 rt.expanded.mid(vis, 1));
 	};
 	for (const ColorSpan &span : spans)
 	{
@@ -449,7 +451,6 @@ void QtEditorView::paintTextRow(QPainter &painter, int row, int y, int fromByte,
 	}
 	flushTo(vTo, ink);
 }
-
 
 void QtEditorView::paintEvent(QPaintEvent *)
 {

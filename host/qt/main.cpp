@@ -36,11 +36,10 @@ int main(int argc, char *argv[])
 			app.processEvents();
 			window.repaint();
 		}
-		const auto paintMs =
-			std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::steady_clock::now() - t0)
-				.count() /
-			20.0;
+		const auto paintMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+								 std::chrono::steady_clock::now() - t0)
+								 .count() /
+							 20.0;
 		const QImage grab = window.grab().toImage();
 		// Count pixels that differ from the editor background (corner):
 		// gutter numbers, text glyphs, caret, minimap strip.

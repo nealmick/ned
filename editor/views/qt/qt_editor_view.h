@@ -178,6 +178,6 @@ class QtEditorView : public QWidget
 	QString minimapCacheKey;
 	QPixmap minimapCache;
 
-	void paintTextRow(QPainter &painter, int row, int y, int fromByte,
-					  int toByte, qreal textLeft);
+	void paintTextRow(
+		QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft);
 };
