@@ -772,6 +772,7 @@ set(NED_CORE_SOURCES
   editor/services/highlight/tree_sitter.cpp
   editor/util/hover_markdown.cpp
   files/file_explorer_events.cpp
+  files/file_tree.cpp
   util/keybinds.cpp
   util/settings.cpp
   util/project_undo.cpp
@@ -819,6 +820,8 @@ if(NED_BUILD_QT)
       host/qt/main.cpp
       host/qt/qt_host.cpp
       editor/views/qt/qt_editor_view.cpp
+      editor/views/qt/qt_finder.cpp
+      editor/views/qt/qt_sidebar.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
     # Core headers use plain identifiers ("slots") that Qt defines as macros.

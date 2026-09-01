@@ -14,9 +14,10 @@
 #include <fstream>
 #include <sstream>
 
-QtEditorView::QtEditorView(QWidget *parent)
-	: QWidget(parent), projectUndo(projectRoot), state(), events(), ops(state),
-	  viewState(state), save(state, events), highlight(state, ops), commands(
+QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
+	: QWidget(parent), appSettings(settings), projectUndo(projectRoot), state(),
+	  events(), ops(state), viewState(state), save(state, events),
+	  highlight(state, ops, &settings), commands(
 																			  state,
 																			  viewState,
 																			  ops,
@@ -43,6 +44,26 @@ QtEditorView::QtEditorView(QWidget *parent)
 }
 
 QtEditorView::~QtEditorView() = default;
+
+void QtEditorView::inputMethodEvent(QInputMethodEvent *event)
+{
+	// IME preedit renders inline as hollow text; commit goes through the
+	// normal typing path (CJK input, dead keys, dictation).
+	if (!event->commitString().isEmpty())
+	{
+		commands.typeText(event->commitString().toUtf8().constData());
+		afterEdit();
+	}
+	setAttribute(Qt::WA_InputMethodEnabled);
+	update();
+}
+
+QVariant QtEditorView::inputMethodQuery(Qt::InputMethodQuery query) const
+{
+	if (query == Qt::ImEnabled)
+		return true;
+	return QWidget::inputMethodQuery(query);
+}
 
 void QtEditorView::setFontFromSettings()
 {
@@ -221,6 +242,7 @@ void QtEditorView::afterEdit()
 	caretVisible = true;
 	scheduleBlink();
 	update();
+	Q_EMIT documentEdited();
 }
 
 void QtEditorView::scheduleBlink()

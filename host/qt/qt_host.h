@@ -1,18 +1,19 @@
 /*
 	File: host/qt/qt_host.h
 	Description: Qt application shell — native QMainWindow host for the ned
-	core. Owns window lifecycle and the NSWindow chrome on macOS; editor
-	surface views (editor/views/qt/) attach to the central widget area.
+	core. Owns window lifecycle, tabs, sidebar, finder and the NSWindow
+	chrome on macOS; editor surface lives in editor/views/qt/.
 */
 
 #pragma once
 
-#include <memory>
+#include "util/settings.h"
 
 #include <QMainWindow>
 
 class QTabWidget;
 class QtEditorView;
+class QtFileSidebar;
 
 class NedQtHost : public QMainWindow
 {
@@ -24,6 +25,13 @@ class NedQtHost : public QMainWindow
 
   private:
 	void applyNativeChrome();
+	void openPath(const QString &path, bool focus);
+	void openWorkspace(const QString &root);
+	void showWelcome();
+	void refreshTabTitle(int index);
 
+	Settings settings;
 	QTabWidget *tabs = nullptr;
+	QtFileSidebar *sidebar = nullptr;
+	QString workspaceRoot;
 };

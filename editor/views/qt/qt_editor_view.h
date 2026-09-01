@@ -10,6 +10,8 @@
 
 #include <QWidget>
 
+class Settings;
+
 #include "../../editor_commands.h"
 #include "../../editor_events.h"
 #include "../../editor_operations.h"
@@ -27,15 +29,25 @@ class QtEditorView : public QWidget
 	Q_OBJECT
 
   public:
-	explicit QtEditorView(QWidget *parent = nullptr);
+	explicit QtEditorView(Settings &appSettings, QWidget *parent = nullptr);
 	~QtEditorView() override;
+
+	// Host-facing queries (tab titles, dedup by path).
+	QString filePath() const { return QString::fromStdString(state.path); }
+	bool isDirty() const { return state.dirty; }
 
 	// Load a file into the document (empty path = untitled buffer).
 	void openFile(const QString &path);
 
+	// Emitted after edits (host refreshes tab title dirty marker).
+	Q_SIGNALS:
+	void documentEdited();
+
   protected:
 	void paintEvent(QPaintEvent *event) override;
 	void keyPressEvent(QKeyEvent *event) override;
+	void inputMethodEvent(QInputMethodEvent *event) override;
+	QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 	void wheelEvent(QWheelEvent *event) override;
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
@@ -51,6 +63,8 @@ class QtEditorView : public QWidget
 	int columnAtX(int row, int x) const;
 	void setFontFromSettings();
 	void afterEdit();
+
+	Settings &appSettings;
 
 	// Document core — same composition as the ImGui Editor / test fixture.
 	std::string projectRoot = ".";
