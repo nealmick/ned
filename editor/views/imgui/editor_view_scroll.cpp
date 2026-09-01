@@ -7,7 +7,7 @@
 
 #include "../../editor_state.h"
 #include "../../util/editor_utils.h"
-#include "wrap_layout.h"
+#include "../wrap_layout.h"
 #include "../../views/view_layout.h"
 #include "../../editor_view_state.h"
 

@@ -74,11 +74,6 @@ inline float SpaceWidth()
 	return GlyphAdvance(kSpace, kSpace + 1);
 }
 
-inline float TabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = kTabSize)
-{
-	const int nextTab = ((visualColumn / tabSize) + 1) * tabSize;
-	return static_cast<float>(nextTab - visualColumn) * spaceWidth;
-}
 
 // Width of one glyph (or tab) at drawX relative to text origin.
 inline float MeasureGlyphWidth(const char *start,

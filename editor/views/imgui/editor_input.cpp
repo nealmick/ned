@@ -10,7 +10,7 @@
 #include "../../util/editor_utils.h"
 #include "../view_layout.h"
 #include "util/project_undo.h"
-#include "wrap_layout.h"
+#include "../wrap_layout.h"
 
 #include <algorithm>
 #include <string>

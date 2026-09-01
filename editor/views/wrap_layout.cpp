@@ -4,10 +4,11 @@
 */
 
 #include "wrap_layout.h"
-#include "../../editor_state.h"
-#include "../../util/editor_utils.h"
+#include "../editor_state.h"
+#include "../util/text_columns.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cfloat>
 #include <cmath>
 
@@ -41,24 +42,28 @@ void WrapLayout::noteEdit(int lo, int hi)
 	}
 }
 
+WrapLayout::GlyphWidthFn WrapLayout::glyphWidth;
+WrapLayout::GlyphWidthFn WrapLayout::spaceWidth;
+
 void WrapLayout::ensure(const EditorState &state, float wrapWidth)
 {
-	const float fs = ImGui::GetFontSize();
 	const int n = state.lineCount();
 
 	// Width hysteresis: a full re-wrap is O(document); rebuild only when the
 	// width moved by more than ~half a glyph (sub-glyph drift during a resize
 	// drag just shifts wrap points imperceptibly instead of re-measuring).
-	const float widthEps = std::max(2.0f, fs * 0.5f);
+	const float glyphScale = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
+	const float widthEps = std::max(2.0f, glyphScale * 0.5f);
 
-	if (!valid || std::abs(width - wrapWidth) > widthEps || fontKey != fs || lines != n)
+	if (!valid || std::abs(width - wrapWidth) > widthEps || fontKey != glyphScale ||
+		lines != n)
 	{
 		breaks.assign(static_cast<size_t>(std::max(n, 0)), {});
 		for (int i = 0; i < n; ++i)
 			wrapRow(state.line(i), wrapWidth, breaks[static_cast<size_t>(i)]);
 		lines = n;
 		width = wrapWidth;
-		fontKey = fs;
+		fontKey = glyphScale;
 		valid = true;
 		dirtyHi = -1;
 		dirtyLo = 0;
@@ -87,8 +92,8 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 	if (line.empty())
 		return;
 
-	const float spaceW = EditorUtils::SpaceWidth();
-	auto glyphWidth = [&](size_t pos, float drawX) {
+	const float spaceW = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
+	auto glyphWidthAt = [&](size_t pos, float drawX) {
 		const char *s = &line[pos];
 		const char *e = s + 1;
 		if (*s == '\t')
@@ -99,7 +104,7 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
 				++e;
 		}
-		return EditorUtils::GlyphAdvance(s, e);
+		return glyphWidth ? glyphWidth(s, e) : spaceW;
 	};
 
 	float x = 0.0f;
@@ -108,7 +113,7 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 	size_t i = 0;
 	while (i < line.size())
 	{
-		const float w = glyphWidth(i, x);
+		const float w = glyphWidthAt(i, x);
 		if (x + w > limit && static_cast<int>(i) > segStart)
 		{
 			const int brk = (lastBreak > segStart) ? lastBreak : static_cast<int>(i);
@@ -117,7 +122,7 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 			x = 0.0f;
 			for (size_t j = static_cast<size_t>(brk); j < i;)
 			{
-				x += glyphWidth(j, x);
+				x += glyphWidthAt(j, x);
 				j = advanceUtf8(line, j);
 			}
 			lastBreak = -1;
@@ -212,8 +217,34 @@ int WrapLayout::segmentOf(int row, int column) const
 // absolute tab stops from column 0 would misplace tab-indented segments.
 float WrapLayout::columnX(const std::string &line, int row, int column) const
 {
+	// Segment-relative byte walk with provider widths (tab stops restart at
+	// the segment edge — same semantics the ImGui callers relied on).
 	const int seg = segmentOf(row, column);
-	return EditorUtils::ColumnsToX(line, segmentStartColumn(row, seg), column);
+	const float spaceW = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
+	float x = 0.0f;
+	int visual = 0;
+	const int start = segmentStartColumn(row, seg);
+	for (int i = start; i < column && i < static_cast<int>(line.size());)
+	{
+		const char *s = &line[static_cast<size_t>(i)];
+		const char *e = s + 1;
+		if (*s == '\t')
+		{
+			const int next = (visual / EditorUtils::kTabSize + 1) * EditorUtils::kTabSize;
+			x += static_cast<float>(next - visual) * spaceW;
+			visual = next;
+			++i;
+			continue;
+		}
+		if ((static_cast<unsigned char>(*s) & 0x80) != 0)
+			while (e < line.data() + line.size() &&
+				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
+				++e;
+		x += glyphWidth ? glyphWidth(s, e) : spaceW;
+		++visual;
+		i += static_cast<int>(e - s);
+	}
+	return x;
 }
 
 int WrapLayout::columnAt(const std::string &line, int row, int segment, float xRel) const
@@ -239,7 +270,8 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
 				++e;
 		}
-		x += EditorUtils::MeasureGlyphWidth(s, e, x, 0.0f);
+		x += glyphWidth ? glyphWidth(s, e) : spaceWidth ? spaceWidth(" ", " ")
+														 : 8.0f;
 		const int next = static_cast<int>(e - line.data());
 		const float dist = std::abs(xRel - x);
 		if (dist < bestDist)

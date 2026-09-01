@@ -9,7 +9,7 @@
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
 #include "ned_color_imgui.h"
-#include "wrap_layout.h"
+#include "../wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>

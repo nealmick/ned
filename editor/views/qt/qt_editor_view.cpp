@@ -1,6 +1,9 @@
 #include "qt_editor_view.h"
 
+#include "../../util/text_columns.h"
 #include "../../util/utf8.h"
+
+#include <QFontMetricsF>
 #include "../../../util/settings.h"
 #include "ned_color_qt.h"
 #include "qt_find_bar.h"
@@ -59,14 +62,20 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 		}
 		// Blink at ~1.9 Hz; rainbow hue cycles continuously.
 		caretVisible = (blinkClock.elapsed() % 1060) < 530;
-		++rainbowPhase;
-		if (rainbowMode())
-			update();
 	});
 	serviceTimer->start();
 
 	setFocusPolicy(Qt::StrongFocus);
 	setMouseTracking(true);
+
+	// Backend glyph metrics for the shared wrap layout (QFontMetrics).
+	WrapLayout::setGlyphWidthFn([this](const char *s, const char *e) {
+		const QFontMetricsF m(font());
+		return m.horizontalAdvance(QString::fromUtf8(s, static_cast<int>(e - s)));
+	});
+	WrapLayout::setSpaceWidthFn([this](const char *, const char *) {
+		return charWidthF();
+	});
 
 	findBar = new QtFindBar(this, this);
 	auto *lineJumpShortcut = new QShortcut(QKeySequence("Ctrl+;"), this);
@@ -154,6 +163,7 @@ void QtEditorView::openFile(const QString &path)
 	viewState.setBoth(0, 0);
 	highlight.resetForDocument(static_cast<size_t>(state.lineCount()));
 	highlight.highlightContent();
+	refreshWrap();
 	git.init();
 	git.onDocumentOpened();
 	lastVisualGen = highlight.visualGeneration();
@@ -173,13 +183,18 @@ int QtEditorView::maxScrollLine() const
 {
 	// Last line fully visible at bottom: allow scrolling past it a little
 	// (ImGui scrolls to keep the caret line plus context visible).
-	return std::max(0, state.lineCount() - visibleLines() + 2);
+	return std::max(0, totalLines() - visibleLines() + 2);
 }
 
 int QtEditorView::rowAtY(int y) const
 {
-	int row = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
-	return std::clamp(row, 0, std::max(0, state.lineCount() - 1));
+	const int v = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
+	if (wordWrapEnabled())
+	{
+		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+		return std::clamp(hit.row, 0, std::max(0, state.lineCount() - 1));
+	}
+	return std::clamp(v, 0, std::max(0, state.lineCount() - 1));
 }
 
 int QtEditorView::columnAtX(int row, int x) const
@@ -187,8 +202,102 @@ int QtEditorView::columnAtX(int row, int x) const
 	const int textX = x - gutterWidthPx;
 	if (textX <= 0)
 		return 0;
-	const int cols = textX / charWidthPx;
-	return std::clamp(cols, 0, state.lineLength(row));
+	int segmentStart = 0;
+	if (wordWrapEnabled())
+	{
+		const int v = scrollBar->value() + 0; // segment resolved by caller
+		(void)v;
+	}
+	return std::clamp(byteColumnAtX(row, static_cast<qreal>(textX), segmentStart),
+					  0, state.lineLength(row));
+}
+
+// --- Tab-expanded rendering model ------------------------------------------
+
+qreal QtEditorView::charWidthF() const
+{
+	return QFontMetricsF(font()).horizontalAdvance(QLatin1String("0000")) / 4.0;
+}
+
+QtEditorView::RowText QtEditorView::expandRow(int row) const
+{
+	RowText rt;
+	const std::string line = state.line(row);
+	rt.byteToVisual.assign(line.size() + 1, 0);
+
+	int visual = 0;
+	for (size_t i = 0; i < line.size();)
+	{
+		rt.byteToVisual[i] = visual;
+		const unsigned char c = static_cast<unsigned char>(line[i]);
+		if (c == '\t')
+		{
+			// Tab stops every kTabSize visual cells (matches ImGui layout).
+			const int next = (visual / EditorUtils::kTabSize + 1) * EditorUtils::kTabSize;
+			for (; visual < next; ++visual)
+			{
+				rt.expanded += QLatin1Char(' ');
+				rt.visualToByte.push_back(static_cast<int>(i));
+			}
+			++i;
+			continue;
+		}
+		int len = 1;
+		while ((static_cast<unsigned char>(line[i + len]) & 0xC0) == 0x80 &&
+			   i + len < line.size())
+			++len;
+		rt.expanded += QString::fromUtf8(line.data() + i, len);
+		++visual;
+		rt.visualToByte.push_back(static_cast<int>(i));
+		i += static_cast<size_t>(len);
+	}
+	rt.byteToVisual[line.size()] = visual;
+	rt.visualToByte.push_back(static_cast<int>(line.size()));
+	return rt;
+}
+
+qreal QtEditorView::xAtByteColumn(int row, int byteColumn, int segmentStart) const
+{
+	// Visual columns are counted from segmentStart (wrapped rows restart
+	// their tab stops at the segment edge, like the ImGui wrap layout).
+	const RowText rt = expandRow(row);
+	const int last = static_cast<int>(rt.byteToVisual.size() - 1);
+	const int segBase = rt.byteToVisual[std::clamp(segmentStart, 0, last)];
+	const int col = rt.byteToVisual[std::clamp(byteColumn, 0, last)];
+	return static_cast<qreal>(std::max(0, col - segBase)) * charWidthF();
+}
+
+int QtEditorView::byteColumnAtX(int row, qreal x, int segmentStart) const
+{
+	const RowText rt = expandRow(row);
+	int visual = static_cast<int>(std::round(x / charWidthF()));
+	visual = std::clamp(visual, 0, static_cast<int>(rt.visualToByte.size() - 1));
+	return rt.visualToByte[static_cast<size_t>(visual)];
+}
+
+bool QtEditorView::wordWrapEnabled() const
+{
+	return appSettings.settings.value("word_wrap", false);
+}
+
+int QtEditorView::textAreaWidth() const
+{
+	return std::max(50, width() - gutterWidthPx - 14);
+}
+
+int QtEditorView::totalLines() const
+{
+	return wordWrapEnabled() ? std::max(1, wrap.totalVisualLines())
+							 : std::max(1, state.lineCount());
+}
+
+void QtEditorView::refreshWrap()
+{
+	if (wordWrapEnabled())
+		wrap.ensure(state, static_cast<float>(textAreaWidth()));
+	else
+		wrap.invalidate();
+	scrollBar->setRange(0, maxScrollLine());
 }
 
 void QtEditorView::paintEvent(QPaintEvent *)
@@ -267,90 +376,132 @@ void QtEditorView::paintEvent(QPaintEvent *)
 							 QColor(0x3f, 0xc1, 0x8c));
 	}
 
-	// Text with syntax colors; spans are half-open byte ranges.
+	// Text with syntax colors. Rows paint through the tab-expanded model so
+	// glyphs, tabs, caret and selection share one coordinate space. With
+	// word wrap on, each wrapped segment paints on its own visual line.
 	const int textLeft = gutterWidthPx;
 	const QColor defaultInk = toQColor(highlight.defaultTextColor());
-	for (int i = 0; i < rows; ++i)
-	{
-		const int row = firstRow + i;
-		const std::string text = state.line(row);
-		if (text.empty())
-			continue;
-		const int y = titleBarPx + i * lineHeightPx;
+	const bool wrapping = wordWrapEnabled();
+
+	const auto drawRowSegment = [&](int row, int y, int fromByte, int toByte) {
+		if (toByte <= fromByte)
+			return;
+		const RowText rt = expandRow(row);
+		const int vFrom = rt.byteToVisual[fromByte];
+		const int vTo = rt.byteToVisual[toByte];
+		if (vTo <= vFrom)
+			return;
+
 		const LineColorSpans &spans = highlight.spansForLine(row);
-
-		int bytePos = 0;
+		const qreal cw = charWidthF();
+		int vis = vFrom;
 		QColor ink = defaultInk;
-		const QFontMetrics metrics = painter.fontMetrics();
-		const auto drawSegment = [&](int nextByte) {
-			if (nextByte <= bytePos)
+		const auto slice = [&](int nextVis) {
+			if (nextVis <= vis)
 				return;
-			const QByteArray seg(text.data() + bytePos, nextByte - bytePos);
-			// x from the prefix advance so caret/selection/text agree exactly.
-			const int x = textLeft + metrics.horizontalAdvance(
-				QString::fromUtf8(text.data(), bytePos));
 			painter.setPen(ink);
-			painter.drawText(x, y, metrics.horizontalAdvance(
-									 QString::fromUtf8(text.data(), nextByte)) -
-										(x - textLeft),
-							 lineHeightPx, Qt::AlignVCenter,
-							 QString::fromUtf8(seg));
-			bytePos = nextByte;
+			painter.drawText(QRectF(textLeft + vis * cw, y, (nextVis - vis) * cw,
+									lineHeightPx),
+							 Qt::AlignVCenter | Qt::AlignLeft,
+							 rt.expanded.mid(vis, nextVis - vis));
+			vis = nextVis;
 		};
-
 		for (const ColorSpan &span : spans)
 		{
-			if (span.start > bytePos)
+			if (span.start > toByte)
+				break;
+			const int spanVis = rt.byteToVisual[std::clamp(span.start, 0,
+														   static_cast<int>(rt.byteToVisual.size() - 1))];
+			if (spanVis > vis)
 			{
 				ink = defaultInk;
-				drawSegment(span.start);
+				slice(spanVis);
 			}
 			ink = toQColor(highlight.colorForSlot(span.slot));
-			drawSegment(span.end);
+			const int endVis = rt.byteToVisual[std::clamp(span.end, 0,
+														  static_cast<int>(rt.byteToVisual.size() - 1))];
+			slice(std::min(endVis, vTo));
 		}
 		ink = defaultInk;
-		drawSegment(static_cast<int>(text.size()));
+		slice(vTo);
+	};
+
+	if (wrapping)
+	{
+		for (int v = firstRow; v < totalLines() && v - firstRow < rows; ++v)
+		{
+			const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+			const int y = titleBarPx + (v - firstRow) * lineHeightPx;
+			const int startB = wrap.segmentStartColumn(hit.row, hit.segment);
+			const int segCount = wrap.segmentCount(hit.row);
+			const int endB = hit.segment + 1 < segCount
+								 ? wrap.segmentStartColumn(hit.row, hit.segment + 1)
+								 : state.lineLength(hit.row);
+			drawRowSegment(hit.row, y, startB, endB);
+		}
+	} else
+	{
+		for (int i = 0; i < rows; ++i)
+			drawRowSegment(firstRow + i, titleBarPx + i * lineHeightPx, 0,
+						   state.lineLength(firstRow + i));
 	}
 
-	// Selections then carets.
+	// Selection + carets on the shared tab-expanded coordinate space.
+	const auto visualLineOf = [&](int row, int column) {
+		if (!wrapping)
+			return row;
+		const int seg = wrap.segmentOf(row, column);
+		return wrap.rowStartVisualLine(row) + seg;
+	};
+
+	painter.setPen(Qt::transparent);
+	painter.setBrush(QColor(255, 30, 170, 70));
 	for (const Selection &sel : viewState.selections)
 	{
 		int sr, sc, er, ec;
 		sel.getOrdered(sr, sc, er, ec);
-		if (er < firstRow || sr > firstRow + rows)
-			continue;
-		painter.setPen(Qt::transparent);
-		painter.setBrush(QColor(255, 30, 170, 70));
-		for (int row = std::max(sr, firstRow); row <= std::min(er, firstRow + rows - 1);
-			 ++row)
+		for (int row = sr; row <= er; ++row)
 		{
-			const int i = row - firstRow;
-			const int from = row == sr ? sc : 0;
-			const int to = row == er ? ec : state.lineLength(row);
-			painter.drawRect(textLeft + from * charWidthPx, titleBarPx + i * lineHeightPx,
-							 (to - from) * charWidthPx, lineHeightPx);
+			const int vStart = visualLineOf(row, row == sr ? sc : 0);
+			const int vEnd = visualLineOf(row, row == er ? ec : state.lineLength(row));
+			for (int v = vStart; v <= vEnd; ++v)
+			{
+				const int i = v - firstRow;
+				if (i < 0 || i >= rows)
+					continue;
+				const int fromB = (v == vStart && row == sr) ? sc : 0;
+				const int toB = (v == vEnd && row == er)
+									? ec
+									: (wrapping ? wrap.segmentStartColumn(
+											  row, wrap.segmentOf(row, 0))
+												: state.lineLength(row));
+				const qreal x0 = textLeft + xAtByteColumn(row, fromB, fromB);
+				const qreal x1 = textLeft + xAtByteColumn(row, toB, fromB);
+				painter.drawRect(QRectF(x0, titleBarPx + i * lineHeightPx,
+										x1 - x0, lineHeightPx));
+			}
 		}
 	}
 
-	if (rainbowMode() || caretVisible)
+	if (caretVisible)
 	{
-		if (rainbowMode())
-		{
-			const float hue = std::fmod(blinkClock.elapsed() * 0.00025f, 1.0f);
-			painter.setPen(QColor::fromHsvF(hue, 0.85f, 1.0f));
-		} else
-		{
-			painter.setPen(QColor(255, 255, 255));
-		}
+		// 2px caret on the glyph boundary, never over the glyph.
+		painter.setPen(QPen(QColor(255, 255, 255), 2));
 		for (const Selection &sel : viewState.selections)
 		{
-			const int i = sel.headRow - firstRow;
-			if (i < 0 || i >= rows + 1)
+			const int v = visualLineOf(sel.headRow, sel.headColumn);
+			const int i = v - firstRow;
+			if (i < 0 || i >= rows)
 				continue;
-			painter.drawLine(textLeft + sel.headColumn * charWidthPx,
-							 titleBarPx + i * lineHeightPx + 2,
-							 textLeft + sel.headColumn * charWidthPx,
-							 titleBarPx + (i + 1) * lineHeightPx - 2);
+			const int seg = wrapping
+								 ? wrap.segmentStartColumn(sel.headRow,
+														   wrap.segmentOf(sel.headRow,
+																		  sel.headColumn))
+								 : 0;
+			const qreal x = textLeft +
+							xAtByteColumn(sel.headRow, sel.headColumn, seg);
+			painter.drawLine(QPointF(x, titleBarPx + i * lineHeightPx + 2),
+							 QPointF(x, titleBarPx + (i + 1) * lineHeightPx - 2));
 		}
 	}
 }
@@ -359,6 +510,7 @@ void QtEditorView::afterEdit()
 {
 	highlight.poll();
 	highlight.highlightContent();
+	refreshWrap();
 	scrollBar->setRange(0, maxScrollLine());
 	commands.requestEnsureVisible();
 	caretVisible = true;
@@ -439,10 +591,6 @@ void QtEditorView::scheduleBlink()
 	blinkTimer->start();
 }
 
-bool QtEditorView::rainbowMode() const
-{
-	return appSettings.settings.value("rainbow", true);
-}
 
 void QtEditorView::keyPressEvent(QKeyEvent *event)
 {
@@ -471,7 +619,24 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	{
 		switch (event->key())
 		{
-		case Qt::Key_A: commands.selectAll(); break;
+			case Qt::Key_A: commands.selectAll(); break;
+		case Qt::Key_Plus:
+		case Qt::Key_Equal:
+		{
+			appSettings.settings["fontSize"] =
+				appSettings.settings.value("fontSize", 13) + 2;
+			applyProfileFont();
+			appSettings.saveSettings();
+			break;
+		}
+		case Qt::Key_Minus:
+		{
+			appSettings.settings["fontSize"] = std::max(
+				8.0, appSettings.settings.value("fontSize", 13) - 2.0);
+			applyProfileFont();
+			appSettings.saveSettings();
+			break;
+		}
 		case Qt::Key_Z: commands.undo(); break;
 		case Qt::Key_Y: commands.redo(); break;
 		case Qt::Key_C: commands.copy(); break;
@@ -520,6 +685,7 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 void QtEditorView::resizeEvent(QResizeEvent *event)
 {
 	QWidget::resizeEvent(event);
+	refreshWrap();
 	if (findBar && findBar->isVisible())
 		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
 	if (lineJumpInput && lineJumpInput->isVisible())

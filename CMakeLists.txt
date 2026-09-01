@@ -764,6 +764,7 @@ set(NED_CORE_SOURCES
   editor/editor_commands.cpp
   editor/editor_events.cpp
   editor/editor_view_state.cpp
+  editor/views/wrap_layout.cpp
   editor/platform/ned_key.cpp
   editor/platform/clipboard.cpp
   editor/services/save_service.cpp

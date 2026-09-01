@@ -13,7 +13,7 @@
 #include "../../services/highlight/highlight_service.h"
 #include "../view_layout.h"
 #include "ned_color_imgui.h"
-#include "wrap_layout.h"
+#include "../wrap_layout.h"
 #include <algorithm>
 #include <cmath>
 #include <string>

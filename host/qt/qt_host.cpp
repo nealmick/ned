@@ -79,6 +79,21 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 			[this](const QString &path) { openPath(path, true); });
 
 	// Global shortcuts (keybinds.json parity comes with the NedKey host layer).
+	// Cmd/Ctrl+1..9 — switch tab N; Cmd/Ctrl+W — close active tab (ImGui parity).
+	for (int i = 1; i <= 9; ++i)
+	{
+		auto *tabShortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), this);
+		connect(tabShortcut, &QShortcut::activated, this, [this, i] {
+			if (i - 1 < tabs->count())
+				tabs->setCurrentIndex(i - 1);
+		});
+	}
+	auto *closeShortcut = new QShortcut(QKeySequence("Ctrl+W"), this);
+	connect(closeShortcut, &QShortcut::activated, tabs, [this] {
+		if (tabs->count() > 0)
+			Q_EMIT tabs->tabCloseRequested(tabs->currentIndex());
+	});
+
 	auto *finderShortcut = new QShortcut(QKeySequence("Ctrl+P"), this);
 	connect(finderShortcut, &QShortcut::activated, this, [this] {
 		if (workspaceRoot.isEmpty())

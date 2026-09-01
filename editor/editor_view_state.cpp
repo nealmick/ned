@@ -6,7 +6,7 @@
 #include "editor_view_state.h"
 #include "editor_state.h"
 #include "util/text_columns.h"
-#include "views/imgui/wrap_layout.h"
+#include "views/wrap_layout.h"
 #include "views/view_layout.h"
 
 #include <algorithm>

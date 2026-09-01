@@ -142,4 +142,11 @@ inline std::vector<std::string> SplitOnSeparator(const std::string &text,
 // Monospace tab/glyph width (shared by text view, caret, hit-test).
 inline constexpr int kTabSize = 4;
 
+inline float TabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = kTabSize)
+{
+	const int nextTab = ((visualColumn / tabSize) + 1) * tabSize;
+	return static_cast<float>(nextTab - visualColumn) * spaceWidth;
+}
+
+
 } // namespace EditorUtils

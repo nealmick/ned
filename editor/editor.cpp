@@ -5,6 +5,9 @@
 
 #include "editor.h"
 
+#include "util/editor_utils.h"
+#include "views/wrap_layout.h"
+
 #include "../util/icons.h"
 #include "../util/project_undo.h"
 #include "../util/settings.h"
@@ -29,6 +32,14 @@ Editor::Editor(Settings &settings,
 	  lineJump(commands, input, settings, api),
 	  finder(state, viewState, commands, input, settings, api)
 {
+	// Backend glyph metrics for the shared wrap layout (ImFont advances).
+	WrapLayout::setGlyphWidthFn([](const char *s, const char *e) {
+		return EditorUtils::GlyphAdvance(s, e);
+	});
+	WrapLayout::setSpaceWidthFn([](const char *, const char *) {
+		return EditorUtils::SpaceWidth();
+	});
+
 	events.clear();
 
 	events.subscribeDidEdit([this](const EditorEvents::DidEdit &e) {

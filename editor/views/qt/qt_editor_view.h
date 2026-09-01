@@ -23,6 +23,7 @@ class Settings;
 #include "../../services/git/git_service.h"
 #include "../../services/highlight/highlight_service.h"
 #include "../../services/save_service.h"
+#include "../wrap_layout.h"
 #include "../../../util/project_undo.h"
 
 class QElapsedTimer;
@@ -53,9 +54,31 @@ class QtEditorView : public QWidget
 	// Repaint after programmatic edits (find/replace).
 	void repaintAndFollow();
 
+	bool wordWrapEnabled() const;
+	int textAreaWidth() const;
+	// Total scrollable lines (visual lines when wrapping).
+	int totalLines() const;
+	void refreshWrap();
+
+	// --- Tab-expanded rendering model -------------------------------
+	// Tabs expand to kTabSize (4) monospace cells. Per visible row we build
+	// the expanded QString plus byte<->visual-column maps; text, caret,
+	// selection and hit-testing all read the same maps (no drift).
+	struct RowText
+	{
+		QString expanded;				 // tab-expanded text
+		std::vector<int> byteToVisual;	 // index by byte offset
+		std::vector<int> visualToByte;	 // index by visual column
+	};
+	RowText expandRow(int row) const;
+	// Pixel x (from textLeft) of a byte column on a row.
+	qreal xAtByteColumn(int row, int byteColumn, int segmentStart = 0) const;
+	// Inverse for mouse hit-testing (segmentStart for wrapped rows).
+	int byteColumnAtX(int row, qreal x, int segmentStart = 0) const;
+	qreal charWidthF() const;
+
 	// Find bar (Cmd/Ctrl+F).
 	void toggleFindBar();
-	bool rainbowMode() const;
 
 	// Go-to-line (Cmd/Ctrl+;).
 	void goToLineDialog();
@@ -111,6 +134,7 @@ class QtEditorView : public QWidget
 	QTimer *blinkTimer = nullptr;
 	QTimer *serviceTimer = nullptr;
 	QElapsedTimer blinkClock;
+	WrapLayout wrap;
 	QLineEdit *lineJumpInput = nullptr;
 	QtFindBar *findBar = nullptr;
 	uint64_t lastVisualGen = 0;
@@ -120,6 +144,5 @@ class QtEditorView : public QWidget
 	int gutterWidthPx = 0;
 	int titleBarPx = 26;
 	QIcon fileIcon;
-	int rainbowPhase = 0;
 	bool dragging = false;
 };

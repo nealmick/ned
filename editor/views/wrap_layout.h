@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,13 @@ class WrapLayout
 		int row = 0;
 		int segment = 0; // 0-based segment within the row
 	};
+
+	// Backend glyph metrics injection: width of the UTF-8 char at s (tabs
+	// handled internally). ImGui installs ImFont advances; Qt installs
+	// QFontMetrics advances. Must be set before the first ensure().
+	using GlyphWidthFn = std::function<float(const char *s, const char *e)>;
+	static void setGlyphWidthFn(GlyphWidthFn fn) { glyphWidth = std::move(fn); }
+	static void setSpaceWidthFn(GlyphWidthFn fn) { spaceWidth = std::move(fn); }
 
 	// Full rebuild next ensure().
 	void invalidate() { valid = false; }
@@ -56,6 +64,9 @@ class WrapLayout
 	int columnAt(const std::string &line, int row, int segment, float xRel) const;
 
   private:
+	static GlyphWidthFn glyphWidth;
+	static GlyphWidthFn spaceWidth;
+
 	bool valid = false;
 	float width = -1.0f;   // wrap width the cache was built with
 	float fontKey = -1.0f; // font size at build time
