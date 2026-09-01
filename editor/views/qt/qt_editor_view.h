@@ -130,6 +130,7 @@ class QtEditorView : public QWidget
 	// Emitted after edits (host refreshes tab title dirty marker).
   Q_SIGNALS:
 	void documentEdited();
+	void fontZoomed();
 
   protected:
 	void paintEvent(QPaintEvent *event) override;

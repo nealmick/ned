@@ -218,6 +218,7 @@ void NedQtHost::openPath(const QString &path, bool focus)
 	connect(editor, &QtEditorView::documentEdited, this, [this, editor] {
 		refreshTabTitle(tabs->indexOf(editor));
 	});
+	connect(editor, &QtEditorView::fontZoomed, this, &NedQtHost::applyFontToEditors);
 	if (focus)
 	{
 		tabs->setCurrentIndex(index);

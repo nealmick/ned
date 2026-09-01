@@ -875,6 +875,7 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 			appSettings.settings["fontSize"] =
 				appSettings.settings.value("fontSize", 13) + 2;
 			applyProfileFont();
+			Q_EMIT fontZoomed();
 			appSettings.saveSettings();
 			break;
 		}
@@ -882,6 +883,7 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 			appSettings.settings["fontSize"] =
 				std::max(8.0, appSettings.settings.value("fontSize", 13) - 2.0);
 			applyProfileFont();
+			Q_EMIT fontZoomed();
 			appSettings.saveSettings();
 			break;
 		}

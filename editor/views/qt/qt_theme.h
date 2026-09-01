@@ -70,4 +70,48 @@ inline QPalette palette(const Settings &s)
 	return p;
 }
 
+
+// Rounded styling throughout; all tabs keep identical geometry (the
+// active tab changes color, never size).
+inline QString styleSheet(const Settings &s)
+{
+	const QString bg = background(s).name();
+	const QString raised = NedQtTheme::raised(background(s)).name();
+	const QString ink = text(s).name();
+	const QString accent = QStringLiteral("#0d6efd");
+	return QStringLiteral(R"(
+		QTabWidget::pane { border: none; }
+		QTabBar::tab {
+			padding: 5px 12px;
+			border-top-left-radius: 6px;
+			border-top-right-radius: 6px;
+			background: transparent;
+			color: %4;
+		}
+		QTabBar::tab:selected { background: %2; }
+		QTabBar::tab:hover:!selected { background: rgba(255,255,255,0.06); }
+		QLineEdit, QSpinBox, QComboBox, QListWidget, QTreeWidget {
+			border: 1px solid rgba(255,255,255,0.10);
+			border-radius: 6px;
+			padding: 3px 6px;
+			background: %1;
+			color: %3;
+			selection-background-color: %5;
+		}
+		QTreeWidget::item { border-radius: 4px; }
+		QTreeWidget::item:selected { background: rgba(13,110,253,0.35); }
+		QPushButton {
+			border: 1px solid rgba(255,255,255,0.12);
+			border-radius: 6px;
+			padding: 5px 14px;
+			background: %2;
+			color: %3;
+		}
+		QPushButton:hover { border-color: %5; }
+		QMenu { border-radius: 8px; background: %2; color: %3; }
+		QMenu::item { padding: 4px 24px 4px 12px; border-radius: 4px; }
+		QScrollBar:vertical, QScrollBar:horizontal { width: 0; height: 0; }
+	)").arg(bg, raised, ink, ink, accent);
+}
+
 } // namespace NedQtTheme
