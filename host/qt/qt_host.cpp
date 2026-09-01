@@ -28,6 +28,7 @@
 // Defined in qt_mac_chrome.mm (ObjC++).
 extern void configureNedQtChrome(void *nsWindow, float opacity, bool blurEnabled);
 extern void applyNedQtWindowColor(void *nsWindow, float r, float g, float b);
+extern void nedQtChromeWatch(void *winId);
 #endif
 
 namespace {
@@ -232,6 +233,7 @@ void NedQtHost::applyFontToEditors()
 		applyNedQtWindowColor(
 			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
+	nedQtChromeWatch(reinterpret_cast<void *>(winId()));
 	for (int i = 0; i < tabs->count(); ++i)
 		if (QtEditorView *editor = qobject_cast<QtEditorView *>(tabs->widget(i)))
 			editor->applyProfileFont();
