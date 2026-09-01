@@ -7,6 +7,7 @@
 #include <GLFW/glfw3.h>
 
 #include "workbench.h"
+#include "editor/views/imgui/clipboard_imgui.h"
 
 #include "editor/editor_events.h"
 #include "files/file_explorer_events.h"
@@ -184,6 +185,9 @@ void Workbench::handleTabSwitchShortcuts()
 
 bool Workbench::initialize(WorkbenchHostMode mode)
 {
+	static ImGuiClipboard clipboardForEditors;
+	setEditorClipboard(&clipboardForEditors);
+
 	if (initialized_)
 	{
 		mode_ = mode;

@@ -17,6 +17,7 @@
 #include "imgui.h"
 
 #include <initializer_list>
+#include "editor/platform/clipboard.h"
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +29,21 @@ inline std::string &clipboardStore()
 {
 	static std::string s;
 	return s;
+}
+
+// IClipboard over the same in-process store (editor core now goes through
+// setEditorClipboard instead of ImGui's PlatformIO hooks).
+class TestClipboard : public IClipboard
+{
+  public:
+	void setText(const std::string &text) override { clipboardStore() = text; }
+	std::string text() const override { return clipboardStore(); }
+};
+
+inline TestClipboard &testClipboard()
+{
+	static TestClipboard clip;
+	return clip;
 }
 
 inline void platformSetClipboard(ImGuiContext *, const char *text)
@@ -42,6 +58,7 @@ inline const char *platformGetClipboard(ImGuiContext *)
 
 inline void ensureImGui()
 {
+	setEditorClipboard(&testClipboard());
 	if (ImGui::GetCurrentContext() != nullptr)
 		return;
 	IMGUI_CHECKVERSION();

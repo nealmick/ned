@@ -755,7 +755,7 @@ set(NED_CORE_SOURCES
   editor/editor_events.cpp
   editor/services/save_service.cpp
   editor/services/diagnostics/diagnostics_store.cpp
-  editor/views/hover_markdown.cpp
+  editor/util/hover_markdown.cpp
   files/file_explorer_events.cpp
   util/project_undo.cpp
 )

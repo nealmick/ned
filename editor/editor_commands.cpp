@@ -4,6 +4,7 @@
 */
 
 #include "editor_commands.h"
+#include "platform/clipboard.h"
 #include "editor_events.h"
 #include "editor_state.h"
 #include "editor_view_state.h"
@@ -11,7 +12,6 @@
 #include "util/editor_utils.h"
 #include "util/project_undo.h"
 
-#include "imgui.h"
 
 #include <algorithm>
 #include <string>
@@ -1081,7 +1081,8 @@ void EditorCommands::copy()
 		return;
 	const std::string text = selectionAsClipboardText();
 	if (!text.empty())
-		ImGui::SetClipboardText(text.c_str());
+		if (IClipboard *clip = editorClipboard())
+			clip->setText(text);
 }
 
 void EditorCommands::cut()
@@ -1099,7 +1100,8 @@ void EditorCommands::cut()
 	const int r = view->row;
 	const bool lastLine = (r + 1 >= state->lineCount());
 	std::string lineText = state->line(r) + EditorState::platformLineEnding();
-	ImGui::SetClipboardText(lineText.c_str());
+	if (IClipboard *clip = editorClipboard())
+		clip->setText(lineText);
 
 	TextOp op;
 	op.kind = OpKind::Delete;
@@ -1129,10 +1131,13 @@ void EditorCommands::paste()
 {
 	if (!ready())
 		return;
-	const char *clip = ImGui::GetClipboardText();
-	if (!clip)
+	IClipboard *clipboard = editorClipboard();
+	if (!clipboard)
 		return;
-	std::string paste_content = normalizePaste(clip);
+	const std::string clipText = clipboard->text();
+	if (clipText.empty())
+		return;
+	std::string paste_content = normalizePaste(clipText);
 	if (paste_content.empty())
 		return;
 
