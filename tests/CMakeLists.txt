@@ -38,7 +38,8 @@ set(NED_LAYER_SOURCES
   ${CMAKE_SOURCE_DIR}/editor/editor_events.cpp
   ${CMAKE_SOURCE_DIR}/util/project_undo.cpp
   ${CMAKE_SOURCE_DIR}/editor/services/save_service.cpp
-  # ImGui core + FreeType (matches app IMGUI_USER_CONFIG); no GLFW backend.
+  # ImGui core (headless config: wchar32, no FreeType backend requirement).
+  # ned_imgui_test_config.h is selected via IMGUI_USER_CONFIG below.
   ${CMAKE_SOURCE_DIR}/lib/imgui/imgui.cpp
   ${CMAKE_SOURCE_DIR}/lib/imgui/imgui_draw.cpp
   ${CMAKE_SOURCE_DIR}/lib/imgui/imgui_tables.cpp
@@ -53,6 +54,10 @@ if(NED_ENABLE_GIT)
 endif()
 
 add_library(ned_editor_layer STATIC ${NED_LAYER_SOURCES})
+target_compile_definitions(ned_editor_layer PUBLIC
+  IMGUI_USER_CONFIG="ned_imgui_test_config.h"
+)
+target_include_directories(ned_editor_layer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ned_editor_layer PUBLIC
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/editor
@@ -145,7 +150,7 @@ set(NED_TEST_SOURCES
   editor/hover_trigger_test.cpp
   editor/lsp_request_state_test.cpp
   ${CMAKE_SOURCE_DIR}/editor/services/diagnostics/diagnostics_store.cpp
-  ${CMAKE_SOURCE_DIR}/editor/views/hover_markdown.cpp
+  ${CMAKE_SOURCE_DIR}/editor/util/hover_markdown.cpp
   editor/capture_map_test.cpp
   editor/highlight_queries_test.cpp
   editor/highlight_service_test.cpp

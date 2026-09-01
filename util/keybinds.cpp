@@ -1,9 +1,9 @@
 #include "keybinds.h"
-#include "editor/views/imgui/lsp_view.h"
 #include "../editor/editor_api.h"
 #include "../files/files.h"
 #include "../lsp/lsp_client.h"
 #include "../util/settings.h"
+#include "lsp/views/imgui/lsp_view.h"
 #include <algorithm>
 #include <cctype>
 #include <iostream>

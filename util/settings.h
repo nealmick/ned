@@ -85,6 +85,4 @@ class Settings
 	static bool loadBundledProfile(json &out, std::string &outPath);
 	std::vector<std::string> listProfiles() const;
 	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
-
-
 };

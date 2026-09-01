@@ -1,8 +1,8 @@
 #include "settings.h"
 #include "../editor/editor_api.h"
 #include "../editor/editor_events.h"
+#include "../lsp/views/imgui/lsp_view.h"
 #include "../files/files.h"
-#include "../editor/views/imgui/lsp_view.h"
 #include "../lsp/lsp_client.h"
 
 #include "imgui.h"

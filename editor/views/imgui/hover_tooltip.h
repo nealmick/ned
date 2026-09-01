@@ -7,7 +7,7 @@
 	fenced at the source (lsp_symbol_info), so no code-sniffing here.
 */
 
-#include "../hover_markdown.h"
+#include "../../util/hover_markdown.h"
 
 #include "imgui.h"
 

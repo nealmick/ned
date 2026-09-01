@@ -3,9 +3,9 @@
 #include "../../editor_api.h"
 #include "../../editor_commands.h"
 #include "../../editor_events.h"
-#include "editor_input.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
+#include "editor_input.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdio>

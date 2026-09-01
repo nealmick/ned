@@ -7,16 +7,16 @@
 #pragma once
 
 #include "editor/editor.h"
+#include "files/views/imgui/file_views.h"
+#include "lsp/views/imgui/lsp_view.h"
+#include "settings_view.h"
+#include "welcome.h"
 #include "files/files.h"
-#include "editor/views/imgui/file_views.h"
-#include "editor/views/imgui/lsp_view.h"
-#include "editor/views/imgui/settings_view.h"
 #include "lsp/lsp_client.h"
 #include "util/icons.h"
 #include "util/ned_terminal.h"
 #include "util/project_undo.h"
 #include "util/settings.h"
-#include "editor/views/imgui/welcome.h"
 
 #include <imgui.h>
 

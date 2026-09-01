@@ -249,6 +249,8 @@ set(APP_SOURCES
   host/imgui/main.cpp
   host/imgui/ned.cpp
   host/imgui/workbench.cpp
+  host/imgui/settings_view.cpp
+  host/imgui/welcome.cpp
 )
 if(NED_ENABLE_SHADERS)
   list(APPEND APP_SOURCES
@@ -260,9 +262,6 @@ endif()
 
 # Component groups
 file(GLOB_RECURSE EDITOR_SOURCES "editor/*.cpp")
-# LSP UI widgets live under editor/views/imgui but belong to LSP_SOURCES
-# (they need the lsp-framework and must drop out of minimal builds).
-list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/views/imgui/lsp_.*\.cpp$")
 if(NED_ENABLE_GIT)
   # Drop stub if present so real implementation is the only TU.
   list(FILTER EDITOR_SOURCES EXCLUDE REGEX ".*/git_service_stub\\.cpp$")
@@ -291,10 +290,10 @@ if(NED_ENABLE_LSP)
     lsp/lsp_client.cpp
     lsp/lsp_document_sync.cpp
     lsp/lsp_goto.cpp
-    editor/views/imgui/lsp_symbol_info.cpp
-    editor/views/imgui/lsp_uri_options.cpp
-    editor/views/imgui/lsp_dashboard.cpp
-    editor/views/imgui/lsp_view.cpp
+    lsp/views/imgui/lsp_symbol_info.cpp
+    lsp/views/imgui/lsp_uri_options.cpp
+    lsp/views/imgui/lsp_dashboard.cpp
+    lsp/views/imgui/lsp_view.cpp
   )
 else()
   set(LSP_SOURCES
@@ -349,7 +348,7 @@ if(NED_ENABLE_TERMINAL)
   target_include_directories(imgui_terminal_widget PRIVATE
     ${IMGUI_INCLUDE_DIRS}
     lib/imgui/misc/freetype
-    ${CMAKE_CURRENT_SOURCE_DIR} # ned_imgui_config.h via IMGUI_USER_CONFIG
+    ${CMAKE_CURRENT_SOURCE_DIR}/host/imgui # ned_imgui_config.h via IMGUI_USER_CONFIG
   )
   target_compile_definitions(imgui_terminal_widget PRIVATE
     IMGUI_USER_CONFIG="ned_imgui_config.h"
@@ -396,7 +395,6 @@ endif()
 set(NED_UTIL_SOURCES
   util/settings.cpp
   util/keybinds.cpp
-  editor/views/imgui/welcome.cpp
   util/font.cpp
   util/icons.cpp
   util/project_undo.cpp
@@ -414,6 +412,7 @@ add_library(ned_util STATIC ${NED_UTIL_SOURCES})
 ned_apply_feature_defs(ned_util)
 target_include_directories(ned_util PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/host/imgui
   ${IMGUI_INCLUDE_DIRS}
   editor
   files
@@ -519,6 +518,8 @@ endif()
 add_library(ned_embed STATIC
   host/imgui/ned_embed.cpp
   host/imgui/workbench.cpp
+  host/imgui/settings_view.cpp
+  host/imgui/welcome.cpp
   ${EDITOR_SOURCES}
   ${LSP_SOURCES}
   ${FILES_SOURCES}
@@ -564,6 +565,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     ${NFD_DIR}/src
     ${NFD_DIR}/src/include
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/host/imgui
     editor
     files
     ${CMAKE_BINARY_DIR}
@@ -589,6 +591,7 @@ target_include_directories(ned_embed PUBLIC
   ${NFD_DIR}/src
   ${NFD_DIR}/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/host/imgui
   editor
   files
   ${CMAKE_BINARY_DIR}

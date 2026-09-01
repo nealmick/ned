@@ -1,4 +1,4 @@
-#include "views/hover_trigger.h"
+#include "util/hover_trigger.h"
 
 #include "third_party/catch.hpp"
 

@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "../../../util/settings.h"
+#include "../util/settings.h"
 
 class EditorApi;
 class FileExplorer;

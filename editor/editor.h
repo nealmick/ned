@@ -10,8 +10,6 @@
 #include "editor_api.h"
 #include "editor_commands.h"
 #include "editor_events.h"
-#include "views/imgui/editor_frame.h"
-#include "views/imgui/editor_input.h"
 #include "editor_operations.h"
 #include "editor_state.h"
 #include "editor_view_state.h"
@@ -19,6 +17,8 @@
 #include "services/highlight/highlight_service.h"
 #include "services/save_service.h"
 #include "views/imgui/editor_finder.h"
+#include "views/imgui/editor_frame.h"
+#include "views/imgui/editor_input.h"
 #include "views/imgui/editor_line_jump.h"
 
 #include <string>

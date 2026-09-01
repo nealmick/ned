@@ -99,7 +99,6 @@ void LSPGoto::render()
 {
 	if (!client || !show || !resultRenderer)
 		return;
-	resultRenderer(gotoTitle(kind),
-				   state.snapshot().value_or(std::vector<LSPLocation>{}),
-				   show);
+	resultRenderer(
+		gotoTitle(kind), state.snapshot().value_or(std::vector<LSPLocation>{}), show);
 }

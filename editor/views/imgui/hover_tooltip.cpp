@@ -2,8 +2,8 @@
 #include "../../editor_api.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/highlight/tree_sitter.h"
+#include "../../util/hover_markdown.h"
 #include "diagnostic_style.h"
-#include "../hover_markdown.h"
 
 #include "imgui.h"
 

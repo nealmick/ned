@@ -5,12 +5,12 @@
 */
 
 #include "settings_view.h"
-#include "lsp_view.h"
-#include "../../../files/files.h"
-#include "../../../lsp/lsp_client.h"
-#include "../../../util/settings.h"
-#include "../../editor_api.h"
-#include "../../editor_events.h"
+#include "../files/files.h"
+#include "../lsp/lsp_client.h"
+#include "../util/settings.h"
+#include "../editor/editor_api.h"
+#include "../editor/editor_events.h"
+#include "../lsp/views/imgui/lsp_view.h"
 
 #include "imgui.h"
 #include <GLFW/glfw3.h>
@@ -18,7 +18,7 @@
 #include <iostream>
 
 #ifdef __APPLE__
-#include "../../../util/macos_window.h"
+#include "../util/macos_window.h"
 #endif
 
 void SettingsView::closeSettingsWindow(EditorApi &api)
@@ -48,7 +48,7 @@ bool SettingsView::apply(bool force, EditorApi &api)
 	}
 
 	s.font.setFont(s.settings.value("s.font", std::string("SourceCodePro-Regular")),
-				 s.settings.value("fontSize", 20.0f));
+				   s.settings.value("fontSize", 20.0f));
 	s.font.load();
 
 	ImGuiStyle &style = ImGui::GetStyle();
@@ -57,7 +57,8 @@ bool SettingsView::apply(bool force, EditorApi &api)
 	// Embedded hosts keep the host ImGui theme for window/child backgrounds.
 	// Standalone: match window, child, and editor tab bar to theme background.
 	if (!s.isEmbedded && s.settings.contains("backgroundColor") &&
-		s.settings["backgroundColor"].is_array() && s.settings["backgroundColor"].size() >= 3)
+		s.settings["backgroundColor"].is_array() &&
+		s.settings["backgroundColor"].size() >= 3)
 	{
 		const auto &bg = s.settings["backgroundColor"];
 		const float a =
@@ -113,7 +114,8 @@ void SettingsView::ApplySettings(ImGuiStyle &style)
 
 	// Standalone only: embedded mode leaves WindowBg/ChildBg to the host style.
 	if (!s.isEmbedded && s.settings.contains("backgroundColor") &&
-		s.settings["backgroundColor"].is_array() && s.settings["backgroundColor"].size() >= 4)
+		s.settings["backgroundColor"].is_array() &&
+		s.settings["backgroundColor"].size() >= 4)
 	{
 		const auto &bg = s.settings["backgroundColor"];
 		style.Colors[ImGuiCol_WindowBg] = ImVec4(bg[0].get<float>(),
@@ -164,7 +166,9 @@ std::string SettingsView::displayFontName(const std::string &fontFile)
 	return name;
 }
 
-void SettingsView::renderSettingsWindow(EditorApi &api, FileExplorer &files, LspImGuiView &lsp)
+void SettingsView::renderSettingsWindow(EditorApi &api,
+										FileExplorer &files,
+										LspImGuiView &lsp)
 {
 	if (!s.showSettingsWindow)
 		return;
@@ -215,7 +219,9 @@ void SettingsView::renderSettingsWindow(EditorApi &api, FileExplorer &files, Lsp
 	ImGui::PopStyleVar(6);
 }
 
-void SettingsView::renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp)
+void SettingsView::renderSettingsContent(EditorApi &api,
+										 FileExplorer &files,
+										 LspImGuiView &lsp)
 {
 	if (!s.isEmbedded)
 	{
@@ -354,8 +360,9 @@ void SettingsView::renderProfileSelector()
 	ImGui::Spacing();
 
 	std::vector<std::string> profiles = s.listProfiles();
-	std::string current =
-		s.settingsPath.empty() ? "ned.json" : fs::path(s.settingsPath).filename().string();
+	std::string current = s.settingsPath.empty()
+							  ? "ned.json"
+							  : fs::path(s.settingsPath).filename().string();
 
 	if (std::find(profiles.begin(), profiles.end(), current) == profiles.end() &&
 		!current.empty())
@@ -412,7 +419,8 @@ void SettingsView::renderMainSettings()
 	ImGui::Spacing();
 
 	ImVec4 bgColor(0.058f, 0.194f, 0.158f, 1.0f);
-	if (s.settings.contains("backgroundColor") && s.settings["backgroundColor"].is_array() &&
+	if (s.settings.contains("backgroundColor") &&
+		s.settings["backgroundColor"].is_array() &&
 		s.settings["backgroundColor"].size() == 4)
 	{
 		const auto &bg = s.settings["backgroundColor"];
@@ -641,11 +649,11 @@ void SettingsView::renderShaderSettings()
 }
 
 void SettingsView::renderShaderSlider(const char *label,
-								  const char *key,
-								  float min_val,
-								  float max_val,
-								  const char *format,
-								  float default_val)
+									  const char *key,
+									  float min_val,
+									  float max_val,
+									  const char *format,
+									  float default_val)
 {
 	float value = s.settings.value(key, default_val);
 	if (ImGui::SliderFloat(

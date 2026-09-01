@@ -12,7 +12,7 @@
 #include "editor_events.h"
 #include "imgui.h"
 #include "services/highlight/capture_map.h"
-#include "views/hover_trigger.h"
+#include "util/hover_trigger.h"
 #include "views/imgui/view_layout.h"
 #include <string>
 

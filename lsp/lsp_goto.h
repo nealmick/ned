@@ -35,9 +35,8 @@ class LSPGoto
 
 	// UI-layer hook: renders results through the shared picker. Set by the
 	// active backend view so the LSP core stays UI-free.
-	std::function<void(const std::string &title,
-					   const std::vector<LSPLocation> &locations,
-					   bool &show)>
+	std::function<void(
+		const std::string &title, const std::vector<LSPLocation> &locations, bool &show)>
 		resultRenderer;
 
 	void setApi(EditorApi &editorApi) { api = &editorApi; }

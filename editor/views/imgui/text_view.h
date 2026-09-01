@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "../hover_trigger.h"
+#include "../../util/hover_trigger.h"
 #include "imgui.h"
 #include <string>
 

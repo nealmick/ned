@@ -11,8 +11,8 @@
 #include "../../../files/files.h"
 #include "../../../util/icons.h"
 #include "../../../util/settings.h"
-#include "../../editor_api.h"
-#include "../../util/editor_utils.h"
+#include "../../../editor/editor_api.h"
+#include "../../../editor/util/editor_utils.h"
 #include "imgui.h"
 
 #include <algorithm>
@@ -49,7 +49,6 @@ static void drawNodeLabel(FileTree &tree,
 						  bool isCurrentFile);
 static ImVec4 themeTextColor(FileTree &tree);
 static ImTextureID folderIcon(FileTree &tree, bool isOpen);
-
 
 void renderFileSidebar(FileExplorer &fx, float explorerWidth)
 {
@@ -109,9 +108,6 @@ void renderFileSidebar(FileExplorer &fx, float explorerWidth)
 	ImGui::PopStyleVar(4);
 }
 
-
-
-
 void renderFileTree(FileTree &tree, FileNode &node, int depth)
 {
 	const float fs = ImGui::GetFontSize();
@@ -137,8 +133,9 @@ static void drawNodeRow(FileTree &tree, FileNode &node, int depth)
 	const float rowPadX = fontSize * 0.2f;
 	const float iconTextGap = fontSize * 0.35f;
 
-	const ImTextureID icon = node.isDirectory ? folderIcon(tree, node.isOpen)
-											  : tree.fileExplorer->icons.getForFile(node.name);
+	const ImTextureID icon = node.isDirectory
+								 ? folderIcon(tree, node.isOpen)
+								 : tree.fileExplorer->icons.getForFile(node.name);
 
 	const ImVec2 textSize = ImGui::CalcTextSize(node.name.c_str());
 	const float requiredWidth = indent + rowPadX + iconSize + iconTextGap + textSize.x;
@@ -198,9 +195,9 @@ static void drawNodeRow(FileTree &tree, FileNode &node, int depth)
 }
 
 static void drawNodeLabel(FileTree &tree,
-						   const std::string &name,
-						   const std::string &fullPath,
-						   bool isCurrentFile)
+						  const std::string &name,
+						  const std::string &fullPath,
+						  bool isCurrentFile)
 {
 	ImVec4 color = themeTextColor(tree);
 
@@ -236,8 +233,6 @@ static ImTextureID folderIcon(FileTree &tree, bool isOpen)
 	return icon ? icon : icons.get("default");
 }
 
-
-
 static ImVec4 fileFinderDimmedBackground(FileFinder &f)
 {
 	return ImVec4(f.settings->settings["backgroundColor"][0].get<float>() * 0.8f,
@@ -255,8 +250,9 @@ void renderFileFinderHeader(FileFinder &f)
 	ImVec2 windowPos;
 
 	// Embedded: center on editor pane (ViewLayout metrics — no duplicated rect).
-	const ViewLayout *layout =
-		(f.fileExplorer && f.fileExplorer->api) ? &f.fileExplorer->api->layout() : nullptr;
+	const ViewLayout *layout = (f.fileExplorer && f.fileExplorer->api)
+								   ? &f.fileExplorer->api->layout()
+								   : nullptr;
 	if (f.settings && f.settings->isEmbedded && layout &&
 		(layout->paneSize.x > 0.0f || layout->paneSize.y > 0.0f))
 	{

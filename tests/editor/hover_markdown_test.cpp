@@ -1,5 +1,5 @@
 #include "third_party/catch.hpp"
-#include "views/hover_markdown.h"
+#include "util/hover_markdown.h"
 
 TEST_CASE("ParseHoverMarkdown splits fenced code from prose", "[ned][lsp][hover]")
 {

@@ -176,4 +176,3 @@ void FileExplorer::loadFileContent(const std::string &path,
 	if (afterLoadCallback)
 		afterLoadCallback();
 }
-

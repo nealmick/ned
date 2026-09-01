@@ -2,23 +2,26 @@
 
 #if NED_ENABLE_LSP
 
-#include "../../../lsp/lsp_client.h"
-#include "../../../lsp/lsp_goto.h"
+#include "../../lsp_client.h"
+#include "../../lsp_goto.h"
 #include "imgui.h"
 
 LspImGuiView::LspImGuiView(LSPClient &lspClient,
 						   EditorApi &api,
 						   FileExplorer &fileExplorer,
 						   Settings &settings)
-	: dashboard(lspClient, fileExplorer, settings), client(lspClient),
-	  symbolInfo(lspClient, api), uriOptions(api, fileExplorer, settings)
+	: dashboard(lspClient, fileExplorer, settings),
+	  client(lspClient),
+	  symbolInfo(lspClient, api),
+	  uriOptions(api, fileExplorer, settings)
 {
 	dashboard.refreshServerInfo();
 
-	auto renderThroughPicker =
-		[this](const std::string &title,
-			   const std::vector<LSPLocation> &locations,
-			   bool &show) { uriOptions.render(title, locations, show); };
+	auto renderThroughPicker = [this](const std::string &title,
+									  const std::vector<LSPLocation> &locations,
+									  bool &show) {
+		uriOptions.render(title, locations, show);
+	};
 	client.gotoDef.resultRenderer = renderThroughPicker;
 	client.gotoRef.resultRenderer = renderThroughPicker;
 }
