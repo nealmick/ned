@@ -349,22 +349,19 @@ void QtEditorView::paintMinimap(QPainter &painter)
 	const int lineCount = state.lineCount();
 	const int fit = std::max(1, static_cast<int>(stripH / rowH));
 	const int viewLines = visibleLines();
-	const qreal sliderH =
-		std::clamp(static_cast<qreal>(viewLines) * rowH, 4.0, stripH);
-	const qreal maxTop =
-		std::min(stripH - sliderH,
-				 std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
+	const qreal sliderH = std::clamp(static_cast<qreal>(viewLines) * rowH, 4.0, stripH);
+	const qreal maxTop = std::min(
+		stripH - sliderH, std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
 	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
 	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
-	const qreal sliderTop = std::clamp(static_cast<qreal>(scrollBar->value()) * ratio,
-									   0.0, maxTop);
+	const qreal sliderTop =
+		std::clamp(static_cast<qreal>(scrollBar->value()) * ratio, 0.0, maxTop);
 	int startRow = 0;
 	int endRow = lineCount - 1;
 	if (lineCount > fit)
 	{
 		startRow = std::clamp(
-			static_cast<int>(scrollBar->value() - sliderTop / rowH), 0,
-			lineCount - fit);
+			static_cast<int>(scrollBar->value() - sliderTop / rowH), 0, lineCount - fit);
 		endRow = std::min(lineCount - 1, startRow + fit - 1);
 	}
 
@@ -374,7 +371,8 @@ void QtEditorView::paintMinimap(QPainter &painter)
 					  .arg(endRow)
 					  .arg(lineCount)
 					  .arg(highlight.visualGeneration())
-					  .arg(ops.generation());
+					  .arg(ops.generation())
+					  .arg(width());
 	if (key != minimapRuns.key)
 	{
 		minimapRuns.key = key;
@@ -395,8 +393,11 @@ void QtEditorView::paintMinimap(QPainter &painter)
 			const auto flush = [&](int col) {
 				if (runStart >= 0 && col > runStart)
 					minimapRuns.runs.push_back(
-						{x0 + padX + static_cast<qreal>(runStart) * charW, y0,
-						 static_cast<qreal>(col - runStart) * charW, dotH, runInk});
+						{padX + static_cast<qreal>(runStart) * charW,
+						 y0,
+						 static_cast<qreal>(col - runStart) * charW,
+						 dotH,
+						 runInk});
 				runStart = -1;
 			};
 			int col = 0;
@@ -438,18 +439,20 @@ void QtEditorView::paintMinimap(QPainter &painter)
 	// Strip background + density runs (flat rect blits).
 	painter.fillRect(x0, 0, mw, height(), QColor(0x1a, 0x1a, 0x22));
 	painter.setPen(Qt::NoPen);
+	painter.save();
+	painter.translate(x0, 0);
 	for (const MRun &r : minimapRuns.runs)
 	{
 		painter.setBrush(r.ink);
 		painter.drawRect(QRectF(r.x, r.y, r.w, r.h));
 	}
+	painter.restore();
 
 	// Continuous slider (viewport indicator).
 	painter.setPen(QColor(255, 255, 255, 36));
 	painter.setBrush(QColor(255, 255, 255, 26));
 	painter.drawRect(QRectF(x0, stripTop + sliderTop, mw, sliderH));
 }
-
 
 void QtEditorView::minimapScrollTo(int y)
 {
@@ -461,17 +464,15 @@ void QtEditorView::minimapScrollTo(int y)
 	const int fit = std::max(1, static_cast<int>(stripH / rowH));
 	const qreal sliderH =
 		std::clamp(static_cast<qreal>(visibleLines()) * rowH, 4.0, stripH);
-	const qreal maxTop =
-		std::min(stripH - sliderH,
-				 std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
+	const qreal maxTop = std::min(
+		stripH - sliderH, std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
 	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
 	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
 	if (ratio <= 0.0)
 		return;
 	const int target =
-		static_cast<int>((std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0,
-											 maxTop)) /
-						 ratio) -
+		static_cast<int>(
+			(std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0, maxTop)) / ratio) -
 		visibleLines() / 2;
 	scrollBar->setValue(std::clamp(target, 0, maxScrollLine()));
 	update();
