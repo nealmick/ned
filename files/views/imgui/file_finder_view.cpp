@@ -1,4 +1,5 @@
 #include "file_finder_view.h"
+#include "../../../editor/views/imgui/ned_key_imgui.h"
 #include "../../../editor/editor_api.h"
 #include "../../../files/file_finder.h"
 #include "../../../util/icons.h"
@@ -7,7 +8,7 @@
 
 #include <algorithm>
 
-#include "../../../editor/views/imgui/view_layout.h"
+#include "../../../editor/views/view_layout.h"
 #include "../../../files/files.h"
 #include "../../../util/keybinds.h"
 
@@ -166,7 +167,7 @@ void renderFileFinderList(FileFinder &f)
 void renderFileFinder(FileFinder &f)
 {
 	const bool ctrl = ImGui::GetIO().KeyCtrl;
-	const ImGuiKey toggleKey = f.settings->keybinds.getActionKey("toggle_file_finder");
+	const ImGuiKey toggleKey = imguiKeyFromNed(f.settings->keybinds.getActionKey("toggle_file_finder"));
 
 	if (ctrl && ImGui::IsKeyPressed(toggleKey, false))
 	{

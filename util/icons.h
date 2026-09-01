@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imgui.h"
+#include "../editor/platform/ned_types.h"
 #include <cstdint>
 #include <map>
 #include <string>
@@ -14,16 +14,16 @@ class Icons
 	void load();
 
 	// Lookup by icon key (filename without extension), e.g. "folder", "gear-hover".
-	ImTextureID get(const std::string &name) const;
+	NedTextureId get(const std::string &name) const;
 
 	// Icon for a file path or bare filename (special names + extension map).
-	ImTextureID getForFile(const std::string &filename) const;
+	NedTextureId getForFile(const std::string &filename) const;
 
   private:
 	static constexpr int ICON_SIZE = 32;
 	static constexpr float SVG_DPI = 96.0f;
 
-	std::map<std::string, ImTextureID> textures;
+	std::map<std::string, NedTextureId> textures;
 
 	uint32_t createTexture(const unsigned char *pixels, int width, int height);
 	bool loadSvg(const std::string &iconFile);

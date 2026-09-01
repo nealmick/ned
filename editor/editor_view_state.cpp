@@ -7,7 +7,7 @@
 #include "editor_state.h"
 #include "imgui.h"
 #include "util/editor_utils.h"
-#include "views/imgui/view_layout.h"
+#include "views/view_layout.h"
 #include "views/imgui/wrap_layout.h"
 
 #include <algorithm>
@@ -516,13 +516,13 @@ void EditorViewState::updateBlinkTime() { cursorBlinkTime += ImGui::GetIO().Delt
 
 void EditorViewState::requestCursorCenter(int line, int character)
 {
-	pendingCursorCenter = ImVec2(static_cast<float>(line), static_cast<float>(character));
+	pendingCursorCenter = NedVec2(static_cast<float>(line), static_cast<float>(character));
 }
 
 void EditorViewState::updateScroll(const ViewLayout &layout)
 {
 	// Baseline from ImGui (scrollbar). requestScroll / center / reveal override.
-	scrollPosition = ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY());
+	scrollPosition = NedVec2(ImGui::GetScrollX(), ImGui::GetScrollY());
 
 	// Document child focus (not RootAndChildWindows — dock siblings share hierarchy).
 	// Find / line-jump put keyboard focus on their InputText, so the document is
@@ -596,7 +596,7 @@ void EditorViewState::processMouseWheelScrolling(const ViewLayout &layout)
 	if (io.MouseWheel == 0.0f && io.MouseWheelH == 0.0f)
 		return;
 
-	ImVec2 next(ImGui::GetScrollX(), ImGui::GetScrollY());
+	NedVec2 next(ImGui::GetScrollX(), ImGui::GetScrollY());
 	if (io.KeyShift && !layout.wrap)
 		next.x -= io.MouseWheel * ImGui::GetFontSize();
 	else
@@ -647,7 +647,7 @@ void EditorViewState::revealCursor(const ViewLayout &layout,
 								   bool horizontal,
 								   bool vertical)
 {
-	ImVec2 target = scrollPosition;
+	NedVec2 target = scrollPosition;
 	const float viewportWidth = ImGui::GetWindowWidth() - ImGui::GetStyle().ScrollbarSize;
 	const float viewportHeight = ImGui::GetWindowHeight();
 	const float marginX = ImGui::GetFontSize() * 2.0f;
@@ -678,7 +678,7 @@ void EditorViewState::revealCursor(const ViewLayout &layout,
 		animateScrollTo(target);
 }
 
-void EditorViewState::animateScrollTo(const ImVec2 &target)
+void EditorViewState::animateScrollTo(const NedVec2 &target)
 {
 	scrollAnimation.target = clampToScrollRange(target);
 	scrollAnimation.active = true;
@@ -703,19 +703,19 @@ void EditorViewState::updateScrollAnimation()
 							 scrollPosition.y != scrollAnimation.target.y;
 }
 
-ImVec2 EditorViewState::clampToScrollRange(const ImVec2 &position) const
+NedVec2 EditorViewState::clampToScrollRange(const NedVec2 &position) const
 {
-	return ImVec2(std::clamp(position.x, 0.0f, std::max(0.0f, ImGui::GetScrollMaxX())),
+	return NedVec2(std::clamp(position.x, 0.0f, std::max(0.0f, ImGui::GetScrollMaxX())),
 				  std::clamp(position.y, 0.0f, std::max(0.0f, ImGui::GetScrollMaxY())));
 }
 
-ImVec2 EditorViewState::clampToScrollRange(const ImVec2 &position,
+NedVec2 EditorViewState::clampToScrollRange(const NedVec2 &position,
 										   const ViewLayout &layout) const
 {
 	float maxX = ImGui::GetScrollMaxX();
 	float maxY = ImGui::GetScrollMaxY();
 	if (maxY < 1.0f && layout.totalHeight > layout.size.y)
 		maxY = layout.totalHeight + layout.editorTopMargin - layout.size.y;
-	return ImVec2(std::clamp(position.x, 0.0f, std::max(0.0f, maxX)),
+	return NedVec2(std::clamp(position.x, 0.0f, std::max(0.0f, maxX)),
 				  std::clamp(position.y, 0.0f, std::max(0.0f, maxY)));
 }

@@ -246,6 +246,7 @@ endforeach()
 # ================
 # Core application
 set(APP_SOURCES
+  host/imgui/app_shortcuts.cpp
   host/imgui/main.cpp
   host/imgui/ned.cpp
   host/imgui/workbench.cpp
@@ -516,6 +517,7 @@ endif()
 # Embeddable Library
 # ================
 add_library(ned_embed STATIC
+  host/imgui/app_shortcuts.cpp
   host/imgui/ned_embed.cpp
   host/imgui/workbench.cpp
   host/imgui/font.cpp
@@ -754,17 +756,22 @@ set(NED_CORE_SOURCES
   editor/editor_state.cpp
   editor/editor_operations.cpp
   editor/editor_events.cpp
+  editor/platform/ned_key.cpp
+  editor/platform/clipboard.cpp
   editor/services/save_service.cpp
   editor/services/diagnostics/diagnostics_store.cpp
+  editor/services/highlight/highlight_service.cpp
+  editor/services/highlight/tree_sitter.cpp
   editor/util/hover_markdown.cpp
   files/file_explorer_events.cpp
+  util/keybinds.cpp
+  util/settings.cpp
   util/project_undo.cpp
 )
 if(NED_ENABLE_GIT)
-  # git_service.cpp reads Settings (which owns the ImGui-bound Font) — it
-  # joins ned_core in Phase 2 once Font leaves the Settings header.
   list(APPEND NED_CORE_SOURCES
     editor/services/git/git_repo.cpp
+    editor/services/git/git_service.cpp
     editor/services/git/line_diff.cpp
   )
 else()

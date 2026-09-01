@@ -11,10 +11,9 @@
 
 #include "editor_events.h"
 #include "platform/ned_types.h"
-#include "imgui.h"
 #include "services/highlight/capture_map.h"
 #include "util/hover_trigger.h"
-#include "views/imgui/view_layout.h"
+#include "views/view_layout.h"
 #include <string>
 
 class Editor;

@@ -14,7 +14,7 @@
 #include "minimap_view.h"
 #include "text_view.h"
 #include "title_bar_view.h"
-#include "view_layout.h"
+#include "../view_layout.h"
 #include "wrap_layout.h"
 
 struct ImFont;
@@ -108,5 +108,5 @@ class EditorFrame
 	TooltipArbiter tooltipArbiter;
 	HoverTrigger hoverTrigger;
 	ImVec2 lastMousePos{0.0f, 0.0f};
-	ImVec2 lastScroll{0.0f, 0.0f};
+	NedVec2 lastScroll{0.0f, 0.0f};
 };

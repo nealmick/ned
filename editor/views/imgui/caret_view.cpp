@@ -2,14 +2,14 @@
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../util/editor_utils.h"
-#include "view_layout.h"
+#include "../view_layout.h"
 #include "wrap_layout.h"
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
-float CaretView::caretScreenX(const ImVec2 &textPos) const
+float CaretView::caretScreenX(const NedVec2 &textPos) const
 {
 	return std::floor(EditorUtils::LineColumnX(
 		viewState->document().line(viewState->row), viewState->column, textPos.x));

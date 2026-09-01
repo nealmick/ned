@@ -59,8 +59,8 @@ void LSPUriOptions::render(const std::string &title,
 	ImVec2 windowPos;
 	if (settings && settings->isEmbedded)
 	{
-		const ImVec2 &panePos = api->layout().panePos;
-		const ImVec2 &paneSize = api->layout().paneSize;
+		const NedVec2 panePos = api->layout().panePos;
+		const NedVec2 paneSize = api->layout().paneSize;
 
 		windowPos = ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
 						   panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);

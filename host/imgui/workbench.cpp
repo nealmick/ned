@@ -6,7 +6,10 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#include "app_shortcuts.h"
 #include "workbench.h"
+#include "editor/util/hover_trigger.h"
+#include "editor/views/imgui/ned_key_imgui.h"
 #include "editor/views/imgui/clipboard_imgui.h"
 
 #include "editor/editor_events.h"
@@ -173,7 +176,7 @@ void Workbench::handleTabSwitchShortcuts()
 	}
 
 	// Cmd/Ctrl+W — close the active tab.
-	ImGuiKey closeKey = settings.keybinds.getActionKey("close_tab");
+	ImGuiKey closeKey = imguiKeyFromNed(settings.keybinds.getActionKey("close_tab"));
 	if (closeKey == ImGuiKey_None)
 		closeKey = ImGuiKey_W; // default if keybinds.json omits it
 	if (ImGui::IsKeyPressed(closeKey, false))
@@ -187,6 +190,8 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 {
 	static ImGuiClipboard clipboardForEditors;
 	setEditorClipboard(&clipboardForEditors);
+	HoverTrigger::setProductionClock([] { return ImGui::GetTime(); });
+	HoverTrigger::setStyleHoverDelay(ImGui::GetStyle().HoverDelayNormal);
 
 	if (initialized_)
 	{
@@ -1085,7 +1090,7 @@ void Workbench::render()
 
 	if (!fileExplorer->fileFinder.showFFWindow)
 	{
-		settings.keybinds.handleKeyboardShortcuts(*api, *fileExplorer, *lspView);
+		handleAppKeyboardShortcuts(*api, *fileExplorer, settings, *lspView);
 		handleTabSwitchShortcuts(); // Cmd/Ctrl+1..9 — focus tab N, Cmd/Ctrl+W — close tab
 	}
 

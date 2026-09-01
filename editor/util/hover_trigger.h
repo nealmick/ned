@@ -21,8 +21,8 @@
 	via its own rectangle; it cannot mutate this machine.
 */
 
-#include "imgui.h"
 #include <algorithm>
+#include <chrono>
 #include <functional>
 
 class HoverTrigger
@@ -49,9 +49,11 @@ class HoverTrigger
 		int column = 0;
 	};
 
-	// Clock injectable for tests; production uses ImGui::GetTime().
-	explicit HoverTrigger(std::function<double()> clock = &ImGui::GetTime)
-		: clock(std::move(clock))
+	// Clock injectable for tests. The default is a steady wall clock; hosts
+	// with a frame clock (ImGui::GetTime) install it via setProductionClock.
+	explicit HoverTrigger(std::function<double()> clock = {})
+		: clock(clock ? std::move(clock)
+					  : std::function<double()>(defaultClock))
 	{
 	}
 
@@ -82,16 +84,34 @@ class HoverTrigger
 
 	const Info &info() const { return current; }
 
-	// Tests only: deterministic delay (default -1 = ImGui hover delay, min 0.25s).
+	// Tests only: deterministic delay (default -1 = host style delay, min 0.25s).
 	void setDelayForTest(double seconds) { testDelay = seconds; }
 
-  private:
+	// Host hooks: frame clock + style hover delay (ImGui sets these at init).
+	static void setProductionClock(double (*clock)()) { defaultClock = clock; }
+	static void setStyleHoverDelay(double seconds) { styleHoverDelay() = seconds; }
+
+    private:
+	static double steadyClock()
+	{
+		using namespace std::chrono;
+		return duration_cast<duration<double>>(steady_clock::now().time_since_epoch())
+			.count();
+	}
+
+	static inline double (*defaultClock)() = &HoverTrigger::steadyClock;
+
+	// Host style hook (ImGui sets GetStyle().HoverDelayNormal at startup).
+	static double &styleHoverDelay()
+	{
+		static double delay = 0.30; // matches ImGui's HoverDelayNormal default
+		return delay;
+	}
+
 	double delaySeconds() const
 	{
-		return testDelay >= 0.0
-				   ? testDelay
-				   : std::max(kMinHoverDelaySeconds,
-							  static_cast<double>(ImGui::GetStyle().HoverDelayNormal));
+		return testDelay >= 0.0 ? testDelay
+								: std::max(kMinHoverDelaySeconds, styleHoverDelay());
 	}
 
 	// Floor below the ImGui style delay: a hover that flickers faster than

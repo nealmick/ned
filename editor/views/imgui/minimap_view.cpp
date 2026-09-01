@@ -12,7 +12,7 @@
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/highlight/highlight_service.h"
-#include "view_layout.h"
+#include "../view_layout.h"
 #include "wrap_layout.h"
 #include <algorithm>
 #include <cmath>
@@ -202,7 +202,8 @@ void MinimapView::interact(EditorViewState &view)
 {
 	if (!state || !layout || !layout->minimapVisible())
 		return;
-	const ImVec2 a = layout->minimapMin, b = layout->minimapMax;
+	const ImVec2 a(layout->minimapMin.x, layout->minimapMin.y), b(layout->minimapMax.x,
+															 layout->minimapMax.y);
 	const float stripH = b.y - a.y;
 	if (stripH <= 1.0f)
 		return;
@@ -254,7 +255,7 @@ void MinimapView::draw(const EditorViewState &view) const
 	if (w <= 1.0f || h <= 1.0f)
 		return;
 
-	const ImVec2 a = layout->minimapMin;
+	const ImVec2 a(layout->minimapMin.x, layout->minimapMin.y);
 	const Density d = densityFromFont();
 	const Strip s = makeStrip(*state, *layout, view.getScrollPosition().y, h, d);
 	if (s.end < s.start)

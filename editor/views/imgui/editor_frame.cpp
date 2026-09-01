@@ -242,7 +242,7 @@ void EditorFrame::updateLayoutMetrics()
 {
 	viewState->updateBlinkTime();
 
-	layout.size = ImGui::GetContentRegionAvail();
+	layout.size = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
 	const float fs = ImGui::GetFontSize();
 	gutter.lineNumberWidth = ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
 	layout.lineHeight = ImGui::GetTextLineHeight();
@@ -273,11 +273,11 @@ void EditorFrame::beginDocumentChild()
 	const ImVec2 avail = ImGui::GetContentRegionAvail();
 	if (layout.minimapWidth > 0.5f)
 	{
-		layout.minimapMin = ImVec2(origin.x + avail.x - layout.minimapWidth, origin.y);
-		layout.minimapMax = ImVec2(origin.x + avail.x, origin.y + avail.y);
+		layout.minimapMin = NedVec2(origin.x + avail.x - layout.minimapWidth, origin.y);
+		layout.minimapMax = NedVec2(origin.x + avail.x, origin.y + avail.y);
 	} else
 	{
-		layout.minimapMin = layout.minimapMax = ImVec2(0, 0);
+		layout.minimapMin = layout.minimapMax = NedVec2(0, 0);
 	}
 
 	gutter.lineNumbersPos = gutter.createLineNumbersPanel();
@@ -325,9 +325,9 @@ void EditorFrame::beginDocumentChild()
 
 	updateFocusPolicy();
 
-	viewState->setScrollPosition(ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()));
+	viewState->setScrollPosition(NedVec2(ImGui::GetScrollX(), ImGui::GetScrollY()));
 
-	layout.textPos = ImGui::GetCursorScreenPos();
+	layout.textPos = NedVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y);
 	layout.textPos.y += layout.editorTopMargin;
 	layout.textPos.x += layout.textLeftMargin;
 
@@ -394,7 +394,7 @@ void EditorFrame::drawDocument()
 						 layout.editorTopMargin);
 	ImGui::Dummy(ImVec2(0, 0));
 
-	viewState->setScrollPosition(ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()));
+	viewState->setScrollPosition(NedVec2(ImGui::GetScrollX(), ImGui::GetScrollY()));
 
 	ImGui::EndChild();
 	ImGui::PopStyleColor(4);
@@ -421,8 +421,8 @@ void EditorFrame::drawDocument()
 void EditorFrame::run(ImFont *font)
 {
 	// Outer "Editor" child is already open (host). Capture pane for overlays.
-	layout.panePos = ImGui::GetWindowPos();
-	layout.paneSize = ImGui::GetWindowSize();
+	layout.panePos = NedVec2(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y);
+	layout.paneSize = NedVec2(ImGui::GetWindowSize().x, ImGui::GetWindowSize().y);
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
@@ -534,7 +534,7 @@ void EditorFrame::updateHoverTrigger()
 			}
 		}
 	}
-	const ImVec2 scrollNow = viewState->getScrollPosition();
+	const NedVec2 scrollNow = viewState->getScrollPosition();
 	if (scrollNow.x != lastScroll.x || scrollNow.y != lastScroll.y)
 		frameDismissed = true;
 	lastScroll = scrollNow;

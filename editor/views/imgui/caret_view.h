@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "../../platform/ned_types.h"
 #include "imgui.h"
 
 class EditorViewState;
@@ -21,7 +22,7 @@ class CaretView
 	void draw() const;
 
 	// Screen X of caret given layout text origin (used by LSP hover placement).
-	float caretScreenX(const ImVec2 &textPos) const;
+	float caretScreenX(const NedVec2 &textPos) const;
 
   private:
 	const EditorViewState *viewState;

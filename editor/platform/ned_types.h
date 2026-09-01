@@ -37,6 +37,11 @@ struct NedColor
 	}
 };
 
+// Opaque texture handle: an integer the backend interprets (ImGui: GL
+// texture name via ImTextureID; Qt: resource cache key).
+using NedTextureId = std::uintptr_t;
+constexpr NedTextureId kNoTexture = 0;
+
 // Packed 0xAABBGGRR (same layout as ImGui's ImU32 colors).
 inline constexpr std::uint32_t nedColorToU32(const NedColor &c)
 {

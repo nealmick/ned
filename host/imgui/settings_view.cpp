@@ -176,14 +176,16 @@ void SettingsView::renderSettingsWindow(EditorApi &api,
 
 	if (s.isEmbedded)
 	{
-		ImGui::SetNextWindowPos(s.embeddedWindowPos, ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(s.embeddedWindowSize, ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(s.embeddedWindowPos.x, s.embeddedWindowPos.y),
+								  ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(s.embeddedWindowSize.x, s.embeddedWindowSize.y),
+								   ImGuiCond_FirstUseEver);
 
 		bool windowOpen = true;
 		if (ImGui::Begin("Settings", &windowOpen, ImGuiWindowFlags_NoCollapse))
 		{
-			s.embeddedWindowPos = ImGui::GetWindowPos();
-			s.embeddedWindowSize = ImGui::GetWindowSize();
+			s.embeddedWindowPos = {ImGui::GetWindowPos().x, ImGui::GetWindowPos().y};
+			s.embeddedWindowSize = {ImGui::GetWindowSize().x, ImGui::GetWindowSize().y};
 			if (!windowOpen)
 				s.showSettingsWindow = false;
 			renderSettingsContent(api, files, lsp);

@@ -10,7 +10,7 @@
 #define NED_ENABLE_SHADERS 1
 #endif
 #include "../lib/json.hpp"
-#include "imgui.h"
+#include "../editor/platform/ned_types.h"
 #include "keybinds.h"
 #include <filesystem>
 #include <string>
@@ -55,8 +55,8 @@ class Settings
 	// Bottom terminal panel visibility (Cmd/Ctrl+T).
 	bool terminalVisible = true;
 
-	ImVec2 embeddedWindowPos{200.0f, 200.0f};
-	ImVec2 embeddedWindowSize{900.0f, 600.0f};
+	NedVec2 embeddedWindowPos{200.0f, 200.0f};
+	NedVec2 embeddedWindowSize{900.0f, 600.0f};
 	bool embeddedWindowCollapsed{false};
 
 	void toggleSettingsWindow(EditorApi &api);

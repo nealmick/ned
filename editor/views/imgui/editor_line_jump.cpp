@@ -1,4 +1,5 @@
 #include "editor_line_jump.h"
+#include "ned_key_imgui.h"
 #include "../../editor_api.h"
 #include "../../editor_commands.h"
 #include "../../editor_events.h"
@@ -23,7 +24,7 @@ void EditorLineJump::update()
 
 	bool main_key = ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeySuper;
 	bool shift_pressed = ImGui::GetIO().KeyShift;
-	ImGuiKey line_jump_key = settings->keybinds.getActionKey("line_jump_key");
+	const ImGuiKey line_jump_key = imguiKeyFromNed(settings->keybinds.getActionKey("line_jump_key"));
 
 	if (hostFocused && main_key &&
 		(ImGui::IsKeyPressed(line_jump_key, false) ||

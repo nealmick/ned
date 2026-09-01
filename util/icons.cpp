@@ -303,7 +303,7 @@ bool Icons::loadSvg(const std::string &iconFile)
 		return false;
 
 	const std::string key = iconFile.substr(0, iconFile.find('.'));
-	textures[key] = static_cast<ImTextureID>(static_cast<uintptr_t>(texture));
+	textures[key] = static_cast<NedTextureId>(texture);
 	return true;
 }
 
@@ -311,19 +311,19 @@ void Icons::createFallback()
 {
 	const unsigned char pixels[] = {255, 255, 255, 255, 0, 0, 0, 255};
 	const uint32_t texture = createTexture(pixels, 2, 1);
-	textures["default"] = static_cast<ImTextureID>(static_cast<uintptr_t>(texture));
+	textures["default"] = static_cast<NedTextureId>(texture);
 }
 
-ImTextureID Icons::get(const std::string &name) const
+NedTextureId Icons::get(const std::string &name) const
 {
 	auto it = textures.find(name);
 	if (it != textures.end())
 		return it->second;
 	auto def = textures.find("default");
-	return (def != textures.end()) ? def->second : ImTextureID{};
+	return (def != textures.end()) ? def->second : kNoTexture;
 }
 
-ImTextureID Icons::getForFile(const std::string &filename) const
+NedTextureId Icons::getForFile(const std::string &filename) const
 {
 	const std::string name = fs::path(filename).filename().string();
 

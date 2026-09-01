@@ -8,6 +8,7 @@
 */
 #pragma once
 
+#include "platform/ned_types.h"
 #include "imgui.h"
 #include <optional>
 #include <vector>
@@ -158,12 +159,12 @@ class EditorViewState
 	// --- Viewport scroll ---
 	// Needs current ImGui editor child window active when applying.
 
-	ImVec2 getScrollPosition() const { return scrollPosition; }
-	void setScrollPosition(const ImVec2 &position) { scrollPosition = position; }
+	NedVec2 getScrollPosition() const { return scrollPosition; }
+	void setScrollPosition(const NedVec2 &position) { scrollPosition = position; }
 
 	// Immediate scroll intent (no animation). Applied in updateScroll same frame.
 	// Prefer this over SetScrollY from outside so clamp is centralized.
-	void requestScroll(float x, float y) { requestedScroll = ImVec2(x, y); }
+	void requestScroll(float x, float y) { requestedScroll = NedVec2(x, y); }
 	void requestCursorCenter(int line, int character);
 
 	// Apply pending reveal/center/request + animation; write ImGui scroll.
@@ -183,13 +184,13 @@ class EditorViewState
 	struct ScrollAnimation
 	{
 		bool active = false;
-		ImVec2 target = ImVec2(0.0f, 0.0f);
+		NedVec2 target = NedVec2(0.0f, 0.0f);
 	};
 
-	ImVec2 scrollPosition = ImVec2(0.0f, 0.0f);
+	NedVec2 scrollPosition = NedVec2(0.0f, 0.0f);
 	ScrollAnimation scrollAnimation;
-	std::optional<ImVec2> requestedScroll;
-	std::optional<ImVec2> pendingCursorCenter;
+	std::optional<NedVec2> requestedScroll;
+	std::optional<NedVec2> pendingCursorCenter;
 
 	bool moveCursorVertically(Selection &sel, int line_delta);
 	void findColumnFromVisualColumn(Selection &sel, int line);
@@ -199,11 +200,11 @@ class EditorViewState
 	int caretVisualLine(const ViewLayout &layout) const;
 	void centerCursorVertically(const ViewLayout &layout);
 	void revealCursor(const ViewLayout &layout, bool horizontal, bool vertical);
-	void animateScrollTo(const ImVec2 &target);
+	void animateScrollTo(const NedVec2 &target);
 	void updateScrollAnimation();
 	// Clamp against ImGui scroll max; falls back to layout when max is unset.
-	ImVec2 clampToScrollRange(const ImVec2 &position) const;
-	ImVec2 clampToScrollRange(const ImVec2 &position, const ViewLayout &layout) const;
+	NedVec2 clampToScrollRange(const NedVec2 &position) const;
+	NedVec2 clampToScrollRange(const NedVec2 &position, const ViewLayout &layout) const;
 
 	void clampSelection(Selection &sel);
 };
