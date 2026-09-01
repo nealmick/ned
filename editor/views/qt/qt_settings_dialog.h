@@ -30,4 +30,6 @@ class QtSettingsDialog : public QDialog
 	QSpinBox *fontSizeBox = nullptr;
 	QCheckBox *lineNumbersBox = nullptr;
 	QCheckBox *gitGutterBox = nullptr;
+	QCheckBox *rainbowBox = nullptr;
+	QCheckBox *treeSitterBox = nullptr;
 };

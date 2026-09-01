@@ -9,6 +9,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QIcon>
 #include <QPixmap>
 
 class Settings;
@@ -48,6 +49,9 @@ class QtEditorView : public QWidget
 
 	// Find bar (Cmd/Ctrl+F).
 	void toggleFindBar();
+
+	// Go-to-line (Cmd/Ctrl+;).
+	void goToLineDialog();
 	QString filePath() const { return QString::fromStdString(state.path); }
 	bool isDirty() const { return state.dirty; }
 
@@ -105,6 +109,7 @@ class QtEditorView : public QWidget
 	int charWidthPx = 1;
 	int gutterWidthPx = 0;
 	int titleBarPx = 26;
-	QPixmap fileIcon;
+	QIcon fileIcon;
+	int rainbowPhase = 0;
 	bool dragging = false;
 };

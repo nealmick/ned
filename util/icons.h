@@ -19,6 +19,10 @@ class Icons
 	// Icon for a file path or bare filename (special names + extension map).
 	NedTextureId getForFile(const std::string &filename) const;
 
+	// Pure resolution: filename -> icon key ("cpp", "cmake", ...). Backends
+	// without the GL texture atlas (Qt) use this + their own renderer.
+	static std::string iconKeyForFile(const std::string &filename);
+
   private:
 	static constexpr int ICON_SIZE = 32;
 	static constexpr float SVG_DPI = 96.0f;

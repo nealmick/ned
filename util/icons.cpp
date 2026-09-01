@@ -325,22 +325,5 @@ NedTextureId Icons::get(const std::string &name) const
 
 NedTextureId Icons::getForFile(const std::string &filename) const
 {
-	const std::string name = fs::path(filename).filename().string();
-
-	if (name == "CMakeLists.txt" || name == "cmake")
-		return get("cmake");
-	if (name == ".clangd" || name == ".clang-format")
-		return get("clangd");
-	if (name == "Dockerfile")
-		return get("Dockerfile");
-	if (name == ".gitignore")
-		return get("gitignore");
-	if (name == ".gitmodules")
-		return get("gitmodule");
-
-	std::string ext = fs::path(filename).extension().string();
-	if (!ext.empty() && ext[0] == '.')
-		ext.erase(0, 1);
-
-	return get(ext.empty() ? "default" : ext);
+	return get(iconKeyForFile(filename));
 }

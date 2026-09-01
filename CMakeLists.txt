@@ -399,6 +399,7 @@ endif()
 set(NED_UTIL_SOURCES
   util/settings_app.cpp
   util/settings.cpp
+  util/icon_keys.cpp
   util/keybinds.cpp
   util/icons.cpp
   util/project_undo.cpp
@@ -773,6 +774,7 @@ set(NED_CORE_SOURCES
   editor/util/hover_markdown.cpp
   files/file_explorer_events.cpp
   files/file_tree.cpp
+  util/icon_keys.cpp
   util/keybinds.cpp
   util/settings.cpp
   util/project_undo.cpp
@@ -819,7 +821,7 @@ if(NED_BUILD_QT)
   if(APPLE AND EXISTS /opt/homebrew/opt/qt)
     list(APPEND CMAKE_PREFIX_PATH /opt/homebrew/opt/qt)
   endif()
-  find_package(Qt6 COMPONENTS Widgets QUIET)
+  find_package(Qt6 COMPONENTS Widgets Svg QUIET)
   if(NOT Qt6_FOUND)
     message(STATUS "Qt6 not found - skipping ned_qt (install qt or set CMAKE_PREFIX_PATH)")
   else()
@@ -829,6 +831,7 @@ if(NED_BUILD_QT)
       host/qt/qt_host.cpp
       editor/views/qt/qt_editor_view.cpp
       editor/views/qt/qt_find_bar.cpp
+      editor/views/qt/qt_icons.cpp
       editor/views/qt/qt_finder.cpp
       editor/views/qt/qt_settings_dialog.cpp
       editor/views/qt/qt_sidebar.cpp
@@ -852,6 +855,7 @@ if(NED_BUILD_QT)
     target_link_libraries(ned_qt PRIVATE
       ned_core
       Qt6::Widgets
+      Qt6::Svg
     )
     if(APPLE)
       # Native title bar treatment shared with the GLFW host. The NSWindow

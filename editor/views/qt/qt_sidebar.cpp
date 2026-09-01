@@ -1,7 +1,7 @@
 #include "qt_sidebar.h"
 
 #include <QFileInfo>
-#include <QFileIconProvider>
+#include "qt_icons.h"
 
 QtFileSidebar::QtFileSidebar(QWidget *parent) : QTreeWidget(parent)
 {
@@ -58,7 +58,9 @@ void QtFileSidebar::populate(QTreeWidgetItem *parentItem, FileNode &node)
 	for (FileNode &child : node.children)
 	{
 		auto *item = new QTreeWidgetItem({QString::fromStdString(child.name)});
-		item->setIcon(0, QFileIconProvider().icon(QFileInfo(QString::fromStdString(child.fullPath))));
+		item->setIcon(0, child.isDirectory
+							 ? QtIconSet::instance().byKey(child.isOpen ? "folder-open" : "folder")
+							 : QtIconSet::instance().forFile(QString::fromStdString(child.name)));
 		item->setData(0, Qt::UserRole, QVariant::fromValue<void *>(&child));
 		parentItem->addChild(item);
 		if (child.isDirectory)

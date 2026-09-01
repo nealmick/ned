@@ -43,4 +43,5 @@ class NedQtHost : public QMainWindow
 	QtFileSidebar *sidebar = nullptr;
 	QString workspaceRoot;
 	bool chromeApplied = false;
+	int untitledCounter = 1;
 };

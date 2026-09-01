@@ -54,6 +54,14 @@ QtSettingsDialog::QtSettingsDialog(Settings &settings, QWidget *parent)
 		appSettings.settings.value("git_changed_lines", true));
 	form->addRow("", gitGutterBox);
 
+	rainbowBox = new QCheckBox("Rainbow cursor (steady) vs blinking", this);
+	rainbowBox->setChecked(appSettings.settings.value("rainbow", true));
+	form->addRow("", rainbowBox);
+
+	treeSitterBox = new QCheckBox("Tree-sitter syntax highlighting", this);
+	treeSitterBox->setChecked(appSettings.settings.value("treesitter", true));
+	form->addRow("", treeSitterBox);
+
 	layout->addLayout(form);
 
 	auto *buttons = new QDialogButtonBox(
@@ -70,6 +78,8 @@ void QtSettingsDialog::save()
 		appSettings.switchToProfile(themeBox->currentText().toStdString());
 	appSettings.settings["fontSize"] = fontSizeBox->value();
 	appSettings.settings["git_changed_lines"] = gitGutterBox->isChecked();
+	appSettings.settings["rainbow"] = rainbowBox->isChecked();
+	appSettings.settings["treesitter"] = treeSitterBox->isChecked();
 	appSettings.saveSettings();
 	// Views read the profile live (colors via HighlightService, font via host).
 	appSettings.requestApply();

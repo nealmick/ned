@@ -8,14 +8,16 @@
 #include <QShortcut>
 
 #include <QFontMetrics>
+#include <QInputDialog>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
 #include <QTimer>
-#include <QFileIconProvider>
+#include "qt_icons.h"
 #include <QWheelEvent>
 
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -31,6 +33,7 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	blinkTimer->setInterval(530);
 	connect(blinkTimer, &QTimer::timeout, this, [this] {
 		caretVisible = !caretVisible;
+		++rainbowPhase;
 		update();
 	});
 	blinkTimer->start();
@@ -58,6 +61,9 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	setMouseTracking(true);
 
 	findBar = new QtFindBar(this, this);
+	auto *lineJumpShortcut = new QShortcut(QKeySequence("Ctrl+;"), this);
+	connect(lineJumpShortcut, &QShortcut::activated, this,
+			&QtEditorView::goToLineDialog);
 	auto *findShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
 	connect(findShortcut, &QShortcut::activated, this, &QtEditorView::toggleFindBar);
 }
@@ -122,7 +128,7 @@ void QtEditorView::openFile(const QString &path)
 		state.path = "";
 	}
 
-	fileIcon = QFileIconProvider().icon(QFileInfo(path)).pixmap(18, 18);
+	fileIcon = QtIconSet::instance().forFile(path);
 	state.setFromString(raw);
 	ops.clearPending();
 	ops.bumpGeneration();
@@ -141,12 +147,14 @@ QSize QtEditorView::sizeHint() const { return QSize(800, 600); }
 
 int QtEditorView::visibleLines() const
 {
-	return std::max(1, height() / lineHeightPx);
+	return std::max(1, (height() - titleBarPx) / lineHeightPx);
 }
 
 int QtEditorView::maxScrollLine() const
 {
-	return std::max(0, state.lineCount() - visibleLines() + 1);
+	// Last line fully visible at bottom: allow scrolling past it a little
+	// (ImGui scrolls to keep the caret line plus context visible).
+	return std::max(0, state.lineCount() - visibleLines() + 2);
 }
 
 int QtEditorView::rowAtY(int y) const
@@ -179,7 +187,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	painter.fillRect(rect(), background);
 
 	const int firstRow = scrollBar->value();
-	const int rows = std::min(visibleLines() + 1,
+	const int rows = std::min(visibleLines() + 2,
 							  state.lineCount() - firstRow);
 
 	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
@@ -193,8 +201,9 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		int tx = 10;
 		if (!fileIcon.isNull())
 		{
-			painter.drawPixmap(tx, (titleBarPx - 18) / 2, fileIcon);
-			tx += 26;
+			painter.drawPixmap(QRect(tx, (titleBarPx - 16) / 2, 16, 16),
+							   fileIcon.pixmap(16, 16));
+			tx += 24;
 		}
 		painter.drawText(QRect(tx, 0, width() - tx - 160, titleBarPx),
 						 Qt::AlignVCenter | Qt::AlignLeft,
@@ -294,9 +303,18 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		}
 	}
 
-	if (caretVisible)
+	const bool rainbowMode =
+		appSettings.settings.value("rainbow", true);
+	if (rainbowMode || caretVisible)
 	{
-		painter.setPen(QColor(255, 120, 255));
+		if (rainbowMode)
+		{
+			const float hue = std::fmod(rainbowPhase * 0.01f, 1.0f);
+			painter.setPen(QColor::fromHsvF(hue, 0.85f, 1.0f));
+		} else
+		{
+			painter.setPen(QColor(255, 255, 255));
+		}
 		for (const Selection &sel : viewState.selections)
 		{
 			const int i = sel.headRow - firstRow;
@@ -338,6 +356,24 @@ void QtEditorView::toggleFindBar()
 		findBar->open();
 }
 
+void QtEditorView::goToLineDialog()
+{
+	bool ok = false;
+	const int line = QInputDialog::getInt(this, "Go to Line",
+										  QString("Line (1 - %1):").arg(state.lineCount()),
+										  viewState.selections[viewState.primaryIndex].headRow + 1,
+										  1, state.lineCount(), 1, &ok);
+	if (!ok)
+		return;
+	commands.goToLine(line - 1); // commands API is 0-based
+	// Ensure the target is scrolled into view.
+	scrollBar->setValue(std::max(0, viewState.selections[viewState.primaryIndex].headRow -
+										  visibleLines() / 2));
+	caretVisible = true;
+	scheduleBlink();
+	update();
+}
+
 void QtEditorView::scheduleBlink()
 {
 	blinkTimer->start();
@@ -345,46 +381,73 @@ void QtEditorView::scheduleBlink()
 
 void QtEditorView::keyPressEvent(QKeyEvent *event)
 {
-	const bool sel = event->modifiers() & Qt::ShiftModifier;
+	const bool shift = event->modifiers() & Qt::ShiftModifier;
 	const bool ctrl = event->modifiers() & Qt::ControlModifier;
-	const bool meta = event->modifiers() & Qt::MetaModifier;
-	const bool mod = ctrl || meta;
+	const bool meta = event->modifiers() & Qt::MetaModifier; // Cmd
+	const bool alt = event->modifiers() & Qt::AltModifier;	 // Option
+	const bool primary = ctrl || meta;
+
+	// Option/Alt: word left/right, add caret above/below (not with Cmd/Ctrl).
+	if (alt && !primary)
+	{
+		switch (event->key())
+		{
+		case Qt::Key_Left: commands.moveWordLeft(shift); break;
+		case Qt::Key_Right: commands.moveWordRight(shift); break;
+		case Qt::Key_Up: commands.addCursorAbove(); break;
+		case Qt::Key_Down: commands.addCursorBelow(); break;
+		default: QWidget::keyPressEvent(event); return;
+		}
+		afterEdit();
+		return;
+	}
+
+	if (primary)
+	{
+		switch (event->key())
+		{
+		case Qt::Key_A: commands.selectAll(); break;
+		case Qt::Key_Z: commands.undo(); break;
+		case Qt::Key_Y: commands.redo(); break;
+		case Qt::Key_C: commands.copy(); break;
+		case Qt::Key_X: commands.cut(); break;
+		case Qt::Key_V: commands.paste(); break;
+		case Qt::Key_S: commands.save(); break;
+		case Qt::Key_Left: commands.moveLineStart(shift); break;
+		case Qt::Key_Right: commands.moveLineEnd(shift); break;
+		case Qt::Key_Up: commands.moveLines(-5, shift); break;
+		case Qt::Key_Down: commands.moveLines(5, shift); break;
+		default: QWidget::keyPressEvent(event); return;
+		}
+		afterEdit();
+		return;
+	}
 
 	switch (event->key())
 	{
-	case Qt::Key_Left: mod ? commands.moveWordLeft(sel) : commands.moveLeft(sel); break;
-	case Qt::Key_Right: mod ? commands.moveWordRight(sel) : commands.moveRight(sel); break;
-	case Qt::Key_Up: commands.moveUp(sel); break;
-	case Qt::Key_Down: commands.moveDown(sel); break;
-	case Qt::Key_Home: mod ? commands.moveDocStart(sel) : commands.moveLineStart(sel); break;
-	case Qt::Key_End: mod ? commands.moveDocEnd(sel) : commands.moveLineEnd(sel); break;
+	case Qt::Key_Left: commands.moveLeft(shift); break;
+	case Qt::Key_Right: commands.moveRight(shift); break;
+	case Qt::Key_Up: commands.moveUp(shift); break;
+	case Qt::Key_Down: commands.moveDown(shift); break;
+	case Qt::Key_Home: commands.moveLineStart(shift); break;
+	case Qt::Key_End: commands.moveLineEnd(shift); break;
 	case Qt::Key_Return:
 	case Qt::Key_Enter: commands.insertNewline(); break;
-	case Qt::Key_Backspace: commands.deleteLeft(mod); break;
-	case Qt::Key_Delete: commands.deleteRight(mod); break;
+	case Qt::Key_Backspace: commands.deleteLeft(false); break;
+	case Qt::Key_Delete: commands.deleteRight(false); break;
 	case Qt::Key_Tab: commands.indent(); break;
 	case Qt::Key_Backtab: commands.outdent(); break;
 	default:
-		if (mod)
-		{
-			switch (event->key())
-			{
-			case Qt::Key_Z: commands.undo(); break;
-			case Qt::Key_Y: commands.redo(); break;
-			case Qt::Key_A: commands.selectAll(); break;
-			case Qt::Key_C: commands.copy(); break;
-			case Qt::Key_X: commands.cut(); break;
-			case Qt::Key_V: commands.paste(); break;
-			case Qt::Key_S: commands.save(); break;
-			default: QWidget::keyPressEvent(event); return;
-			}
-			afterEdit();
-			return;
-		}
+	{
 		const QString text = event->text();
 		if (!text.isEmpty())
+		{
 			commands.typeText(text.toUtf8().constData());
-		break;
+			break;
+		}
+		QWidget::keyPressEvent(event);
+		return;
+	}
 	}
 	afterEdit();
 }
@@ -392,7 +455,7 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 void QtEditorView::resizeEvent(QResizeEvent *event)
 {
 	QWidget::resizeEvent(event);
-	if (findBar)
+	if (findBar && findBar->isVisible())
 		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
 	scrollBar->setGeometry(width() - 14, 0, 14, height());
 	scrollBar->setPageStep(std::max(1, visibleLines() - 1));

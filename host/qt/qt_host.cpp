@@ -123,6 +123,7 @@ NedQtHost::NedQtHost(QWidget *parent) : QMainWindow(parent)
 		[] { if (gQtHost) Q_EMIT gQtHost->settingsRequested(); });
 #endif
 	chromeApplied = false;
+	untitledCounter = 1;
 }
 
 NedQtHost::~NedQtHost() = default;
@@ -154,7 +155,18 @@ void NedQtHost::openPath(const QString &path, bool focus)
 
 	auto *editor = new QtEditorView(settings, this);
 	editor->openFile(path);
-	const int index = tabs->addTab(editor, QFileInfo(path).fileName());
+	// Drop the welcome tab once a real document opens.
+	for (int i = 0; i < tabs->count(); ++i)
+		if (tabs->tabText(i) == "Welcome")
+		{
+			QWidget *welcome = tabs->widget(i);
+			tabs->removeTab(i);
+			delete welcome;
+			break;
+		}
+	const QString tabName =
+		path.isEmpty() ? QString("Untitled %1").arg(untitledCounter++) : QFileInfo(path).fileName();
+	const int index = tabs->addTab(editor, tabName);
 	connect(editor, &QtEditorView::documentEdited, this,
 			[this, editor] { refreshTabTitle(tabs->indexOf(editor)); });
 	if (focus)
@@ -231,10 +243,7 @@ void NedQtHost::showWelcome()
 	connect(openFolder, &QPushButton::clicked, this, [this] {
 		const QString root = QFileDialog::getExistingDirectory(this, "Open Folder");
 		if (!root.isEmpty())
-		{
 			openWorkspace(root);
-			openPath("", true);
-		}
 	});
 
 	layout->addWidget(buttons);
