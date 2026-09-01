@@ -18,7 +18,7 @@ Status legend: ✅ verified by user · 🟡 partial (works, known gaps) ·
 | Scroll-follow caret | `revealCursor` every edit | 🟥 | `commands.requestEnsureVisible()` is a NO-OP in Qt — caret can leave the viewport while typing |
 | Word wrap | `WrapLayout` (shared) | 🟡 | shared engine wired; visual-line hit-testing incomplete (⚠️ segment not resolved from y) |
 | Gutter | line numbers, git tint + marks | 🟡 | wired; git tint shows only after workspace-root fix — needs user verify |
-| Minimap | full (drag, density) | 🟥 | not started |
+| Minimap | full (drag, density) | 🟡 | strip + drag + viewport box; flat-color rows (no per-span colors yet) |
 | Editor title bar | icon + path + git ±N | 🟡 | present; icon from ned SVG set |
 
 ## 2. Keyboard input
@@ -70,15 +70,14 @@ Status legend: ✅ verified by user · 🟡 partial (works, known gaps) ·
 
 ## 5. Known half-done debt (⚠️ explicit list)
 
+0. (resolved) wrapped-row hit-test, selection rects, width unification — fixed.
 1. `qt_editor_view.cpp` has grown by accretion (~800 lines): paintEvent
    mixes concerns (title bar, gutter, git, text, overlays) — should be
    split into small paint helpers when the foundation is verified.
-2. Wrapped-row hit-testing: `columnAtX` ignores which segment the y
-   position is on (mouse clicks misplace on wrapped rows).
-3. Wrapped-row selection rects use `segmentOf(row, 0)` for row ends.
-4. Qt finder doesn't reuse the shared FileFinder fuzzy model.
-5. `charWidthPx` (int) vs `charWidthF` (qreal) both exist — unify.
-6. Find-bar Replace All emits one dirty signal per replacement.
+2. (resolved) Qt finder doesn't reuse the shared FileFinder fuzzy model.
+3. (resolved) Replace All title update via repaintAndFollow emit.
+Remaining: 1 (split paintEvent), 4 (finder matcher), 7 (sidebar tint),
+8 resolved (context menu + Escape shipped).
 7. Sidebar has no git dirty-file tinting (`isFileModified` unused).
 8. No context menu; Escape doesn't collapse selection.
 

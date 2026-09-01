@@ -62,6 +62,13 @@ class QtEditorView : public QWidget
 	void revealCaret();
 	void showContextMenu(const QPoint &pos);
 
+	// Minimap (right strip): renders one 2px row per document line with
+	// syntax colors; click/drag scrolls. ImGui minimap_view parity.
+	bool minimapEnabled() const;
+	int minimapWidth() const;
+	void paintMinimap(QPainter &painter);
+	void minimapScrollTo(int y);
+
 	bool wordWrapEnabled() const;
 	int textAreaWidth() const;
 	// Total scrollable lines (visual lines when wrapping).
@@ -162,4 +169,5 @@ class QtEditorView : public QWidget
 	int titleBarPx = 26;
 	QIcon fileIcon;
 	bool dragging = false;
+	bool minimapDragging = false;
 };

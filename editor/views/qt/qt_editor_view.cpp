@@ -314,6 +314,75 @@ QtEditorView::RowHit QtEditorView::hitTestY(int y) const
 	return {std::clamp(v, 0, std::max(0, state.lineCount() - 1)), 0};
 }
 
+bool QtEditorView::minimapEnabled() const
+{
+	return appSettings.settings.value("minimap", true);
+}
+
+int QtEditorView::minimapWidth() const
+{
+	return minimapEnabled() ? 70 : 0;
+}
+
+void QtEditorView::paintMinimap(QPainter &painter)
+{
+	const int mw = minimapWidth();
+	const int x0 = width() - mw;
+	if (mw <= 0)
+		return;
+
+	painter.fillRect(x0, 0, mw, height(), QColor(0x1a, 0x1a, 0x22));
+
+	// Fit the whole document: 2px per line, scaled down when huge.
+	const int rows = state.lineCount();
+	const qreal available = static_cast<qreal>(height() - titleBarPx);
+	qreal rowH = 2.0;
+	if (rows * rowH > available && rows > 0)
+		rowH = available / rows;
+
+	const qreal cw = 1.0; // one pixel per visual column
+	for (int row = 0; row < rows; ++row)
+	{
+		const qreal y = titleBarPx + row * rowH;
+		if (y > height())
+			break;
+		const RowText rt = expandRow(row);
+		const int cols = static_cast<int>(
+			std::min<qsizetype>(rt.expanded.size(), mw - 6));
+		if (cols <= 0)
+			continue;
+
+		// One flat color per row: dominant = default ink; git-dirty rows
+		// use the gutter green (ImGui shows density + git state, not text).
+		const QColor ink = git.isLineEdited(state.path, row + 1)
+							   ? QColor(0x3f, 0xc1, 0x8c)
+							   : toQColor(highlight.defaultTextColor());
+		painter.setPen(ink);
+		painter.drawLine(QPointF(x0 + 3, y), QPointF(x0 + 3 + cols * cw, y));
+	}
+
+	// Viewport indicator.
+	const qreal visH = visibleLines() * rowH;
+	const qreal visY = titleBarPx + scrollBar->value() * rowH;
+	painter.setPen(QColor(255, 255, 255, 40));
+	painter.setBrush(QColor(255, 255, 255, 25));
+	painter.drawRect(QRectF(x0, visY, mw, visH));
+}
+
+void QtEditorView::minimapScrollTo(int y)
+{
+	const int rows = state.lineCount();
+	if (rows <= 0)
+		return;
+	qreal rowH = 2.0;
+	const qreal available = static_cast<qreal>(height() - titleBarPx);
+	if (rows * rowH > available)
+		rowH = available / rows;
+	const int target = static_cast<int>((y - titleBarPx) / rowH) - visibleLines() / 2;
+	scrollBar->setValue(std::clamp(target, 0, maxScrollLine()));
+	update();
+}
+
 void QtEditorView::paintEvent(QPaintEvent *)
 {
 	QPainter painter(this);
@@ -524,6 +593,8 @@ void QtEditorView::paintEvent(QPaintEvent *)
 							 QPointF(x, titleBarPx + (i + 1) * lineHeightPx - 2));
 		}
 	}
+
+	paintMinimap(painter);
 }
 
 void QtEditorView::afterEdit()
@@ -802,6 +873,12 @@ void QtEditorView::mousePressEvent(QMouseEvent *event)
 		showContextMenu(event->pos());
 		return;
 	}
+	if (event->position().x() >= width() - minimapWidth())
+	{
+		minimapDragging = true;
+		minimapScrollTo(static_cast<int>(event->position().y()));
+		return;
+	}
 	if (event->button() != Qt::LeftButton)
 		return;
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
@@ -848,6 +925,11 @@ void QtEditorView::showContextMenu(const QPoint &pos)
 
 void QtEditorView::mouseMoveEvent(QMouseEvent *event)
 {
+	if (minimapDragging)
+	{
+		minimapScrollTo(static_cast<int>(event->position().y()));
+		return;
+	}
 	if (!dragging)
 		return;
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
@@ -857,4 +939,8 @@ void QtEditorView::mouseMoveEvent(QMouseEvent *event)
 	update();
 }
 
-void QtEditorView::mouseReleaseEvent(QMouseEvent *) { dragging = false; }
+void QtEditorView::mouseReleaseEvent(QMouseEvent *)
+{
+	dragging = false;
+	minimapDragging = false;
+}
