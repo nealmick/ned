@@ -48,11 +48,9 @@ void QtFileSidebar::rescan()
 	tree.rootNode.isOpen = true;
 	tree.buildFileTree(tree.rootNode.fullPath, tree.rootNode);
 
-	auto *rootItem = new QTreeWidgetItem({QString::fromStdString(tree.rootNode.name)});
-	rootItem->setData(0, Qt::UserRole, QVariant::fromValue<void *>(&tree.rootNode));
-	addTopLevelItem(rootItem);
-	populate(rootItem, tree.rootNode);
-	rootItem->setExpanded(true);
+	// Workspace children at top level — no wrapper node for the root
+	// folder itself (ImGui tree parity).
+	populate(invisibleRootItem(), tree.rootNode);
 }
 
 void QtFileSidebar::populate(QTreeWidgetItem *parentItem, FileNode &node)

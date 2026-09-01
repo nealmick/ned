@@ -13,8 +13,8 @@
 #include <QShortcut>
 
 #include "qt_fonts.h"
-#include "qt_theme.h"
 #include "qt_icons.h"
+#include "qt_theme.h"
 #include <QFontMetrics>
 #include <QInputDialog>
 #include <QKeyEvent>
@@ -504,10 +504,7 @@ int QtEditorView::gitDirtyLineCount() const
 	return n;
 }
 
-std::string QtEditorView::gitChangesSummary() const
-{
-	return git.currentGitChanges;
-}
+std::string QtEditorView::gitChangesSummary() const { return git.currentGitChanges; }
 
 // Keep the caret inside the viewport after edits/navigation (ImGui:
 // EditorViewState::revealCursor). Wrap-aware via visual lines.

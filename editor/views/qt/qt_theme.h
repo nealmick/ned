@@ -21,8 +21,8 @@ inline QColor background(const Settings &s)
 		s.settings["backgroundColor"].size() >= 3)
 	{
 		const auto &bg = s.settings["backgroundColor"];
-		return QColor::fromRgbF(bg[0].get<float>(), bg[1].get<float>(),
-								bg[2].get<float>());
+		return QColor::fromRgbF(
+			bg[0].get<float>(), bg[1].get<float>(), bg[2].get<float>());
 	}
 	return QColor(0x1e, 0x1e, 0x1e);
 }
@@ -30,14 +30,13 @@ inline QColor background(const Settings &s)
 // Active theme's text color (falls back to a light gray).
 inline QColor text(const Settings &s)
 {
-	const std::string theme =
-		s.settings.value("theme", std::string("default"));
+	const std::string theme = s.settings.value("theme", std::string("default"));
 	if (s.settings.contains("themes") && s.settings["themes"].contains(theme))
 	{
 		const auto &t = s.settings["themes"][theme]["text"];
 		if (t.size() >= 3)
-			return QColor::fromRgbF(t[0].get<float>(), t[1].get<float>(),
-									t[2].get<float>());
+			return QColor::fromRgbF(
+				t[0].get<float>(), t[1].get<float>(), t[2].get<float>());
 	}
 	return QColor(0xd0, 0xd0, 0xd0);
 }
@@ -45,7 +44,8 @@ inline QColor text(const Settings &s)
 // Slightly lighter than the background — title bars, separators.
 inline QColor raised(const QColor &bg)
 {
-	return QColor(std::min(255, bg.red() + 12), std::min(255, bg.green() + 12),
+	return QColor(std::min(255, bg.red() + 12),
+				  std::min(255, bg.green() + 12),
 				  std::min(255, bg.blue() + 16));
 }
 
