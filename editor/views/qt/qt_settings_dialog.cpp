@@ -340,7 +340,14 @@ void QtSettingsDialog::paintSwatch(QPushButton *swatch, const QColor &color)
 
 void QtSettingsDialog::commit()
 {
-	appSettings.settings["font"] = fontBox->currentText().toStdString();
+	// Persist the FILE STEM, not the combo's display family: the ImGui
+	// host loads fonts as "<stem>.ttf" — a family name ("Source Code Pro")
+	// would not resolve there and ImGui would fall back to no font.
+	const QString family = fontBox->currentText();
+	appSettings.settings["font"] =
+		family == QLatin1String("System Default")
+			? std::string("System Default")
+			: NedQtFonts::resolveStem(family).toStdString();
 	appSettings.settings["fontSize"] = fontSizeBox->value();
 #ifdef __APPLE__
 	appSettings.settings["mac_background_opacity"] = opacitySlider->value() / 100.0f;

@@ -25,8 +25,15 @@ inline QHash<QString, QString> &stemToFamily()
 	return map;
 }
 
+inline QHash<QString, QString> &familyToStem()
+{
+	static QHash<QString, QString> map;
+	return map;
+}
+
 // Call once after addApplicationFont registrations: remembers
-// file-stem -> real family.
+// file-stem -> real family (and back — the settings dialog persists
+// STEMS: the ImGui host loads fonts by "<stem>.ttf").
 inline void registerFontFile(const QString &filePath, int appFontId)
 {
 	if (appFontId < 0)
@@ -36,6 +43,7 @@ inline void registerFontFile(const QString &filePath, int appFontId)
 	{
 		stemToFamily()[stem.toLower()] = family;
 		stemToFamily()[family.toLower()] = family; // family lookups too
+		familyToStem()[family.toLower()] = stem;
 	}
 }
 
@@ -55,6 +63,14 @@ inline void registerBundledFonts()
 inline QString resolveFamily(const QString &setting)
 {
 	return stemToFamily().value(setting.toLower());
+}
+
+// Reverse: the profile file stem for a Qt family (empty when unknown) —
+// what gets written back to the profile so the ImGui host (which loads
+// "<stem>.ttf") still finds the font.
+inline QString resolveStem(const QString &family)
+{
+	return familyToStem().value(family.toLower());
 }
 
 // The monospace editor/terminal font from the profile — the single
