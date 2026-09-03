@@ -4,7 +4,7 @@
 */
 
 #include "editor_frame.h"
-#include "../../../util/icons.h"
+#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
@@ -355,6 +355,7 @@ void EditorFrame::updateFocusPolicy()
 		ImGui::SetKeyboardFocusHere();
 		viewState->blockInput = false;
 		wasEditorFocused = true;
+		editorFocused = true;
 		viewState->requestFocus = false;
 		return;
 	}
@@ -363,6 +364,7 @@ void EditorFrame::updateFocusPolicy()
 	// a root hierarchy and would all look "focused").
 	const bool isEditorFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
 								 ImGui::IsWindowFocused(0);
+	editorFocused = isEditorFocused;
 
 	if (!isEditorFocused)
 	{
@@ -389,7 +391,8 @@ void EditorFrame::updateFocusPolicy()
 void EditorFrame::drawDocument()
 {
 	textView.draw();
-	caret.draw();
+	if (editorFocused)
+		caret.draw();
 
 	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + layout.totalHeight +
 						 layout.editorTopMargin);

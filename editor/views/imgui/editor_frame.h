@@ -104,7 +104,12 @@ class EditorFrame
 	WrapLayout wrapLayout;
 
 	// Per-frame instance (must NOT be static — multi-tab embed has many frames).
+	// Two distinct signals: `wasEditorFocused` is the PREVIOUS frame's focus
+	// (edge detection in updateFocusPolicy); `editorFocused` is this frame's
+	// snapshot, read by drawDocument() to hide docked siblings' carets —
+	// drawDocument therefore runs AFTER updateFocusPolicy in a frame.
 	bool wasEditorFocused = false;
+	bool editorFocused = true;
 	TooltipArbiter tooltipArbiter;
 	HoverTrigger hoverTrigger;
 	ImVec2 lastMousePos{0.0f, 0.0f};

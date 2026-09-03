@@ -256,6 +256,7 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 
 	// Nearest-glyph match within the segment (same rule as ColumnAtX, but with
 	// tab stops restarting at the segment start).
+	const float spaceW = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
 	int best = start;
 	float bestDist = std::abs(xRel);
 	float x = 0.0f;
@@ -263,13 +264,22 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 	{
 		const char *s = &line[i];
 		const char *e = s + 1;
-		if (*s != '\t' && (static_cast<unsigned char>(*s) & 0x80) != 0)
+		if (*s == '\t')
 		{
-			while (e < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
-				++e;
+			// Tabs expand to the next kTabSize stop (the same rule wrapRow
+			// and columnX measure with) — counting one cell per tab skewed
+			// click columns by several cells on tab-indented rows.
+			x += EditorUtils::TabAdvanceWidth(spaceW, static_cast<int>(x / spaceW));
+		} else
+		{
+			if ((static_cast<unsigned char>(*s) & 0x80) != 0)
+			{
+				while (e < line.data() + line.size() &&
+					   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
+					++e;
+			}
+			x += glyphWidth ? glyphWidth(s, e) : spaceW;
 		}
-		x += glyphWidth ? glyphWidth(s, e) : spaceWidth ? spaceWidth(" ", " ") : 8.0f;
 		const int next = static_cast<int>(e - line.data());
 		const float dist = std::abs(xRel - x);
 		if (dist < bestDist)

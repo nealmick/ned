@@ -1,45 +1,27 @@
 #pragma once
 
 /*
-	Shared diagnostic severity presentation — gutter marks, squiggle color,
-	tooltip labels. One table so the gutter, text view, and tooltip agree.
+	Shared diagnostic severity presentation (backend-neutral table in
+	services/diagnostics/diagnostic_colors.h), converted to ImGui types so the
+	gutter, text view, and tooltip agree.
 */
+
+#include "../../services/diagnostics/diagnostic_colors.h"
 
 #include "imgui.h"
 
 // 1 error, 2 warning, 3 info, 4+ hint.
 inline ImU32 DiagnosticSeverityMark(int severity)
 {
-	switch (severity)
-	{
-	case 2:
-		return IM_COL32(210, 160, 50, 230);
-	case 3:
-		return IM_COL32(70, 140, 210, 230);
-	default:
-		if (severity >= 4)
-			return IM_COL32(120, 160, 120, 220);
-		return IM_COL32(220, 70, 70, 240);
-	}
+	// Round-to-nearest like ImGui's IM_F32_TO_INT8_SAT — truncation let
+	// exact channels drift by one (210/255 * 255 floored to 209).
+	const DiagnosticSeverityRGB c = DiagnosticSeverityColor(severity);
+	const auto to8 = [](float v) { return static_cast<int>(v * 255.0f + 0.5f); };
+	return IM_COL32(to8(c.r), to8(c.g), to8(c.b), to8(c.a));
 }
 
-inline ImVec4 DiagnosticSeverityColor(int severity)
+inline ImVec4 DiagnosticSeverityVec4(int severity)
 {
-	const ImU32 mark = DiagnosticSeverityMark(severity);
-	return ImGui::ColorConvertU32ToFloat4(mark);
-}
-
-inline const char *DiagnosticSeverityLabel(int severity)
-{
-	switch (severity)
-	{
-	case 2:
-		return "Warning";
-	case 3:
-		return "Info";
-	case 4:
-		return "Hint";
-	default:
-		return "Error";
-	}
+	const DiagnosticSeverityRGB c = DiagnosticSeverityColor(severity);
+	return ImVec4(c.r, c.g, c.b, c.a);
 }

@@ -1,7 +1,7 @@
 #include "lsp_uri_options.h"
 #include "../../../editor/editor_api.h"
-#include "../../../editor/util/utf8.h"
 #include "../../../files/files.h"
+#include "../../../lsp/lsp_goto.h"
 #include "../../../lsp/lsp_includes.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
@@ -280,10 +280,9 @@ void LSPUriOptions::handleSelection()
 
 	const LSPLocation &selected = currentOptions[selectedIndex];
 
-	auto jump = [this, line = selected.line, utf16Col = selected.character]() {
-		const int col = EditorUtils::Utf16ToUtf8ByteOffset(api->line(line), utf16Col);
-		api->requestCursorCenter(line, col);
-	};
+	// The jump runs against the DESTINATION document — after the target file
+	// is loaded, so the UTF-16 column converts against its buffer.
+	auto jump = [this, selected]() { lspJumpToLocation(*api, selected); };
 
 	if (selected.file != api->path())
 	{

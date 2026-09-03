@@ -446,7 +446,7 @@ void EditorViewState::moveWordForward(Selection &sel)
 	if (sel.headColumn != pos)
 	{
 		sel.headColumn = pos;
-		sel.preferredColumn = sel.headColumn;
+		calculateVisualColumn(sel);
 	}
 }
 
@@ -472,7 +472,7 @@ void EditorViewState::moveWordBackward(Selection &sel)
 	if (sel.headColumn != pos)
 	{
 		sel.headColumn = pos;
-		sel.preferredColumn = sel.headColumn;
+		calculateVisualColumn(sel);
 	}
 }
 

@@ -472,7 +472,7 @@ void EditorCommands::moveLineStart(bool select)
 			   (line[indent] == ' ' || line[indent] == '\t'))
 			++indent;
 		s.headColumn = (s.headColumn > indent) ? indent : 0;
-		s.preferredColumn = s.headColumn;
+		view->calculateVisualColumn(s);
 	}
 	endSelectGesture(select);
 }
@@ -485,7 +485,7 @@ void EditorCommands::moveLineEnd(bool select)
 	for (Selection &s : view->selections)
 	{
 		s.headColumn = state->lineLength(s.headRow);
-		s.preferredColumn = s.headColumn;
+		view->calculateVisualColumn(s);
 	}
 	endSelectGesture(select);
 }

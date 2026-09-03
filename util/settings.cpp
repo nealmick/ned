@@ -334,7 +334,13 @@ void Settings::switchToProfile(const std::string &profileName)
 	if (dir.empty() || primary.empty())
 		return;
 
-	const std::string path = (fs::path(dir) / profileName).string();
+	// Callers may pass a full filename ("melange.json") or a stem
+	// ("melange"); normalize so the pointer always stores the filename.
+	std::string fileName = profileName;
+	if (fs::path(fileName).extension() != ".json")
+		fileName += ".json";
+
+	const std::string path = (fs::path(dir) / fileName).string();
 	json loaded;
 	if (!readJson(path, loaded))
 		return;
@@ -343,7 +349,7 @@ void Settings::switchToProfile(const std::string &profileName)
 	json pointer;
 	if (!readJson(primary, pointer))
 		return;
-	pointer["settings_file"] = profileName;
+	pointer["settings_file"] = fileName;
 	if (!writeJson(primary, pointer))
 		return;
 
@@ -395,4 +401,11 @@ std::string Settings::activeProfile() const
 		return "default";
 	const std::string stem = fs::path(settingsPath).stem().string();
 	return stem.empty() ? "default" : stem;
+}
+
+std::string Settings::activeProfileFile() const
+{
+	if (settingsPath.empty())
+		return "ned.json";
+	return fs::path(settingsPath).filename().string();
 }

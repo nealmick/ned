@@ -1,22 +1,13 @@
 #pragma once
 
+#include "../../lsp_server_status.h"
 #include "imgui.h"
-#include <map>
 #include <string>
 #include <vector>
 
 class FileExplorer;
 class LSPClient;
 class Settings;
-
-struct LSPServerInfo
-{
-	std::string language;
-	std::string serverPath;
-	bool isFound;		// Whether server executable was found
-	bool isActive;		// Whether server is currently running
-	std::string status; // Additional status information
-};
 
 class LSPDashboard
 {
@@ -56,7 +47,5 @@ class LSPDashboard
 	// Helper methods
 	void renderServerList();
 	void renderServerEntry(const LSPServerInfo &serverInfo);
-	void updateServerStatus();
-	std::vector<std::string> getSupportedLanguages();
 	void handleWindowInput();
 };

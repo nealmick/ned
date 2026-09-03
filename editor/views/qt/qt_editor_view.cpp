@@ -1,22 +1,23 @@
 #include "qt_editor_view.h"
 
+#include "../../services/diagnostics/diagnostic_colors.h"
 #include "../../util/text_columns.h"
 #include "../../util/utf8.h"
 
 #include "../../../util/settings.h"
 #include "ned_color_qt.h"
 #include "qt_find_bar.h"
-#include <QFontInfo>
-#include <QFontMetricsF>
+#include "qt_hover_tip.h"
+#include "qt_line_jump.h"
 
 #include <QMenu>
 #include <QShortcut>
 
 #include "qt_fonts.h"
-#include "qt_icons.h"
 #include "qt_theme.h"
+#include "util/qt_icons.h"
+#include <QApplication>
 #include <QFontMetrics>
-#include <QInputDialog>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -24,11 +25,33 @@
 #include <QTimer>
 #include <QWheelEvent>
 
-#include <chrono>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+
+namespace {
+// The shared WrapLayout stores its glyph metrics in PROCESS-WIDE statics.
+// A functor capturing a VIEW pointer dangles once that view is closed
+// while other splits keep wrapping — install value-owned copies instead
+// (all editors share the profile font, so the static stays coherent).
+// Metrics are the MONOSPACE GRID cell width, not per-glyph font advances:
+// the Qt painter, caret, selection and hit-testing all position glyphs on
+// the cell grid (charWidthF), so the wrap layout must break segments on
+// the same grid or wrapped rows overflow/underflow their measured width.
+// (The ImGui backend renders with real font advances, so IT installs
+// ImFont advances — each backend matches its own renderer.)
+void installWrapMetrics(qreal cellWidth)
+{
+	WrapLayout::setGlyphWidthFn([cellWidth](const char *, const char *) {
+		return static_cast<float>(cellWidth);
+	});
+	WrapLayout::setSpaceWidthFn([cellWidth](const char *, const char *) {
+		return static_cast<float>(cellWidth);
+	});
+}
+} // namespace
 
 QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	: QWidget(parent),
@@ -43,6 +66,10 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	  git(state, projectRoot, appSettings),
 	  commands(state, viewState, ops, projectUndo, events, save)
 {
+	// Host check modes (NED_QT_*_CHECK in main.cpp) locate the editor by
+	// object name.
+	setObjectName(QStringLiteral("__ned_editor"));
+
 	setFontFromSettings();
 
 	// Blink runs entirely off blinkClock in the service timer — a second
@@ -50,11 +77,28 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	// caret in the invisible phase permanently.
 
 	scrollBar = new QScrollBar(Qt::Vertical, this);
-	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int) { update(); });
+	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int v) {
+		// The bar moves in whole lines; internal sync drives scrollPx.
+		if (!syncingScroll)
+			scrollPx = v * lineHeightPx;
+		update();
+	});
+
+	// Horizontal scrollbar (wrap off, ImGui HorizontalScrollbar parity):
+	// thin overlay strip above the bottom edge, styled by #nedHScroll in the
+	// app sheet (the global QScrollBar rule zeroes EVERY scrollbar; the id
+	// selector outranks it). Pixel units — sub-cell precision like the wheel.
+	hScrollBar = new QScrollBar(Qt::Horizontal, this);
+	hScrollBar->setObjectName(QStringLiteral("nedHScroll"));
+	hScrollBar->hide();
+	connect(hScrollBar, &QScrollBar::valueChanged, this, [this](int v) {
+		if (!syncingScrollX)
+			setScrollXPixels(static_cast<qreal>(v));
+	});
 
 	// Services (async tree-sitter, autosave, git status) expect per-frame
 	// polling; the Qt backend has no frame loop, so a short timer drives
-	// them — plus smooth caret blink/rainbow animation.
+	// them — plus the caret blink.
 	serviceTimer = new QTimer(this);
 	serviceTimer->setInterval(30);
 	blinkClock.start();
@@ -71,12 +115,27 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 			lastGitChanges = git.currentGitChanges;
 			update();
 		}
-		// Blink at ~1.9 Hz; repaint only when the caret flips visibility.
-		const bool next = (blinkClock.elapsed() % 1060) < 530;
-		if (next != caretVisible)
+		// LSP diagnostics arrive on the client's reader thread; the store's
+		// revision tells us a repaint is due (squiggles + gutter marks).
+		if (diagStore && diagStore->revision() != diagRevisionSeen)
 		{
-			caretVisible = next;
+			diagRevisionSeen = diagStore->revision();
 			update();
+		}
+		// Hover delay elapse: let an armed trigger fire under the parked
+		// mouse (rule 4 of HoverTrigger — no re-arm without movement).
+		if (hoverTrigger.info().active || underMouse())
+			updateHover(false, false, lastHoverPos);
+		// Blink at ~1.9 Hz; repaint only when the caret flips visibility.
+		// Unfocused dock siblings keep the caret hidden — skip their repaints.
+		if (caretActive())
+		{
+			const bool next = (blinkClock.elapsed() % 1060) < 530;
+			if (next != caretVisible)
+			{
+				caretVisible = next;
+				update();
+			}
 		}
 	});
 	serviceTimer->start();
@@ -84,27 +143,37 @@ QtEditorView::QtEditorView(Settings &settings, QWidget *parent)
 	setFocusPolicy(Qt::StrongFocus);
 	setMouseTracking(true);
 
-	// Backend glyph metrics for the shared wrap layout (QFontMetrics).
-	WrapLayout::setGlyphWidthFn([this](const char *s, const char *e) {
-		const QFontMetricsF m(font());
-		return m.horizontalAdvance(QString::fromUtf8(s, static_cast<int>(e - s)));
-	});
-	WrapLayout::setSpaceWidthFn(
-		[this](const char *, const char *) { return charWidthF(); });
-
 	// DidEdit fan-out mirrors the ImGui Editor: highlight, autosave, git
-	// gutter. Without this subscription the git marks never update.
+	// gutter, wrap dirty-span, h-scroll range. The wrap noteEdit is the
+	// piece the Qt view used to miss: without it, edits that keep the line
+	// count unchanged never re-wrapped (ensure() only rescans a dirty span
+	// or rebuilds on line-count/width change) — wrap went stale mid-typing
+	// and every row<->visual-line mapping drifted.
 	events.subscribeDidEdit([this](const EditorEvents::DidEdit &e) {
 		highlight.highlightContent();
 		save.onDidEdit();
 		git.onDidEdit(e.firstRow, e.lastRow);
+		wrap.noteEdit(e.firstRow, e.lastRow);	   // re-wrap dirty span
+		refreshLongestLine(e.firstRow, e.lastRow); // h-scroll range
 	});
 
 	findBar = new QtFindBar(this, this);
-	auto *lineJumpShortcut = new QShortcut(QKeySequence("Ctrl+;"), this);
-	connect(lineJumpShortcut, &QShortcut::activated, this, &QtEditorView::goToLineDialog);
-	auto *findShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
-	connect(findShortcut, &QShortcut::activated, this, &QtEditorView::toggleFindBar);
+	// Wrap toggles change the bar's height — re-displace the text area.
+	connect(findBar, &QtFindBar::heightChanged, this, [this] {
+		if (!findBar->isVisible())
+			return;
+		findBarPx = findBar->sizeHint().height();
+		findBar->setGeometry(0, titleBarPx, width(), findBarPx);
+		setScrollPixels(scrollPx); // fewer visible lines — re-clamp
+		update();
+	});
+	// NOTE: no per-view Ctrl+F / Ctrl+; QShortcuts here — one per view
+	// means two live views (background tab, split) make the sequence
+	// ambiguous and Qt fires NOTHING. The host owns the single shortcuts
+	// and routes them to the active view (see NedQtHost's keybinds).
+	// live views (background tab, split) make the sequence ambiguous and
+	// Qt fires NOTHING. The host owns the single shortcut and routes it
+	// to the active view (see NedQtHost's keybinds).
 }
 
 QtEditorView::~QtEditorView() = default;
@@ -135,32 +204,98 @@ void QtEditorView::openWorkspaceRoot(const std::string &root)
 	git.init();
 }
 
+// --- LspEditor seam ---------------------------------------------------------
+
+void QtEditorView::getCaret(int &row, int &column) const
+{
+	row = viewState.row;
+	column = viewState.column;
+}
+
+std::string QtEditorView::line(int row) const { return state.line(row); }
+
+const std::string &QtEditorView::path() const { return state.path; }
+
+const std::string &QtEditorView::languageId() const { return state.languageId; }
+
+NedColor QtEditorView::defaultTextColor() const { return highlight.defaultTextColor(); }
+
+NedColor QtEditorView::syntaxColor(ThemeSlot slot) const
+{
+	return highlight.colorForSlot(slot);
+}
+
+void QtEditorView::requestCursorCenter(int row, int column)
+{
+	// Qt lays out synchronously — no deferred post-layout schedule needed
+	// (ImGui's viewState::requestCursorCenter); center like goToLine does.
+	commands.setCursor(row, column, false, EditorCommands::CursorReveal::ensure);
+	ensureWrapFresh(); // LSP jumps arrive outside the paint/afterEdit paths
+	setScrollPixels(std::max<qreal>(
+		0.0,
+		(static_cast<qreal>(visualLineOf(row, column) - visibleLines() / 2) *
+		 static_cast<qreal>(lineHeightPx))));
+	revealCaret();
+	scheduleBlink();
+}
+
+void QtEditorView::setDiagnostics(const LSPDiagnostics *store)
+{
+	diagStore = store;
+	diagRevisionSeen = store ? store->revision() : 0;
+	updateGutterWidth(); // the severity column appears with the first store
+	update();
+}
+
 void QtEditorView::setFontFromSettings()
 {
-	QFont font("Menlo"); // fallback; profile font wins when registered
-#ifdef _WIN32
-	font.setFamily("Consolas");
-#endif
-	// Profile font (registered from resources/fonts by the settings dialog).
-	const std::string profileFont = appSettings.settings.value("font", std::string());
-	const QString resolved =
-		NedQtFonts::resolveFamily(QString::fromStdString(profileFont));
-	if (!profileFont.empty() && profileFont != "System Default" && !resolved.isEmpty())
-	{
-		font.setFamily(resolved);
-		font.setFixedPitch(true);
-	}
-	font.setStyleHint(QFont::Monospace);
-	font.setFixedPitch(true);
-	font.setPointSize(static_cast<int>(appSettings.settings.value("fontSize", 13)));
+	// One resolution rule (NedQtFonts::profileMonoFont) shared with the
+	// terminal panel: profile family when registered, Menlo/Consolas
+	// fallback, always fixed-pitch.
+	const QFont font = NedQtFonts::profileMonoFont(appSettings);
 	setFont(font);
 
 	const QFontMetrics metrics(font);
+	const int oldLineHeight = lineHeightPx;
 	lineHeightPx = metrics.height();
 	// Monospace advance: '0' is reliably full-width; ' ' can be narrower.
 	cellWidth = metrics.horizontalAdvance(QLatin1String("0000")) / 4.0;
-	// Glyph-run rendering needs a raw font at the real pixel size.
-	gutterWidthPx = metrics.horizontalAdvance('0') * 6 + 16;
+	// Font changed: the shared wrap layout's metric statics must follow —
+	// grid cells (see installWrapMetrics); its cache keys on the space
+	// width, so ensure() rebuilds itself.
+	installWrapMetrics(cellWidth);
+	// Cell width changed: the longest-line cache is now stale.
+	widthDirty = true;
+
+	updateGutterWidth();
+	// Keep the viewport anchored when the line height changes (font zoom).
+	if (oldLineHeight > 0)
+	{
+		scrollPx = scrollPx * lineHeightPx / oldLineHeight;
+		// The rescale can push scrollPx past the (shrunk) range — clamp or
+		// the first wheel-ups dead-clamp back to the bottom.
+		scrollPx = std::clamp(scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
+	}
+}
+
+void QtEditorView::updateGutterWidth()
+{
+	// ImGui parity (gutter_view.cpp): the number column only needs to fit
+	// max(999, lineCount + 1) — three digits for most files, growing when
+	// the document passes 999 lines. Numbers right-align inside it with a
+	// 12px pad on the right and 4px of breathing room at the left edge.
+	// With diagnostics bound, a severity-mark column (ImGui parity) sits
+	// in front of the numbers.
+	const int reference = std::max(999, state.lineCount() + 1);
+	gutterWidthPx = fontMetrics().horizontalAdvance(QString::number(reference)) + 12 + 4 +
+					diagnosticColumnWidth();
+}
+
+int QtEditorView::diagnosticColumnWidth() const
+{
+	if (!diagStore)
+		return 0;
+	return std::max(6, static_cast<int>(fontMetrics().height() * 0.55));
 }
 
 void QtEditorView::openFile(const QString &path)
@@ -169,29 +304,43 @@ void QtEditorView::openFile(const QString &path)
 	if (!path.isEmpty())
 	{
 		std::ifstream file(path.toStdString(), std::ios::binary);
-		std::stringstream buffer;
-		buffer << file.rdbuf();
-		raw = buffer.str();
-		state.path = path.toStdString();
-		state.languageId = EditorState::languageIdFromPath(state.path);
+		if (!file.is_open())
+		{
+			// Errors flow toward the user: an unreadable path opens as an
+			// untitled buffer carrying the reason, never as a silent
+			// "empty file" still bound to that path (git/LSP/save would
+			// all act on a document we never actually read).
+			state.path.clear();
+			raw = "Could not open file:\n" + path.toStdString() + "\n" +
+				  std::strerror(errno);
+		} else
+		{
+			std::stringstream buffer;
+			buffer << file.rdbuf();
+			raw = buffer.str();
+			state.path = path.toStdString();
+			state.languageId = EditorState::languageIdFromPath(state.path);
+		}
 	} else
-	{
-		state.path = "";
-	}
+		state.path.clear();
 
-	fileIcon = QtIconSet::instance().forFile(path);
+	reloadFileIcon();
 	state.setFromString(raw);
+	updateGutterWidth();
 	ops.clearPending();
 	ops.bumpGeneration();
 	viewState.setBoth(0, 0);
 	highlight.resetForDocument(static_cast<size_t>(state.lineCount()));
 	highlight.highlightContent();
+	// New document: reset both axes and rebuild the longest-line cache
+	// (refreshWrap re-ensures the wrap layout + scrollbars after it).
+	widthDirty = true;
+	scrollPxX = 0.0;
 	refreshWrap();
 	git.init();
 	git.onDocumentOpened();
 	lastVisualGen = highlight.visualGeneration();
-	scrollBar->setRange(0, maxScrollLine());
-	scrollBar->setValue(0);
+	setScrollPixels(0);
 	update();
 }
 
@@ -199,7 +348,7 @@ QSize QtEditorView::sizeHint() const { return QSize(800, 600); }
 
 int QtEditorView::visibleLines() const
 {
-	return std::max(1, (height() - titleBarPx) / lineHeightPx);
+	return std::max(1, (height() - topInset()) / lineHeightPx);
 }
 
 int QtEditorView::maxScrollLine() const
@@ -209,28 +358,68 @@ int QtEditorView::maxScrollLine() const
 	return std::max(0, totalLines() - visibleLines() + 2);
 }
 
+int QtEditorView::maxScrollPx() const { return maxScrollLine() * lineHeightPx; }
+
+int QtEditorView::firstVisualLine() const
+{
+	return std::max(0, static_cast<int>(scrollPx / lineHeightPx));
+}
+
+// Screen y of the first painted visual line. With fractional scroll the
+// top row slides up under the top inset (paint clips there).
+qreal QtEditorView::rowYBase() const
+{
+	return static_cast<qreal>(topInset()) - (scrollPx - firstVisualLine() * lineHeightPx);
+}
+
+void QtEditorView::setScrollPixels(qreal px)
+{
+	scrollPx = std::clamp(px, 0.0, static_cast<qreal>(maxScrollPx()));
+	syncingScroll = true;
+	scrollBar->setValue(
+		std::clamp(static_cast<int>(scrollPx / lineHeightPx + 0.5), 0, maxScrollLine()));
+	syncingScroll = false;
+	update();
+}
+
 int QtEditorView::rowAtY(int y) const
 {
-	const int v = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
+	const qreal v = (scrollPx + std::max(0, y - topInset())) / lineHeightPx;
 	if (wordWrapEnabled())
 	{
-		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+		// v is CONTINUOUS (the pointer can be anywhere within a visual
+		// line) — yToRow floors it directly. An extra +0.5 here pushed
+		// everything in a row's lower half down to the next visual line.
+		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v));
 		return std::clamp(hit.row, 0, std::max(0, state.lineCount() - 1));
 	}
-	return std::clamp(v, 0, std::max(0, state.lineCount() - 1));
+	return std::clamp(static_cast<int>(v), 0, std::max(0, state.lineCount() - 1));
 }
 
 int QtEditorView::columnAtX(int row, int x, int segmentStart) const
 {
-	const int textX = x - gutterWidthPx;
+	if (wordWrapEnabled())
+	{
+		// ImGui parity (editor_input.cpp rowColFromMouse): map through the
+		// shared wrap layout so continuation segments resolve against their
+		// own start column — the monospace byte-map below knows nothing
+		// about segments and lands clicks on the wrong columns.
+		const std::string line = state.line(row);
+		if (line.empty())
+			return 0;
+		const int seg = wrap.segmentOf(row, segmentStart);
+		const int column = wrap.columnAt(line, row, seg, x - gutterWidthPx);
+		return EditorUtils::SnapToUtf8CharBoundary(line, column);
+	}
+	// Wrap off: x is screen space — shift by the horizontal scroll offset.
+	const int textX = x - gutterWidthPx + static_cast<int>(scrollPxX);
 	if (textX <= 0)
 		return segmentStart;
-	return std::clamp(byteColumnAtX(row, static_cast<qreal>(textX), segmentStart),
-					  0,
-					  state.lineLength(row));
+	return std::clamp(
+		byteColumnAtX(row, static_cast<qreal>(textX), 0), 0, state.lineLength(row));
 }
 
-// --- Tab-expanded rendering model ------------------------------------------
+// --- Tab-expanded rendering model (qt_row_text.h) ---------------------------
 
 qreal QtEditorView::charWidthF() const
 {
@@ -238,48 +427,32 @@ qreal QtEditorView::charWidthF() const
 	return cellWidth;
 }
 
-QtEditorView::RowText QtEditorView::expandRow(int row) const
+QtEditorView::RowText QtEditorView::expandRow(int row, int segmentStart) const
 {
-	RowText rt;
-	const std::string line = state.line(row);
-	rt.byteToVisual.assign(line.size() + 1, 0);
+	return expandRowText(state.line(row), segmentStart);
+}
 
-	int visual = 0;
-	for (size_t i = 0; i < line.size();)
-	{
-		rt.byteToVisual[i] = visual;
-		const unsigned char c = static_cast<unsigned char>(line[i]);
-		if (c == '\t')
-		{
-			// Tab stops every kTabSize visual cells (matches ImGui layout).
-			const int next = (visual / EditorUtils::kTabSize + 1) * EditorUtils::kTabSize;
-			for (; visual < next; ++visual)
-			{
-				rt.expanded += QLatin1Char(' ');
-				rt.visualToByte.push_back(static_cast<int>(i));
-			}
-			++i;
-			continue;
-		}
-		int len = 1;
-		while ((static_cast<unsigned char>(line[i + len]) & 0xC0) == 0x80 &&
-			   i + len < line.size())
-			++len;
-		rt.expanded += QString::fromUtf8(line.data() + i, len);
-		++visual;
-		rt.visualToByte.push_back(static_cast<int>(i));
-		i += static_cast<size_t>(len);
-	}
-	rt.byteToVisual[line.size()] = visual;
-	rt.visualToByte.push_back(static_cast<int>(line.size()));
-	return rt;
+// Wrap-aware caret placement: the visual line holding (row, column) —
+// the row's base visual line plus the wrap segment the column falls in.
+int QtEditorView::visualLineOf(int row, int column) const
+{
+	if (!wordWrapEnabled())
+		return row;
+	return wrap.rowStartVisualLine(row) + wrap.segmentOf(row, column);
+}
+
+// Byte column where the wrap segment containing (row, column) starts —
+// tab stops rebase there (the shared wrap layout measures flush-left).
+int QtEditorView::caretSegmentStart(int row, int column) const
+{
+	return wrap.segmentStartColumn(row, wrap.segmentOf(row, column));
 }
 
 qreal QtEditorView::xAtByteColumn(int row, int byteColumn, int segmentStart) const
 {
 	// Visual columns are counted from segmentStart (wrapped rows restart
 	// their tab stops at the segment edge, like the ImGui wrap layout).
-	const RowText rt = expandRow(row);
+	const RowText rt = expandRow(row, segmentStart);
 	const int last = static_cast<int>(rt.byteToVisual.size() - 1);
 	const int segBase = rt.byteToVisual[std::clamp(segmentStart, 0, last)];
 	const int col = rt.byteToVisual[std::clamp(byteColumn, 0, last)];
@@ -288,7 +461,7 @@ qreal QtEditorView::xAtByteColumn(int row, int byteColumn, int segmentStart) con
 
 int QtEditorView::byteColumnAtX(int row, qreal x, int segmentStart) const
 {
-	const RowText rt = expandRow(row);
+	const RowText rt = expandRow(row, segmentStart);
 	int visual = static_cast<int>(std::round(x / charWidthF()));
 	visual = std::clamp(visual, 0, static_cast<int>(rt.visualToByte.size() - 1));
 	return rt.visualToByte[static_cast<size_t>(visual)];
@@ -301,7 +474,9 @@ bool QtEditorView::wordWrapEnabled() const
 
 int QtEditorView::textAreaWidth() const
 {
-	return std::max(50, width() - gutterWidthPx - 14);
+	// Minimap-aware: wrapped rows must break BEFORE the minimap strip, or
+	// they would paint underneath it.
+	return std::max(50, width() - gutterWidthPx - minimapWidth() - 14);
 }
 
 int QtEditorView::totalLines() const
@@ -310,28 +485,117 @@ int QtEditorView::totalLines() const
 							 : std::max(1, state.lineCount());
 }
 
-void QtEditorView::refreshWrap()
+void QtEditorView::ensureWrapFresh()
 {
 	if (wordWrapEnabled())
 		wrap.ensure(state, static_cast<float>(textAreaWidth()));
-	else
+}
+
+void QtEditorView::refreshWrap()
+{
+	if (wordWrapEnabled())
+	{
+		ensureWrapFresh();
+		scrollPxX = 0.0; // no horizontal scroll in wrap mode
+	} else
 		wrap.invalidate();
+	// Re-clamp: the scroll range can shrink (font zoom rescales scrollPx
+	// unclamped, wrap re-measures, deletions) — a scrollPx past the max
+	// makes the first wheel-ups clamp straight back to the bottom.
+	scrollPx = std::clamp(scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
 	scrollBar->setRange(0, maxScrollLine());
+	syncHScrollBar();
+}
+
+// --- Horizontal scroll (wrap off) ------------------------------------------
+
+qreal QtEditorView::maxScrollPxX()
+{
+	ensureLongestLine();
+	// Two cells of overshoot past the longest line (ImGui scroll-range pad).
+	return std::max<qreal>(0.0, widthMaxPx - textAreaWidth() + charWidthF() * 2.0);
+}
+
+void QtEditorView::setScrollXPixels(qreal px)
+{
+	scrollPxX = std::clamp(px, 0.0, maxScrollPxX());
+	syncHScrollBar();
+	update();
+}
+
+void QtEditorView::syncHScrollBar()
+{
+	// Overlay strip: only when wrap is off AND lines overflow. Range in
+	// pixels so dragging matches the wheel's sub-cell precision.
+	const int maxPx = static_cast<int>(maxScrollPxX());
+	hScrollBar->setVisible(!wordWrapEnabled() && maxPx > 0);
+	syncingScrollX = true;
+	hScrollBar->setRange(0, maxPx);
+	hScrollBar->setPageStep(std::max(1, textAreaWidth()));
+	hScrollBar->setValue(static_cast<int>(scrollPxX));
+	syncingScrollX = false;
+}
+
+void QtEditorView::ensureLongestLine()
+{
+	if (!widthDirty)
+		return;
+	widthDirty = false;
+	refreshLongestLine(0, state.lineCount() - 1);
+}
+
+// Incremental longest-line cache (editor_frame.cpp scheme): scan the dirty
+// span; keep the old max as a safe overestimate when the longest row
+// shrank (avoids an O(n) rescan per keystroke).
+void QtEditorView::refreshLongestLine(int lo, int hi)
+{
+	if (hi < lo)
+		return;
+	qreal localMax = 0.0;
+	int localLongest = -1;
+	for (int r = lo; r <= hi && r < state.lineCount(); ++r)
+	{
+		// Painted width = tab-expanded CELLS * cell width (the monospace
+		// grid paintTextRow draws on) — visualCount counts glyphs, so an
+		// astral-plane char is one cell, not two UTF-16 units.
+		const qreal w = expandRow(r).visualCount() * charWidthF();
+		if (w > localMax)
+		{
+			localMax = w;
+			localLongest = r;
+		}
+	}
+	const bool longestInDirty =
+		widthLongestRow >= lo && widthLongestRow <= hi && widthLongestRow >= 0;
+	if (localMax > widthMaxPx)
+	{
+		widthMaxPx = localMax;
+		widthLongestRow = localLongest;
+	} else if (longestInDirty && localMax >= widthMaxPx)
+	{
+		widthMaxPx = localMax;
+		widthLongestRow = localLongest;
+	} else if (longestInDirty)
+		widthLongestRow = -1; // overestimate stays; range only shrinks lazily
 }
 
 // y -> document row + wrap-segment start (byte column of the segment).
 QtEditorView::RowHit QtEditorView::hitTestY(int y) const
 {
-	const int v = scrollBar->value() + std::max(0, y - titleBarPx) / lineHeightPx;
+	const qreal v = (scrollPx + std::max(0, y - topInset())) / lineHeightPx;
 	if (wordWrapEnabled())
 	{
-		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+		// v is CONTINUOUS (a click lands anywhere within a visual line), so
+		// yToRow floors it directly — the extra +0.5 here used to resolve
+		// clicks in a row's lower half onto the NEXT visual line, putting
+		// the caret a few columns past the click on wrapped rows.
+		const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v));
 		RowHit out;
 		out.row = std::clamp(hit.row, 0, std::max(0, state.lineCount() - 1));
 		out.segmentStart = wrap.segmentStartColumn(out.row, hit.segment);
 		return out;
 	}
-	return {std::clamp(v, 0, std::max(0, state.lineCount() - 1)), 0};
+	return {std::clamp(static_cast<int>(v), 0, std::max(0, state.lineCount() - 1)), 0};
 }
 
 bool QtEditorView::minimapEnabled() const
@@ -350,112 +614,60 @@ void QtEditorView::paintMinimap(QPainter &painter)
 
 	// Density model (ImGui minimap_view parity): ~2px rows, 1px cols,
 	// dots at 75% row height, colors dimmed to 72%.
-	const qreal rowH = 2.0;
 	const qreal charW = 1.0;
-	const qreal dotH = rowH * 0.75;
 	const qreal padX = 2.0;
-	const int stripTop = titleBarPx;
+	const int stripTop = topInset();
 	const qreal stripH = static_cast<qreal>(height() - stripTop);
 	const int maxCols = std::max(1, static_cast<int>((mw - 2 * padX) / charW));
 
-	// Visible-window strip math (mirrors makeStrip): fit rows in the
-	// strip, anchor so the slider position stays continuous with scroll.
-	const int lineCount = state.lineCount();
-	const int fit = std::max(1, static_cast<int>(stripH / rowH));
-	const int viewLines = visibleLines();
-	const qreal sliderH = std::clamp(static_cast<qreal>(viewLines) * rowH, 4.0, stripH);
-	const qreal maxTop = std::min(
-		stripH - sliderH, std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
-	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
-	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
-	const qreal sliderTop =
-		std::clamp(static_cast<qreal>(scrollBar->value()) * ratio, 0.0, maxTop);
+	// Visible-window strip: geometry shared with minimapScrollTo (one
+	// definition in QtMinimap — see the undershoot bug note there).
+	const QtMinimap::Geometry geo =
+		QtMinimap::geometry(stripH, visibleLines(), state.lineCount(), maxScrollLine());
+	const qreal scrollLinesF = scrollPx / lineHeightPx;
+	const qreal sliderTop = geo.sliderTopFor(scrollLinesF);
 	int startRow = 0;
-	int endRow = lineCount - 1;
-	if (lineCount > fit)
+	int endRow = state.lineCount() - 1;
+	if (state.lineCount() > geo.fit)
 	{
-		startRow = std::clamp(
-			static_cast<int>(scrollBar->value() - sliderTop / rowH), 0, lineCount - fit);
-		endRow = std::min(lineCount - 1, startRow + fit - 1);
+		startRow = std::clamp(static_cast<int>(scrollLinesF - sliderTop / geo.rowH),
+							  0,
+							  state.lineCount() - geo.fit);
+		endRow = std::min(state.lineCount() - 1, startRow + geo.fit - 1);
 	}
 
 	// Rebuild density runs only when the window/content/key changes.
-	QString key = QString("mm|%1|%2|%3|%4|%5|%6")
-					  .arg(startRow)
-					  .arg(endRow)
-					  .arg(lineCount)
-					  .arg(highlight.visualGeneration())
-					  .arg(ops.generation())
-					  .arg(width());
-	if (key != minimapRuns.key)
-	{
-		minimapRuns.key = key;
-		minimapRuns.runs.clear();
-		constexpr qreal kDim = 0.72f;
-		const auto dim = [&](const NedColor &c) {
-			return QColor::fromRgbF(c.r * kDim, c.g * kDim, c.b * kDim);
-		};
-		std::string line;
-		for (int row = startRow; row <= endRow; ++row)
-		{
-			const qreal y0 = stripTop + static_cast<qreal>(row - startRow) * rowH;
-			line = state.line(row);
-			const LineColorSpans &spans = highlight.spansForLine(row);
-			size_t sp = 0;
-			int runStart = -1;
-			QColor runInk;
-			const auto flush = [&](int col) {
-				if (runStart >= 0 && col > runStart)
-					minimapRuns.runs.push_back(
-						{padX + static_cast<qreal>(runStart) * charW,
-						 y0,
-						 static_cast<qreal>(col - runStart) * charW,
-						 dotH,
-						 runInk});
-				runStart = -1;
-			};
-			int col = 0;
-			for (int i = 0; i < static_cast<int>(line.size()) && col < maxCols;)
-			{
-				const int byte = i;
-				const unsigned char c = static_cast<unsigned char>(line[i++]);
-				if ((c & 0xC0) == 0x80)
-					continue;
-				if (c == '\t')
-				{
-					flush(col);
-					col = std::min(maxCols, col + (4 - col % 4));
-					continue;
-				}
-				if (c <= ' ')
-				{
-					flush(col);
-					++col;
-					continue;
-				}
-				while (sp < spans.size() && spans[sp].end <= byte)
-					++sp;
-				QColor ink = dim(highlight.defaultTextColor());
-				if (sp < spans.size() && spans[sp].start <= byte)
-					ink = dim(highlight.colorForSlot(spans[sp].slot));
-				if (runStart < 0 || ink != runInk)
-				{
-					flush(col);
-					runStart = col;
-					runInk = ink;
-				}
-				++col;
-			}
-			flush(col);
-		}
-	}
+	// stripTop MUST be in the key: the find bar changes it without any
+	// other key member moving, and stale runs would paint over the bar
+	// until a resize happened to rebuild them.
+	minimap.ensureRuns(QString("mm|%1|%2|%3|%4|%5|%6|%7")
+						   .arg(startRow)
+						   .arg(endRow)
+						   .arg(state.lineCount())
+						   .arg(highlight.visualGeneration())
+						   .arg(ops.generation())
+						   .arg(width())
+						   .arg(stripTop),
+					   startRow,
+					   endRow,
+					   state,
+					   highlight,
+					   static_cast<qreal>(stripTop),
+					   geo.rowH * 0.75,
+					   padX,
+					   charW,
+					   maxCols);
 
-	// Strip background + density runs (flat rect blits).
-	painter.fillRect(x0, 0, mw, height(), QColor(0x1a, 0x1a, 0x22));
+	// No background fill and no separator: rows are clipped to the
+	// minimap's left edge (paintEvent), so nothing paints underneath —
+	// the window's single tint layer shows through the strip like
+	// everywhere else, with no border.
+
+	// Density runs (flat rect blits).
 	painter.setPen(Qt::NoPen);
 	painter.save();
 	painter.translate(x0, 0);
-	for (const MRun &r : minimapRuns.runs)
+	for (const QtMinimap::Run &r : minimap.runs())
 	{
 		painter.setBrush(r.ink);
 		painter.drawRect(QRectF(r.x, r.y, r.w, r.h));
@@ -465,37 +677,24 @@ void QtEditorView::paintMinimap(QPainter &painter)
 	// Continuous slider (viewport indicator).
 	painter.setPen(QColor(255, 255, 255, 36));
 	painter.setBrush(QColor(255, 255, 255, 26));
-	painter.drawRect(QRectF(x0, stripTop + sliderTop, mw, sliderH));
+	painter.drawRect(QRectF(x0, stripTop + sliderTop, mw, geo.sliderH));
 }
 
 void QtEditorView::minimapScrollTo(int y)
 {
-	// y -> target scroll line via the strip's slider mapping (continuous).
-	const qreal stripTop = titleBarPx;
-	const qreal stripH = static_cast<qreal>(height() - stripTop);
-	const qreal rowH = 2.0;
-	const int lineCount = state.lineCount();
-	const int fit = std::max(1, static_cast<int>(stripH / rowH));
-	const qreal sliderH =
-		std::clamp(static_cast<qreal>(visibleLines()) * rowH, 4.0, stripH);
-	const qreal maxTop = std::min(
-		stripH - sliderH, std::max(0.0, static_cast<qreal>(lineCount) * rowH - sliderH));
-	const qreal maxScroll = static_cast<qreal>(maxScrollLine());
-	const qreal ratio = maxScroll > 1.0 ? maxTop / maxScroll : 0.0;
-	if (ratio <= 0.0)
+	// y -> target scroll line via the strip's slider mapping (continuous,
+	// geometry shared with paintMinimap).
+	const QtMinimap::Geometry geo =
+		QtMinimap::geometry(static_cast<qreal>(height() - topInset()),
+							visibleLines(),
+							state.lineCount(),
+							maxScrollLine());
+	const qreal target = geo.scrollLinesForY(static_cast<qreal>(y) - topInset());
+	if (geo.ratio <= 0.0)
 		return;
-	// The strip maps slider-top positions; the clicked point becomes the
-	// viewport top directly (no centering offset — it undershot the bottom
-	// by visible/2 before, since clamp can't raise an undershot value).
-	const int target = static_cast<int>(
-		std::clamp<qreal>(static_cast<qreal>(y) - stripTop, 0.0, maxTop) / ratio);
-	scrollBar->setValue(std::clamp(target, 0, maxScrollLine()));
-	update();
+	setScrollPixels(target * lineHeightPx);
 }
 
-// Batched glyph rendering (ImGui draw-list parity): each visible row is
-// converted once into per-color-run QGlyphRuns on the monospace grid and
-// cached by edit generation — paints become a few drawGlyphRun calls.
 int QtEditorView::gitDirtyLineCount() const
 {
 	int n = 0;
@@ -509,29 +708,292 @@ std::string QtEditorView::gitChangesSummary() const { return git.currentGitChang
 
 // Diagnostic: scroll via minimap at the very bottom; report resulting
 // position vs the maximum (interact test).
-void QtEditorView::debugMinimapBottom()
+
+void QtEditorView::reloadFileIcon()
 {
-	scrollBar->setValue(0);
-	minimapScrollTo(height());
-	std::cerr << "[minimap] scrollTo(bottom) -> value=" << scrollBar->value()
-			  << " max=" << maxScrollLine() << " lines=" << state.lineCount()
-			  << " visible=" << visibleLines() << std::endl;
+	if (state.path.empty())
+		return;
+	const QFontMetrics fm(font());
+	const int px = std::max(11, fm.height() - 2);
+	fileIcon = QtIconSet::forFile(QString::fromStdString(state.path), px);
+}
+
+void QtEditorView::forceColorUpdate()
+{
+	highlight.forceColorUpdate();
+	update();
 }
 
 // Keep the caret inside the viewport after edits/navigation (ImGui:
-// EditorViewState::revealCursor). Wrap-aware via visual lines.
+// EditorViewState::revealCursor). Wrap-aware via visual lines; wrap-off
+// also reveals horizontally (ImGui revealCursor's x axis).
 void QtEditorView::revealCaret()
 {
+	ensureWrapFresh(); // callers can arrive between an edit and the paint
 	const Selection &caret = viewState.selections[viewState.primaryIndex];
-	const int v = wordWrapEnabled() ? wrap.rowStartVisualLine(caret.headRow) +
-										  wrap.segmentOf(caret.headRow, caret.headColumn)
-									: caret.headRow;
-	const int first = scrollBar->value();
+	const int v = visualLineOf(caret.headRow, caret.headColumn);
+	const int first = firstVisualLine();
 	const int visible = visibleLines();
 	if (v < first)
-		scrollBar->setValue(v);
+		setScrollPixels(v * lineHeightPx);
 	else if (v >= first + visible - 1)
-		scrollBar->setValue(v - visible + 2);
+		setScrollPixels((v - visible + 2) * lineHeightPx);
+
+	if (!wordWrapEnabled())
+	{
+		const qreal caretX = xAtByteColumn(caret.headRow, caret.headColumn);
+		const qreal pad = charWidthF() * 2.0;
+		const qreal right = scrollPxX + textAreaWidth();
+		if (caretX > right - pad)
+			setScrollXPixels(caretX - textAreaWidth() + pad);
+		else if (caretX < scrollPxX + pad)
+			setScrollXPixels(std::max<qreal>(0.0, caretX - pad));
+	}
+}
+
+QPoint QtEditorView::caretWidgetPos() const
+{
+	const Selection &caret = viewState.selections[viewState.primaryIndex];
+	const bool wrapping = wordWrapEnabled();
+	const int segment = wrapping ? caretSegmentStart(caret.headRow, caret.headColumn) : 0;
+	const qreal x = gutterWidthPx +
+					xAtByteColumn(caret.headRow, caret.headColumn, segment) -
+					(wrapping ? 0.0 : scrollPxX);
+	const qreal y =
+		rowYBase() + static_cast<qreal>(visualLineOf(caret.headRow, caret.headColumn) -
+										firstVisualLine()) *
+						 lineHeightPx;
+	return QPoint(qRound(x), qRound(y));
+}
+
+// --- Diagnostics painting ---------------------------------------------------
+
+void QtEditorView::paintDiagnosticSquiggles(
+	QPainter &painter, int firstVisual, int visualRows, qreal yBase, int textLeft)
+{
+	if (!diagStore || state.path.empty())
+		return;
+	const std::vector<DiagnosticItem> items = diagStore->forDocument(state.path);
+	if (items.empty())
+		return;
+
+	// Visible (row, y, byte-range) segments — the same enumeration the text
+	// painter uses, so a diagnostic spanning wrapped rows marks each line.
+	struct Seg
+	{
+		int row;
+		qreal y;
+		int fromB;
+		int toB;
+	};
+	std::vector<Seg> segs;
+	if (wordWrapEnabled())
+	{
+		for (int v = firstVisual; v < totalLines() && v - firstVisual < visualRows; ++v)
+		{
+			const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
+			const int segCount = wrap.segmentCount(hit.row);
+			segs.push_back({hit.row,
+							yBase + (v - firstVisual) * lineHeightPx,
+							wrap.segmentStartColumn(hit.row, hit.segment),
+							hit.segment + 1 < segCount
+								? wrap.segmentStartColumn(hit.row, hit.segment + 1)
+								: state.lineLength(hit.row)});
+		}
+	} else
+	{
+		for (int i = 0; i < visualRows; ++i)
+			segs.push_back({firstVisual + i,
+							yBase + i * lineHeightPx,
+							0,
+							state.lineLength(firstVisual + i)});
+	}
+
+	const qreal clipRight = static_cast<qreal>(width() - minimapWidth());
+	for (const Seg &seg : segs)
+	{
+		const std::string text = state.line(seg.row);
+		for (const DiagnosticItem &d : items)
+		{
+			if (seg.row < d.startLine || seg.row > d.endLine)
+				continue;
+			// Wire columns are UTF-16; convert against this row's bytes.
+			int fromB = seg.row == d.startLine
+							? EditorUtils::Utf16ToUtf8ByteOffset(text, d.startCharacter)
+							: 0;
+			int toB = seg.row == d.endLine
+						  ? EditorUtils::Utf16ToUtf8ByteOffset(text, d.endCharacter)
+						  : state.lineLength(seg.row);
+			if (toB < fromB)
+				std::swap(fromB, toB);
+			fromB = std::clamp(fromB, seg.fromB, seg.toB);
+			toB = std::clamp(toB, seg.fromB, seg.toB);
+			if (toB < fromB)
+				continue;
+
+			const int segStart = wordWrapEnabled() ? seg.fromB : 0; // tab stops
+			const qreal x0 = textLeft + xAtByteColumn(seg.row, fromB, segStart);
+			const qreal x1 = textLeft + xAtByteColumn(seg.row, toB, segStart);
+			const DiagnosticSeverityRGB sev = DiagnosticSeverityColor(d.severity);
+			drawSquiggle(painter,
+						 std::min(x0, clipRight),
+						 std::min(std::max(x1, x0), clipRight),
+						 seg.y + lineHeightPx - 3.0,
+						 QColor::fromRgbF(sev.r, sev.g, sev.b, sev.a));
+		}
+	}
+}
+
+void QtEditorView::drawSquiggle(
+	QPainter &painter, qreal x0, qreal x1, qreal y, const QColor &color)
+{
+	// Sine wave, ImGui text_view parity: 1.25px amplitude, 2px steps,
+	// degenerate/narrow ranges still get a visible minimum wave.
+	if (x1 <= x0)
+		x1 = x0 + 6.0;
+	else if (x1 - x0 < 4.0)
+		x1 = x0 + 8.0;
+	painter.setPen(QPen(color, 1.4));
+	QPointF prev(x0, y);
+	for (qreal x = x0 + 2.0; x <= x1; x += 2.0)
+	{
+		const QPointF cur(x, y + std::sin((x - x0) * 1.2) * 1.25);
+		painter.drawLine(prev, cur);
+		prev = cur;
+	}
+	painter.drawLine(prev, QPointF(x1, y + std::sin((x1 - x0) * 1.2) * 1.25));
+}
+
+// --- Hover trigger (shared with LSP symbol hover) -----------------------------
+
+HoverTrigger::Target QtEditorView::hoverTargetAt(const QPoint &pos) const
+{
+	HoverTrigger::Target target;
+	if (pos.y() < topInset() || pos.y() > height() || pos.x() < 0)
+		return target;
+	if (pos.x() >= width() - minimapWidth())
+		return target; // minimap strip is not a hover zone
+	if (pos.x() < gutterWidthPx)
+	{
+		target.zone = HoverTrigger::Zone::Gutter;
+		target.row = rowAtY(pos.y());
+		return target;
+	}
+	const RowHit hit = hitTestY(pos.y());
+	// Past-end-of-text guard: columnAtX snaps to the nearest glyph and
+	// clamps to the line length, so a mouse far right of the last glyph
+	// would still report the end-of-line column — and LSP servers answer
+	// that with the last token's hover. Only count cells actually on the
+	// rendered text (half a char of slack for the last glyph's edge).
+	const int seg = wrap.segmentOf(hit.row, hit.segmentStart);
+	const int segEnd = seg + 1 < wrap.segmentCount(hit.row)
+						   ? wrap.segmentStartColumn(hit.row, seg + 1)
+						   : state.lineLength(hit.row);
+	const qreal textEndX = xAtByteColumn(hit.row, segEnd, hit.segmentStart);
+	const qreal textX = pos.x() - gutterWidthPx + (wordWrapEnabled() ? 0.0 : scrollPxX);
+	if (textX > textEndX + charWidthF() * 0.5)
+		return target;
+	target.zone = HoverTrigger::Zone::Text;
+	target.row = hit.row;
+	target.column = columnAtX(hit.row, pos.x(), hit.segmentStart);
+	return target;
+}
+
+void QtEditorView::updateHover(bool mouseMoved, bool dismissed, const QPoint &pos)
+{
+	const HoverTrigger::Info prev = liveHoverInfo;
+	const HoverTrigger::Target target = (dismissed || dragging || !underMouse())
+											? HoverTrigger::Target{}
+											: hoverTargetAt(pos);
+	hoverTrigger.update(mouseMoved, dismissed, target);
+	lastHoverPos = pos;
+
+	const HoverTrigger::Info current = hoverTrigger.info();
+	// Only state transitions act: arm→fire, active→inactive (dismiss),
+	// retarget. Both-inactive ticks (the common case) do nothing.
+	const bool unchanged =
+		current.active == prev.active &&
+		(!current.active || (current.row == prev.row && current.column == prev.column &&
+							 current.zone == prev.zone));
+	if (unchanged)
+		return;
+	liveHoverInfo = current;
+	if (current.active)
+		fireHover(current);
+	else
+		hideHoverTooltips();
+}
+
+void QtEditorView::fireHover(const HoverTrigger::Info &info)
+{
+	if (state.path.empty())
+		return;
+
+	// Diagnostics own the tooltip first (ImGui: squiggle/gutter claims win
+	// over symbol hover) — Gutter zones match by row, Text by exact cell.
+	if (diagStore)
+	{
+		std::vector<DiagnosticItem> matched;
+		if (info.zone == HoverTrigger::Zone::Gutter)
+		{
+			matched = diagStore->forLine(state.path, info.row);
+		} else if (info.zone == HoverTrigger::Zone::Text)
+		{
+			const int utf16 =
+				EditorUtils::Utf8ByteOffsetToUtf16(state.line(info.row), info.column);
+			for (const DiagnosticItem &d : diagStore->forLine(state.path, info.row))
+				if (DiagnosticContains(d, info.row, utf16))
+					matched.push_back(d);
+		}
+		if (!matched.empty())
+		{
+			showDiagnosticTooltip(matched, QCursor::pos());
+			return;
+		}
+	}
+
+	// No diagnostic there: Text cells fall through to the symbol hover.
+	if (info.zone == HoverTrigger::Zone::Text && hoverObserver)
+		hoverObserver(info);
+}
+
+void QtEditorView::showDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
+										 const QPoint &globalPos)
+{
+	if (!diagTip)
+		diagTip = new QtHoverTip(this);
+
+	// Severity card: colored dot + bold label (+ dim source), message
+	// below, items separated by hairlines.
+	const QColor ink = toQColor(highlight.defaultTextColor());
+	QString html;
+	for (size_t i = 0; i < items.size(); ++i)
+	{
+		if (i)
+			html += "<hr>";
+		const DiagnosticSeverityRGB c = DiagnosticSeverityColor(items[i].severity);
+		const QColor sevColor = QColor::fromRgbF(c.r, c.g, c.b);
+		html += QString("<b style=\"color:%1\">● %2</b>")
+					.arg(sevColor.name(),
+						 QString::fromUtf8(DiagnosticSeverityLabel(items[i].severity)));
+		if (!items[i].source.empty())
+			html += QStringLiteral("&nbsp;&nbsp;<span style=\"color:#888888\">") +
+					QString::fromStdString(items[i].source).toHtmlEscaped() + "</span>";
+		html += "<br>" + QString::fromStdString(items[i].message).toHtmlEscaped();
+	}
+	diagTip->present(html,
+					 font(),
+					 NedQtTheme::raised(NedQtTheme::background(appSettings)),
+					 ink,
+					 globalPos);
+}
+
+void QtEditorView::hideHoverTooltips()
+{
+	if (diagTip)
+		diagTip->hide();
+	if (hoverObserver)
+		hoverObserver(HoverTrigger::Info{});
 }
 
 // Direct per-glyph painting on the monospace grid. Simple by design:
@@ -539,9 +1001,12 @@ void QtEditorView::revealCaret()
 // measured (render-check repaint timing) before any optimization is
 // allowed back in.
 void QtEditorView::paintTextRow(
-	QPainter &painter, int row, int y, int fromByte, int toByte, qreal textLeft)
+	QPainter &painter, int row, qreal y, int fromByte, int toByte, qreal textLeft)
 {
-	const RowText rt = expandRow(row);
+	// fromByte doubles as the wrap-segment start (0 for whole rows), so the
+	// byte->visual map carries segment-rebased tab stops — the same
+	// coordinate space the shared wrap layout measured the segment in.
+	const RowText rt = expandRow(row, fromByte);
 	const int lastByte = static_cast<int>(rt.byteToVisual.size() - 1);
 	const int vFrom = rt.byteToVisual[std::clamp(fromByte, 0, lastByte)];
 	const int vTo = rt.byteToVisual[std::clamp(toByte, 0, lastByte)];
@@ -553,12 +1018,16 @@ void QtEditorView::paintTextRow(
 	QColor ink = toQColor(highlight.defaultTextColor());
 
 	int vis = vFrom;
+	// Segments draw REBASED: a wrapped continuation row starts at its own
+	// left edge, so the x of a glyph is (vis - vFrom) cells in — not its
+	// position from the line start (that pushed continuation segments off
+	// past the clip; the wrap-rendering bug).
 	const auto flushTo = [&](int nextVis, const QColor &color) {
 		painter.setPen(color);
 		for (; vis < nextVis; ++vis)
-			painter.drawText(QRectF(textLeft + vis * cw, y, cw, lineHeightPx),
+			painter.drawText(QRectF(textLeft + (vis - vFrom) * cw, y, cw, lineHeightPx),
 							 Qt::AlignCenter,
-							 rt.expanded.mid(vis, 1));
+							 rt.cellText(vis));
 	};
 	for (const ColorSpan &span : spans)
 	{
@@ -572,19 +1041,13 @@ void QtEditorView::paintTextRow(
 	flushTo(vTo, ink);
 }
 
-void QtEditorView::paintEvent(QPaintEvent *)
+// Editor title strip: file icon, full path, git ±N (ImGui title-bar
+// parity). Painted first, above the clipped gutter/text area.
+void QtEditorView::paintTitleStrip(QPainter &painter)
 {
-	QPainter painter(this);
-	const QColor background = NedQtTheme::background(appSettings);
-	painter.fillRect(rect(), background);
-
-	const int firstRow = scrollBar->value();
-	const int rows = std::min(visibleLines() + 2, state.lineCount() - firstRow);
-
 	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
 	if (!state.path.empty())
 	{
-		painter.fillRect(0, 0, width(), titleBarPx, NedQtTheme::raised(background));
 		painter.setPen(NedQtTheme::text(appSettings).darker(130));
 		QFont small = font();
 		small.setPointSize(std::max(9, font().pointSize() - 3));
@@ -592,68 +1055,123 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		int tx = 10;
 		if (!fileIcon.isNull())
 		{
-			painter.drawPixmap(QRect(tx, (titleBarPx - 16) / 2, 16, 16),
-							   fileIcon.pixmap(16, 16));
-			tx += 24;
+			// Icon scales with the (small) title font. Fetch at device
+			// resolution so the painter doesn't upscale a DPR-1 raster.
+			const int px = std::max(11, painter.fontMetrics().height() - 2);
+			const qreal dpr = painter.device()->devicePixelRatio();
+			painter.drawPixmap(QRect(tx, (titleBarPx - px) / 2, px, px),
+							   fileIcon.pixmap(QSize(qRound(px * dpr), qRound(px * dpr))));
+			tx += px + 8;
 		}
-		painter.drawText(QRect(tx, 0, width() - tx - 160, titleBarPx),
-						 Qt::AlignVCenter | Qt::AlignLeft,
-						 QString::fromStdString(state.path));
 		const std::string changes = git.currentGitChanges;
-		if (!changes.empty())
-		{
-			painter.setPen(QColor(0x3f, 0xc1, 0x8c));
-			painter.drawText(QRect(width() - 150, 0, 140, titleBarPx),
-							 Qt::AlignVCenter | Qt::AlignRight,
-							 QString::fromStdString(changes));
-		}
+		const QString changesText = QString::fromStdString(changes);
+		// ImGui title-bar layout: path, then the ±N summary right after it
+		// (SameLine). Elide the path only when both don't fit.
+		const QFontMetrics fm = painter.fontMetrics();
+		const int gap = 14;
+		const int avail = width() - tx - 10;
+		const int changesW =
+			changesText.isEmpty() ? 0 : fm.horizontalAdvance(changesText);
+		const QString shownPath =
+			fm.elidedText(QString::fromStdString(state.path),
+						  Qt::ElideMiddle,
+						  std::max(40, avail - (changesW ? changesW + gap : 0)));
+		const int pathW = fm.horizontalAdvance(shownPath);
+		painter.drawText(
+			QRect(tx, 0, pathW, titleBarPx), Qt::AlignVCenter | Qt::AlignLeft, shownPath);
+		if (changesW > 0)
+			painter.drawText(QRect(tx + pathW + gap, 0, changesW, titleBarPx),
+							 Qt::AlignVCenter | Qt::AlignLeft,
+							 changesText);
 	}
+}
 
-	// Gutter + current-line highlight.
+// Gutter + current-line highlight + severity marks. `rows` counts VISUAL
+// lines; only a row's first segment carries gutter decoration.
+void QtEditorView::paintGutter(QPainter &painter,
+							   int firstRow,
+							   int rows,
+							   qreal yBase,
+							   const std::vector<int> &diagSeverity,
+							   int diagColW)
+{
+	const QColor background = NedQtTheme::background(appSettings);
 	const Selection &primary = viewState.selections[viewState.primaryIndex];
-	painter.setFont(font());
+	// In wrap mode `rows` counts VISUAL lines: map each back to its
+	// document row via the wrap layout (a 1:1 visual→row mapping printed
+	// garbage numbers on continuation rows), and only the FIRST segment of
+	// a row carries gutter decorations (ImGui gutter_view parity).
+	const bool wrapping = wordWrapEnabled();
 	for (int i = 0; i < rows; ++i)
 	{
-		const int row = firstRow + i;
-		const int y = titleBarPx + i * lineHeightPx;
-		if (row == primary.headRow)
-			// Neutral gray line highlight: background lifted by luminance (no tint).
-			painter.fillRect(0, y, width(), lineHeightPx, background.lighter(118));
-
-		// Changed lines tint their number (green) like the ImGui gutter.
-		if (git.isLineEdited(state.path, row + 1))
-			painter.setPen(QColor(0x3f, 0xc1, 0x8c));
+		int row = firstRow + i;
+		int segment = 0;
+		if (wrapping)
+		{
+			const WrapLayout::Hit hit = wrap.yToRow(firstRow + i + 0.5f);
+			row = hit.row;
+			segment = hit.segment;
+		}
+		const qreal y = yBase + i * lineHeightPx;
+		// Current-line highlight — but NOT on rows the selection covers:
+		// lighter-band + blue overlay stacks into a washed-out "inverted"
+		// look (VSCode also hides it under selections).
+		const bool inSelection = [&primary, row]() {
+			int sr, sc, er, ec;
+			primary.getOrdered(sr, sc, er, ec);
+			return row >= sr && row <= er;
+		}();
+		if (row == primary.headRow && !inSelection)
+			painter.fillRect(QRectF(0, y, width(), lineHeightPx), background.lighter(118));
+		if (segment > 0)
+			continue; // continuation visual line: no gutter decoration
+		// Diagnostic severity mark (first visual line of the row only —
+		// VSCode-style; continuation lines carry no gutter decoration).
+		if (row < static_cast<int>(diagSeverity.size()) && diagSeverity[row] > 0)
+		{
+			const DiagnosticSeverityRGB sev = DiagnosticSeverityColor(diagSeverity[row]);
+			const QColor sevColor = QColor::fromRgbF(sev.r, sev.g, sev.b, sev.a);
+			const qreal markW = std::max<qreal>(3.0, diagColW * 0.45);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(sevColor);
+			painter.drawRoundedRect(
+				QRectF(4 + (diagColW - markW) / 2.0, y + 2, markW, lineHeightPx - 4),
+				2.0,
+				2.0);
+			painter.setBrush(Qt::NoBrush);
+		}
+		// Line numbers match the ImGui gutter: current + edited lines are
+		// white, everything else gray. No bars/marks.
+		if (row == primary.headRow || git.isLineEdited(state.path, row + 1))
+			painter.setPen(QColor(255, 255, 255));
 		else
 			painter.setPen(QColor(0x88, 0x88, 0x88));
-		painter.drawText(QRect(0, y, gutterWidthPx - 12, lineHeightPx),
+		painter.drawText(QRectF(diagColW, y, gutterWidthPx - 12 - diagColW, lineHeightPx),
 						 Qt::AlignVCenter | Qt::AlignRight,
 						 QString::number(row + 1));
 	}
+}
 
-	// Git gutter marks (added/edited lines vs HEAD).
-	const std::string docPath = state.path;
-	for (int i = 0; i < rows; ++i)
-	{
-		const int row = firstRow + i;
-		if (git.isLineEdited(docPath, row + 1))
-			painter.fillRect(gutterWidthPx - 6,
-							 titleBarPx + i * lineHeightPx,
-							 3,
-							 lineHeightPx,
-							 QColor(0x3f, 0xc1, 0x8c));
-	}
-
-	// Text with syntax colors. Rows paint through the tab-expanded model so
-	// glyphs, tabs, caret and selection share one coordinate space. With
-	// word wrap on, each wrapped segment paints on its own visual line.
-	const int textLeft = gutterWidthPx;
-	const QColor defaultInk = toQColor(highlight.defaultTextColor());
+// Text with syntax colors through the tab-expanded model. Returns the
+// text x origin (wrap-off shifts with the horizontal scroll) so the
+// squiggle/selection passes share it.
+qreal QtEditorView::paintText(QPainter &painter, int firstRow, int rows, qreal yBase)
+{
 	const bool wrapping = wordWrapEnabled();
-
+	const int textLeft = gutterWidthPx;
+	// Text x origin: wrap-off text shifts with the horizontal scroll (the
+	// gutter stays pinned); wrap-on segments always start at the gutter.
+	const qreal textX0 = wrapping ? textLeft : textLeft - scrollPxX;
+	// Narrow the text clip to the text area: scrolled text cuts at the
+	// gutter's right edge instead of sliding under the line numbers.
+	painter.setClipRect(gutterWidthPx,
+						topInset(),
+						width() - gutterWidthPx - minimapWidth(),
+						height() - topInset());
 	const auto drawRowSegment = [&](int row, int y, int fromByte, int toByte) {
 		if (toByte <= fromByte)
 			return;
-		paintTextRow(painter, row, y, fromByte, toByte, textLeft);
+		paintTextRow(painter, row, y, fromByte, toByte, textX0);
 	};
 
 	if (wrapping)
@@ -661,7 +1179,7 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		for (int v = firstRow; v < totalLines() && v - firstRow < rows; ++v)
 		{
 			const WrapLayout::Hit hit = wrap.yToRow(static_cast<float>(v) + 0.5f);
-			const int y = titleBarPx + (v - firstRow) * lineHeightPx;
+			const qreal y = yBase + (v - firstRow) * lineHeightPx;
 			const int startB = wrap.segmentStartColumn(hit.row, hit.segment);
 			const int segCount = wrap.segmentCount(hit.row);
 			const int endB = hit.segment + 1 < segCount
@@ -672,21 +1190,22 @@ void QtEditorView::paintEvent(QPaintEvent *)
 	} else
 	{
 		for (int i = 0; i < rows; ++i)
-			drawRowSegment(firstRow + i,
-						   titleBarPx + i * lineHeightPx,
-						   0,
-						   state.lineLength(firstRow + i));
+			drawRowSegment(
+				firstRow + i, yBase + i * lineHeightPx, 0, state.lineLength(firstRow + i));
 	}
+	return textX0;
+}
 
+// Selection rects (wrap-aware, per-segment) + carets on the shared
+// tab-expanded coordinate space.
+void QtEditorView::paintSelectionsAndCarets(
+	QPainter &painter, int firstRow, int rows, qreal yBase, qreal textX0)
+{
+	const bool wrapping = wordWrapEnabled();
 	// Selection + carets on the shared tab-expanded coordinate space.
-	const auto visualLineOf = [&](int row, int column) {
-		if (!wrapping)
-			return row;
-		const int seg = wrap.segmentOf(row, column);
-		return wrap.rowStartVisualLine(row) + seg;
-	};
-
 	painter.setPen(Qt::transparent);
+	// Text selection stays blue (the OS-default look); the grey accent is
+	// chrome-only (sliders, tree pill, focus rings).
 	painter.setBrush(QColor(0x0d, 0x6e, 0xfd, 90));
 	for (const Selection &sel : viewState.selections)
 	{
@@ -694,6 +1213,9 @@ void QtEditorView::paintEvent(QPaintEvent *)
 		sel.getOrdered(sr, sc, er, ec);
 		for (int row = sr; row <= er; ++row)
 		{
+			// Per-segment rects: a wrapped row's selection spans several
+			// visual lines — clamp each to its own segment's byte range
+			// (previously continuation rects used whole-line bounds).
 			const int vStart = visualLineOf(row, row == sr ? sc : 0);
 			const int vEnd = visualLineOf(row, row == er ? ec : state.lineLength(row));
 			for (int v = vStart; v <= vEnd; ++v)
@@ -701,24 +1223,29 @@ void QtEditorView::paintEvent(QPaintEvent *)
 				const int i = v - firstRow;
 				if (i < 0 || i >= rows)
 					continue;
-				const int fromB = (v == vStart && row == sr) ? sc : 0;
-				const int toB =
-					(v == vEnd && row == er)
-						? ec
-						: (wrapping ? (wrap.segmentOf(row, 0) + 1 < wrap.segmentCount(row)
-										   ? wrap.segmentStartColumn(
-												 row, wrap.segmentOf(row, 0) + 1)
-										   : state.lineLength(row))
-									: state.lineLength(row));
-				const qreal x0 = textLeft + xAtByteColumn(row, fromB, fromB);
-				const qreal x1 = textLeft + xAtByteColumn(row, toB, fromB);
+				// v is an ABSOLUTE visual line — resolve the segment index
+				// from the row's visual-line base. (The old `v - vStart` base
+				// was wrong whenever the selection starts mid-row on a
+				// wrapped line: segments were misidentified and their rects
+				// skipped/misclamped.)
+				const int segIdx = wrapping ? v - wrap.rowStartVisualLine(row) : 0;
+				const int segBase = wrapping ? wrap.segmentStartColumn(row, segIdx) : 0;
+				const int segEnd = wrapping && segIdx + 1 < wrap.segmentCount(row)
+									   ? wrap.segmentStartColumn(row, segIdx + 1)
+									   : state.lineLength(row);
+				const int fromB =
+					(v == vStart && row == sr) ? std::max(sc, segBase) : segBase;
+				const int toB = (v == vEnd && row == er) ? std::min(ec, segEnd) : segEnd;
+				if (toB <= fromB)
+					continue;
+				const qreal x0 = textX0 + xAtByteColumn(row, fromB, segBase);
+				const qreal x1 = textX0 + xAtByteColumn(row, toB, segBase);
 				painter.drawRect(
-					QRectF(x0, titleBarPx + i * lineHeightPx, x1 - x0, lineHeightPx));
+					QRectF(x0, yBase + i * lineHeightPx, x1 - x0, lineHeightPx));
 			}
 		}
 	}
-
-	if (caretVisible)
+	if (caretVisible && caretActive())
 	{
 		// 2px caret on the glyph boundary, never over the glyph.
 		painter.setPen(QPen(QColor(255, 255, 255), 2));
@@ -728,17 +1255,89 @@ void QtEditorView::paintEvent(QPaintEvent *)
 			const int i = v - firstRow;
 			if (i < 0 || i >= rows)
 				continue;
-			const int seg =
-				wrapping ? wrap.segmentStartColumn(
-							   sel.headRow, wrap.segmentOf(sel.headRow, sel.headColumn))
-						 : 0;
-			const qreal x = textLeft + xAtByteColumn(sel.headRow, sel.headColumn, seg);
-			painter.drawLine(QPointF(x, titleBarPx + i * lineHeightPx + 2),
-							 QPointF(x, titleBarPx + (i + 1) * lineHeightPx - 2));
+			const int seg = wrapping ? caretSegmentStart(sel.headRow, sel.headColumn) : 0;
+			const qreal x = textX0 + xAtByteColumn(sel.headRow, sel.headColumn, seg);
+			painter.drawLine(QPointF(x, yBase + i * lineHeightPx + 2),
+							 QPointF(x, yBase + (i + 1) * lineHeightPx - 2));
 		}
 	}
+}
 
+// Paint orchestration: title strip, gutter, text, squiggles, selections,
+// minimap. Each pass is a private paint* helper above.
+void QtEditorView::paintEvent(QPaintEvent *)
+{
+	QPainter painter(this);
+	// NO whole-rect background fill: the main window paints the single
+	// global tint (QSS QMainWindow rule), and stacked alpha fills would
+	// double-darken the editor area vs the rest of the window chrome.
+	// Highlights below paint over that one layer.
+
+	// Track digit-count changes from edits (ImGui recomputes per frame).
+	updateGutterWidth();
+
+	// Wrap parity with the ImGui frame loop: re-ensure the wrap layout
+	// before painting so a toggle/resize/edit can never paint stale
+	// segments (cheap when clean).
+	ensureWrapFresh();
+
+	const int firstRow = firstVisualLine();
+	const qreal yBase = rowYBase(); // rows slide under the title strip
+	// `rows` is in VISUAL lines — with wrap on, the document spans
+	// totalLines() visual rows (a physical row can occupy many), so the
+	// clamp must use the visual total. Clamping against state.lineCount()
+	// truncated the tail of every wrapped document (visual index outruns
+	// the row count) and the bottom rendered blank.
+	const int rows = std::max(0, std::min(visibleLines() + 2, totalLines() - firstRow));
+
+	paintTitleStrip(painter);
+
+	// Rows slide under the title strip with fractional scroll — clip the
+	// text area to the strip's bottom, and to the minimap's left edge so
+	// long lines are CUT before the strip instead of painting under it.
+	painter.setClipRect(0, topInset(), width() - minimapWidth(), height() - topInset());
+	painter.setFont(font());
+	// One severity snapshot for the whole gutter pass (per-line queries
+	// copy the full diagnostic set each call — store contract).
+	const std::vector<int> diagSeverity =
+		diagStore && !state.path.empty()
+			? diagStore->maxSeverityByLine(state.path, state.lineCount())
+			: std::vector<int>();
+	paintGutter(painter, firstRow, rows, yBase, diagSeverity, diagnosticColumnWidth());
+
+	const qreal textX0 = paintText(painter, firstRow, rows, yBase);
+
+	// LSP diagnostics: squiggle underlines over the same coordinate space.
+	paintDiagnosticSquiggles(painter, firstRow, rows, yBase, textX0);
+
+	paintSelectionsAndCarets(painter, firstRow, rows, yBase, textX0);
+
+	// The minimap strip spans the full height (over the title area).
+	painter.setClipRect(0, 0, width(), height());
 	paintMinimap(painter);
+}
+
+bool QtEditorView::caretActive() const
+{
+	const QWidget *fw = QApplication::focusWidget();
+	return fw == nullptr || fw == this || isAncestorOf(fw);
+}
+
+void QtEditorView::focusInEvent(QFocusEvent *event)
+{
+	QWidget::focusInEvent(event);
+	// Regained focus: solid caret, blink phase restarts.
+	blinkClock.restart();
+	caretVisible = true;
+	update();
+}
+
+void QtEditorView::focusOutEvent(QFocusEvent *event)
+{
+	QWidget::focusOutEvent(event);
+	// Repaint now so an unfocused dock sibling's caret disappears immediately
+	// instead of lingering until the next blink flip.
+	update();
 }
 
 void QtEditorView::afterEdit()
@@ -757,6 +1356,7 @@ void QtEditorView::repaintAndFollow()
 {
 	highlight.poll();
 	highlight.highlightContent();
+	refreshWrap(); // find/replace edits changed content before revealing
 	revealCaret();
 	update();
 }
@@ -764,59 +1364,44 @@ void QtEditorView::repaintAndFollow()
 void QtEditorView::toggleFindBar()
 {
 	if (findBar->isVisible())
-		findBar->closeBar();
-	else
-		findBar->open();
+	{
+		closeFindBar();
+		return;
+	}
+	// Bar sits directly under the title strip; the text area starts below
+	// it (topInset), so the document is displaced, not overlaid.
+	findBarPx = findBar->sizeHint().height();
+	findBar->setGeometry(0, titleBarPx, width(), findBarPx);
+	findBar->open();
+	setScrollPixels(scrollPx); // fewer visible lines — re-clamp
+	update();
+}
+
+void QtEditorView::closeFindBar()
+{
+	findBarPx = 0;
+	findBar->closeBar(); // hides + refocuses the editor
+	setScrollPixels(scrollPx);
+	update();
 }
 
 void QtEditorView::goToLineDialog()
 {
-	// In-editor overlay (ImGui parity): small floating input, same window.
-	if (!lineJumpInput)
-	{
-		lineJumpInput = new QLineEdit(this);
-		lineJumpInput->setPlaceholderText("Go to line…");
-		lineJumpInput->setFixedWidth(160);
-		lineJumpInput->setAutoFillBackground(true);
-		lineJumpInput->installEventFilter(this);
-	}
-	lineJumpInput->setText(
-		QString::number(viewState.selections[viewState.primaryIndex].headRow + 1));
-	lineJumpInput->show();
-	lineJumpInput->setFocus();
-	lineJumpInput->selectAll();
-}
-
-bool QtEditorView::eventFilter(QObject *watched, QEvent *event)
-{
-	if (watched == lineJumpInput && event->type() == QEvent::KeyPress)
-	{
-		auto *key = static_cast<QKeyEvent *>(event);
-		if (key->key() == Qt::Key_Escape)
-		{
-			lineJumpInput->hide();
-			setFocus();
-			return true;
-		}
-		if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
-		{
-			const int line = lineJumpInput->text().toInt();
-			lineJumpInput->hide();
-			setFocus();
-			if (line >= 1 && line <= state.lineCount())
-			{
-				commands.goToLine(line - 1); // commands API is 0-based
-				scrollBar->setValue(
-					std::max(0,
-							 viewState.selections[viewState.primaryIndex].headRow -
-								 visibleLines() / 2));
-				scheduleBlink();
-				update();
-			}
-			return true;
-		}
-	}
-	return QWidget::eventFilter(watched, event);
+	// Centered popup card, file-finder style (was: corner-anchored inline
+	// input floating over the text).
+	auto *dialog = new QtLineJumpDialog(
+		viewState.selections[viewState.primaryIndex].headRow + 1, state.lineCount(), this);
+	dialog->setAttribute(Qt::WA_DeleteOnClose);
+	connect(dialog, &QtLineJumpDialog::jumpRequested, this, [this](int line) {
+		commands.goToLine(line - 1); // commands API is 0-based
+		setScrollPixels(std::max(0,
+								 viewState.selections[viewState.primaryIndex].headRow -
+									 visibleLines() / 2) *
+						lineHeightPx);
+		scheduleBlink();
+		update();
+	});
+	dialog->show();
 }
 
 void QtEditorView::scheduleBlink()
@@ -851,6 +1436,9 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 	const bool alt = event->modifiers() & Qt::AltModifier;	 // Option
 	const bool primary = ctrl || meta;
 
+	// Any keystroke dismisses hover popups (HoverTrigger rule 2).
+	updateHover(false, true, lastHoverPos);
+
 	// Option/Alt: word left/right, add caret above/below (not with Cmd/Ctrl).
 	if (alt && !primary)
 	{
@@ -867,6 +1455,12 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 			break;
 		case Qt::Key_Down:
 			commands.addCursorBelow();
+			break;
+		case Qt::Key_Backspace:
+			commands.deleteLeft(true); // Alt deletes by word (ImGui: KeyAlt)
+			break;
+		case Qt::Key_Delete:
+			commands.deleteRight(true);
 			break;
 		default:
 			QWidget::keyPressEvent(event);
@@ -959,17 +1553,24 @@ void QtEditorView::keyPressEvent(QKeyEvent *event)
 		commands.moveLineEnd(shift);
 		break;
 	case Qt::Key_Escape:
-		commands.collapseSelection();
+		// Find bar open: Escape closes it before anything else (the bar
+		// itself handles Escape when its input has focus). A QShortcut
+		// was tried here — its WidgetWithChildren context also swallowed
+		// Escape for child popups like the line jump card.
+		if (findBar->isVisible())
+			closeFindBar();
+		else
+			commands.collapseSelection();
 		break;
 	case Qt::Key_Return:
 	case Qt::Key_Enter:
 		commands.insertNewline();
 		break;
 	case Qt::Key_Backspace:
-		commands.deleteLeft(alt); // Alt deletes by word (ImGui: KeyAlt)
+		commands.deleteLeft(); // word-delete variant lives in the Alt branch
 		break;
 	case Qt::Key_Delete:
-		commands.deleteRight(alt);
+		commands.deleteRight();
 		break;
 	case Qt::Key_Tab:
 		commands.indent();
@@ -997,26 +1598,77 @@ void QtEditorView::resizeEvent(QResizeEvent *event)
 	// Minimap replaces the scrollbar when enabled (ImGui parity).
 	scrollBar->setVisible(!minimapEnabled());
 	refreshWrap();
-	if (findBar && findBar->isVisible())
-		findBar->setGeometry(0, 0, width(), findBar->sizeHint().height());
-	if (lineJumpInput && lineJumpInput->isVisible())
-		lineJumpInput->move(width() - lineJumpInput->width() - 24, titleBarPx + 6);
+	// Geometry is kept current even while hidden so the first open() has
+	// the right position without waiting for a resize (findBar is created
+	// in the constructor — never null).
+	findBar->setGeometry(0, titleBarPx, width(), findBar->sizeHint().height());
 	scrollBar->setGeometry(width() - 14, 0, 14, height());
 	scrollBar->setPageStep(std::max(1, visibleLines() - 1));
 	scrollBar->setRange(0, maxScrollLine());
+	// Horizontal strip spans the text area only (gutter to minimap), laid
+	// over the bottom edge like the vertical bar overlays the right one.
+	hScrollBar->setGeometry(
+		gutterWidthPx, height() - 12, width() - gutterWidthPx - minimapWidth(), 12);
 }
 
 void QtEditorView::wheelEvent(QWheelEvent *event)
 {
-	// Trackpads report small pixel-ish deltas; mice report 120/notch.
-	// Over the minimap strip the wheel scrolls like the editor.
-	const int notches = event->angleDelta().y() / 40;
-	scrollBar->setValue(scrollBar->value() - notches);
-	update();
+	// ImGui parity (editor_view_scroll.cpp): 120 delta units = 3 lines —
+	// accumulated fractionally in PIXELS so trackpad micro-deltas and
+	// momentum scroll with sub-line smoothness. The axes apply
+	// INDEPENDENTLY: a diagonal trackpad gesture scrolls both. (The old
+	// "any x-delta routes the whole event horizontal" rule ate the
+	// vertical half of angled swipes — the wheel felt dead, e.g. trying
+	// to scroll back up from the bottom of a file.)
+	const bool shift = event->modifiers() & Qt::ShiftModifier;
+	const bool wrap = wordWrapEnabled();
+	const QPoint d = event->angleDelta();
+
+	// Horizontal (wrap off): x-deltas; shift maps the y-wheel to horizontal
+	// on platforms that deliver shift+wheel unswapped (macOS/Qt pre-swap it
+	// into the x axis already). Same sign convention as the vertical axis —
+	// content follows the gesture. 120 units = 3 cells.
+	if (!wrap)
+	{
+		const int dx = d.x() != 0 ? d.x() : (shift ? d.y() : 0);
+		if (dx != 0)
+		{
+			wheelCarryX -= dx * (3.0 * charWidthF() / 120.0);
+			const int px = static_cast<int>(wheelCarryX);
+			wheelCarryX -= px;
+			if (px != 0)
+				setScrollXPixels(scrollPxX + px);
+		}
+	}
+
+	// Vertical: the y axis. Shift means horizontal intent on unswapped
+	// wheels, so skip it there — unless wrapping, where ImGui's rule
+	// scrolls vertically regardless.
+	if (d.y() != 0 && (!shift || wrap))
+	{
+		wheelCarry += d.y() * (3.0 * lineHeightPx / 120.0);
+		const int px = static_cast<int>(wheelCarry);
+		wheelCarry -= px;
+		if (px != 0)
+			setScrollPixels(scrollPx - px);
+	}
+	// Scrolling shifts content under the mouse — dismiss hover (rule 2).
+	updateHover(false, true, lastHoverPos);
+}
+
+void QtEditorView::leaveEvent(QEvent *event)
+{
+	QWidget::leaveEvent(event);
+	// No zone outside the widget (the mouse may be resting ON a hover
+	// tooltip — its own dismissal paths handle that case).
+	updateHover(false, false, QPoint(-1, -1));
 }
 
 void QtEditorView::mousePressEvent(QMouseEvent *event)
 {
+	// Click/drag is a hover dismissal (rule 2) — before anything else.
+	updateHover(false, true, lastHoverPos);
+
 	if (event->button() == Qt::RightButton)
 	{
 		showContextMenu(event->pos());
@@ -1053,6 +1705,12 @@ void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
 {
 	if (event->button() != Qt::LeftButton)
 		return;
+	// Qt fires the double-click INSTEAD of a second mousePressEvent — arm
+	// dragging here too, or click-click-drag would never extend the
+	// selection (setCursor select=true keeps the word anchor).
+	dragging = true;
+	caretVisible = true;
+	scheduleBlink();
 	const RowHit hit = hitTestY(static_cast<int>(event->position().y()));
 	const int column =
 		columnAtX(hit.row, static_cast<int>(event->position().x()), hit.segmentStart);
@@ -1063,21 +1721,22 @@ void QtEditorView::mouseDoubleClickEvent(QMouseEvent *event)
 void QtEditorView::showContextMenu(const QPoint &pos)
 {
 	QMenu menu(this);
+	// Standard keys so the accelerators render platform-native (⌘ on macOS).
 	menu.addAction(
 		"Cut",
 		[this] {
 			commands.cut();
 			afterEdit();
 		},
-		QKeySequence("Ctrl+X"));
-	menu.addAction("Copy", [this] { commands.copy(); }, QKeySequence("Ctrl+C"));
+		QKeySequence(QKeySequence::Cut));
+	menu.addAction("Copy", [this] { commands.copy(); }, QKeySequence(QKeySequence::Copy));
 	menu.addAction(
 		"Paste",
 		[this] {
 			commands.paste();
 			afterEdit();
 		},
-		QKeySequence("Ctrl+V"));
+		QKeySequence(QKeySequence::Paste));
 	menu.addSeparator();
 	menu.addAction(
 		"Select All",
@@ -1085,12 +1744,28 @@ void QtEditorView::showContextMenu(const QPoint &pos)
 			commands.selectAll();
 			update();
 		},
-		QKeySequence("Ctrl+A"));
+		QKeySequence(QKeySequence::SelectAll));
 	menu.exec(mapToGlobal(pos));
 }
 
 void QtEditorView::mouseMoveEvent(QMouseEvent *event)
 {
+	// Real mouse movement (re)arms the hover delay; a drag doubles as a
+	// dismissal signal — target resolution in updateHover drops the zone.
+	updateHover(true, dragging, event->position().toPoint());
+
+	// Heal drags whose release was consumed elsewhere (context-menu nested
+	// loop, popup, window deactivate): with the left button up there is no
+	// drag. A stuck minimap drag re-pinned the scroll to the pointer on
+	// every move — "stuck at the bottom, can't scroll up".
+	if ((dragging || minimapDragging) &&
+		!(QGuiApplication::mouseButtons() & Qt::LeftButton))
+	{
+		dragging = false;
+		minimapDragging = false;
+		return;
+	}
+
 	if (minimapDragging)
 	{
 		minimapScrollTo(static_cast<int>(event->position().y()));

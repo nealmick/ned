@@ -9,8 +9,10 @@
 
 #include <QWidget>
 
+class QKeyEvent;
 class QLineEdit;
 class QPushButton;
+class QResizeEvent;
 class QtEditorView;
 
 class QtFindBar : public QWidget
@@ -23,17 +25,32 @@ class QtFindBar : public QWidget
 	void open(); // show, focus input, keep last term
 	void closeBar();
 
+  Q_SIGNALS:
+	// Wrap state changed — the bar's height changed with it, so the view
+	// must re-displace the text area (topInset).
+	void heightChanged();
+
   protected:
 	void keyPressEvent(QKeyEvent *event) override;
+	void resizeEvent(QResizeEvent *event) override;
 
   private:
 	void find(bool backwards);
 	void replaceOne();
 	void replaceAll();
+	// Rebuilds the widget rows for the current wrap state (responsive:
+	// one row when wide, Find row + Replace row when narrow).
+	void buildLayout();
 
 	QtEditorView *editor = nullptr;
 	QLineEdit *input = nullptr;
 	QLineEdit *replaceInput = nullptr;
+	QPushButton *prevBtn = nullptr;
+	QPushButton *nextBtn = nullptr;
+	QPushButton *replaceBtn = nullptr;
+	QPushButton *allBtn = nullptr;
 	QPushButton *countLabel = nullptr;
 	int matchIndex = -1;
+	bool wrapped = false;
+	int singleRowMin = 0; // width at which the one-row layout stops fitting
 };

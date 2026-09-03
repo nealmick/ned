@@ -10,6 +10,7 @@
 #pragma once
 
 #include "editor_events.h"
+#include "platform/lsp_editor.h"
 #include "platform/ned_types.h"
 #include "services/highlight/capture_map.h"
 #include "util/hover_trigger.h"
@@ -18,7 +19,7 @@
 
 class Editor;
 
-class EditorApi
+class EditorApi : public LspEditor
 {
   public:
 	explicit EditorApi(Editor &editor);
@@ -36,15 +37,17 @@ class EditorApi
 	void onProjectOpened(const std::string &root);
 
 	// --- Document / caret queries (const reads) ---
-	const std::string &path() const;
+	// The six below override the LspEditor seam (lsp core path), as does
+	// requestCursorCenter further down.
+	const std::string &path() const override;
 	bool hasPath() const;
 	std::string text() const;
-	std::string line(int row) const;
+	std::string line(int row) const override;
 	int version() const;
-	const std::string &languageId() const;
-	NedColor defaultTextColor() const;
-	NedColor syntaxColor(ThemeSlot slot) const;
-	void getCaret(int &row, int &column) const;
+	const std::string &languageId() const override;
+	NedColor defaultTextColor() const override;
+	NedColor syntaxColor(ThemeSlot slot) const override;
+	void getCaret(int &row, int &column) const override;
 
 	// --- Navigation actions (via Commands) ---
 	void resetCaret();
@@ -52,7 +55,7 @@ class EditorApi
 	void centerOn(int row, int column);
 	void requestEnsureVisible();
 	// Deferred center after layout exists (e.g. post file-load). View schedule, not setCursor.
-	void requestCursorCenter(int row, int column);
+	void requestCursorCenter(int row, int column) override;
 
 	// --- Shell / overlays ---
 	// Next editor paint: focus document child so keys/text work without a click.

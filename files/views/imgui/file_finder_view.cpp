@@ -2,7 +2,7 @@
 #include "../../../editor/editor_api.h"
 #include "../../../editor/views/imgui/ned_key_imgui.h"
 #include "../../../files/file_finder.h"
-#include "../../../util/icons.h"
+#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 

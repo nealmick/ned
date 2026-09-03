@@ -8,7 +8,7 @@
 #include "util/editor_utils.h"
 #include "views/wrap_layout.h"
 
-#include "../util/icons.h"
+#include "../util/imgui_icons.h"
 #include "../util/project_undo.h"
 #include "../util/settings.h"
 

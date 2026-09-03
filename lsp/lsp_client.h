@@ -7,8 +7,7 @@
 #include <string>
 #include <vector>
 
-class EditorApi;
-class FileExplorer;
+class LspEditor;
 class Settings;
 
 // Structure to hold language server information (used by settings UI when ON)
@@ -31,6 +30,7 @@ struct LanguageServerInfo
 #include "../editor/services/diagnostics/diagnostics_store.h"
 #include "lsp_document_sync.h"
 #include "lsp_goto.h"
+#include "lsp_hover.h"
 
 // Forward declarations
 namespace lsp {
@@ -50,12 +50,14 @@ class Stream;
 class LSPClient
 {
   public:
-	LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
+	LSPClient(LspEditor &api, Settings &settings);
 	~LSPClient();
 
-	// Goto-definition/references requests (results rendered by the UI layer).
+	// Goto-definition/references + hover requests (results rendered by the
+	// UI layer).
 	LSPGoto gotoDef;
 	LSPGoto gotoRef;
+	LSPHover hover;
 
 	// Core LSP functionality
 	void setWorkspace(const std::string &workspacePath);
@@ -91,8 +93,9 @@ class LSPClient
 	// Direct access to message handler
 	lsp::MessageHandler *getMessageHandler() { return messageHandler.get(); }
 
-	// Point goto requests at a different editor (multi-tab embed).
-	void bindEditorApi(EditorApi &api);
+	// Point goto/hover requests at a different editor (multi-tab embed).
+	// Null is valid: no focused editor (all tabs closed).
+	void bindEditorApi(LspEditor *api);
 
 	// Keybind lookup for the UI layer (ImGui/Qt views poll their own keys).
 	const class KeybindsManager &settingsKeybinds() const;
@@ -107,9 +110,14 @@ class LSPClient
 	// Path utilities
 	std::string expandEnvironmentVariables(const std::string &path) const;
 
+  public:
+	// Resolve the configured server path for a language ("" when none of
+	// its candidates exists) — the dashboards probe through this so their
+	// "found" state can never disagree with what startServer would launch.
+	std::string findServerPath(const std::string &language) const;
+
   private:
 	// Helper functions
-	std::string findServerPath(const std::string &language) const;
 	std::string detectLanguageFromFile(const std::string &filePath) const;
 	bool sendLSPInitialize();
 	void registerServerHandlers();
@@ -150,7 +158,7 @@ class LSPClient
 class LSPClient
 {
   public:
-	LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
+	LSPClient(LspEditor &api, Settings &settings);
 	~LSPClient();
 
 	void setWorkspace(const std::string &workspacePath);
@@ -178,7 +186,7 @@ class LSPClient
 	LSPDiagnostics &diagnostics();
 	const LSPDiagnostics &diagnostics() const;
 
-	void bindEditorApi(EditorApi &api);
+	void bindEditorApi(LspEditor *api);
 	const class KeybindsManager &settingsKeybinds() const;
 
 	bool startServer(const std::string &language, const std::string &serverPath);

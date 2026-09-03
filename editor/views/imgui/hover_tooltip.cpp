@@ -241,7 +241,7 @@ void RenderDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
 			if (i)
 				ImGui::Separator();
 			const DiagnosticItem &d = items[i];
-			ImGui::TextColored(DiagnosticSeverityColor(d.severity),
+			ImGui::TextColored(DiagnosticSeverityVec4(d.severity),
 							   "%s",
 							   DiagnosticSeverityLabel(d.severity));
 			if (!d.source.empty())

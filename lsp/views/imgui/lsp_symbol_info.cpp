@@ -1,71 +1,14 @@
 #include "lsp_symbol_info.h"
 #include "../../../editor/editor_api.h"
-#include "../../../editor/util/utf8.h"
-#include "../../../lsp/lsp_includes.h"
-#include "../../../lsp/lsp_trace.h"
+#include "../../../lsp/lsp_client.h"
 #include "../../editor/views/imgui/hover_tooltip.h"
 
 #include <algorithm>
-#include <variant>
 
 namespace {
 
 // Mouse slack around the popup that still counts as "over the tooltip".
 constexpr float kPopupStickyPadding = 12.0f;
-
-std::string fenceWrap(const std::string &lang, const std::string &body)
-{
-	if (body.empty())
-		return {};
-	// The renderer highlights fenced blocks; plaintext gets the document's
-	// language so it renders as code, which hover plaintext almost always is.
-	return "```" + lang + "\n" + body + "\n```";
-}
-
-std::string markedStringText(const lsp::MarkedString &ms)
-{
-	if (std::holds_alternative<lsp::String>(ms))
-		return std::get<lsp::String>(ms);
-	if (std::holds_alternative<lsp::MarkedStringWithLanguage>(ms))
-	{
-		const auto &block = std::get<lsp::MarkedStringWithLanguage>(ms);
-		return fenceWrap(block.language, block.value);
-	}
-	return {};
-}
-
-std::string formatHoverContents(
-	const lsp::OneOf<lsp::MarkupContent, lsp::MarkedString, lsp::Array<lsp::MarkedString>>
-		&contents,
-	const std::string &fallbackLang)
-{
-	if (std::holds_alternative<lsp::MarkupContent>(contents))
-	{
-		const auto &md = std::get<lsp::MarkupContent>(contents);
-		if (md.kind == lsp::MarkupKind::PlainText)
-			return fenceWrap(fallbackLang, md.value);
-		return md.value;
-	}
-	if (std::holds_alternative<lsp::MarkedString>(contents))
-		return markedStringText(std::get<lsp::MarkedString>(contents));
-	if (std::holds_alternative<lsp::Array<lsp::MarkedString>>(contents))
-	{
-		std::string out;
-		for (const auto &part : std::get<lsp::Array<lsp::MarkedString>>(contents))
-		{
-			const std::string piece = markedStringText(part);
-			if (piece.empty())
-				continue;
-			if (!out.empty())
-				// MarkedString arrays already describe distinct hover sections.
-				// One boundary is enough; two becomes a visible blank paragraph.
-				out += '\n';
-			out += piece;
-		}
-		return out;
-	}
-	return {};
-}
 
 } // namespace
 
@@ -81,10 +24,8 @@ void LSPSymbolInfo::get()
 	if (!client || !api || !client->isInitialized())
 		return;
 
-	int row = 0, column = 0;
-	api->getCaret(row, column);
 	atCaret = true;
-	requestAt(row, column);
+	client->hover.get();
 }
 
 void LSPSymbolInfo::hideMouseHover()
@@ -95,51 +36,7 @@ void LSPSymbolInfo::hideMouseHover()
 	hoverRow = -1;
 	hoverCol = -1;
 	popupRectValid = false;
-	hoverState.cancel();
-}
-
-void LSPSymbolInfo::requestAt(int row, int utf8Column)
-{
-	if (!api || !client || !client->getMessageHandler())
-		return;
-	requestedForCell = true;
-
-	const int utf16 = EditorUtils::Utf8ByteOffsetToUtf16(api->line(row), utf8Column);
-	const auto ticket = hoverState.begin();
-	NED_LSP_TRACE("hover req " << api->path() << " " << row << ":" << utf8Column);
-
-	lsp::HoverParams params;
-	params.textDocument.uri = lsp::Uri::fileUriFromPath(api->path());
-	params.position.line = static_cast<lsp::uint>(row);
-	params.position.character = static_cast<lsp::uint>(utf16);
-	const std::string lang = api->languageId();
-
-	try
-	{
-		client->getMessageHandler()->sendRequest<lsp::requests::TextDocument_Hover>(
-			std::move(params),
-			[this, ticket, lang](auto &&result) {
-				std::optional<std::string> text;
-				if (!result.isNull())
-				{
-					text = formatHoverContents(result.value().contents, lang);
-					if (text->empty())
-						text = std::nullopt;
-				}
-				NED_LSP_TRACE("hover result "
-							  << (text ? std::to_string(text->size()) : "none")
-							  << " bytes");
-				hoverState.deliver(ticket, std::move(text));
-			},
-			[this, ticket](const lsp::ResponseError &err) {
-				NED_LSP_TRACE("hover error: " << err.message());
-				hoverState.deliver(ticket, std::nullopt);
-			});
-	} catch (const std::exception &e)
-	{
-		std::cerr << "LSP: hover request failed: " << e.what() << std::endl;
-		hoverState.deliver(ticket, std::nullopt);
-	}
+	client->hover.cancel();
 }
 
 void LSPSymbolInfo::updateMouseHover()
@@ -154,7 +51,7 @@ void LSPSymbolInfo::updateMouseHover()
 		if (api->hoverDismissed())
 		{
 			atCaret = false;
-			hoverState.cancel();
+			client->hover.cancel();
 		}
 		return;
 	}
@@ -176,7 +73,7 @@ void LSPSymbolInfo::updateMouseHover()
 		hideMouseHover();
 		return;
 	}
-	if (overPopup && (hoverState.isPending() || hoverState.snapshot()))
+	if (overPopup && (client->hover.isPending() || client->hover.snapshot()))
 		return;
 	popupRectValid = false;
 
@@ -196,11 +93,11 @@ void LSPSymbolInfo::updateMouseHover()
 		hoverRow = info.row;
 		hoverCol = info.column;
 		requestedForCell = false;
-		hoverState.cancel();
+		client->hover.cancel();
 	}
 
 	if (!requestedForCell)
-		requestAt(info.row, info.column);
+		requestedForCell = client->hover.requestAt(info.row, info.column, hover);
 }
 
 void LSPSymbolInfo::render()
@@ -209,7 +106,7 @@ void LSPSymbolInfo::render()
 
 	// Visibility IS the request state: no delivered text, no tooltip (an
 	// empty answer is an answer — deliver clears pending either way).
-	const auto snap = hoverState.snapshot();
+	const auto snap = client->hover.snapshot();
 	if (!snap || snap->empty())
 		return;
 

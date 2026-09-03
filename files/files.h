@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../util/icons.h"
+#include "../util/imgui_icons.h"
 #include "file_explorer_events.h"
 #include "file_finder.h"
 #include "file_tree.h"

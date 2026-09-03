@@ -1,12 +1,12 @@
 #include "lsp_client.h"
-#include "../editor/editor_api.h"
-#include "../files/files.h"
+#include "../editor/platform/lsp_editor.h"
 #include "../util/keybinds.h"
 #include "../util/settings.h"
 #include "lsp_includes.h"
 #include "lsp_trace.h"
 
 #include "lsp_goto.h"
+#include "lsp_hover.h"
 
 #include "../lib/json.hpp"
 #include <algorithm>
@@ -40,9 +40,10 @@ lsp::Array<lsp::WorkspaceFolder> workspaceFoldersFor(const std::string &workspac
 
 } // namespace
 
-LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &settings)
+LSPClient::LSPClient(LspEditor &api, Settings &settings)
 	: gotoDef(*this, api, LSPGoto::Kind::Definition),
 	  gotoRef(*this, api, LSPGoto::Kind::References),
+	  hover(*this, api),
 	  initialized(false),
 	  running(false),
 	  settings(&settings),
@@ -54,10 +55,11 @@ LSPClient::LSPClient(EditorApi &api, FileExplorer &fileExplorer, Settings &setti
 
 LSPClient::~LSPClient() { shutdown(); }
 
-void LSPClient::bindEditorApi(EditorApi &api)
+void LSPClient::bindEditorApi(LspEditor *api)
 {
 	gotoDef.setApi(api);
 	gotoRef.setApi(api);
+	hover.setApi(api);
 }
 
 const KeybindsManager &LSPClient::settingsKeybinds() const { return settings->keybinds; }

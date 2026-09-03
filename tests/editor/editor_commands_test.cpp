@@ -297,6 +297,60 @@ TEST_CASE("EditorCommands moveLeft/Right update caret", "[ned][commands]")
 	REQUIRE(f.view.column == 1);
 }
 
+TEST_CASE("EditorCommands word jump forward sets visual preferred column",
+		  "[ned][commands]")
+{
+	EditorFixture f;
+	f.setDocument("\tfoo bar\n\tsecond line");
+	f.setCaret(0, 0);
+	f.commands.moveWordRight(false); // past tab + "foo": byte 4, visual 7
+	REQUIRE(f.view.primary().headColumn == 4);
+	REQUIRE(f.view.primary().preferredColumn == 7);
+	f.commands.moveDown(false);
+	REQUIRE(f.view.primary().headRow == 1);
+	REQUIRE(f.view.primary().headColumn == 4); // visual 7 on "\tsecond line"
+}
+
+TEST_CASE("EditorCommands word jump backward sets visual preferred column",
+		  "[ned][commands]")
+{
+	EditorFixture f;
+	f.setDocument("\tsecond line\n\tfoo bar");
+	f.setCaret(0, 12);				// after "line" (tab + 11 chars)
+	f.commands.moveWordLeft(false); // before "line": byte 8, visual 11
+	REQUIRE(f.view.primary().headColumn == 8);
+	REQUIRE(f.view.primary().preferredColumn == 11);
+	f.commands.moveDown(false);
+	REQUIRE(f.view.primary().headRow == 1);
+	REQUIRE(f.view.primary().headColumn == 8); // visual 11 = end of "\tfoo bar"
+}
+
+TEST_CASE("EditorCommands moveLineEnd sets visual preferred column", "[ned][commands]")
+{
+	EditorFixture f;
+	f.setDocument("\tabc\n\tlonger");
+	f.setCaret(0, 0);
+	f.commands.moveLineEnd(false); // byte 4, visual 7
+	REQUIRE(f.view.primary().headColumn == 4);
+	REQUIRE(f.view.primary().preferredColumn == 7);
+	f.commands.moveDown(false);
+	REQUIRE(f.view.primary().headRow == 1);
+	REQUIRE(f.view.primary().headColumn == 4); // visual 7 on "\tlonger"
+}
+
+TEST_CASE("EditorCommands moveLineStart sets visual preferred column", "[ned][commands]")
+{
+	EditorFixture f;
+	f.setDocument("\tabc\n\tlonger");
+	f.setCaret(0, 3);				 // between 'b' and 'c'
+	f.commands.moveLineStart(false); // to the indent: byte 1, visual 4
+	REQUIRE(f.view.primary().headColumn == 1);
+	REQUIRE(f.view.primary().preferredColumn == 4);
+	f.commands.moveDown(false);
+	REQUIRE(f.view.primary().headRow == 1);
+	REQUIRE(f.view.primary().headColumn == 1); // visual 4 = just past the tab
+}
+
 TEST_CASE("EditorCommands moveLeft with select creates selection", "[ned][commands]")
 {
 	EditorFixture f;

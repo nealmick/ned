@@ -1,15 +1,17 @@
 /*
-	File: views/qt/qt_finder.h
-	Description: Ctrl+P project file finder for the Qt backend — popup with
-	fuzzy filtering over a background scan of the workspace. Model logic
-	(scan) mirrors files/file_finder.cpp; kept Qt-side until a shared
-	backend-neutral matcher is extracted.
+	File: files/views/qt/qt_file_finder.h
+	Description: Ctrl+P project file finder for the Qt backend (parallel
+	of files/views/imgui/file_finder_view) — popup with fuzzy filtering
+	over a background scan of the workspace. Scan rules and matching come
+	from the shared backend-neutral model (files/file_finder_match.h).
 */
 
 #pragma once
 
 #include <QDialog>
 #include <QStringList>
+
+#include "../../file_finder_match.h"
 
 #include <atomic>
 #include <thread>
@@ -45,7 +47,3 @@ class QtFileFinder : public QDialog
 	QLineEdit *input = nullptr;
 	QListWidget *results = nullptr;
 };
-
-// Simple subsequence fuzzy score: matched-in-order wins, tighter + earlier
-// matches score higher. Returns -1 when query is not a subsequence.
-int fuzzyMatchScore(const QString &candidate, const QString &query);

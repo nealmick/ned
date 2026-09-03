@@ -275,6 +275,8 @@ else()
 endif()
 
 file(GLOB_RECURSE FILES_SOURCES "files/*.cpp")
+# Qt backend views are compiled by the ned_qt target only (they need Qt).
+list(FILTER FILES_SOURCES EXCLUDE REGEX ".*/views/qt/.*\\.cpp$")
 
 # LSP (optional — NED_ENABLE_LSP)
 set(LSP_SOURCES)
@@ -290,10 +292,27 @@ if(NED_ENABLE_LSP)
 
   # Upstream (master) rewrote Connection with the fixes our old
   # connection_patched.cpp carried (which had been formatting-only); use it as-is.
-  set(LSP_SOURCES
+
+  # Backend-neutral client core: ONE compilation of the session/transport
+  # sources shared by every host (ned, ned_embed, ned_qt) — compiling them
+  # per-target doubled build time and could drift on feature defines.
+  add_library(ned_lsp_core STATIC
     lsp/lsp_client.cpp
     lsp/lsp_document_sync.cpp
     lsp/lsp_goto.cpp
+    lsp/lsp_hover.cpp
+    lsp/lsp_server_status.cpp
+  )
+  ned_apply_feature_defs(ned_lsp_core)
+  target_include_directories(ned_lsp_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/lib/lsp-framework/generated
+    lib/lsp-framework
+  )
+  target_link_libraries(ned_lsp_core PUBLIC lsp)
+
+  # ImGui views (compiled into the ImGui hosts only).
+  set(LSP_SOURCES
     lsp/views/imgui/lsp_symbol_info.cpp
     lsp/views/imgui/lsp_uri_options.cpp
     lsp/views/imgui/lsp_dashboard.cpp
@@ -401,13 +420,17 @@ set(NED_UTIL_SOURCES
   util/settings.cpp
   util/icon_keys.cpp
   util/keybinds.cpp
-  util/icons.cpp
+  util/imgui_icons.cpp
   util/project_undo.cpp
 )
 if(NED_ENABLE_TERMINAL)
-  list(APPEND NED_UTIL_SOURCES util/ned_terminal.cpp)
+  # NOTE: a host/imgui file in ned_util is intentional for now — the
+  # terminal is ImGui-bound legacy glue (architecture rule 3's documented
+  # exception) and Settings/workbench in ned_util reference NedTerminal.
+  # Phase 2's platform seam moves it into the host targets proper.
+  list(APPEND NED_UTIL_SOURCES host/imgui/ned_terminal.cpp)
 else()
-  list(APPEND NED_UTIL_SOURCES util/ned_terminal_stub.cpp)
+  list(APPEND NED_UTIL_SOURCES host/imgui/ned_terminal_stub.cpp)
 endif()
 if(WIN32)
   list(APPEND NED_UTIL_SOURCES util/windows_window.cpp)
@@ -664,6 +687,9 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   if(NED_FEATURE_DEPS)
     add_dependencies(ned ${NED_FEATURE_DEPS})
   endif()
+  if(TARGET ned_lsp_core)
+    target_link_libraries(ned PRIVATE ned_lsp_core)
+  endif()
 endif()
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -684,6 +710,9 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   if(NED_FEATURE_DEPS)
     add_dependencies(ned_embed ${NED_FEATURE_DEPS})
   endif()
+  if(TARGET ned_lsp_core)
+    target_link_libraries(ned_embed PUBLIC ned_lsp_core)
+  endif()
 else()
   # Embedded: expect parent to provide ImGui, FreeType, GLEW, etc.
   # Note: imgui is compiled directly into the parent executable, so we don't link against it
@@ -702,6 +731,9 @@ else()
   )
   if(NED_FEATURE_DEPS)
     add_dependencies(ned_embed ${NED_FEATURE_DEPS})
+  endif()
+  if(TARGET ned_lsp_core)
+    target_link_libraries(ned_embed PUBLIC ned_lsp_core)
   endif()
 endif()
 
@@ -827,15 +859,95 @@ if(NED_BUILD_QT)
     message(STATUS "Qt6 not found - skipping ned_qt (install qt or set CMAKE_PREFIX_PATH)")
   else()
     message(STATUS "Building ned_qt with Qt${Qt6_VERSION}")
+
+    # ---- qtermwidget (submodule, LXQt) — Qt terminal emulator ----
+    # Its own CMakeLists needs lxqt-build-tools; compile the lib sources
+    # directly instead (same list, minus translations/install). Pinned tag
+    # 2.1.0 (Qt6).
+    set(QTERMWIDGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/qtermwidget/lib)
+    if(EXISTS ${QTERMWIDGET_DIR}/qtermwidget.cpp)
+      set(QTERMWIDGET_VERSION_MAJOR 2)
+      set(QTERMWIDGET_VERSION_MINOR 1)
+      set(QTERMWIDGET_VERSION_PATCH 0)
+      configure_file(${QTERMWIDGET_DIR}/qtermwidget_version.h.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/qtermwidget_version.h)
+      # Upstream generates this via GenerateExportHeader for its shared
+      # lib; everything is empty in our static build.
+      file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/qtermwidget_export.h
+        "#pragma once\n#define QTERMWIDGET_EXPORT\n#define QTERMWIDGET_NO_EXPORT\n")
+      add_library(qtermwidget6 STATIC
+        ${QTERMWIDGET_DIR}/BlockArray.cpp
+        ${QTERMWIDGET_DIR}/ColorScheme.cpp
+        ${QTERMWIDGET_DIR}/Emulation.cpp
+        ${QTERMWIDGET_DIR}/Filter.cpp
+        ${QTERMWIDGET_DIR}/History.cpp
+        ${QTERMWIDGET_DIR}/HistorySearch.cpp
+        ${QTERMWIDGET_DIR}/KeyboardTranslator.cpp
+        ${QTERMWIDGET_DIR}/konsole_wcwidth.cpp
+        ${QTERMWIDGET_DIR}/kprocess.cpp
+        ${QTERMWIDGET_DIR}/kpty.cpp
+        ${QTERMWIDGET_DIR}/kptydevice.cpp
+        ${QTERMWIDGET_DIR}/kptyprocess.cpp
+        ${QTERMWIDGET_DIR}/Pty.cpp
+        ${QTERMWIDGET_DIR}/qtermwidget.cpp
+        ${QTERMWIDGET_DIR}/Screen.cpp
+        ${QTERMWIDGET_DIR}/ScreenWindow.cpp
+        ${QTERMWIDGET_DIR}/SearchBar.cpp
+        ${QTERMWIDGET_DIR}/Session.cpp
+        ${QTERMWIDGET_DIR}/ShellCommand.cpp
+        ${QTERMWIDGET_DIR}/TerminalCharacterDecoder.cpp
+        ${QTERMWIDGET_DIR}/TerminalDisplay.cpp
+        ${QTERMWIDGET_DIR}/tools.cpp
+        ${QTERMWIDGET_DIR}/Vt102Emulation.cpp
+      )
+      set_target_properties(qtermwidget6 PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTOUIC_SEARCH_PATHS ${QTERMWIDGET_DIR}
+      )
+      target_include_directories(qtermwidget6 PUBLIC
+        ${QTERMWIDGET_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR} # generated qtermwidget_version.h
+      )
+      target_link_libraries(qtermwidget6 PUBLIC Qt6::Widgets)
+      # ned's terminal panel wrapper compiles WITHOUT QT_NO_KEYWORDS
+      # (qtermwidget headers use the `signals:`/`slots:` keywords), so it
+      # gets its own target — ned sources stay out of the vendored lib's
+      # target while still seeing its headers transitively.
+      add_library(ned_qt_terminal STATIC host/qt/qt_terminal_panel.cpp)
+      set_target_properties(ned_qt_terminal PROPERTIES AUTOMOC ON)
+      target_include_directories(ned_qt_terminal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+      target_link_libraries(ned_qt_terminal PUBLIC qtermwidget6)
+      if(APPLE)
+        # utmpx login records (kpty) — matches upstream's Apple build.
+        target_compile_definitions(qtermwidget6 PRIVATE HAVE_UTMPX UTMPX_COMPAT)
+      endif()
+      # Runtime keytabs / color schemes: point at the submodule checkout.
+      # Built-in fallbacks (ExtendedDefaultTranslator, "Builtin" scheme)
+      # cover the case where the dir moved.
+      target_compile_definitions(qtermwidget6 PRIVATE
+        KB_LAYOUT_DIR="${QTERMWIDGET_DIR}/kb-layouts"
+        COLORSCHEMES_DIR="${QTERMWIDGET_DIR}/color-schemes"
+        TRANSLATIONS_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+      )
+    endif()
+
     add_executable(ned_qt
       host/qt/main.cpp
+      host/qt/qt_workbench.cpp
+      host/qt/qt_welcome.cpp
       host/qt/qt_host.cpp
+      editor/views/qt/clipboard_qt.cpp
       editor/views/qt/qt_editor_view.cpp
       editor/views/qt/qt_find_bar.cpp
-      editor/views/qt/qt_icons.cpp
-      editor/views/qt/qt_finder.cpp
+      editor/views/qt/qt_hover_tip.cpp
+      editor/views/qt/qt_minimap.cpp
+      editor/views/qt/qt_row_text.cpp
+      editor/views/qt/qt_line_jump.cpp
+      util/qt_icons.cpp
       editor/views/qt/qt_settings_dialog.cpp
-      editor/views/qt/qt_sidebar.cpp
+      files/views/qt/qt_file_finder.cpp
+      files/views/qt/qt_file_sidebar.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
     # Configure-time stamp (git + clock) so "is this the latest build?" is
@@ -860,11 +972,30 @@ if(NED_BUILD_QT)
       editor
       files
     )
+    # LSP: the backend-neutral client core target (seamed through
+    # editor/lsp_editor.h) plus the Qt views under lsp/views/qt/.
+    if(NED_ENABLE_LSP)
+      target_sources(ned_qt PRIVATE
+        lsp/views/qt/qt_lsp_view.cpp
+        lsp/views/qt/qt_lsp_uri_options.cpp
+        lsp/views/qt/qt_lsp_symbol_info.cpp
+        lsp/views/qt/qt_lsp_dashboard.cpp
+      )
+      target_link_libraries(ned_qt PRIVATE ned_lsp_core)
+    else()
+      target_sources(ned_qt PRIVATE lsp/lsp_client_stub.cpp)
+    endif()
     target_link_libraries(ned_qt PRIVATE
       ned_core
       Qt6::Widgets
       Qt6::Svg
     )
+    if(TARGET qtermwidget6)
+      target_compile_definitions(ned_qt PRIVATE NED_QT_TERMINAL=1)
+      target_link_libraries(ned_qt PRIVATE ned_qt_terminal)
+    else()
+      target_compile_definitions(ned_qt PRIVATE NED_QT_TERMINAL=0)
+    endif()
     if(APPLE)
       # Native title bar treatment shared with the GLFW host. The NSWindow
       # module's GLFW unwrap wrapper needs glfw at link time; libgit2's

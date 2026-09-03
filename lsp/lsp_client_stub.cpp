@@ -5,7 +5,7 @@
 
 #include "lsp_client.h"
 
-LSPClient::LSPClient(EditorApi &, FileExplorer &, Settings &) {}
+LSPClient::LSPClient(LspEditor &, Settings &) {}
 
 LSPClient::~LSPClient() = default;
 
@@ -46,7 +46,7 @@ const LSPDiagnostics &LSPClient::diagnostics() const { return diagnostics_; }
 
 bool LSPClient::isDocumentOpen(const std::string &) const { return false; }
 
-void LSPClient::bindEditorApi(EditorApi &) {}
+void LSPClient::bindEditorApi(LspEditor *) {}
 
 bool LSPClient::startServer(const std::string &, const std::string &) { return false; }
 

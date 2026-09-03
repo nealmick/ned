@@ -1,6 +1,6 @@
 /*
 	No-op NedTerminal when NED_ENABLE_TERMINAL=OFF.
-	Same public API as util/ned_terminal.cpp; no imgui-terminal link.
+	Same public API as host/imgui/ned_terminal.cpp; no imgui-terminal link.
 */
 
 #include "ned_terminal.h"

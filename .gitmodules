@@ -68,3 +68,8 @@
 [submodule "lib/imgui-terminal"]
 	path = lib/imgui-terminal
 	url = https://github.com/nealmick/ImGui-Terminal.git
+[submodule "lib/qtermwidget"]
+	path = lib/qtermwidget
+	url = https://github.com/lxqt/qtermwidget
+	branch = 2.1.0
+	shallow = true

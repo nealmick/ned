@@ -2,6 +2,7 @@
 #include "../../../files/files.h"
 #include "../../../util/settings.h"
 #include "../../lsp_client.h"
+#include "../../lsp_server_status.h"
 #include "imgui.h"
 #include <filesystem>
 #include <iostream>
@@ -198,57 +199,12 @@ void LSPDashboard::renderServerEntry(const LSPServerInfo &serverInfo)
 
 void LSPDashboard::refreshServerInfo()
 {
-	serverInfos.clear();
-
 	if (!client)
 	{
+		serverInfos.clear();
 		return;
 	}
-
-	// Get language server configurations directly from the LSP client
-	const auto &languageServers = client->getLanguageServers();
-
-	for (const auto &serverConfig : languageServers)
-	{
-		LSPServerInfo info;
-		info.language = serverConfig.language;
-
-		// Try to find the server using the same paths the LSP client uses
-		std::string serverPath = "";
-		for (const auto &path : serverConfig.serverPaths)
-		{
-			// Expand environment variables like %USERNAME% on Windows
-			std::string expandedPath = client->expandEnvironmentVariables(path);
-			if (std::filesystem::exists(expandedPath) &&
-				std::filesystem::is_regular_file(expandedPath))
-			{
-				serverPath = expandedPath;
-				break;
-			}
-		}
-
-		info.serverPath = serverPath.empty() ? "Not found" : serverPath;
-		info.isFound = !serverPath.empty();
-
-		// A server is active only if:
-		// 1. The server exists/is found
-		// 2. The global LSP client is initialized
-		// 3. The current language matches this server's language
-		info.isActive = info.isFound && client->isInitialized() &&
-						client->getCurrentLanguage() == serverConfig.language;
-
-		serverInfos.push_back(info);
-	}
-}
-
-std::vector<std::string> LSPDashboard::getSupportedLanguages()
-{
-	// Use the LSP client's supported languages directly
-	if (!client)
-	{
-		return {};
-	}
-	return client->getSupportedLanguages();
+	serverInfos = probeLspServers(*client);
 }
 
 void LSPDashboard::handleWindowInput()

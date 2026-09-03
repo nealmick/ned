@@ -2,7 +2,7 @@
 #include "../editor/editor_api.h"
 #include "../editor/util/text_columns.h"
 #include "../files/files.h"
-#include "../util/icons.h"
+#include "../util/imgui_icons.h"
 #include "../util/settings.h"
 #include <algorithm>
 #include <iostream>

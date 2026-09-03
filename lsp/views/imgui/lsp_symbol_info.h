@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../lsp/lsp_request.h"
+#include "../../../lsp/lsp_hover.h"
 #include "imgui.h"
 #include <string>
 
@@ -25,7 +25,6 @@ class LSPSymbolInfo
 
   private:
 	void updateMouseHover();
-	void requestAt(int row, int utf8Column);
 	void hideMouseHover();
 	// Anchor != null: tooltip pinned at that screen position (keybind hover),
 	// mouse-stickiness bookkeeping skipped.
@@ -33,7 +32,6 @@ class LSPSymbolInfo
 
 	bool atCaret = false; // keybind-triggered: anchored at the caret
 	bool requestedForCell = false;
-	LSPRequestState<std::string> hoverState; // delivered text; nullopt = failure
 	LSPClient *client = nullptr;
 	EditorApi *api = nullptr;	   // focused editor (keybinds, caret hover)
 	EditorApi *hoverApi = nullptr; // hovered editor (mouse tooltip)

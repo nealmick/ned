@@ -5,7 +5,7 @@
 	Kept out of icons.cpp so backends without the GL atlas can link it.
 */
 
-#include "icons.h"
+#include "imgui_icons.h"
 
 #include <filesystem>
 

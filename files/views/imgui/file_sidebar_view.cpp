@@ -1,6 +1,6 @@
 #include "file_sidebar_view.h"
 #include "../../../files/files.h"
-#include "../../../util/icons.h"
+#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 
@@ -27,7 +27,14 @@ void renderFileSidebar(FileExplorer &fx, float explorerWidth)
 	const float icon = ImGui::GetFontSize() * 1.05f;
 	const float pad = ImGui::GetFontSize() * 0.5f;
 	const float barH = nativeTitlebar ? 0.0f : icon + ImGui::GetFontSize() * 0.8f;
-	ImGui::BeginChild("File Tree", ImVec2(treeW, barH > 0.0f ? -barH : 0.0f));
+	// NoScrollbar: the app style sizes the scrollbar lane at 30px but paints
+	// it fully transparent, so an overflowing tree just lost that strip on
+	// the right (rows stopped short of the splitter). Wheel scrolling works
+	// without the bar — same treatment as ##ned_terminal_host.
+	ImGui::BeginChild("File Tree",
+					  ImVec2(treeW, barH > 0.0f ? -barH : 0.0f),
+					  ImGuiChildFlags_None,
+					  ImGuiWindowFlags_NoScrollbar);
 	if (!fx.projectRoot.empty())
 		renderFileTree(fx.fileTree, fx.fileTree.rootNode);
 	ImGui::EndChild();

@@ -1,10 +1,11 @@
 #include "lsp_goto.h"
-#include "../editor/editor_api.h"
+#include "../editor/platform/lsp_editor.h"
 #include "../editor/util/utf8.h"
+#include "lsp_client.h"
 #include "lsp_includes.h"
 #include "lsp_trace.h"
 
-LSPGoto::LSPGoto(LSPClient &client, EditorApi &api, Kind kind)
+LSPGoto::LSPGoto(LSPClient &client, LspEditor &api, Kind kind)
 	: kind(kind), client(&client), api(&api)
 {
 }
@@ -101,4 +102,13 @@ void LSPGoto::render()
 		return;
 	resultRenderer(
 		gotoTitle(kind), state.snapshot().value_or(std::vector<LSPLocation>{}), show);
+}
+
+void lspJumpToLocation(LspEditor &api, const LSPLocation &location)
+{
+	// Convert against the destination buffer (the caller loads the file
+	// first when jumping across documents), then request the deferred center.
+	const int col =
+		EditorUtils::Utf16ToUtf8ByteOffset(api.line(location.line), location.character);
+	api.requestCursorCenter(location.line, col);
 }

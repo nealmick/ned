@@ -93,8 +93,7 @@ Workbench::Workbench() : projectUndo(projectRoot)
 
 	fileExplorer = std::make_unique<FileExplorer>(
 		tabs_[0].editor->api, settings, projectRoot, icons);
-	lspClient =
-		std::make_unique<LSPClient>(tabs_[0].editor->api, *fileExplorer, settings);
+	lspClient = std::make_unique<LSPClient>(tabs_[0].editor->api, settings);
 	lspView = std::make_unique<LspImGuiView>(
 		*lspClient, tabs_[0].editor->api, *fileExplorer, settings);
 	welcome = std::make_unique<Welcome>(settings, *fileExplorer);
@@ -141,7 +140,7 @@ void Workbench::syncActiveBindings()
 	if (!api || !fileExplorer || !lspClient)
 		return;
 	fileExplorer->api = api;
-	lspClient->bindEditorApi(*api);
+	lspClient->bindEditorApi(api);
 	if (lspView)
 		lspView->bindEditorApi(*api);
 }
@@ -373,6 +372,10 @@ void Workbench::openOrFocus(const std::string &path, std::function<void()> after
 			setActiveIndex(i);
 			tabs_[static_cast<size_t>(i)].wantFocus = true;
 			tabs_[static_cast<size_t>(i)].editor->api.requestFocus();
+			// Same re-open parity as the Qt host and the single-buffer path:
+			// DidOpenDocument re-fires so LSPDocumentSync refreshes the server
+			// (didOpen on an open doc degrades to didChange).
+			fileExplorer->events.emitDidOpenDocument({abs});
 			if (after)
 				after();
 			return;

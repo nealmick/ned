@@ -1,7 +1,7 @@
 #include "file_tree_view.h"
 #include "../../../editor/editor_api.h"
 #include "../../../files/file_tree.h"
-#include "../../../util/icons.h"
+#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 

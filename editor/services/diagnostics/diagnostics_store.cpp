@@ -29,6 +29,7 @@ void LSPDiagnostics::replace(const std::string &path,
 		return; // stale publish computed against an older document version
 	versions_[key] = version;
 	byPath_[key] = std::move(items);
+	revision_.fetch_add(1, std::memory_order_relaxed);
 }
 
 void LSPDiagnostics::clear(const std::string &path)
@@ -39,6 +40,7 @@ void LSPDiagnostics::clear(const std::string &path)
 	std::lock_guard<std::mutex> lock(mutex_);
 	byPath_.erase(key);
 	versions_.erase(key);
+	revision_.fetch_add(1, std::memory_order_relaxed);
 }
 
 void LSPDiagnostics::clearAll()
@@ -47,6 +49,7 @@ void LSPDiagnostics::clearAll()
 	byPath_.clear();
 	versions_.clear();
 	keyCache_.clear();
+	revision_.fetch_add(1, std::memory_order_relaxed);
 }
 
 std::vector<DiagnosticItem> LSPDiagnostics::forDocument(const std::string &path) const

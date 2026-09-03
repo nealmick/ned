@@ -1,70 +1,62 @@
-#include "qt_finder.h"
+#include "qt_file_finder.h"
 
+#include "editor/views/qt/qt_theme.h"
+
+#include <QDir>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
+#include <memory>
 
 namespace fs = std::filesystem;
 
-int fuzzyMatchScore(const QString &candidate, const QString &query)
-{
-	if (query.isEmpty())
-		return 0;
-	int score = 0;
-	int ci = 0;
-	int prevHit = -2;
-	for (int qi = 0; qi < query.size(); ++qi)
-	{
-		const QChar qc = query[qi];
-		int hit = -1;
-		for (; ci < candidate.size(); ++ci)
-		{
-			if (candidate[ci].toLower() == qc)
-			{
-				hit = ci;
-				break;
-			}
-		}
-		if (hit < 0)
-			return -1;
-		// Consecutive matches and matches after a separator score better.
-		score += (hit == prevHit + 1) ? 3 : 1;
-		if (hit == 0 || candidate[hit - 1] == '/' || candidate[hit - 1] == '_' ||
-			candidate[hit - 1] == '-')
-			score += 2;
-		prevHit = hit;
-		ci = hit + 1;
-	}
-	return score;
-}
-
-namespace {
-bool shouldSkipDir(const QString &name)
-{
-	return name == ".git" || name == ".build" || name == ".build-qt" ||
-		   name == ".build-min" || name == "build" || name == "node_modules" ||
-		   name == "dist" || name == ".cache";
-}
-} // namespace
+// Scan rules + fuzzy matching: the shared backend-neutral model
+// (files/file_finder_match.h) — same behavior as the ImGui finder.
 
 QtFileFinder::QtFileFinder(const QString &root, QWidget *parent)
 	: QDialog(parent, Qt::Popup), workspace(root)
 {
-	setModal(true);
-	auto *layout = new QVBoxLayout(this);
-	layout->setContentsMargins(6, 6, 6, 6);
+	setObjectName("nedFileFinder");
+	// Translucent window so the stylesheet radius rounds the popup corners.
+	// QSS backgrounds never render on the translucent top-level itself, so
+	// the opaque card is a CHILD widget (QtHoverTip's pattern):
+	// WA_StyledBackground + local rule with the opaque raised tone —
+	// palette(window) would carry the window's opacity alpha.
+	setAttribute(Qt::WA_TranslucentBackground);
+	auto *outer = new QVBoxLayout(this);
+	outer->setContentsMargins(0, 0, 0, 0);
+	auto *card = new QWidget(this);
+	card->setAttribute(Qt::WA_StyledBackground, true);
+	// Translucent popup + opaque card child (see NedQtTheme::popoverCardSheet).
+	card->setObjectName("nedPopoverCard");
+	card->setStyleSheet(NedQtTheme::popoverCardSheet());
+	outer->addWidget(card);
 
-	input = new QLineEdit(this);
+	auto *layout = new QVBoxLayout(card);
+	layout->setContentsMargins(10, 10, 10, 10);
+	layout->setSpacing(6);
+
+	// Palette title (VS Code quick-open style): centered header strip above
+	// the search box.
+	auto *title = new QLabel("File Finder", card);
+	title->setObjectName("finderTitle");
+	title->setAlignment(Qt::AlignHCenter);
+	title->setStyleSheet("#finderTitle { font-weight: 600; }");
+	layout->addWidget(title);
+
+	input = new QLineEdit(card);
 	input->setPlaceholderText("Find File");
 	input->setFocus();
 	layout->addWidget(input);
 
-	results = new QListWidget(this);
+	results = new QListWidget(card);
 	results->setMinimumSize(520, 260);
 	layout->addWidget(results);
 
@@ -95,7 +87,10 @@ void QtFileFinder::restartScan()
 	stopScan = false;
 	scanDone = false;
 
-	QStringList *collected = new QStringList();
+	// shared_ptr: the worker fills it, the UI-thread poller consumes it —
+	// if the dialog is destroyed before the scan finishes, whichever side
+	// unwinds last still frees it (a raw new here leaked on early close).
+	auto collected = std::make_shared<QStringList>();
 	QString rootDir = workspace;
 	std::thread worker([this, collected, rootDir] {
 		QStringList local;
@@ -108,7 +103,7 @@ void QtFileFinder::restartScan()
 			const fs::path p = it->path();
 			if (it->is_directory(ec))
 			{
-				if (shouldSkipDir(QString::fromStdString(p.filename().string())))
+				if (FileFinderMatch::shouldSkipDir(p.filename().string()))
 				{
 					it.disable_recursion_pending();
 				}
@@ -135,7 +130,6 @@ void QtFileFinder::restartScan()
 		if (!scanDone.load())
 			return;
 		allFiles = *collected;
-		delete collected;
 		timer->stop();
 		poller->deleteLater();
 		refilter();
@@ -146,28 +140,34 @@ void QtFileFinder::restartScan()
 void QtFileFinder::refilter()
 {
 	results->clear();
-	const QString query = input->text();
+	const std::string query = input->text().toLower().toStdString();
 
-	std::vector<std::pair<int, QString>> ranked;
+	// Rank through the shared matcher (files/file_finder_match.h) so the
+	// Qt and ImGui finders return the same results for the same query.
+	std::vector<FileEntry> entries;
+	entries.reserve(static_cast<size_t>(allFiles.size()));
+	const auto lowerOf = [](std::string s) {
+		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+		return s;
+	};
 	for (const QString &rel : allFiles)
 	{
-		const int score = fuzzyMatchScore(rel, query);
-		if (score >= 0)
-			ranked.emplace_back(score, rel);
+		std::string path = rel.toStdString();
+		// filenameLower drives the dotfile-hide rule — the FILE name, not
+		// the whole path ("src/.env" is a dotfile too).
+		entries.push_back(FileEntry{
+			path, path, lowerOf(path), lowerOf(rel.section('/', -1).toStdString())});
 	}
-	std::sort(ranked.begin(), ranked.end(), [](const auto &a, const auto &b) {
-		return a.first > b.first;
-	});
 
-	int shown = 0;
-	for (const auto &[score, rel] : ranked)
+	for (const FileEntry &file : FileFinderMatch::filterFiles(entries, query, 50))
 	{
-		if (shown++ >= 50)
-			break;
-		auto *item = new QListWidgetItem(
-			QString::fromStdString(fs::path(rel.toStdString()).filename().string()) +
-			"  —  " + rel);
-		item->setData(Qt::UserRole, workspace + "/" + rel);
+		const QString rel = QString::fromStdString(file.relativePath);
+		auto *item = new QListWidgetItem(rel.section('/', -1) + "  —  " + rel);
+		// cleanPath: workspace may carry a trailing slash — the raw concat
+		// would miss openPath's existing-tab dedup (exact string compare).
+		item->setData(Qt::UserRole, QDir::cleanPath(workspace + "/" + rel));
 		item->setToolTip(rel);
 		results->addItem(item);
 		if (results->count() == 1)

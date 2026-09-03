@@ -6,6 +6,8 @@
 	Keyed by a normalized filesystem path.
 */
 
+#include <atomic>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -52,6 +54,11 @@ class LSPDiagnostics
 	std::vector<int> maxSeverityByLine(const std::string &path, int lineCount) const;
 	bool contains(const std::string &path, int line, int utf16Column) const;
 
+	// Bumped on every accepted mutation (replace/clear/clearAll). Event-driven
+	// backends (Qt) poll it to know a repaint is due; the data itself is
+	// always read through the locked queries above.
+	std::uint64_t revision() const { return revision_.load(std::memory_order_relaxed); }
+
   private:
 	// Canonical key for `path`, memoized — the render loop queries per frame
 	// and weakly_canonical is a syscall walk.
@@ -61,4 +68,5 @@ class LSPDiagnostics
 	std::unordered_map<std::string, std::vector<DiagnosticItem>> byPath_;
 	std::unordered_map<std::string, int> versions_;
 	mutable std::unordered_map<std::string, std::string> keyCache_;
+	std::atomic<std::uint64_t> revision_{0};
 };

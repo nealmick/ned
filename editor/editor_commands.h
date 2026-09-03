@@ -18,7 +18,6 @@ class EditorViewState;
 class EditorOperations;
 class EditorEvents;
 class EditorSave;
-
 class EditorCommands
 {
   public:

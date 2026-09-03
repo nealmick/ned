@@ -8,6 +8,7 @@
 #include "../files/files.h"
 #include "../util/keybinds.h"
 #include "../util/settings.h"
+#include "file_finder_match.h"
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -89,14 +90,27 @@ void FileFinder::refreshFileListBackground(const std::string &projectDir)
 	std::vector<FileEntry> newList;
 	try
 	{
-		for (const auto &entry : fs::recursive_directory_iterator(projectDir))
+		// Same skip list as the Qt finder (FileFinderMatch::shouldSkipDir):
+		// .git / build dirs / node_modules otherwise dominate every scan.
+		std::error_code ec;
+		for (fs::recursive_directory_iterator
+				 it(projectDir, fs::directory_options::skip_permission_denied, ec),
+			 end;
+			 !ec && it != end;
+			 it.increment(ec))
 		{
 			try
 			{
-				if (!entry.is_regular_file())
+				if (it->is_directory(ec))
+				{
+					if (FileFinderMatch::shouldSkipDir(it->path().filename().string()))
+						it.disable_recursion_pending();
+					continue;
+				}
+				if (ec || !it->is_regular_file(ec))
 					continue;
 
-				const fs::path fullPath = entry.path();
+				const fs::path fullPath = it->path();
 				const fs::path relativePath = fs::relative(fullPath, projectDir);
 
 				FileEntry fe;
@@ -138,26 +152,10 @@ void FileFinder::updateFilteredList()
 		snapshot = fileList;
 	}
 
-	filteredList.clear();
-	for (const auto &file : snapshot)
-	{
-		if (file.relativePathLower.find(searchTerm) == std::string::npos)
-			continue;
-
-		// Hide dotfiles unless the query itself contains a '.'
-		if (searchTerm.find('.') == std::string::npos && !file.filenameLower.empty() &&
-			file.filenameLower[0] == '.')
-			continue;
-
-		filteredList.push_back(file);
-	}
-
-	// Prefer shorter paths (usually better matches) first.
-	std::sort(filteredList.begin(),
-			  filteredList.end(),
-			  [](const FileEntry &a, const FileEntry &b) {
-				  return a.relativePath.size() < b.relativePath.size();
-			  });
+	// Shared matcher (files/file_finder_match.h): fuzzy subsequence score
+	// (a superset of the old substring rule), dotfile hiding, shorter-path
+	// tie-breaks — identical results to the Qt finder.
+	filteredList = FileFinderMatch::filterFiles(snapshot, searchTerm, SIZE_MAX);
 }
 
 // --- selection --------------------------------------------------------------

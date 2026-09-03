@@ -7,60 +7,66 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
 
 QtFindBar::QtFindBar(QtEditorView *view, QWidget *parent) : QWidget(parent), editor(view)
 {
-	auto *layout = new QHBoxLayout(this);
-	layout->setContentsMargins(6, 2, 6, 2);
-
 	input = new QLineEdit(this);
 	input->setPlaceholderText("Find");
-	input->setFixedWidth(220);
-	layout->addWidget(input);
+	input->setMinimumWidth(80);
+	input->setMaximumWidth(280);
 
 	replaceInput = new QLineEdit(this);
 	replaceInput->setPlaceholderText("Replace");
-	replaceInput->setFixedWidth(180);
-	layout->addWidget(replaceInput);
+	replaceInput->setMinimumWidth(60);
+	replaceInput->setMaximumWidth(220);
 
-	auto *prev = new QPushButton("↑", this);
-	auto *next = new QPushButton("↓", this);
-	auto *replaceBtn = new QPushButton("Replace", this);
-	auto *allBtn = new QPushButton("All", this);
+	prevBtn = new QPushButton("↑", this);
+	nextBtn = new QPushButton("↓", this);
+	replaceBtn = new QPushButton("Replace", this);
+	allBtn = new QPushButton("All", this);
 	countLabel = new QPushButton("0 matches", this);
 	countLabel->setFlat(true);
 	countLabel->setEnabled(false);
-	for (QWidget *w : {static_cast<QWidget *>(prev),
-					   static_cast<QWidget *>(next),
-					   static_cast<QWidget *>(replaceBtn),
-					   static_cast<QWidget *>(allBtn),
-					   static_cast<QWidget *>(countLabel)})
-		layout->addWidget(w);
-	layout->addStretch();
+	buildLayout();
 
-	connect(next, &QPushButton::clicked, this, [this] { find(false); });
-	connect(prev, &QPushButton::clicked, this, [this] { find(true); });
+	connect(nextBtn, &QPushButton::clicked, this, [this] { find(false); });
+	connect(prevBtn, &QPushButton::clicked, this, [this] { find(true); });
 	connect(replaceBtn, &QPushButton::clicked, this, &QtFindBar::replaceOne);
 	connect(allBtn, &QPushButton::clicked, this, &QtFindBar::replaceAll);
-	connect(input, &QLineEdit::returnPressed, this, [this] { find(false); });
+	// Return routing lives in keyPressEvent (returnPressed can't see the
+	// Shift modifier for previous-match).
 	connect(input, &QLineEdit::textChanged, this, [this] {
 		matchIndex = -1;
 		find(false);
 	});
 
-	setAutoFillBackground(true);
-	QPalette barPalette = palette();
-	barPalette.setColor(QPalette::Window, QColor(0x26, 0x26, 0x2e));
-	setPalette(barPalette);
-
+	// No fill of its own: the bar floats on the window's single tint
+	// layer like the rest of the editor chrome.
 	hide();
 }
 
 void QtFindBar::open()
 {
+	// Re-derive the wrap state NOW: singleRowMin was measured at
+	// construction (before the stylesheet/profile fonts landed) and the
+	// bar may have been resized while hidden during dock/snap churn.
+	if (!wrapped && layout())
+		singleRowMin = std::max(singleRowMin, layout()->minimumSize().width());
+	const bool wantWrap = width() < singleRowMin + 8;
+	bool rewrapped = false;
+	if (wantWrap != wrapped)
+	{
+		wrapped = wantWrap;
+		buildLayout();
+		rewrapped = true;
+	}
 	show();
+	// After show: the view's heightChanged handler ignores hidden bars.
+	if (rewrapped)
+		Q_EMIT heightChanged();
 	input->setFocus();
 	input->selectAll();
 	if (!input->text().isEmpty())
@@ -121,8 +127,11 @@ void QtFindBar::find(bool backwards)
 	{
 		// Last match strictly before the caret.
 		auto it = std::find_if(matches.rbegin(), matches.rend(), [&](const Match &m) {
+			// The caret sits at the match END after setSelection, so a
+			// start-only comparison re-finds the current match; require
+			// the match to END strictly before the caret instead.
 			return m.row < caret.headRow ||
-				   (m.row == caret.headRow && m.col < caret.headColumn);
+				   (m.row == caret.headRow && m.col + m.len < caret.headColumn);
 		});
 		if (it == matches.rend())
 			it = matches.rbegin();
@@ -196,8 +205,83 @@ void QtFindBar::keyPressEvent(QKeyEvent *event)
 {
 	if (event->key() == Qt::Key_Escape)
 	{
-		closeBar();
+		// Route through the view so the displaced text area is restored.
+		editor->closeFindBar();
+		return;
+	}
+	if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+	{
+		// QLineEdit emits returnPressed but leaves the event ignored, so
+		// an unhandled Return propagates up to the editor and types a
+		// newline into the document. Enter (or the ↓ button) finds the
+		// next match, Shift+Enter the previous; in the replace field,
+		// Enter replaces the current match.
+		if (replaceInput->hasFocus())
+			replaceOne();
+		else
+			find(event->modifiers() & Qt::ShiftModifier);
 		return;
 	}
 	QWidget::keyPressEvent(event);
+}
+
+void QtFindBar::buildLayout()
+{
+	// The widgets survive; only the layout is rebuilt (wrapping is rare).
+	if (layout())
+		delete layout();
+	auto *outer = new QVBoxLayout(this);
+	outer->setContentsMargins(6, 2, 6, 2);
+	outer->setSpacing(2);
+	auto *row1 = new QHBoxLayout();
+	outer->addLayout(row1);
+
+	if (!wrapped)
+	{
+		// Wide: one row — Find | Replace | ↑ ↓ Replace All | n/m.
+		row1->addWidget(input, 1); // flexible: absorbs leftover width
+		row1->addWidget(replaceInput, 1);
+		for (QWidget *w : {static_cast<QWidget *>(prevBtn),
+						   static_cast<QWidget *>(nextBtn),
+						   static_cast<QWidget *>(replaceBtn),
+						   static_cast<QWidget *>(allBtn),
+						   static_cast<QWidget *>(countLabel)})
+			row1->addWidget(w);
+		row1->addStretch();
+		singleRowMin = outer->minimumSize().width();
+		return;
+	}
+
+	// Narrow: two rows — Find | ↑ ↓ on top, Replace | Replace All | n/m
+	// below (web-style wrap instead of squishing everything into one row).
+	row1->addWidget(input, 1);
+	row1->addWidget(prevBtn);
+	row1->addWidget(nextBtn);
+	auto *row2 = new QHBoxLayout();
+	row2->addWidget(replaceInput, 1);
+	row2->addWidget(replaceBtn);
+	row2->addWidget(allBtn);
+	row2->addWidget(countLabel);
+	outer->addLayout(row2);
+}
+
+void QtFindBar::resizeEvent(QResizeEvent *event)
+{
+	QWidget::resizeEvent(event);
+	// Track the one-row minimum as fonts/styles settle after startup.
+	if (!wrapped && layout())
+		singleRowMin = std::max(singleRowMin, layout()->minimumSize().width());
+	// Wrap when the one-row layout no longer fits; unwrap only with a
+	// margin so the mode doesn't flicker at the boundary.
+	if (!wrapped && singleRowMin > 0 && width() < singleRowMin + 8)
+	{
+		wrapped = true;
+		buildLayout();
+		Q_EMIT heightChanged();
+	} else if (wrapped && width() > singleRowMin + 40)
+	{
+		wrapped = false;
+		buildLayout();
+		Q_EMIT heightChanged();
+	}
 }

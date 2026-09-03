@@ -72,6 +72,10 @@ class Settings
 	void switchToProfile(const std::string &profileName);
 	// Active profile name (file stem of settingsPath), e.g. "tokyo".
 	std::string activeProfile() const;
+	// Active profile filename, e.g. "tokyo.json" ("ned.json" when unset).
+	std::string activeProfileFile() const;
+	// Profile files in the user config dir (full filenames, sorted).
+	std::vector<std::string> listProfiles() const;
 
   private:
 	friend class SettingsView;
@@ -83,6 +87,5 @@ class Settings
 
 	void touchDiskTime();
 	static bool loadBundledProfile(json &out, std::string &outPath);
-	std::vector<std::string> listProfiles() const;
 	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
 };
