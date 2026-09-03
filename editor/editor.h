@@ -16,10 +16,10 @@
 #include "services/git/git_service.h"
 #include "services/highlight/highlight_service.h"
 #include "services/save_service.h"
-#include "views/imgui/editor_finder.h"
 #include "views/imgui/editor_frame.h"
 #include "views/imgui/editor_input.h"
-#include "views/imgui/editor_line_jump.h"
+#include "views/imgui/find_bar.h"
+#include "views/imgui/line_jump.h"
 
 #include <string>
 
@@ -65,6 +65,6 @@ class Editor
 	EditorCommands commands;
 	EditorInput input;
 	EditorFrame frame;
-	EditorLineJump lineJump;
-	EditorFinder finder;
+	LineJump lineJump;
+	FindBar finder;
 };

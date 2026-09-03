@@ -1,4 +1,5 @@
 #include "text_view.h"
+
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
@@ -9,7 +10,8 @@
 #include "../wrap_layout.h"
 #include "diagnostic_style.h"
 #include "hover_tooltip.h"
-#include "ned_color_imgui.h"
+#include "ned_color.h"
+#include "row_text.h"
 
 #include <algorithm>
 #include <cmath>
@@ -17,25 +19,12 @@
 
 const ImVec4 TextView::SELECTION_COLOR(1.0f, 0.1f, 0.7f, 0.3f);
 const ImVec4 TextView::CURRENT_LINE_COLOR(0.5f, 0.5f, 0.5f, 0.08f);
+namespace {
+// Indent-guide granularity (matches the tab size the row model measures with).
+constexpr int TAB_SIZE = 4;
+} // namespace
+
 const ImVec4 TextView::WHITESPACE_GUIDE_COLOR(0.3f, 0.3f, 0.3f, 0.4f);
-
-size_t TextView::advanceUtf8(const std::string &text, size_t index, size_t end)
-{
-	if (index >= end)
-		return end;
-	++index;
-	while (index < end && (static_cast<unsigned char>(text[index]) & 0xC0) == 0x80)
-		++index;
-	return index;
-}
-
-float TextView::measureGlyphWidth(const char *start,
-								  const char *end,
-								  float draw_x,
-								  float text_origin_x)
-{
-	return EditorUtils::MeasureGlyphWidth(start, end, draw_x, text_origin_x, TAB_SIZE);
-}
 
 void TextView::getVisibleLineRange(int &start_line, int &end_line) const
 {
@@ -224,7 +213,7 @@ void TextView::renderVisibleLines() const
 			}
 
 			const float width =
-				measureGlyphWidth(char_start, char_end, draw_pos.x, originX);
+				RowText::measureGlyphWidth(char_start, char_end, draw_pos.x, originX);
 
 			// Wrap mode: never clip-abort a row — the next segment resets x to
 			// the left edge; only skip the off-viewport glyph.
@@ -233,7 +222,7 @@ void TextView::renderVisibleLines() const
 				flushRun();
 				if (layout->wrap)
 				{
-					i = advanceUtf8(line, i, line.size());
+					i = RowText::advanceUtf8(line, i, line.size());
 					continue;
 				}
 				break;
@@ -262,7 +251,7 @@ void TextView::renderVisibleLines() const
 			}
 
 			draw_pos.x += width;
-			i = advanceUtf8(line, i, line.size());
+			i = RowText::advanceUtf8(line, i, line.size());
 		}
 		flushRun();
 	}

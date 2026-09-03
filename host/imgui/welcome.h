@@ -6,10 +6,10 @@
 class FileExplorer;
 class Settings;
 
-class Welcome
+class WelcomePage
 {
   public:
-	Welcome(Settings &settings, FileExplorer &fileExplorer);
+	WelcomePage(Settings &settings, FileExplorer &fileExplorer);
 	void render();
 
   private:

@@ -10,7 +10,7 @@
 
 class EditorApi;
 class FileExplorer;
-class LspImGuiView;
+class LspView;
 struct ImGuiStyle;
 
 class Font;
@@ -23,16 +23,15 @@ class SettingsView
 	// Reapply fonts/theme (fonts, style, editor colors). Returns true when
 	// fonts were reloaded (atlas may have been rebuilt).
 	bool apply(bool force, EditorApi &api);
-	void ApplySettings(ImGuiStyle &style);
 
-	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
+	void renderSettingsWindow(EditorApi &api, FileExplorer &files, LspView &lsp);
 	void renderNotification();
 
   private:
 	Settings &s;
 	Font &font;
 
-	void renderSettingsContent(EditorApi &api, FileExplorer &files, LspImGuiView &lsp);
+	void renderSettingsContent(EditorApi &api, FileExplorer &files, LspView &lsp);
 	void renderWindowHeader(EditorApi &api, FileExplorer &files);
 	void renderProfileSelector();
 	void renderMainSettings();
@@ -46,7 +45,7 @@ class SettingsView
 							float max_val,
 							const char *format,
 							float default_val);
-	void renderKeybindsSettings(FileExplorer &files, LspImGuiView &lsp);
+	void renderKeybindsSettings(FileExplorer &files, LspView &lsp);
 	void handleWindowInput(EditorApi &api);
 	void applyImGuiStyles();
 	void closeSettingsWindow(EditorApi &api);

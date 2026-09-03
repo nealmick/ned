@@ -43,7 +43,6 @@ class TextView
 	TooltipArbiter *tooltipArbiter = nullptr;
 	const HoverTrigger::Info *hoverInfo = nullptr;
 
-	static constexpr int TAB_SIZE = 4;
 	static constexpr int VISIBLE_LINE_BUFFER = 2;
 	static constexpr float CURRENT_LINE_X_OFFSET = 6.0f;
 	static constexpr float WHITESPACE_GUIDE_Y_OFFSET = 2.0f;
@@ -51,12 +50,6 @@ class TextView
 	static const ImVec4 SELECTION_COLOR;
 	static const ImVec4 CURRENT_LINE_COLOR;
 	static const ImVec4 WHITESPACE_GUIDE_COLOR;
-
-	static size_t advanceUtf8(const std::string &text, size_t index, size_t end);
-	static float measureGlyphWidth(const char *start,
-								   const char *end,
-								   float draw_x,
-								   float text_origin_x);
 
 	void getVisibleLineRange(int &start_line, int &end_line) const;
 	bool isSelected(int row, int col) const;

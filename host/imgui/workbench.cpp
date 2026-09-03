@@ -8,8 +8,8 @@
 
 #include "app_shortcuts.h"
 #include "editor/util/hover_trigger.h"
-#include "editor/views/imgui/clipboard_imgui.h"
-#include "editor/views/imgui/ned_key_imgui.h"
+#include "editor/views/imgui/clipboard.h"
+#include "editor/views/imgui/ned_key.h"
 #include "workbench.h"
 
 #include "editor/editor_events.h"
@@ -94,9 +94,9 @@ Workbench::Workbench() : projectUndo(projectRoot)
 	fileExplorer = std::make_unique<FileExplorer>(
 		tabs_[0].editor->api, settings, projectRoot, icons);
 	lspClient = std::make_unique<LSPClient>(tabs_[0].editor->api, settings);
-	lspView = std::make_unique<LspImGuiView>(
+	lspView = std::make_unique<LspView>(
 		*lspClient, tabs_[0].editor->api, *fileExplorer, settings);
-	welcome = std::make_unique<Welcome>(settings, *fileExplorer);
+	welcome = std::make_unique<WelcomePage>(settings, *fileExplorer);
 
 	fileExplorer->openOverride = [this](const std::string &path,
 										std::function<void()> after) {
@@ -187,7 +187,7 @@ void Workbench::handleTabSwitchShortcuts()
 
 bool Workbench::initialize(WorkbenchHostMode mode)
 {
-	static ImGuiClipboard clipboardForEditors;
+	static Clipboard clipboardForEditors;
 	setEditorClipboard(&clipboardForEditors);
 	HoverTrigger::setProductionClock([] { return ImGui::GetTime(); });
 	HoverTrigger::setStyleHoverDelay(ImGui::GetStyle().HoverDelayNormal);

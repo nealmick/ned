@@ -3,7 +3,7 @@
 	Description: Entry point for the Qt backend of ned.
 */
 
-#include "qt_host.h"
+#include "host.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 	QApplication app(argc, argv);
 	app.setApplicationName("Ned");
 
-	NedQtHost window;
+	AppHost window;
 	window.show();
 
 	// Files from the command line; otherwise the welcome screen (already

@@ -2,11 +2,11 @@
 	File: main.cpp
 	Description: NEDitor main entry point
 */
-#include "ned.h"
+#include "host.h"
 
 int main()
 {
-	Ned ned;
+	AppHost ned;
 	if (!ned.initialize())
 		return -1;
 	ned.run();

@@ -1,0 +1,515 @@
+#include "find_bar.h"
+#include "../../../util/settings.h"
+#include "../../editor_api.h"
+#include "../../editor_commands.h"
+#include "../../editor_events.h"
+#include "../../editor_state.h"
+#include "../../editor_view_state.h"
+#include "editor_input.h"
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <vector>
+
+namespace {
+
+std::string toLower(const std::string &s)
+{
+	std::string out = s;
+	std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
+		return static_cast<char>(std::tolower(c));
+	});
+	return out;
+}
+
+struct ScopedFindStyle
+{
+	ScopedFindStyle(Settings *settings)
+	{
+		const float fs = ImGui::GetFontSize();
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.3f);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+		ImGui::PushStyleColor(
+			ImGuiCol_FrameBg,
+			ImVec4(settings->settings["backgroundColor"][0].get<float>() * 0.8f,
+				   settings->settings["backgroundColor"][1].get<float>() * 0.8f,
+				   settings->settings["backgroundColor"][2].get<float>() * 0.8f,
+				   1.0f));
+		ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+	}
+	~ScopedFindStyle()
+	{
+		ImGui::PopStyleColor(2);
+		ImGui::PopStyleVar(2);
+	}
+};
+
+} // namespace
+
+void FindBar::update()
+{
+	if (!viewState)
+		return;
+
+	syncInputBlock();
+	pollOpenCloseKeys();
+
+	if (!active)
+	{
+		boxRectValid = false;
+		return;
+	}
+
+	viewState->blockInput = true;
+
+	if (boxRectValid && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+		!ImGui::IsMouseHoveringRect(boxMin, boxMax, true))
+	{
+		close();
+		return;
+	}
+
+	draw();
+	handleEnterShortcuts();
+}
+
+void FindBar::dismiss()
+{
+	if (!active)
+		return;
+	close();
+}
+
+void FindBar::syncInputBlock()
+{
+	if (active)
+	{
+		viewState->blockInput = true;
+		releaseBlockNextFrame = false;
+	} else if (releaseBlockNextFrame)
+	{
+		viewState->blockInput = false;
+		releaseBlockNextFrame = false;
+	}
+}
+
+void FindBar::pollOpenCloseKeys()
+{
+	// Multi-tab: only the focused editor host may open find (same pattern as line jump).
+	const bool hostFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
+							 ImGui::IsWindowFocused(0) ||
+							 ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow);
+
+	ImGuiIO &io = ImGui::GetIO();
+	if (hostFocused && (io.KeyCtrl || io.KeySuper) && ImGui::IsKeyPressed(ImGuiKey_F))
+		open();
+	if (active && ImGui::IsKeyPressed(ImGuiKey_Escape))
+		close();
+}
+
+void FindBar::open()
+{
+	if (api)
+		api->requestExclusiveOverlay(EditorEvents::DidRequestExclusiveOverlay::Keep::Find);
+	active = true;
+	releaseBlockNextFrame = false;
+	findFieldHoldsFocus = false;
+	viewState->blockInput = true;
+	shouldFocus = true;
+
+	if (viewState && viewState->hasSelection() && state)
+	{
+		int sr, sc, er, ec;
+		viewState->getOrdered(sr, sc, er, ec);
+		if (sr == er)
+		{
+			setQuery(state->line(sr).substr(static_cast<size_t>(sc),
+											static_cast<size_t>(ec - sc)));
+		}
+	}
+}
+
+void FindBar::close()
+{
+	active = false;
+	boxRectValid = false;
+	// Hold block through this frame's document input, release next update().
+	viewState->blockInput = true;
+	releaseBlockNextFrame = true;
+	// InputText had keyboard focus — return it to the document so typing works
+	// (Escape, click-outside, Cmd/Ctrl+Enter multi-match).
+	if (api)
+		api->requestFocus();
+	// Same Enter that closed find must not insert a newline in the document.
+	if (input)
+		input->suppressNextEnter = true;
+}
+
+void FindBar::setQuery(const std::string &query)
+{
+	if (findText == query)
+		return;
+	findText = query;
+	matchIndex = -1;
+	matchesDirty = true;
+}
+
+void FindBar::rebuildMatches()
+{
+	if (state && state->version != builtVersion)
+		matchesDirty = true; // document changed since the last build
+	if (!matchesDirty)
+		return;
+	matchesDirty = false;
+	builtVersion = state ? state->version : 0;
+	matchIndex = -1;
+	matches.clear();
+
+	if (findText.empty() || !state)
+		return;
+
+	const std::string needle = !caseSensitive ? toLower(findText) : findText;
+
+	for (int r = 0; r < state->lineCount(); ++r)
+	{
+		state->lineInto(r, lineScratch);
+		const std::string *hay = &lineScratch;
+		if (!caseSensitive)
+		{
+			hayScratch = toLower(lineScratch);
+			hay = &hayScratch;
+		}
+		for (size_t pos = 0;;)
+		{
+			pos = hay->find(needle, pos);
+			if (pos == std::string::npos)
+				break;
+			matches.push_back({r, static_cast<int>(pos)});
+			++pos;
+		}
+	}
+}
+
+void FindBar::selectMatch(int index, bool highlight)
+{
+	if (!commands || index < 0 || index >= static_cast<int>(matches.size()))
+		return;
+
+	matchIndex = index;
+	const Match &m = matches[static_cast<size_t>(index)];
+	using Reveal = EditorCommands::CursorReveal;
+	if (highlight)
+	{
+		const int endCol = m.column + static_cast<int>(findText.size());
+		commands->setSelection(m.row, m.column, m.row, endCol, Reveal::center);
+	} else
+	{
+		commands->setCursor(m.row, m.column, false, Reveal::center);
+	}
+}
+
+void FindBar::stepMatch(int direction)
+{
+	rebuildMatches();
+	if (matches.empty() || !viewState)
+		return;
+
+	const int n = static_cast<int>(matches.size());
+	if (matchIndex < 0)
+	{
+		int best = 0;
+		for (int i = 0; i < n; ++i)
+		{
+			const Match &m = matches[i];
+			if (m.row > viewState->row ||
+				(m.row == viewState->row && m.column >= viewState->column))
+			{
+				best = i;
+				break;
+			}
+			best = i;
+		}
+		if (direction < 0)
+			best = (best - 1 + n) % n;
+		matchIndex = best;
+	} else
+	{
+		matchIndex = (matchIndex + direction + n) % n;
+	}
+	selectMatch(matchIndex, true);
+}
+
+void FindBar::selectAllMatches()
+{
+	rebuildMatches();
+	if (!commands || matches.empty() || findText.empty())
+		return;
+
+	const int needleLen = static_cast<int>(findText.size());
+	const int prefRow = viewState ? viewState->row : 0;
+	const int prefCol = viewState ? viewState->column : 0;
+
+	std::vector<Selection> sels;
+	sels.reserve(matches.size());
+	int primary = 0;
+	int bestScore = std::numeric_limits<int>::max();
+
+	for (size_t i = 0; i < matches.size(); ++i)
+	{
+		const Match &m = matches[i];
+		Selection s;
+		s.anchorRow = m.row;
+		s.anchorColumn = m.column;
+		s.headRow = m.row;
+		s.headColumn = m.column + needleLen;
+		sels.push_back(s);
+
+		// Prefer match start closest to previous primary (row weighted).
+		const int score =
+			std::abs(m.row - prefRow) * 100000 + std::abs(m.column - prefCol);
+		if (score < bestScore)
+		{
+			bestScore = score;
+			primary = static_cast<int>(i);
+		}
+	}
+
+	using Reveal = EditorCommands::CursorReveal;
+	commands->setSelections(std::move(sels), primary, Reveal::center);
+	close();
+}
+
+void FindBar::replaceCurrent()
+{
+	rebuildMatches();
+	if (!commands || matches.empty() || findText.empty())
+		return;
+
+	if (matchIndex < 0)
+	{
+		stepMatch(+1); // select nearest match at/after the caret
+		if (matchIndex < 0)
+			return;
+	}
+
+	const Match &m = matches[static_cast<size_t>(matchIndex)];
+	const int endCol = m.column + static_cast<int>(findText.size());
+	using Reveal = EditorCommands::CursorReveal;
+	commands->setSelection(m.row, m.column, m.row, endCol, Reveal::center);
+	const std::string replaceText(replaceBuffer);
+	if (!replaceText.empty())
+		commands->typeText(replaceText);
+	else
+		commands->deleteSelection();
+
+	// Positions shifted — rebuild, then select the match after the replacement
+	// (caret sits past the inserted text, so embedded re-matches are skipped).
+	matchesDirty = true;
+	matchIndex = -1;
+	stepMatch(+1);
+}
+
+void FindBar::replaceAll()
+{
+	rebuildMatches();
+	if (!commands || matches.empty() || findText.empty())
+		return;
+
+	// Remember the caret — the multi-cursor edit below leaves one caret per
+	// replacement; we restore the original position afterwards.
+	const int prefRow = viewState ? viewState->row : 0;
+	const int prefCol = viewState ? viewState->column : 0;
+
+	const int needleLen = static_cast<int>(findText.size());
+	std::vector<Selection> sels;
+	sels.reserve(matches.size());
+	for (const Match &m : matches)
+	{
+		Selection s;
+		s.anchorRow = m.row;
+		s.anchorColumn = m.column;
+		s.headRow = m.row;
+		s.headColumn = m.column + needleLen;
+		sels.push_back(s);
+	}
+
+	// One multi-cursor selection + one typed replacement = single undo step.
+	using Reveal = EditorCommands::CursorReveal;
+	commands->setSelections(std::move(sels), 0, Reveal::center);
+	const std::string replaceText(replaceBuffer);
+	if (!replaceText.empty())
+		commands->typeText(replaceText);
+	else
+		commands->deleteSelection();
+
+	// Restore the original caret. Replacements are single-line, so only the
+	// column can shift — by (replaceLen - findLen) for each match left of it.
+	if (viewState)
+	{
+		const int delta = static_cast<int>(replaceText.size()) - needleLen;
+		int col = prefCol;
+		if (delta != 0)
+		{
+			for (const Match &m : matches)
+				if (m.row == prefRow && m.column < prefCol)
+					col += delta;
+		}
+		commands->setCursor(prefRow, col, false, Reveal::ensure);
+	}
+
+	matchesDirty = true;
+	matchIndex = -1;
+}
+
+void FindBar::handleEnterShortcuts()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	if (!ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+		return;
+
+	// Enter while typing in the replace box: replace current match.
+	if (replaceFieldFocused)
+	{
+		replaceCurrent();
+		return;
+	}
+
+	if (io.KeyCtrl || io.KeySuper)
+	{
+		selectAllMatches();
+	} else if (io.KeyShift)
+	{
+		stepMatch(-1);
+	} else
+	{
+		stepMatch(+1);
+	}
+}
+
+void FindBar::draw()
+{
+	if (!settings)
+		return;
+
+	if (shouldFocus)
+	{
+		std::strncpy(inputBuffer, findText.c_str(), INPUT_CAP - 1);
+		inputBuffer[INPUT_CAP - 1] = '\0';
+		shouldFocus = false;
+	}
+
+	// Editor host uses WindowPadding 0 (title flush under dock tabs). Give the
+	// find row air so the top border/frame is not clipped by the tab strip.
+	const float fs = ImGui::GetFontSize();
+	const float kPadX = fs * 0.5f;
+	const float kPadTop = fs * 0.5f;
+	const float kPadBottom = fs * 0.3f;
+	ImGui::SetCursorPos(
+		ImVec2(ImGui::GetCursorPosX() + kPadX, ImGui::GetCursorPosY() + kPadTop));
+
+	ImGui::BeginGroup();
+	{
+		// Leave room for status/checkbox on the right of this padded row.
+		const float rowW = std::max(fs * 6.0f, ImGui::GetContentRegionAvail().x - kPadX);
+		ImGui::SetNextItemWidth(rowW * 0.5f);
+		{
+			ScopedFindStyle style(settings);
+			// Unique id per FindBar instance (side-by-side tabs).
+			char inputId[64];
+			std::snprintf(
+				inputId, sizeof(inputId), "##findbox_%p", static_cast<const void *>(this));
+			// Keep the find box focused while open. Enter deactivates InputText
+			// otherwise and focus falls into the void (blockInput stays on).
+			// Never re-grab when a find-UI widget (Tab into the replace box,
+			// mid-click on the case toggle) already holds focus/active state —
+			// stealing it back would swallow the Tab or the click.
+			if (!findFieldHoldsFocus && !ImGui::IsAnyItemActive())
+				ImGui::SetKeyboardFocusHere();
+			ImGui::InputTextWithHint(inputId,
+									 "Search String",
+									 inputBuffer,
+									 INPUT_CAP,
+									 ImGuiInputTextFlags_AutoSelectAll);
+			findFieldHoldsFocus = ImGui::IsItemFocused();
+		}
+		setQuery(inputBuffer);
+
+		if (!findText.empty())
+		{
+			rebuildMatches();
+			ImGui::SameLine();
+			ImGui::Dummy(ImVec2(fs * 0.5f, 0));
+			ImGui::SameLine();
+			if (matchIndex < 0 || matches.empty())
+				ImGui::Text("Not Found");
+			else
+				ImGui::Text("%d/%d", matchIndex + 1, static_cast<int>(matches.size()));
+		}
+
+		ImGui::SameLine();
+		ImGui::Dummy(ImVec2(fs * 0.5f, 0));
+		ImGui::SameLine();
+		const bool prev = caseSensitive;
+		{
+			ScopedFindStyle style(settings);
+			ImGui::Checkbox("Case Sensitive", &caseSensitive);
+		}
+		if (caseSensitive != prev)
+		{
+			matchIndex = -1;
+			matchesDirty = true;
+		}
+	}
+	ImGui::EndGroup();
+
+	// Search row rect — the replace row below must join it for the
+	// click-outside-to-close hit test.
+	const ImVec2 searchRectMin = ImGui::GetItemRectMin();
+	const ImVec2 searchRectMax = ImGui::GetItemRectMax();
+
+	// ---- Replace row ----
+	ImGui::Dummy(ImVec2(0.0f, fs * 0.15f)); // small gap under the search row
+	// Same left pad and input width as the search row above.
+	ImGui::SetCursorPosX(ImGui::GetCursorPosX() + kPadX);
+	ImGui::BeginGroup();
+	{
+		const float rowW = std::max(fs * 6.0f, ImGui::GetContentRegionAvail().x - kPadX);
+		ImGui::SetNextItemWidth(rowW * 0.5f);
+		{
+			ScopedFindStyle style(settings);
+			// Unique id per FindBar instance (side-by-side tabs).
+			char replaceId[64];
+			std::snprintf(replaceId,
+						  sizeof(replaceId),
+						  "##replacebox_%p",
+						  static_cast<const void *>(this));
+			ImGui::InputTextWithHint(
+				replaceId, "Replace String", replaceBuffer, INPUT_CAP);
+			replaceFieldFocused = ImGui::IsItemFocused();
+			findFieldHoldsFocus |= replaceFieldFocused;
+		}
+
+		ImGui::SameLine();
+		ImGui::Dummy(ImVec2(fs * 0.5f, 0));
+		ImGui::SameLine();
+		{
+			ScopedFindStyle style(settings);
+			if (ImGui::Button("Replace All"))
+				replaceAll();
+			findFieldHoldsFocus |= ImGui::IsItemFocused();
+		}
+	}
+	ImGui::EndGroup();
+
+	const ImVec2 replaceRectMin = ImGui::GetItemRectMin();
+	const ImVec2 replaceRectMax = ImGui::GetItemRectMax();
+	boxMin = ImVec2(std::min(searchRectMin.x, replaceRectMin.x),
+					std::min(searchRectMin.y, replaceRectMin.y));
+	boxMax = ImVec2(std::max(searchRectMax.x, replaceRectMax.x),
+					std::max(searchRectMax.y, replaceRectMax.y));
+	boxRectValid = true;
+
+	ImGui::Dummy(ImVec2(0.0f, kPadBottom));
+}

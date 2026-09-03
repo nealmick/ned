@@ -1,6 +1,6 @@
 #include "file_finder_view.h"
 #include "../../../editor/editor_api.h"
-#include "../../../editor/views/imgui/ned_key_imgui.h"
+#include "../../../editor/views/imgui/ned_key.h"
 #include "../../../files/file_finder.h"
 #include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"

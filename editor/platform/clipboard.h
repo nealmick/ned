@@ -1,8 +1,8 @@
 /*
 	File: platform/clipboard.h
 	Description: System clipboard interface. The editor core edits against
-	this; each backend installs an implementation (ImGui: ImGuiClipboard in
-	editor/views/imgui/clipboard_imgui.h; Qt: QClipboard wrapper).
+	this; each backend installs an implementation (ImGui: Clipboard in
+	editor/views/imgui/clipboard.h; Qt: QClipboard wrapper).
 */
 
 #pragma once

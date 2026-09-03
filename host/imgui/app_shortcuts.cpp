@@ -7,7 +7,7 @@
 
 #include "app_shortcuts.h"
 #include "editor/editor_api.h"
-#include "editor/views/imgui/ned_key_imgui.h"
+#include "editor/views/imgui/ned_key.h"
 #include "files/files.h"
 #include "lsp/lsp_client.h"
 #include "lsp/views/imgui/lsp_view.h"
@@ -20,7 +20,7 @@
 bool handleAppKeyboardShortcuts(EditorApi &api,
 								FileExplorer &files,
 								Settings &settings,
-								LspImGuiView &lsp)
+								LspView &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();

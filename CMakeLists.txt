@@ -248,9 +248,10 @@ endforeach()
 set(APP_SOURCES
   host/imgui/app_shortcuts.cpp
   host/imgui/main.cpp
-  host/imgui/ned.cpp
+  host/imgui/host.cpp
   host/imgui/workbench.cpp
-  host/imgui/font.cpp
+  host/imgui/fonts.cpp
+  host/imgui/theme.cpp
   host/imgui/settings_view.cpp
   host/imgui/welcome.cpp
 )
@@ -426,11 +427,11 @@ set(NED_UTIL_SOURCES
 if(NED_ENABLE_TERMINAL)
   # NOTE: a host/imgui file in ned_util is intentional for now — the
   # terminal is ImGui-bound legacy glue (architecture rule 3's documented
-  # exception) and Settings/workbench in ned_util reference NedTerminal.
+  # exception) and Settings/workbench in ned_util reference TerminalPanel.
   # Phase 2's platform seam moves it into the host targets proper.
-  list(APPEND NED_UTIL_SOURCES host/imgui/ned_terminal.cpp)
+  list(APPEND NED_UTIL_SOURCES host/imgui/terminal_panel.cpp)
 else()
-  list(APPEND NED_UTIL_SOURCES host/imgui/ned_terminal_stub.cpp)
+  list(APPEND NED_UTIL_SOURCES host/imgui/terminal_panel_stub.cpp)
 endif()
 if(WIN32)
   list(APPEND NED_UTIL_SOURCES util/windows_window.cpp)
@@ -547,7 +548,8 @@ add_library(ned_embed STATIC
   host/imgui/app_shortcuts.cpp
   host/imgui/ned_embed.cpp
   host/imgui/workbench.cpp
-  host/imgui/font.cpp
+  host/imgui/fonts.cpp
+  host/imgui/theme.cpp
   host/imgui/settings_view.cpp
   host/imgui/welcome.cpp
   ${EDITOR_SOURCES}
@@ -914,7 +916,7 @@ if(NED_BUILD_QT)
       # (qtermwidget headers use the `signals:`/`slots:` keywords), so it
       # gets its own target — ned sources stay out of the vendored lib's
       # target while still seeing its headers transitively.
-      add_library(ned_qt_terminal STATIC host/qt/qt_terminal_panel.cpp)
+      add_library(ned_qt_terminal STATIC host/qt/terminal_panel.cpp)
       set_target_properties(ned_qt_terminal PROPERTIES AUTOMOC ON)
       target_include_directories(ned_qt_terminal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
       target_link_libraries(ned_qt_terminal PUBLIC qtermwidget6)
@@ -934,20 +936,30 @@ if(NED_BUILD_QT)
 
     add_executable(ned_qt
       host/qt/main.cpp
-      host/qt/qt_workbench.cpp
-      host/qt/qt_welcome.cpp
-      host/qt/qt_host.cpp
-      editor/views/qt/clipboard_qt.cpp
-      editor/views/qt/qt_editor_view.cpp
-      editor/views/qt/qt_find_bar.cpp
-      editor/views/qt/qt_hover_tip.cpp
-      editor/views/qt/qt_minimap.cpp
-      editor/views/qt/qt_row_text.cpp
-      editor/views/qt/qt_line_jump.cpp
+      host/qt/workbench.cpp
+      host/qt/welcome.cpp
+      host/qt/app_shortcuts.cpp
+      host/qt/theme.cpp
+      host/qt/fonts.cpp
+      host/qt/host.cpp
+      editor/views/qt/clipboard.cpp
+      editor/views/qt/editor_frame.cpp
+      editor/views/qt/editor_input.cpp
+      editor/views/qt/editor_view_scroll.cpp
+      editor/views/qt/text_view.cpp
+      editor/views/qt/gutter_view.cpp
+      editor/views/qt/caret_view.cpp
+      editor/views/qt/title_bar_view.cpp
+      editor/views/qt/find_bar.cpp
+      editor/views/qt/hover_tooltip.cpp
+      editor/views/qt/minimap_view.cpp
+      editor/views/qt/row_text.cpp
+      editor/views/qt/line_jump.cpp
       util/qt_icons.cpp
-      editor/views/qt/qt_settings_dialog.cpp
-      files/views/qt/qt_file_finder.cpp
-      files/views/qt/qt_file_sidebar.cpp
+      host/qt/settings_view.cpp
+      files/views/qt/file_finder_view.cpp
+      files/views/qt/file_sidebar_view.cpp
+      files/views/qt/file_tree_view.cpp
     )
     set_target_properties(ned_qt PROPERTIES AUTOMOC ON)
     # Configure-time stamp (git + clock) so "is this the latest build?" is
@@ -960,7 +972,7 @@ if(NED_BUILD_QT)
     # Core headers use plain identifiers ("slots") that Qt defines as macros.
     target_compile_definitions(ned_qt PRIVATE QT_NO_KEYWORDS)
     if(APPLE)
-      target_sources(ned_qt PRIVATE host/qt/qt_mac_chrome.mm)
+      target_sources(ned_qt PRIVATE host/qt/mac_chrome.mm)
     endif()
     set_target_properties(ned_qt PROPERTIES
       MACOSX_BUNDLE_BUNDLE_GUILENTIFIER "com.ned.ned-qt"
@@ -976,10 +988,10 @@ if(NED_BUILD_QT)
     # editor/lsp_editor.h) plus the Qt views under lsp/views/qt/.
     if(NED_ENABLE_LSP)
       target_sources(ned_qt PRIVATE
-        lsp/views/qt/qt_lsp_view.cpp
-        lsp/views/qt/qt_lsp_uri_options.cpp
-        lsp/views/qt/qt_lsp_symbol_info.cpp
-        lsp/views/qt/qt_lsp_dashboard.cpp
+        lsp/views/qt/lsp_view.cpp
+        lsp/views/qt/lsp_uri_options.cpp
+        lsp/views/qt/lsp_symbol_info.cpp
+        lsp/views/qt/lsp_dashboard.cpp
       )
       target_link_libraries(ned_qt PRIVATE ned_lsp_core)
     else()

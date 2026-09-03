@@ -22,13 +22,13 @@ class EditorApi;
 class FileExplorer;
 class LSPClient;
 
-class LspImGuiView
+class LspView
 {
   public:
-	LspImGuiView(LSPClient &client,
-				 EditorApi &api,
-				 FileExplorer &fileExplorer,
-				 Settings &settings);
+	LspView(LSPClient &client,
+			EditorApi &api,
+			FileExplorer &fileExplorer,
+			Settings &settings);
 
 	// Handle all LSP keybinds (Ctrl-modified goto/symbol-info shortcuts).
 	bool keybinds();
@@ -54,7 +54,7 @@ class LspImGuiView
 #else // !NED_ENABLE_LSP
 
 // Minimal stand-in so keybinds/settings/workbench compile without lsp-framework.
-class LspImGuiView
+class LspView
 {
   public:
 	struct DashboardStub
@@ -63,10 +63,10 @@ class LspImGuiView
 		void setShow(bool) {}
 	};
 
-	LspImGuiView(class LSPClient &client,
-				 class EditorApi &api,
-				 class FileExplorer &fileExplorer,
-				 Settings &settings)
+	LspView(class LSPClient &client,
+			class EditorApi &api,
+			class FileExplorer &fileExplorer,
+			Settings &settings)
 	{
 		(void)client;
 		(void)api;

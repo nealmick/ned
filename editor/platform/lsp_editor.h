@@ -2,7 +2,7 @@
 	File: lsp_editor.h
 	Description: The editor seam LSP core consumes — caret/path/line queries,
 	a deferred jump, and theme colors (hover markdown rendering). Implemented
-	per backend (ImGui: EditorApi; Qt: QtEditorView) so LSPClient / LSPGoto /
+	per backend (ImGui: EditorApi; Qt: EditorFrame) so LSPClient / LSPGoto /
 	LSPHover stay UI-free. Columns are UTF-8 byte offsets; the UTF-16
 	conversion happens in the lsp module.
 */

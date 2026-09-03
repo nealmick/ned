@@ -10,11 +10,11 @@
 #include "files/files.h"
 #include "files/views/imgui/file_finder_view.h"
 #include "files/views/imgui/file_sidebar_view.h"
-#include "font.h"
+#include "fonts.h"
 #include "lsp/lsp_client.h"
 #include "lsp/views/imgui/lsp_view.h"
-#include "ned_terminal.h"
 #include "settings_view.h"
+#include "terminal_panel.h"
 #include "util/imgui_icons.h"
 #include "util/project_undo.h"
 #include "util/settings.h"
@@ -58,9 +58,9 @@ class Workbench
 
 	std::unique_ptr<FileExplorer> fileExplorer;
 	std::unique_ptr<LSPClient> lspClient;
-	std::unique_ptr<LspImGuiView> lspView;
-	std::unique_ptr<Welcome> welcome;
-	NedTerminal terminal;
+	std::unique_ptr<LspView> lspView;
+	std::unique_ptr<WelcomePage> welcome;
+	TerminalPanel terminal;
 
 	bool showWelcome = true;
 

@@ -18,7 +18,7 @@
 
 class EditorApi;
 class FileExplorer;
-class LspImGuiView;
+class LspView;
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;

@@ -4,7 +4,7 @@
 #include "../../services/highlight/tree_sitter.h"
 #include "../../util/hover_markdown.h"
 #include "diagnostic_style.h"
-#include "ned_color_imgui.h"
+#include "ned_color.h"
 
 #include "imgui.h"
 

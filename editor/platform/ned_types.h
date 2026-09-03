@@ -2,7 +2,7 @@
 	File: platform/ned_types.h
 	Description: Backend-neutral value types shared between the editor core
 	and UI backends. No UI toolkit includes here — ImGui/Qt convert at their
-	edge (see views/imgui/ned_color_imgui.h for the ImGui side).
+	edge (see views/imgui/ned_color.h for the ImGui side).
 */
 
 #pragma once

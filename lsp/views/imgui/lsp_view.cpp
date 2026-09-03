@@ -1,5 +1,5 @@
 #include "lsp_view.h"
-#include "../../editor/views/imgui/ned_key_imgui.h"
+#include "../../editor/views/imgui/ned_key.h"
 
 #if NED_ENABLE_LSP
 
@@ -7,10 +7,10 @@
 #include "../../lsp_goto.h"
 #include "imgui.h"
 
-LspImGuiView::LspImGuiView(LSPClient &lspClient,
-						   EditorApi &api,
-						   FileExplorer &fileExplorer,
-						   Settings &settings)
+LspView::LspView(LSPClient &lspClient,
+				 EditorApi &api,
+				 FileExplorer &fileExplorer,
+				 Settings &settings)
 	: dashboard(lspClient, fileExplorer, settings),
 	  client(lspClient),
 	  symbolInfo(lspClient, api),
@@ -27,7 +27,7 @@ LspImGuiView::LspImGuiView(LSPClient &lspClient,
 	client.gotoRef.resultRenderer = renderThroughPicker;
 }
 
-bool LspImGuiView::keybinds()
+bool LspView::keybinds()
 {
 	if (!client.isInitialized())
 		return false;
@@ -68,16 +68,16 @@ bool LspImGuiView::keybinds()
 	return shortcutPressed;
 }
 
-void LspImGuiView::bindEditorApi(EditorApi &api)
+void LspView::bindEditorApi(EditorApi &api)
 {
 	symbolInfo.setApi(api);
 	uriOptions.setApi(api);
 	setHoverApi(api);
 }
 
-void LspImGuiView::setHoverApi(EditorApi &api) { symbolInfo.setHoverApi(api); }
+void LspView::setHoverApi(EditorApi &api) { symbolInfo.setHoverApi(api); }
 
-void LspImGuiView::render()
+void LspView::render()
 {
 	symbolInfo.render();
 	client.gotoDef.render();

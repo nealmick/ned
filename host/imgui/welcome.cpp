@@ -50,12 +50,12 @@ bool drawOpenFolderButton(const Settings &settings, const ImVec2 &size)
 }
 } // namespace
 
-Welcome::Welcome(Settings &settings, FileExplorer &fileExplorer)
+WelcomePage::WelcomePage(Settings &settings, FileExplorer &fileExplorer)
 	: settings(settings), fileExplorer(fileExplorer)
 {
 }
 
-bool Welcome::loadNedLogo()
+bool WelcomePage::loadNedLogo()
 {
 	if (nedLogoTexture != 0)
 		return true; // Already loaded
@@ -88,7 +88,7 @@ bool Welcome::loadNedLogo()
 	return true;
 }
 
-bool Welcome::loadWelcomeImages()
+bool WelcomePage::loadWelcomeImages()
 {
 	bool allLoaded = true;
 
@@ -128,7 +128,9 @@ bool Welcome::loadWelcomeImages()
 	return allLoaded;
 }
 
-void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, float currentY)
+void WelcomePage::renderWelcomeImageGrid(float windowWidth,
+										 float windowHeight,
+										 float currentY)
 {
 	const float fs = ImGui::GetFontSize();
 	if (windowWidth < fs * 30.0f || !loadWelcomeImages())
@@ -260,7 +262,7 @@ void Welcome::renderWelcomeImageGrid(float windowWidth, float windowHeight, floa
 	}
 }
 
-void Welcome::selectTheme(int themeIndex)
+void WelcomePage::selectTheme(int themeIndex)
 {
 	static const char *profileNames[] = {
 		"amber.json", "solarized.json", "solarized-light.json", "ned.json"};
@@ -273,7 +275,7 @@ void Welcome::selectTheme(int themeIndex)
 	settings.switchToProfile(profileNames[themeIndex]);
 }
 
-void Welcome::render()
+void WelcomePage::render()
 {
 	float windowWidth, windowHeight;
 

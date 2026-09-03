@@ -2,7 +2,7 @@
 	File: platform/ned_key.h
 	Description: Backend-neutral key codes for keybinds. keybinds.json maps
 	action -> NedKey here; each backend converts to its own key type
-	(ImGui: editor/views/imgui/ned_key_imgui.h; Qt: key event mapping).
+	(ImGui: editor/views/imgui/ned_key.h; Qt: key event mapping).
 */
 
 #pragma once
