@@ -20,6 +20,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -98,5 +99,8 @@ class LSPDocumentSync
 	};
 	mutable std::mutex stateMutex; // pendingOpens + openDocuments
 	std::vector<PendingOpen> pendingOpens;
-	std::unordered_set<std::string> openDocuments; // normalized keys
+	// Normalized key -> the document version last synced to the server.
+	// Reopening an unchanged tracked document (tab refocus, workspace
+	// resync) is a no-op instead of a full-text didChange burst.
+	std::unordered_map<std::string, int> openDocuments;
 };

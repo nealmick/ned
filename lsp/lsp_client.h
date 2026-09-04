@@ -21,6 +21,7 @@ struct LanguageServerInfo
 
 #if NED_ENABLE_LSP
 
+#include <atomic>
 #include <functional>
 #include <future>
 #include <memory>
@@ -124,6 +125,9 @@ class LSPClient
 	void applyInitializeResult(const lsp::InitializeResult &result);
 	void startMessageProcessingLoop();
 	void messageProcessingThread();
+	void startStderrDrain();
+	void stopStderrDrain();
+	void stderrDrainLoop();
 
 	// State
 	bool initialized = false; // process started
@@ -141,11 +145,23 @@ class LSPClient
 
 	// LSP framework objects
 	std::unique_ptr<lsp::Process> serverProcess;
+	// All outbound messages flow through this queue so no caller (least of
+	// all the UI thread) ever blocks on the server draining its stdin.
+	std::unique_ptr<class QueuedStreamWriter> outbound;
 	std::unique_ptr<lsp::Connection> connection;
 	std::unique_ptr<lsp::MessageHandler> messageHandler;
 
 	// Message processing thread
 	std::thread processingThread;
+
+	// Server stderr drain. The framework pipes the server's stderr into a
+	// 64KB OS pipe that ONLY this loop reads — a server that logs more than
+	// that (clangd's background-index logging does, over a long session)
+	// blocks in write(2) forever and the whole JSON-RPC stream freezes while
+	// both processes stay alive. Must be stopped before serverProcess is
+	// touched (started/stopped around it in startServer/stopServer).
+	std::thread stderrDrainThread;
+	std::atomic<bool> drainingStderr{false};
 };
 
 #else // !NED_ENABLE_LSP

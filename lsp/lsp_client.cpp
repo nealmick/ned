@@ -1,9 +1,11 @@
 #include "lsp_client.h"
+
 #include "../editor/platform/lsp_editor.h"
 #include "../util/keybinds.h"
 #include "../util/settings.h"
 #include "lsp_includes.h"
 #include "lsp_trace.h"
+#include "lsp_writer.h"
 
 #include "lsp_goto.h"
 #include "lsp_hover.h"
@@ -238,9 +240,13 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	try
 	{
+		// A drain thread from a previous server may still be polling
+		// serverProcess — it must be gone before the pointer is reassigned.
+		stopStderrDrain();
 		serverProcess = std::make_unique<lsp::Process>(actualServerPath, args);
 
-		connection = std::make_unique<lsp::Connection>(serverProcess->stdIO());
+		outbound = std::make_unique<QueuedStreamWriter>(serverProcess->stdIO());
+		connection = std::make_unique<lsp::Connection>(*outbound);
 
 		messageHandler = std::make_unique<lsp::MessageHandler>(*connection);
 		sync.connect(*messageHandler);
@@ -253,6 +259,7 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 		}
 
 		startMessageProcessingLoop();
+		startStderrDrain();
 		initialized = true;
 		return true;
 
@@ -314,11 +321,20 @@ void LSPClient::shutdown()
 		std::cout << "LSP: Shutdown complete" << std::endl;
 	} else
 	{
+		// Mid-session server death already reset initialized/running and
+		// left both threads finished-but-unjoined — join them here or their
+		// destructors call std::terminate at app exit.
+		stopStderrDrain();
+		if (processingThread.joinable())
+			processingThread.join();
 		sync.disconnect();
 	}
 }
 void LSPClient::stopServer()
 {
+	// First: the drain thread reads serverProcess, which is torn down below.
+	stopStderrDrain();
+
 	if (messageHandler)
 	{
 		try
@@ -350,9 +366,15 @@ void LSPClient::stopServer()
 		}
 	}
 
-	// Force cleanup regardless of LSP protocol completion
+	// Force cleanup regardless of LSP protocol completion. Sends are queued
+	// (lsp_writer) — give them a bounded window to reach the process before
+	// the pipes close, so shutdown/exit are delivered when the server is
+	// healthy enough to read them.
+	if (outbound)
+		outbound->flushFor(std::chrono::milliseconds(500));
 	messageHandler.reset();
 	connection.reset();
+	outbound.reset(); // joins the writer thread before the process pipes die
 	sync.disconnect();
 
 	// Force terminate server process if it's still running
@@ -518,6 +540,62 @@ void LSPClient::didSave(const std::string &filePath, const FullTextProvider &ful
 }
 
 void LSPClient::didClose(const std::string &filePath) { sync.didClose(filePath); }
+
+void LSPClient::startStderrDrain()
+{
+	if (drainingStderr.exchange(true))
+		return; // a drain loop from a previous server is still running
+	if (stderrDrainThread.joinable())
+		stderrDrainThread.join(); // finished incarnation, not yet joined
+	stderrDrainThread = std::thread(&LSPClient::stderrDrainLoop, this);
+}
+
+void LSPClient::stopStderrDrain()
+{
+	drainingStderr = false;
+	if (stderrDrainThread.joinable())
+		stderrDrainThread.join();
+}
+
+void LSPClient::stderrDrainLoop()
+{
+	// readAvailableStdErr is non-blocking (the fd is O_NONBLOCK); 200ms
+	// polls sustain ~320KB/s of drain, far above any server's log rate.
+	// Forward complete lines so the server's own log stays visible in the
+	// terminal the app was launched from — it is the only place server-side
+	// complaints (crash reasons, config errors) ever surface.
+	std::string pending;
+	while (drainingStderr)
+	{
+		if (serverProcess)
+		{
+			try
+			{
+				pending += serverProcess->readAvailableStdErr();
+				std::size_t consumed = 0;
+				for (std::size_t nl;
+					 (nl = pending.find('\n', consumed)) != std::string::npos;)
+				{
+					std::cerr << "LSP server: " << pending.substr(consumed, nl - consumed)
+							  << '\n';
+					consumed = nl + 1;
+				}
+				pending.erase(0, consumed);
+				if (pending.size() > 8192) // pathological unterminated spam
+				{
+					std::cerr << "LSP server: " << pending << '\n';
+					pending.clear();
+				}
+			} catch (const std::exception &e)
+			{
+				std::cerr << "LSP: stderr drain stopped: " << e.what() << std::endl;
+				drainingStderr = false; // allow a restart to spawn a new loop
+				return;
+			}
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+	}
+}
 
 void LSPClient::startMessageProcessingLoop()
 {

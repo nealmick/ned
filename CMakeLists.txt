@@ -303,6 +303,7 @@ if(NED_ENABLE_LSP)
     lsp/lsp_goto.cpp
     lsp/lsp_hover.cpp
     lsp/lsp_server_status.cpp
+    lsp/lsp_writer.cpp
   )
   ned_apply_feature_defs(ned_lsp_core)
   target_include_directories(ned_lsp_core PUBLIC

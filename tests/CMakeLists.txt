@@ -150,6 +150,8 @@ set(NED_TEST_SOURCES
   editor/hover_markdown_test.cpp
   editor/hover_trigger_test.cpp
   editor/lsp_request_state_test.cpp
+  editor/lsp_writer_test.cpp
+  ${CMAKE_SOURCE_DIR}/lsp/lsp_writer.cpp
   ${CMAKE_SOURCE_DIR}/editor/services/diagnostics/diagnostics_store.cpp
   ${CMAKE_SOURCE_DIR}/editor/util/hover_markdown.cpp
   editor/capture_map_test.cpp
@@ -166,7 +168,10 @@ endif()
 add_executable(ned_tests ${NED_TEST_SOURCES})
 
 if(NED_ENABLE_LSP)
-  target_sources(ned_tests PRIVATE editor/lsp_definition_result_test.cpp)
+  target_sources(ned_tests PRIVATE
+    editor/lsp_definition_result_test.cpp
+    editor/lsp_stderr_drain_test.cpp
+  )
   target_include_directories(ned_tests PRIVATE
     ${CMAKE_BINARY_DIR}/lib/lsp-framework/generated
     ${CMAKE_SOURCE_DIR}/lib/lsp-framework

@@ -93,7 +93,7 @@ void LSPDocumentSync::sendDidOpen(const std::string &key,
 			std::move(params));
 		{
 			std::lock_guard<std::mutex> lock(stateMutex);
-			openDocuments.insert(key);
+			openDocuments[key] = version;
 		}
 		NED_LSP_TRACE("didOpen " << key << " lang=" << lang << " v=" << version
 								 << " bytes=" << content.size());
@@ -157,6 +157,14 @@ void LSPDocumentSync::didOpen(const std::string &filePath,
 
 	if (trackedOpen(key))
 	{
+		// Already synced at (or past) this version: reopening an unchanged
+		// tab (or the host resyncing every view) must not re-send full text
+		// — the burst once filled the server's pipe on every file open.
+		{
+			std::lock_guard<std::mutex> lock(stateMutex);
+			if (version <= openDocuments[key])
+				return;
+		}
 		didChange(key, version, {}, [content] { return content; });
 		return;
 	}
@@ -223,6 +231,10 @@ void LSPDocumentSync::didChange(const std::string &filePath,
 
 		handler->sendNotification<lsp::notifications::TextDocument_DidChange>(
 			std::move(params));
+		{
+			std::lock_guard<std::mutex> lock(stateMutex);
+			openDocuments[key] = version;
+		}
 		NED_LSP_TRACE("didChange " << filePath << " v=" << version
 								   << " changes=" << changes.size()
 								   << (incremental ? " (incr)" : " (full)"));
