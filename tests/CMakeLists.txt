@@ -64,6 +64,10 @@ target_include_directories(ned_editor_layer PUBLIC
   ${CMAKE_SOURCE_DIR}/editor
   ${CMAKE_SOURCE_DIR}/lib/imgui
   ${CMAKE_SOURCE_DIR}/lib/imgui/misc/freetype
+  # The top-level global IMGUI_USER_CONFIG points at ned_imgui_config.h
+  # (host/imgui/); on MSVC the directory-level define can win over this
+  # target's test config, so the header must be findable either way.
+  ${CMAKE_SOURCE_DIR}/host/imgui
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 if(NED_ENABLE_GIT)

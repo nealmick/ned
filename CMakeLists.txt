@@ -993,9 +993,14 @@ if(NED_BUILD_QT)
       NED_QT_BUILD_STAMP="${_git} ${_ts}")
     # Core headers use plain identifiers ("slots") that Qt defines as macros.
     target_compile_definitions(ned_qt PRIVATE QT_NO_KEYWORDS)
-    if(APPLE)
-      target_sources(ned_qt PRIVATE host/qt/mac_chrome.mm)
-    endif()
+      if(APPLE)
+        target_sources(ned_qt PRIVATE host/qt/mac_chrome.mm)
+        # Dock icon — staged into Contents/Resources by the package
+        # location below (source must be part of the target).
+        target_sources(ned_qt PRIVATE resources/icons/ned.icns)
+        set_source_files_properties(resources/icons/ned.icns
+          PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+      endif()
     if(WIN32)
       # Native-frame theming (DWM dark caption / colors / rounded corners).
       target_sources(ned_qt PRIVATE host/qt/windows_chrome.cpp)
@@ -1006,10 +1011,34 @@ if(NED_BUILD_QT)
       # entry point automatically for WIN32_EXECUTABLE targets.
       set_target_properties(ned_qt PROPERTIES WIN32_EXECUTABLE TRUE)
     endif()
-    set_target_properties(ned_qt PROPERTIES
-      MACOSX_BUNDLE_GUI_IDENTIFIER "com.ned.ned-qt"
-      MACOSX_BUNDLE_BUNDLE_NAME "Ned"
-    )
+    if(APPLE)
+      # Proper .app bundle: Info.plist, dock icon, and resources INSIDE
+      # Contents/Resources (the layout Settings::getAppResourcesPath
+      # resolves — same "pack-mac" shape as the ImGui Ned.app). CI (and
+      # anyone distributing) runs macdeployqt on the bundle to embed the
+      # Qt frameworks; dev-tree runs still find repo resources via cwd.
+      set_target_properties(ned_qt PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.ned.ned-qt"
+        MACOSX_BUNDLE_BUNDLE_NAME "Ned Qt"
+        MACOSX_BUNDLE_ICON_FILE "ned.icns"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1"
+      )
+      set_property(SOURCE resources/icons/ned.icns
+                   PROPERTY MACOSX_PACKAGE_LOCATION "Resources")
+      add_custom_command(TARGET ned_qt POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/resources
+                $<TARGET_BUNDLE_DIR:ned_qt>/Contents/Resources/resources
+        COMMENT "Staging resources into ned_qt.app"
+        VERBATIM)
+    else()
+      set_target_properties(ned_qt PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.ned.ned-qt"
+        MACOSX_BUNDLE_BUNDLE_NAME "Ned"
+      )
+    endif()
     ned_apply_feature_defs(ned_qt)
     target_include_directories(ned_qt PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}

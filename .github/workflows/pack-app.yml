@@ -82,7 +82,8 @@ jobs:
           ./scripts/build.sh --qt --no-run --skip-format
           # find_package degrades SILENTLY when Qt6/Svg is missing (ned_qt
           # skipped) — fail loudly instead of green-building nothing.
-          test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
+          test -x .build/ned_qt.app/Contents/MacOS/ned_qt || \
+            test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
         env:
           CI: true
 
@@ -93,7 +94,12 @@ jobs:
 
       - name: Package
         run: |
-          zip -j "Ned-Qt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip" .build/ned_qt
+          # Self-contained .app: Qt frameworks + plugins + resources inside,
+          # ad-hoc signed (no identity on runners).
+          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app -codesign=-
+          codesign -v .build/ned_qt.app
+          ditto -c -k --keepParent .build/ned_qt.app \
+            "Ned-Qt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
 
       - name: Upload ARM Release
         uses: softprops/action-gh-release@v1

@@ -34,18 +34,27 @@ jobs:
           ./scripts/build.sh --qt --no-run --skip-format
           # find_package degrades SILENTLY when Qt6/Svg is missing (ned_qt
           # skipped) — fail loudly instead of green-building nothing.
-          test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
+          test -x .build/ned_qt.app/Contents/MacOS/ned_qt || \
+            test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
         env:
           CI: true
       - name: Test
         run: ./scripts/test.sh
         env:
           CI: true
+      - name: Bundle app (macdeployqt)
+        run: |
+          # Self-contained .app: Qt frameworks + plugins + resources inside,
+          # ad-hoc signed (no identity on runners).
+          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app -codesign=-
+          codesign -v .build/ned_qt.app
+          ditto -c -k --keepParent .build/ned_qt.app \
+            "NedQt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
       - name: Upload macOS ARM Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NedQt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}
-          path: .build/ned_qt
+          path: NedQt-macOS-ARM64-*.zip
           if-no-files-found: error
 
   debian:
