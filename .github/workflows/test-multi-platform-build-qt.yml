@@ -44,9 +44,14 @@ jobs:
           CI: true
       - name: Bundle app (macdeployqt)
         run: |
-          # Self-contained .app: Qt frameworks + plugins + resources inside,
-          # ad-hoc signed (no identity on runners).
-          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app -codesign=-
+          # Self-contained .app: Qt frameworks + plugins + resources inside.
+          # -always-overwrite: brew dylibs arrive pre-signed; without it the
+          # re-sign pass skips nested ones and verification fails.
+          # The QtPdf/VirtualKeyboard rpath ERRORs it prints are non-fatal
+          # plugin-scan noise (brew qt ships no such frameworks).
+          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app \
+            -always-overwrite -codesign=-
+          codesign --force --deep --sign - .build/ned_qt.app
           codesign -v .build/ned_qt.app
           ditto -c -k --keepParent .build/ned_qt.app \
             "NedQt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
@@ -110,8 +115,10 @@ jobs:
           pip install aqtinstall
           # python -m: the Scripts dir isn't on PATH for this session;
           # install-qt is the subcommand (aqt-qt is only a legacy alias).
-          python -m aqt install-qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
-          echo "QT_PREFIX=C:\Qt\6.7.3\msvc2019_64" >> $env:GITHUB_ENV
+          # 6.8.1: first line with the msvc2022 arch name; MSVC 2022 is
+          # binary-compatible with the msvc2019 builds.
+          python -m aqt install-qt windows desktop 6.8.1 win64_msvc2022_64 -O C:\Qt
+          echo "QT_PREFIX=C:\Qt\6.8.1\msvc2022_64" >> $env:GITHUB_ENV
       - name: Install dependencies and build
         run: .\scripts\build-win-ci.bat
         env:

@@ -94,9 +94,14 @@ jobs:
 
       - name: Package
         run: |
-          # Self-contained .app: Qt frameworks + plugins + resources inside,
-          # ad-hoc signed (no identity on runners).
-          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app -codesign=-
+          # Self-contained .app: Qt frameworks + plugins + resources inside.
+          # -always-overwrite: brew dylibs arrive pre-signed; without it the
+          # re-sign pass skips nested ones and verification fails.
+          # The QtPdf/VirtualKeyboard rpath ERRORs it prints are non-fatal
+          # plugin-scan noise (brew qt ships no such frameworks).
+          /opt/homebrew/opt/qt/bin/macdeployqt .build/ned_qt.app \
+            -always-overwrite -codesign=-
+          codesign --force --deep --sign - .build/ned_qt.app
           codesign -v .build/ned_qt.app
           ditto -c -k --keepParent .build/ned_qt.app \
             "Ned-Qt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"

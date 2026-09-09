@@ -926,8 +926,10 @@ if(NED_BUILD_QT)
       if(UNIX AND NOT APPLE)
         # Upstream's own CMake detects the PTY API; we compile the sources
         # directly, so pick the glibc path explicitly (openpty lives in
-        # libc since glibc 2.34 — no libutil needed).
+        # libc since glibc 2.34 — no libutil needed). Its declaration is
+        # in <pty.h>, which kpty.cpp does not include itself.
         target_compile_definitions(qtermwidget6 PRIVATE HAVE_OPENPTY)
+        target_compile_options(qtermwidget6 PRIVATE -include pty.h)
       endif()
       target_include_directories(qtermwidget6 PUBLIC
         ${QTERMWIDGET_DIR}
