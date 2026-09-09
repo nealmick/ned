@@ -78,7 +78,11 @@ jobs:
           brew install cmake llvm glfw glew pkg-config freetype fontconfig curl qt
 
       - name: Build Qt host
-        run: ./scripts/build.sh --qt --no-run --skip-format
+        run: |
+          ./scripts/build.sh --qt --no-run --skip-format
+          # find_package degrades SILENTLY when Qt6/Svg is missing (ned_qt
+          # skipped) — fail loudly instead of green-building nothing.
+          test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
         env:
           CI: true
 

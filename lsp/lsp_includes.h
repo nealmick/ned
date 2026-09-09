@@ -2,9 +2,9 @@
 	lsp/lsp_includes.h
 
 	Deliberate unity/aggregator header (PCH-style) for LSP translation units:
-	pulls in the shared LSP/framework/editor includes every lsp/*.cpp needs so
-	TUs compile against one stable include set. It must stay lean — no heavy
-	or unrelated headers (in particular no <iostream>).
+	pulls in the shared LSP/framework/editor includes every lsp source file
+	needs so TUs compile against one stable include set. It must stay lean —
+	no heavy or unrelated headers (in particular no <iostream>).
 */
 
 #pragma once

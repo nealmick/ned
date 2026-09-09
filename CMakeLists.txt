@@ -917,6 +917,12 @@ if(NED_BUILD_QT)
         AUTOUIC ON
         AUTOUIC_SEARCH_PATHS ${QTERMWIDGET_DIR}
       )
+      if(APPLE)
+        # Newer macOS SDKs stop transitively including <sys/time.h>, which
+        # kptydevice.cpp uses (gettimeofday) without declaring. Force the
+        # include instead of patching the vendored submodule.
+        target_compile_options(qtermwidget6 PRIVATE -include sys/time.h)
+      endif()
       target_include_directories(qtermwidget6 PUBLIC
         ${QTERMWIDGET_DIR}
         ${CMAKE_CURRENT_BINARY_DIR} # generated qtermwidget_version.h

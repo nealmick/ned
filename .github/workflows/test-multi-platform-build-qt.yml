@@ -30,7 +30,11 @@ jobs:
       - name: Install dependencies
         run: brew install cmake llvm glfw glew pkg-config freetype fontconfig curl qt
       - name: Build Qt host
-        run: ./scripts/build.sh --qt --no-run --skip-format
+        run: |
+          ./scripts/build.sh --qt --no-run --skip-format
+          # find_package degrades SILENTLY when Qt6/Svg is missing (ned_qt
+          # skipped) — fail loudly instead of green-building nothing.
+          test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
         env:
           CI: true
       - name: Test
@@ -45,7 +49,7 @@ jobs:
           if-no-files-found: error
 
   debian:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: create-tag
     steps:
       - uses: actions/checkout@v4
@@ -60,12 +64,15 @@ jobs:
             libcurl4-openssl-dev libfreetype6-dev libfontconfig1-dev \
             libssl-dev zlib1g-dev \
             mesa-utils dpkg-dev \
-            qt6-base-dev qt6-svg-dev
+            qt6-base-dev qt6-svg-dev zip
       - name: Build Qt host
         run: |
           export CC=clang
           export CXX=clang++
           ./scripts/build.sh --qt --no-run --skip-format
+          # find_package degrades SILENTLY when Qt6/Svg is missing (ned_qt
+          # skipped) — fail loudly instead of green-building nothing.
+          test -x .build/ned_qt || { echo "ned_qt binary missing (Qt6 incomplete?)"; exit 1; }
         env:
           CI: true
       - name: Test
@@ -92,7 +99,8 @@ jobs:
         shell: pwsh
         run: |
           pip install aqtinstall
-          aqt-qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
+          # python -m: the Scripts dir isn't on PATH for this session.
+          python -m aqt qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
           echo "QT_PREFIX=C:\Qt\6.7.3\msvc2019_64" >> $env:GITHUB_ENV
       - name: Install dependencies and build
         run: .\scripts\build-win-ci.bat
