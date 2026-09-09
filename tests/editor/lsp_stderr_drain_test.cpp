@@ -15,12 +15,21 @@
 // chatty child runs to completion instead of wedging.
 TEST_CASE("draining stderr keeps a chatty server from wedging", "[ned][lsp]")
 {
-	// ~350KB of stderr — several pipe buffers' worth.
+	// ~350KB of stderr — several pipe buffers' worth. Each platform's
+	// native shell (the framework spawns processes directly, no PATH
+	// lookup of POSIX tools on Windows).
+#ifdef _WIN32
+	lsp::Process chatter(
+		"cmd.exe",
+		{"/c",
+		 "for /L %i in (1,1,7000) do @echo log line %i with a realistic amount of padding 1>&2"});
+#else
 	lsp::Process chatter("/bin/sh",
 						 {"-c",
 						  "i=0; while [ $i -lt 7000 ]; do "
 						  "echo \"log line $i with a realistic amount of padding\" >&2; "
 						  "i=$((i+1)); done"});
+#endif
 
 	std::string drained;
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);

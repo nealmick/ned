@@ -489,11 +489,13 @@ void AppHost::applyProfileAppWide()
 	applyAppFontAndPalette();
 	{
 		const QColor bg = NedQtTheme::background(settings);
+#ifdef __APPLE__
 		// Only cocoa hands out real NSView winIds — offscreen test runs
 		// would cast a fake id into objc and crash.
 		if (QGuiApplication::platformName() == QLatin1String("cocoa"))
 			applyNedQtWindowColor(
 				reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+#endif
 #ifdef _WIN32
 		// windows_chrome.cpp: recolor the native caption to the new theme.
 		applyNedQtWindowColorWindows(
