@@ -1,5 +1,7 @@
 name: Test Multi-Platform Build (ImGui)
 on:
+  push:
+    branches: [testing]
   workflow_dispatch:
 
 jobs:
