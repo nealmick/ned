@@ -99,8 +99,9 @@ jobs:
         shell: pwsh
         run: |
           pip install aqtinstall
-          # python -m: the Scripts dir isn't on PATH for this session.
-          python -m aqt qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
+          # python -m: the Scripts dir isn't on PATH for this session;
+          # install-qt is the subcommand (aqt-qt is only a legacy alias).
+          python -m aqt install-qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
           echo "QT_PREFIX=C:\Qt\6.7.3\msvc2019_64" >> $env:GITHUB_ENV
       - name: Install dependencies and build
         run: .\scripts\build-win-ci.bat

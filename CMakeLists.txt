@@ -923,6 +923,12 @@ if(NED_BUILD_QT)
         # include instead of patching the vendored submodule.
         target_compile_options(qtermwidget6 PRIVATE -include sys/time.h)
       endif()
+      if(UNIX AND NOT APPLE)
+        # Upstream's own CMake detects the PTY API; we compile the sources
+        # directly, so pick the glibc path explicitly (openpty lives in
+        # libc since glibc 2.34 — no libutil needed).
+        target_compile_definitions(qtermwidget6 PRIVATE HAVE_OPENPTY)
+      endif()
       target_include_directories(qtermwidget6 PUBLIC
         ${QTERMWIDGET_DIR}
         ${CMAKE_CURRENT_BINARY_DIR} # generated qtermwidget_version.h
