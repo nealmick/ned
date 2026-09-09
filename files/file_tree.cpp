@@ -52,8 +52,8 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 		}
 	} catch (const fs::filesystem_error &e)
 	{
-		std::cerr << "[FileTree] Error accessing directory " << path << ": "
-				  << e.what() << std::endl;
+		std::cerr << "[FileTree] Error accessing directory " << path << ": " << e.what()
+				  << std::endl;
 	}
 
 	// Directories first, then alphabetical.

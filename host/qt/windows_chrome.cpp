@@ -9,7 +9,7 @@
 	util/windows_window.cpp:
 	  - immersive dark mode (dark caption text/icons on Win10 20H1+)
 	  - caption + border color from the profile background (Win11 only;
-	    older builds keep the system color silently)
+		older builds keep the system color silently)
 	  - rounded corners preference (Win11)
 	All entry points are HWND-based and no-op when passed a null handle.
 */
@@ -62,15 +62,10 @@ void applyNedQtWindowColorWindows(void *hwnd, float r, float g, float b)
 	// Caption slightly lighter than the window tint so the frame reads
 	// against the dark body; border a bit dimmer (same lift the imgui
 	// caption strip uses visually).
-	const COLORREF caption = RGB(static_cast<BYTE>((r * 255.0f) + 12.0f < 255.0f
-											  ? r * 255.0f + 12.0f
-											  : 255.0f),
-								 static_cast<BYTE>((g * 255.0f) + 12.0f < 255.0f
-													   ? g * 255.0f + 12.0f
-													   : 255.0f),
-								 static_cast<BYTE>((b * 255.0f) + 12.0f < 255.0f
-													   ? b * 255.0f + 12.0f
-													   : 255.0f));
+	const COLORREF caption = RGB(
+		static_cast<BYTE>((r * 255.0f) + 12.0f < 255.0f ? r * 255.0f + 12.0f : 255.0f),
+		static_cast<BYTE>((g * 255.0f) + 12.0f < 255.0f ? g * 255.0f + 12.0f : 255.0f),
+		static_cast<BYTE>((b * 255.0f) + 12.0f < 255.0f ? b * 255.0f + 12.0f : 255.0f));
 	const COLORREF border = RGB(static_cast<BYTE>(r * 255.0f * 0.55f),
 								static_cast<BYTE>(g * 255.0f * 0.55f),
 								static_cast<BYTE>(b * 255.0f * 0.55f));

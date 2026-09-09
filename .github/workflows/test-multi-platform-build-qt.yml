@@ -1,10 +1,5 @@
 name: Test Multi-Platform Build (Qt)
 on:
-  # Push trigger: also makes the workflow dispatchable (GitHub only
-  # registers workflow_dispatch workflows once they exist on the default
-  # branch or have been picked up by a push evaluation).
-  push:
-    branches: [testing]
   workflow_dispatch:
 
 jobs:

@@ -189,8 +189,8 @@ std::string LSPClient::findServerPath(const std::string &language) const
 				return expandedPath;
 			} else
 			{
-				std::cout << "[LSP] candidate exists but is not a file: "
-						  << expandedPath << std::endl;
+				std::cout << "[LSP] candidate exists but is not a file: " << expandedPath
+						  << std::endl;
 			}
 		} else
 		{

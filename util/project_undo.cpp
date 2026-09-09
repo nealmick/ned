@@ -460,8 +460,8 @@ void ProjectUndo::saveProject(const std::string &folder)
 				hasChanges = true;
 			} catch (const std::exception &e)
 			{
-				std::cerr << "[ProjectUndo] Error serializing undo for " << path
-						  << ": " << e.what() << '\n';
+				std::cerr << "[ProjectUndo] Error serializing undo for " << path << ": "
+						  << e.what() << '\n';
 			}
 		}
 
