@@ -1,8 +1,13 @@
-name: Multi-Platform Build (ImGui)
+name: Multi-Platform Build
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+# ONE release per run: every job uploads to the same timestamped tag
+# (softprops/action-gh-release appends assets to an existing release),
+# so a push to main produces a single release containing all hosts and
+# platforms — Ned-ImGui-* and Ned-Qt-* side by side.
 
 jobs:
   create-tag:
@@ -18,6 +23,7 @@ jobs:
           echo "timestamp=v${TS}" >> $GITHUB_OUTPUT
 
   macos-arm:
+    name: ImGui macOS ARM64
     runs-on: macos-14
     needs: create-tag
     permissions:
@@ -44,12 +50,51 @@ jobs:
       - name: Package
         run: |
           ./scripts/pack-mac.sh
-          mv Ned.zip "Ned-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
+          mv Ned.zip "Ned-ImGui-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip"
 
       - name: Upload ARM Release
         uses: softprops/action-gh-release@v1
         with:
-          files: Ned-macOS-ARM64-*.zip
+          files: Ned-ImGui-macOS-ARM64-*.zip
+          tag_name: ${{ needs.create-tag.outputs.timestamp }}
+          name: "Build ${{ needs.create-tag.outputs.timestamp }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  macos-arm-qt:
+    name: Qt macOS ARM64
+    runs-on: macos-14
+    needs: create-tag
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install cmake llvm glfw glew pkg-config freetype fontconfig curl qt
+
+      - name: Build Qt host
+        run: ./scripts/build.sh --qt --no-run --skip-format
+        env:
+          CI: true
+
+      - name: Test
+        run: ./scripts/test.sh
+        env:
+          CI: true
+
+      - name: Package
+        run: |
+          zip -j "Ned-Qt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}.zip" .build/ned_qt
+
+      - name: Upload ARM Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: Ned-Qt-macOS-ARM64-*.zip
           tag_name: ${{ needs.create-tag.outputs.timestamp }}
           name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           generate_release_notes: true
@@ -57,6 +102,7 @@ jobs:
           prerelease: false
 
   debian:
+    name: ImGui Debian
     runs-on: ubuntu-22.04
     needs: create-tag
     permissions:
@@ -93,18 +139,19 @@ jobs:
         run: |
           chmod +x scripts/pack-deb.sh
           ./scripts/pack-deb.sh
-          mv Ned_*.deb "Ned-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
+          mv Ned_*.deb "Ned-ImGui-Debian-${{ needs.create-tag.outputs.timestamp }}.deb"
 
       - name: Upload Debian Release
         uses: softprops/action-gh-release@v1
         with:
-          files: Ned-Debian-*.deb
+          files: Ned-ImGui-Debian-*.deb
           tag_name: ${{ needs.create-tag.outputs.timestamp }}
           name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           draft: false
           prerelease: false
 
   windows:
+    name: ImGui Windows x64
     runs-on: windows-2022
     needs: create-tag
     permissions:
@@ -139,12 +186,12 @@ jobs:
 
       - name: Package
         run: |
-          Compress-Archive -Path "ned-release\*" -DestinationPath "Ned-Windows-x64-${{ needs.create-tag.outputs.timestamp }}.zip"
+          Compress-Archive -Path "ned-release\*" -DestinationPath "Ned-ImGui-Windows-x64-${{ needs.create-tag.outputs.timestamp }}.zip"
 
       - name: Upload Windows Release
         uses: softprops/action-gh-release@v1
         with:
-          files: Ned-Windows-x64-*.zip
+          files: Ned-ImGui-Windows-x64-*.zip
           tag_name: ${{ needs.create-tag.outputs.timestamp }}
           name: "Build ${{ needs.create-tag.outputs.timestamp }}"
           draft: false
