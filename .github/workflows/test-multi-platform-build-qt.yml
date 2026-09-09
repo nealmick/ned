@@ -140,15 +140,26 @@ jobs:
           if (-not $bin) { throw "ned_tests.exe not found" }
           & $bin.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Deploy Qt runtime (windeployqt)
+      - name: Package Qt-only artifact
         shell: pwsh
         run: |
+          # build-win-ci.bat (vcpkg bootstrap) also builds the ImGui ned.exe
+          # into the same tree — package ONLY the Qt host so the artifact
+          # isn't confusing: fresh dir with the exe + staged resources,
+          # then windeployqt adds the Qt DLLs/plugins next to it.
           $exe = Get-ChildItem -Path build -Recurse -Filter ned_qt.exe | Select-Object -First 1
           if (-not $exe) { throw "ned_qt.exe not found" }
-          & "$env:QT_PREFIX\bin\windeployqt.exe" --release $exe.FullName
+          $dir = Split-Path $exe.FullName
+          Remove-Item -Recurse -Force ned-qt-dist -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory ned-qt-dist | Out-Null
+          Copy-Item "$dir\ned_qt.exe" ned-qt-dist/
+          Copy-Item -Recurse "$dir\resources" ned-qt-dist/resources
+          Copy-Item -Recurse "$dir\queries" ned-qt-dist/queries
+          & "$env:QT_PREFIX\bin\windeployqt.exe" --release ned-qt-dist\ned_qt.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NedQt-Windows-x64-${{ needs.create-tag.outputs.timestamp }}
-          path: build/**/Release/
+          path: ned-qt-dist/
           if-no-files-found: error

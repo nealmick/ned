@@ -162,12 +162,27 @@ fi
 
 if [ "$BUILD_QT" -eq 1 ]; then
 	echo -e "${GREEN}Launching NED (Qt)...${NC}"
-	QT_BIN=$(find "$BUILD_DIR" -name ned_qt -type f -perm -111 2>/dev/null | head -1)
-	if [ -n "$QT_BIN" ]; then
-		"$QT_BIN"
+	if [ -d "$BUILD_DIR/ned_qt.app/Contents/Frameworks" ]; then
+		# A macdeployqt-deployed bundle (CI-style): must launch via open —
+		# the nested binary run directly mixes deployed + Homebrew Qt.
+		# Detached: app logs go to the unified log, not this terminal.
+		open "$BUILD_DIR/ned_qt.app"
+	elif [ -x "$BUILD_DIR/ned_qt.app/Contents/MacOS/ned_qt" ]; then
+		# Clean dev bundle: run the binary DIRECTLY so stdout/stderr
+		# ([LSP]/[Settings] logs) stay attached to this terminal.
+		"$BUILD_DIR/ned_qt.app/Contents/MacOS/ned_qt"
+	elif [ -x "$BUILD_DIR/ned_qt" ]; then
+		"$BUILD_DIR/ned_qt"
 	else
-		echo -e "${RED}Could not find ned_qt to launch${NC}"
-		exit 1
+		QT_BIN=$(find "$BUILD_DIR" -name ned_qt -type f -perm -111 2>/dev/null | head -1)
+		if [[ "$QT_BIN" == *.app/* ]]; then
+			open "${QT_BIN%%/Contents/*}"
+		elif [ -n "$QT_BIN" ]; then
+			"$QT_BIN"
+		else
+			echo -e "${RED}Could not find ned_qt to launch${NC}"
+			exit 1
+		fi
 	fi
 	exit 0
 fi

@@ -15,6 +15,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# CI and plain `cmake ..` configure with no build type — that is -O0,
+# which the per-glyph editor paint paths feel as seconds of input lag in
+# packaged builds. Default to Release; pass -DCMAKE_BUILD_TYPE=Debug to
+# opt into a debuggable build.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 # Optional features (default ON — full product). Pass -DNED_ENABLE_*=OFF for lean builds.
 option(NED_ENABLE_TERMINAL "Embedded terminal (imgui-terminal)" ON)
 option(NED_ENABLE_GIT      "Git gutter/status via libgit2" ON)
@@ -831,6 +839,23 @@ else()
 endif()
 add_library(ned_core STATIC ${NED_CORE_SOURCES})
 ned_apply_feature_defs(ned_core)
+if(WIN32)
+  # libgit2's objects live in ned_core; its http transport (WinHTTP) and
+  # crypto need these system libs. PUBLIC so every consumer (ned,
+  # ned_embed, ned_qt, tests) inherits them instead of re-listing per
+  # host — ned_qt's link failed without exactly this list.
+  target_link_libraries(ned_core PUBLIC
+    winhttp
+    secur32
+    crypt32
+    rpcrt4
+    ws2_32
+    advapi32
+    bcrypt
+    iphlpapi
+    normaliz
+  )
+endif()
 target_include_directories(ned_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   editor
@@ -1033,6 +1058,12 @@ if(NED_BUILD_QT)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/resources
                 $<TARGET_BUNDLE_DIR:ned_qt>/Contents/Resources/resources
+        # Tree-sitter query files (pack-mac.sh parity — resolveQueryFile
+        # looks for Resources/queries first; without them highlighting
+        # silently no-ops and every edit re-scans for the files).
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/editor/services/highlight/queries
+                $<TARGET_BUNDLE_DIR:ned_qt>/Contents/Resources/queries
         COMMENT "Staging resources into ned_qt.app"
         VERBATIM)
     else()
@@ -1040,6 +1071,20 @@ if(NED_BUILD_QT)
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.ned.ned-qt"
         MACOSX_BUNDLE_BUNDLE_NAME "Ned"
       )
+    endif()
+    if(WIN32)
+      # Portable layout (same as the ImGui ned-release zip): resources/
+      # and queries/ next to ned_qt.exe — Settings::getAppResourcesPath
+      # and resolveQueryFile both resolve relative to the executable.
+      add_custom_command(TARGET ned_qt POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/resources
+                $<TARGET_FILE_DIR:ned_qt>/resources
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/editor/services/highlight/queries
+                $<TARGET_FILE_DIR:ned_qt>/queries
+        COMMENT "Staging resources next to ned_qt.exe"
+        VERBATIM)
     endif()
     ned_apply_feature_defs(ned_qt)
     target_include_directories(ned_qt PRIVATE

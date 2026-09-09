@@ -14,9 +14,12 @@
 #include "git_repo.h"
 #endif
 
+#include <atomic>
 #include <chrono>
+#include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -31,6 +34,7 @@ class EditorGit
 		: state(&document), projectRoot(&projectRootRef), settings(&appSettings)
 	{
 	}
+	~EditorGit();
 #else
 	EditorGit(EditorState &, std::string &, Settings &) {}
 #endif
@@ -69,6 +73,21 @@ class EditorGit
 
 	std::chrono::steady_clock::time_point lastStatus{};
 	static constexpr int kStatusIntervalMs = 1000;
+
+	// The status scan (git_status_list_new over the whole workspace) can
+	// cost hundreds of ms on a big repo — running it on the UI thread was
+	// a visible multi-frame skip every second. It runs on a worker now;
+	// poll() kicks the worker and picks up the finished result (repo and
+	// the handoff share one mutex; the UI thread applies the set, which
+	// is all the old synchronous path did after the scan).
+	std::thread statusWorker;
+	std::atomic<bool> statusInFlight{false};
+	std::mutex statusMu;				 // guards repo + pendingStatus
+	std::set<std::string> pendingStatus; // worker → UI handoff
+	std::atomic<bool> statusFresh{false};
+
+	void kickStatusScan();
+	void collectStatus();
 
 	bool linesEnabled() const;
 	std::string relativePath(const std::string &abs) const;

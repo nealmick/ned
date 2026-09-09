@@ -19,10 +19,10 @@ TEST_CASE("draining stderr keeps a chatty server from wedging", "[ned][lsp]")
 	// native shell (the framework spawns processes directly, no PATH
 	// lookup of POSIX tools on Windows).
 #ifdef _WIN32
-	lsp::Process chatter(
-		"cmd.exe",
-		{"/c",
-		 "for /L %i in (1,1,7000) do @echo log line %i with a realistic amount of padding 1>&2"});
+	lsp::Process chatter("cmd.exe",
+						 {"/c",
+						  "for /L %i in (1,1,7000) do @echo log line %i with a realistic "
+						  "amount of padding 1>&2"});
 #else
 	lsp::Process chatter("/bin/sh",
 						 {"-c",

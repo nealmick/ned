@@ -46,6 +46,13 @@ void EditorGit::init()
 {
 	clearGutter();
 	modifiedFiles.clear();
+	if (statusWorker.joinable())
+		statusWorker.join();
+	{
+		const std::lock_guard<std::mutex> lock(statusMu);
+		pendingStatus.clear();
+	}
+	statusFresh = false;
 	repo.close();
 
 	if (!projectRoot || projectRoot->empty())
@@ -76,7 +83,12 @@ void EditorGit::loadBaseline()
 	if (rel.empty())
 		return;
 
-	repo.headLines(rel, baseline);
+	{
+		// headLines touches the shared git_repository; the status worker
+		// may be scanning concurrently.
+		const std::lock_guard<std::mutex> lock(statusMu);
+		repo.headLines(rel, baseline);
+	}
 	baselinePath = state->path;
 }
 
@@ -196,14 +208,10 @@ void EditorGit::onDidEdit(int firstRow, int lastRow)
 	recomputeGutterFromCache();
 }
 
-void EditorGit::refreshStatus()
+EditorGit::~EditorGit()
 {
-	if (!repo.isOpen())
-	{
-		modifiedFiles.clear();
-		return;
-	}
-	modifiedFiles = repo.modifiedPaths();
+	if (statusWorker.joinable())
+		statusWorker.join();
 }
 
 void EditorGit::poll()
@@ -214,11 +222,63 @@ void EditorGit::poll()
 	const auto now = std::chrono::steady_clock::now();
 	const auto ms =
 		std::chrono::duration_cast<std::chrono::milliseconds>(now - lastStatus).count();
-	if (ms < kStatusIntervalMs)
-		return;
+	if (ms >= kStatusIntervalMs)
+	{
+		lastStatus = now;
+		kickStatusScan();
+	}
+	collectStatus();
+}
 
-	refreshStatus();
-	lastStatus = now;
+void EditorGit::kickStatusScan()
+{
+	if (statusInFlight.exchange(true))
+		return; // previous scan still running
+	if (statusWorker.joinable())
+		statusWorker.join();
+	statusWorker = std::thread([this] {
+		std::set<std::string> out;
+		{
+			const std::lock_guard<std::mutex> lock(statusMu);
+			if (repo.isOpen())
+				out = repo.modifiedPaths();
+		}
+		{
+			const std::lock_guard<std::mutex> lock(statusMu);
+			pendingStatus = std::move(out);
+		}
+		statusFresh = true;
+		statusInFlight = false;
+	});
+}
+
+void EditorGit::collectStatus()
+{
+	if (!statusFresh.exchange(false))
+		return;
+	std::set<std::string> fresh;
+	{
+		const std::lock_guard<std::mutex> lock(statusMu);
+		fresh = std::move(pendingStatus);
+		pendingStatus.clear();
+	}
+	modifiedFiles = std::move(fresh);
+}
+
+void EditorGit::refreshStatus()
+{
+	// Legacy synchronous path — used by init() once before the document
+	// loop starts (the UI thread is idle then; the periodic scans run on
+	// the worker via poll()).
+	if (!repo.isOpen())
+	{
+		modifiedFiles.clear();
+		return;
+	}
+	{
+		const std::lock_guard<std::mutex> lock(statusMu);
+		modifiedFiles = repo.modifiedPaths();
+	}
 }
 
 bool EditorGit::isLineEdited(const std::string &filePath, int lineNumber) const
