@@ -24,9 +24,7 @@ class TerminalPanel : public QWidget
 	// Working directory for the next shell spawn (project root).
 	void setProjectRoot(const QString &root);
 
-	bool visible() const;
 	void setVisible(bool on) override;
-	void toggle();
 
 	// Theme color for the terminal scheme; its ALPHA drives the panel's
 	// translucency so the terminal frosts like the rest of the window
@@ -38,9 +36,8 @@ class TerminalPanel : public QWidget
 	// the font, so a proportional family draws glyphs over each other.
 	void applyFont(const QFont &font);
 
-	// Test hooks / internal.
+	// Internal.
 	void addSession();
-	int sessionCount() const;
 
   private:
 	struct Impl;

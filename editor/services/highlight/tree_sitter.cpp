@@ -491,25 +491,6 @@ void TreeSitter::runQuery(TSQuery *query,
 						  ColorRangeMap &colors,
 						  int rowBase)
 {
-	auto fillRange = [&](uint32_t start, uint32_t end, ThemeSlot slot) {
-		if (start >= end)
-			return;
-		int sr, sc, er, ec;
-		rowColFromOffset(snap, start, sr, sc);
-		rowColFromOffset(snap, end, er, ec);
-		for (int r = sr; r <= er; ++r)
-		{
-			const int idx = r - rowBase;
-			if (idx < 0 || idx >= static_cast<int>(colors.size()))
-				continue;
-			const int lineLen = lineLength(snap, static_cast<size_t>(r));
-			const int a = std::clamp(r == sr ? sc : 0, 0, lineLen);
-			const int b = std::clamp(r == er ? ec : lineLen, 0, lineLen);
-			if (a < b)
-				setRange(colors[static_cast<size_t>(idx)], a, b, slot);
-		}
-	};
-
 	// Collect captures then apply weak → strong so function/type beat @variable.
 	// @none (e.g. f-string interpolation) punches holes in @string spans.
 	struct Hit
@@ -600,8 +581,61 @@ void TreeSitter::runQuery(TSQuery *query,
 		return a.start < b.start;
 	});
 
+	// Batch-apply: replay hits per ROW on a slot-per-column scratch, then
+	// compress to spans in one pass. Same "later (stronger) hit wins"
+	// semantics as sequential setRange, but linear — replaying setRange
+	// per hit is O(spans) each, and a single-line file puts every hit on
+	// one row (200k hits × 200k spans went quadratic and hung the job).
+	struct Piece
+	{
+		int a;
+		int b;
+		ThemeSlot slot;
+	};
+	std::unordered_map<int, std::vector<Piece>> byRow;
 	for (const Hit &h : expanded)
-		fillRange(h.start, h.end, themeSlotForCapture(h.capture));
+	{
+		int sr, sc, er, ec;
+		rowColFromOffset(snap, h.start, sr, sc);
+		rowColFromOffset(snap, h.end, er, ec);
+		for (int r = sr; r <= er; ++r)
+		{
+			const int idx = r - rowBase;
+			if (idx < 0 || idx >= static_cast<int>(colors.size()))
+				continue;
+			const int lineLen = lineLength(snap, static_cast<size_t>(r));
+			const int a = std::clamp(r == sr ? sc : 0, 0, lineLen);
+			const int b = std::clamp(r == er ? ec : lineLen, 0, lineLen);
+			if (a < b)
+				byRow[idx].push_back({a, b, themeSlotForCapture(h.capture)});
+		}
+	}
+	std::vector<int> cells; // slot + 1 per column; 0 = untouched
+	for (auto &[idx, pieces] : byRow)
+	{
+		const int lineLen = lineLength(snap, static_cast<size_t>(rowBase + idx));
+		cells.assign(static_cast<size_t>(lineLen), 0);
+		for (const Piece &p : pieces)
+			for (int c = p.a; c < p.b; ++c)
+				cells[static_cast<size_t>(c)] = static_cast<int>(p.slot) + 1;
+
+		LineColorSpans &spans = colors[static_cast<size_t>(idx)];
+		spans.clear();
+		for (int c = 0; c < lineLen;)
+		{
+			const int s = cells[static_cast<size_t>(c)];
+			if (s <= 0)
+			{
+				++c;
+				continue;
+			}
+			int e = c + 1;
+			while (e < lineLen && cells[static_cast<size_t>(e)] == s)
+				++e;
+			spans.push_back({c, e, static_cast<ThemeSlot>(s - 1)});
+			c = e;
+		}
+	}
 }
 
 void TreeSitter::queryWindowInto(TSQuery *query,
@@ -1162,7 +1196,7 @@ TSQuery *TreeSitter::loadQueryFromCacheOrFile(TSLanguage *lang,
 				lang, query_src.c_str(), query_src.size(), &error_offset, &error_type);
 			if (!query)
 			{
-				std::cerr << "Query error (" << error_type << ") at offset "
+				std::cerr << "[TreeSitter] Query error (" << error_type << ") at offset "
 						  << error_offset << "\n";
 			}
 		}

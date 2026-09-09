@@ -172,10 +172,7 @@ void Workbench::setWorkspaceActive(bool active)
 void Workbench::addEditor(EditorFrame *view, const QString &title, bool focus)
 {
 	if (!active)
-	{
-		const QList<EditorGroup *> groups = groupsInOrder();
-		active = groups.isEmpty() ? nullptr : groups.first();
-	}
+		active = effectiveGroup();
 	if (!active)
 	{
 		active = makeGroup();
@@ -242,16 +239,11 @@ void Workbench::setTabText(EditorFrame *view, const QString &text)
 		group->setTabText(group->indexOf(view), text);
 }
 
-void Workbench::activateTabIndex(int index)
+void Workbench::activateTab(int index)
 {
-	EditorGroup *group = active;
+	EditorGroup *group = effectiveGroup();
 	if (!group)
-	{
-		const QList<EditorGroup *> groups = groupsInOrder();
-		if (groups.isEmpty())
-			return;
-		group = groups.first();
-	}
+		return;
 	if (index < group->count())
 	{
 		group->setCurrentIndex(index);
@@ -268,14 +260,9 @@ void Workbench::closeActiveTab()
 
 void Workbench::splitActive(Qt::Orientation orientation)
 {
-	EditorGroup *target = active;
+	EditorGroup *target = effectiveGroup();
 	if (!target)
-	{
-		const QList<EditorGroup *> groups = groupsInOrder();
-		if (groups.isEmpty())
-			return;
-		target = groups.first();
-	}
+		return;
 	if (target->count() == 0)
 		return; // splitting an empty group is a no-op
 	EditorGroup *fresh = splitGroup(target, orientation, /*before=*/false);
@@ -290,6 +277,16 @@ QList<EditorGroup *> Workbench::groupsInOrder() const
 	if (QWidget *root = treeRoot())
 		collectGroups(root, out);
 	return out;
+}
+
+// Active group, falling back to the first group in tree order when none is
+// marked active yet (shared by addEditor / activateTab / splitActive).
+EditorGroup *Workbench::effectiveGroup() const
+{
+	if (active)
+		return active;
+	const QList<EditorGroup *> groups = groupsInOrder();
+	return groups.isEmpty() ? nullptr : groups.first();
 }
 
 QWidget *Workbench::treeRoot() const

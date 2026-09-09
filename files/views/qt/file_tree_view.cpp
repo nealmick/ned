@@ -1,7 +1,7 @@
 #include "file_tree_view.h"
 
+#include "../../../../host/qt/qt_icons.h"
 #include "files/file_tree.h"
-#include "util/qt_icons.h"
 
 #include <QString>
 #include <QTreeWidget>

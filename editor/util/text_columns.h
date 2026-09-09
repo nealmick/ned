@@ -13,7 +13,7 @@
 
 namespace EditorUtils {
 
-inline int SnapToUtf8CharBoundary(const std::string &str, int idx)
+inline int snapToUtf8CharBoundary(const std::string &str, int idx)
 {
 	if (idx <= 0 || idx >= (int)str.size())
 		return idx;
@@ -25,7 +25,7 @@ inline int SnapToUtf8CharBoundary(const std::string &str, int idx)
 }
 
 // Encode a Unicode codepoint as UTF-8 into `out`. Returns bytes written (0 if invalid).
-inline int AppendUtf8Codepoint(std::string &out, unsigned int cp)
+inline int appendUtf8Codepoint(std::string &out, unsigned int cp)
 {
 	if (cp < 0x80)
 	{
@@ -56,13 +56,13 @@ inline int AppendUtf8Codepoint(std::string &out, unsigned int cp)
 	return 0;
 }
 
-inline bool IsWordChar(char c)
+inline bool isWordChar(char c)
 {
 	return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
 }
 
 // Word boundaries within a single line (byte offsets into `line`).
-inline void FindWordBoundaries(const std::string &line, int pos, int &start, int &end)
+inline void findWordBoundaries(const std::string &line, int pos, int &start, int &end)
 {
 	const int len = static_cast<int>(line.size());
 	if (pos < 0)
@@ -71,9 +71,9 @@ inline void FindWordBoundaries(const std::string &line, int pos, int &start, int
 		pos = len;
 
 	int probe = pos;
-	if (probe >= len || !IsWordChar(line[probe]))
+	if (probe >= len || !isWordChar(line[probe]))
 	{
-		if (probe > 0 && IsWordChar(line[probe - 1]))
+		if (probe > 0 && isWordChar(line[probe - 1]))
 			--probe;
 		else
 		{
@@ -83,15 +83,15 @@ inline void FindWordBoundaries(const std::string &line, int pos, int &start, int
 	}
 
 	start = probe;
-	while (start > 0 && IsWordChar(line[start - 1]))
+	while (start > 0 && isWordChar(line[start - 1]))
 		--start;
 
 	end = probe + 1;
-	while (end < len && IsWordChar(line[end]))
+	while (end < len && isWordChar(line[end]))
 		++end;
 }
 
-inline void MoveToPrevUtf8Char(std::string::iterator &it)
+inline void moveToPrevUtf8Char(std::string::iterator &it)
 {
 	--it;
 	while ((static_cast<unsigned char>(*it) & 0xC0) == 0x80)
@@ -100,7 +100,7 @@ inline void MoveToPrevUtf8Char(std::string::iterator &it)
 	}
 }
 
-inline void MoveToNextUtf8Char(std::string::iterator &it)
+inline void moveToNextUtf8Char(std::string::iterator &it)
 {
 	++it;
 	while ((static_cast<unsigned char>(*it) & 0xC0) == 0x80)
@@ -109,9 +109,20 @@ inline void MoveToNextUtf8Char(std::string::iterator &it)
 	}
 }
 
+// Byte index of the next UTF-8 char boundary at-or-after `idx + 1` (skips
+// continuation bytes from the shared scan loop). Shared by wrap/caret/hit
+// code that walks by index instead of iterator.
+inline size_t nextCharEnd(const std::string &text, size_t idx)
+{
+	++idx;
+	while (idx < text.size() && (static_cast<unsigned char>(text[idx]) & 0xC0) == 0x80)
+		++idx;
+	return idx;
+}
+
 // Split `text` on a fixed separator (e.g. document line ending). Trailing
 // separator yields a final empty part (same as morph / paste needs).
-inline std::vector<std::string> SplitOnSeparator(const std::string &text,
+inline std::vector<std::string> splitOnSeparator(const std::string &text,
 												 const std::string &sep)
 {
 	if (sep.empty())
@@ -142,7 +153,7 @@ inline std::vector<std::string> SplitOnSeparator(const std::string &text,
 // Monospace tab/glyph width (shared by text view, caret, hit-test).
 inline constexpr int kTabSize = 4;
 
-inline float TabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = kTabSize)
+inline float tabAdvanceWidth(float spaceWidth, int visualColumn, int tabSize = kTabSize)
 {
 	const int nextTab = ((visualColumn / tabSize) + 1) * tabSize;
 	return static_cast<float>(nextTab - visualColumn) * spaceWidth;

@@ -29,5 +29,10 @@ class FileTree
 
 	void buildFileTree(const fs::path &path, FileNode &node);
 
+	// Lazy expansion shared by the tree views: sets the open state and, when
+	// newly opened, builds the node's children (first expand only). Closing
+	// is just the flag — children stay cached for the next open.
+	void setOpenAndBuild(FileNode &node, bool open);
+
 	void refreshFileTree();
 };

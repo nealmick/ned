@@ -1,6 +1,5 @@
 #include "editor_api.h"
 #include "editor.h"
-#include "services/diagnostics/diagnostics_store.h"
 #include "util/project_undo.h"
 
 EditorApi::EditorApi(Editor &editor) : editor(editor) {}
@@ -34,8 +33,6 @@ void EditorApi::failOpen(const std::string &message)
 	editor.state.languageId.clear();
 	editor.highlight.clear();
 }
-
-void EditorApi::setContent(const std::string &raw) { editor.setContent(raw); }
 
 void EditorApi::onProjectOpened(const std::string &root)
 {
@@ -85,16 +82,6 @@ void EditorApi::resetCaret()
 	editor.commands.setCursor(0, 0, false, EditorCommands::CursorReveal::ensure);
 }
 
-void EditorApi::restoreCaret(int row, int column)
-{
-	editor.commands.setCursor(row, column, false, EditorCommands::CursorReveal::ensure);
-}
-
-void EditorApi::centerOn(int row, int column)
-{
-	editor.commands.setCursor(row, column, false, EditorCommands::CursorReveal::center);
-}
-
 void EditorApi::requestEnsureVisible() { editor.commands.requestEnsureVisible(); }
 
 void EditorApi::requestCursorCenter(int row, int column)
@@ -113,30 +100,20 @@ void EditorApi::setBlockInput(bool blocked) { editor.viewState.blockInput = bloc
 
 bool EditorApi::isBlockInput() const { return editor.viewState.blockInput; }
 
-void EditorApi::dismissLineJump() { editor.lineJump.dismiss(); }
-
-void EditorApi::dismissFinder() { editor.finder.dismiss(); }
-
 void EditorApi::requestExclusiveOverlay(EditorEvents::DidRequestExclusiveOverlay::Keep keep)
 {
-	using Keep = EditorEvents::DidRequestExclusiveOverlay::Keep;
-	if (keep != Keep::LineJump)
-		editor.lineJump.dismiss();
-	if (keep != Keep::Find)
-		editor.finder.dismiss();
+	// The backend surface (owner of line-jump / find) subscribes and dismisses
+	// the editor-side siblings not being kept; the shell closes its overlays.
 	editor.events.emitDidRequestExclusiveOverlay({keep});
 }
 
 void EditorApi::closeAllOverlays()
 {
-	editor.lineJump.dismiss();
-	editor.finder.dismiss();
-	editor.events.emitDidRequestExclusiveOverlay(
-		{EditorEvents::DidRequestExclusiveOverlay::Keep::None});
+	requestExclusiveOverlay(EditorEvents::DidRequestExclusiveOverlay::Keep::None);
 }
 
 // ---------------------------------------------------------------------------
-// Persist / theme / git / layout / events
+// Persist / theme / git / events
 // ---------------------------------------------------------------------------
 
 void EditorApi::save() { editor.commands.save(); }
@@ -146,24 +123,6 @@ void EditorApi::forceColorUpdate() { editor.highlight.forceColorUpdate(); }
 bool EditorApi::isFileModified(const std::string &filePath) const
 {
 	return editor.git.isFileModified(filePath);
-}
-
-const ViewLayout &EditorApi::layout() const { return editor.frame.layout; }
-
-float EditorApi::caretScreenX() const
-{
-	return editor.frame.caret.caretScreenX(editor.frame.layout.textPos);
-}
-
-bool EditorApi::claimTooltip() const { return editor.frame.claimTooltip(); }
-
-HoverTrigger::Info EditorApi::hoverInfo() const { return editor.frame.hoverInfo(); }
-
-bool EditorApi::hoverDismissed() const { return editor.frame.hoverDismissed(); }
-
-void EditorApi::bindDiagnostics(const LSPDiagnostics *store)
-{
-	editor.frame.setDiagnostics(store);
 }
 
 EditorEvents &EditorApi::events() { return editor.events; }

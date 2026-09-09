@@ -7,27 +7,28 @@
 #include "../../lsp_goto.h"
 #include "imgui.h"
 
-LspView::LspView(LSPClient &lspClient,
+LSPView::LSPView(LSPClient &lspClient,
 				 EditorApi &api,
+				 EditorSurface &surface,
 				 FileExplorer &fileExplorer,
 				 Settings &settings)
-	: dashboard(lspClient, fileExplorer, settings),
+	: dashboard_(lspClient, fileExplorer, settings),
 	  client(lspClient),
-	  symbolInfo(lspClient, api),
-	  uriOptions(api, fileExplorer, settings)
+	  symbolInfo(lspClient, api, surface),
+	  uriOptions(api, surface, fileExplorer, settings)
 {
-	dashboard.refreshServerInfo();
+	dashboard_.refresh();
 
 	auto renderThroughPicker = [this](const std::string &title,
 									  const std::vector<LSPLocation> &locations,
 									  bool &show) {
-		uriOptions.render(title, locations, show);
+		uriOptions.present(title, locations, show);
 	};
 	client.gotoDef.resultRenderer = renderThroughPicker;
 	client.gotoRef.resultRenderer = renderThroughPicker;
 }
 
-bool LspView::keybinds()
+bool LSPView::handleKeybinds()
 {
 	if (!client.isInitialized())
 		return false;
@@ -43,7 +44,7 @@ bool LspView::keybinds()
 		imguiKeyFromNed(client.settingsKeybinds().getActionKey("lsp_symbol_info"));
 	if (symbolInfoKey != ImGuiKey_None && ImGui::IsKeyPressed(symbolInfoKey, false))
 	{
-		symbolInfo.get();
+		symbolInfo.triggerAtCaret();
 		shortcutPressed = true;
 	}
 
@@ -68,18 +69,23 @@ bool LspView::keybinds()
 	return shortcutPressed;
 }
 
-void LspView::bindEditorApi(EditorApi &api)
+void LSPView::rebind(EditorApi &api, EditorSurface &surface)
 {
-	symbolInfo.setApi(api);
-	uriOptions.setApi(api);
-	setHoverApi(api);
+	symbolInfo.setEditor(api, surface);
+	uriOptions.setApi(api, surface);
+	setHoverApi(api, surface);
 }
 
-void LspView::setHoverApi(EditorApi &api) { symbolInfo.setHoverApi(api); }
-
-void LspView::render()
+void LSPView::setHoverApi(EditorApi &api, EditorSurface &surface)
 {
-	symbolInfo.render();
+	symbolInfo.setHoverEditor(api, surface);
+}
+
+LSPDashboard &LSPView::dashboard() { return dashboard_; }
+
+void LSPView::poll()
+{
+	symbolInfo.poll();
 	client.gotoDef.render();
 	client.gotoRef.render();
 }

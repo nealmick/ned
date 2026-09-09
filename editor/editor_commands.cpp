@@ -549,7 +549,7 @@ void EditorCommands::setCursor(int row, int column, bool select, CursorReveal re
 	row = std::clamp(row, 0, state->lineCount() - 1);
 	const std::string rowLine = state->line(row);
 	column = std::clamp(column, 0, static_cast<int>(rowLine.size()));
-	column = EditorUtils::SnapToUtf8CharBoundary(rowLine, column);
+	column = EditorUtils::snapToUtf8CharBoundary(rowLine, column);
 
 	if (select)
 	{
@@ -592,8 +592,8 @@ void EditorCommands::setSelection(
 	activeRow = std::clamp(activeRow, 0, state->lineCount() - 1);
 	anchorCol = std::clamp(anchorCol, 0, state->lineLength(anchorRow));
 	activeCol = std::clamp(activeCol, 0, state->lineLength(activeRow));
-	anchorCol = EditorUtils::SnapToUtf8CharBoundary(state->line(anchorRow), anchorCol);
-	activeCol = EditorUtils::SnapToUtf8CharBoundary(state->line(activeRow), activeCol);
+	anchorCol = EditorUtils::snapToUtf8CharBoundary(state->line(anchorRow), anchorCol);
+	activeCol = EditorUtils::snapToUtf8CharBoundary(state->line(activeRow), activeCol);
 
 	Selection s;
 	s.anchorRow = anchorRow;
@@ -697,9 +697,9 @@ void EditorCommands::selectWordAt(int row, int column)
 		return;
 	row = std::clamp(row, 0, state->lineCount() - 1);
 	const std::string line = state->line(row);
-	column = EditorUtils::SnapToUtf8CharBoundary(line, column);
+	column = EditorUtils::snapToUtf8CharBoundary(line, column);
 	int start = 0, end = 0;
-	EditorUtils::FindWordBoundaries(line, column, start, end);
+	EditorUtils::findWordBoundaries(line, column, start, end);
 	setSelection(row, start, row, end);
 }
 
@@ -884,10 +884,10 @@ void EditorCommands::deleteLeft(bool byWord)
 		if (sel.headColumn > 0)
 		{
 			std::string line = state->line(sel.headRow);
-			int pos = EditorUtils::SnapToUtf8CharBoundary(line, sel.headColumn);
+			int pos = EditorUtils::snapToUtf8CharBoundary(line, sel.headColumn);
 			auto it = line.begin() + pos;
 			auto prev = it;
-			EditorUtils::MoveToPrevUtf8Char(prev);
+			EditorUtils::moveToPrevUtf8Char(prev);
 			const int deleteStart = static_cast<int>(std::distance(line.begin(), prev));
 			TextOp op;
 			op.kind = OpKind::Delete;
@@ -960,9 +960,9 @@ void EditorCommands::deleteRight(bool byWord)
 		std::string line = state->line(sel.headRow);
 		if (sel.headColumn < static_cast<int>(line.size()))
 		{
-			int pos = EditorUtils::SnapToUtf8CharBoundary(line, sel.headColumn);
+			int pos = EditorUtils::snapToUtf8CharBoundary(line, sel.headColumn);
 			auto it = line.begin() + pos;
-			EditorUtils::MoveToNextUtf8Char(it);
+			EditorUtils::moveToNextUtf8Char(it);
 			const int deleteEnd = static_cast<int>(std::distance(line.begin(), it));
 			TextOp op;
 			op.kind = OpKind::Delete;
@@ -1389,7 +1389,7 @@ void EditorCommands::applyHistory(const HistoryEdit &edit, bool isUndo)
 	view->ensureCursorVisible.horizontal = true;
 }
 
-void EditorCommands::undo()
+void EditorCommands::undoRedo(bool isUndo)
 {
 	if (!ready())
 		return;
@@ -1397,24 +1397,17 @@ void EditorCommands::undo()
 	if (undoHasBefore && !undoSteps.empty())
 		commitUndoGroup();
 	HistoryEdit edit;
-	if (!projectUndo->undo(state->path, edit))
+	const bool applied = isUndo ? projectUndo->undo(state->path, edit)
+								: projectUndo->redo(state->path, edit);
+	if (!applied)
 		return;
-	applyHistory(edit, true);
+	applyHistory(edit, isUndo);
 	requestEnsureVisible();
 }
 
-void EditorCommands::redo()
-{
-	if (!ready())
-		return;
-	if (undoHasBefore && !undoSteps.empty())
-		commitUndoGroup();
-	HistoryEdit edit;
-	if (!projectUndo->redo(state->path, edit))
-		return;
-	applyHistory(edit, false);
-	requestEnsureVisible();
-}
+void EditorCommands::undo() { undoRedo(true); }
+
+void EditorCommands::redo() { undoRedo(false); }
 
 void EditorCommands::save()
 {

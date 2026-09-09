@@ -4,25 +4,9 @@
 #include "../../editor_state.h"
 #include "../../services/highlight/highlight_service.h"
 #include "editor_frame.h"
-#include "find_bar.h"
-#include "hover_tooltip.h"
-#include "line_jump.h"
 #include "ned_color.h"
 
-#include <QMenu>
-#include <QShortcut>
-
-#include "host/qt/fonts.h"
-#include "host/qt/theme.h"
-#include "util/qt_icons.h"
-#include <QApplication>
-#include <QFontMetrics>
-#include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
-#include <QScrollBar>
-#include <QTimer>
-#include <QWheelEvent>
 
 #include <algorithm>
 
@@ -131,75 +115,70 @@ void MinimapView::ensureRuns(const QString &newKey,
 	}
 }
 
-// --- EditorFrame minimap strip (painting + click/drag scrolling) ----------
-// EditorFrame seam: the strip geometry + density-run cache live in the
-// MinimapView helper above; these methods paint it inside the editor view.
-
-#include "../../util/utf8.h"
-
-#include <cmath>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <sstream>
+// --- MinimapView paint + interact (ImGui MinimapView parity) ---------------
+// EditorFrame keeps minimapEnabled/minimapWidth (widget geometry queries
+// used all over the frame) and forwards events that land in the strip.
 
 bool EditorFrame::minimapEnabled() const
 {
 	return appSettings.settings.value("minimap", true);
 }
 int EditorFrame::minimapWidth() const { return minimapEnabled() ? 70 : 0; }
-void EditorFrame::paintMinimap(QPainter &painter)
+
+void MinimapView::paint(QPainter &painter, EditorFrame &frame)
 {
-	const int mw = minimapWidth();
+	const int mw = frame.minimapWidth();
 	if (mw <= 0)
 		return;
-	const int x0 = width() - mw;
+	const int x0 = frame.width() - mw;
 
 	// Density model (ImGui minimap_view parity): ~2px rows, 1px cols,
 	// dots at 75% row height, colors dimmed to 72%.
 	const qreal charW = 1.0;
 	const qreal padX = 2.0;
-	const int stripTop = topInset();
-	const qreal stripH = static_cast<qreal>(height() - stripTop);
+	const int stripTop = frame.topInset();
+	const qreal stripH = static_cast<qreal>(frame.height() - stripTop);
 	const int maxCols = std::max(1, static_cast<int>((mw - 2 * padX) / charW));
 
-	// Visible-window strip: geometry shared with minimapScrollTo (one
-	// definition in MinimapView — see the undershoot bug note there).
-	const MinimapView::Geometry geo =
-		MinimapView::geometry(stripH, visibleLines(), state.lineCount(), maxScrollLine());
-	const qreal scrollLinesF = scrollPx / lineHeightPx;
+	// Visible-window strip: geometry shared with scrollTo (one definition
+	// in MinimapView — see the undershoot bug note there). NOTE: this must
+	// be the static geometry() FUNCTION — `Geometry(...)` (the type) would
+	// paren-aggregate-initialize the struct fields from these arguments.
+	const Geometry geo = geometry(
+		stripH, frame.visibleLines(), frame.state.lineCount(), frame.maxScrollLine());
+	const qreal scrollLinesF = frame.viewState.scrollPx / frame.lineHeightPx;
 	const qreal sliderTop = geo.sliderTopFor(scrollLinesF);
 	int startRow = 0;
-	int endRow = state.lineCount() - 1;
-	if (state.lineCount() > geo.fit)
+	int endRow = frame.state.lineCount() - 1;
+	if (frame.state.lineCount() > geo.fit)
 	{
 		startRow = std::clamp(static_cast<int>(scrollLinesF - sliderTop / geo.rowH),
 							  0,
-							  state.lineCount() - geo.fit);
-		endRow = std::min(state.lineCount() - 1, startRow + geo.fit - 1);
+							  frame.state.lineCount() - geo.fit);
+		endRow = std::min(frame.state.lineCount() - 1, startRow + geo.fit - 1);
 	}
 
 	// Rebuild density runs only when the window/content/key changes.
 	// stripTop MUST be in the key: the find bar changes it without any
 	// other key member moving, and stale runs would paint over the bar
 	// until a resize happened to rebuild them.
-	minimap.ensureRuns(QString("mm|%1|%2|%3|%4|%5|%6|%7")
-						   .arg(startRow)
-						   .arg(endRow)
-						   .arg(state.lineCount())
-						   .arg(highlight.visualGeneration())
-						   .arg(ops.generation())
-						   .arg(width())
-						   .arg(stripTop),
-					   startRow,
-					   endRow,
-					   state,
-					   highlight,
-					   static_cast<qreal>(stripTop),
-					   geo.rowH * 0.75,
-					   padX,
-					   charW,
-					   maxCols);
+	ensureRuns(QString("mm|%1|%2|%3|%4|%5|%6|%7")
+				   .arg(startRow)
+				   .arg(endRow)
+				   .arg(frame.state.lineCount())
+				   .arg(frame.highlight.visualGeneration())
+				   .arg(frame.ops.generation())
+				   .arg(frame.width())
+				   .arg(stripTop),
+			   startRow,
+			   endRow,
+			   frame.state,
+			   frame.highlight,
+			   static_cast<qreal>(stripTop),
+			   geo.rowH * 0.75,
+			   padX,
+			   charW,
+			   maxCols);
 
 	// No background fill and no separator: rows are clipped to the
 	// minimap's left edge (paintEvent), so nothing paints underneath —
@@ -210,7 +189,7 @@ void EditorFrame::paintMinimap(QPainter &painter)
 	painter.setPen(Qt::NoPen);
 	painter.save();
 	painter.translate(x0, 0);
-	for (const MinimapView::Run &r : minimap.runs())
+	for (const Run &r : runs())
 	{
 		painter.setBrush(r.ink);
 		painter.drawRect(QRectF(r.x, r.y, r.w, r.h));
@@ -222,17 +201,35 @@ void EditorFrame::paintMinimap(QPainter &painter)
 	painter.setBrush(QColor(255, 255, 255, 26));
 	painter.drawRect(QRectF(x0, stripTop + sliderTop, mw, geo.sliderH));
 }
-void EditorFrame::minimapScrollTo(int y)
+
+bool MinimapView::press(EditorFrame &frame, const QPointF &pos)
+{
+	if (pos.x() < static_cast<qreal>(frame.width() - frame.minimapWidth()))
+		return false;
+	dragging_ = true;
+	scrollTo(frame, pos.y());
+	return true;
+}
+
+void MinimapView::move(EditorFrame &frame, const QPointF &pos)
+{
+	if (!dragging_)
+		return;
+	scrollTo(frame, pos.y());
+}
+
+void MinimapView::release() { dragging_ = false; }
+
+void MinimapView::scrollTo(EditorFrame &frame, qreal y)
 {
 	// y -> target scroll line via the strip's slider mapping (continuous,
-	// geometry shared with paintMinimap).
-	const MinimapView::Geometry geo =
-		MinimapView::geometry(static_cast<qreal>(height() - topInset()),
-							  visibleLines(),
-							  state.lineCount(),
-							  maxScrollLine());
-	const qreal target = geo.scrollLinesForY(static_cast<qreal>(y) - topInset());
+	// geometry shared with paint).
+	const Geometry geo = geometry(static_cast<qreal>(frame.height() - frame.topInset()),
+								  frame.visibleLines(),
+								  frame.state.lineCount(),
+								  frame.maxScrollLine());
 	if (geo.ratio <= 0.0)
 		return;
-	setScrollPixels(target * lineHeightPx);
+	const qreal target = geo.scrollLinesForY(y - static_cast<qreal>(frame.topInset()));
+	frame.setScrollPixels(target * static_cast<qreal>(frame.lineHeightPx));
 }

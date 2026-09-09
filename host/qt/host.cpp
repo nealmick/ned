@@ -26,6 +26,7 @@
 #include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLabel>
 #include <QPainter>
 #include <QProxyStyle>
 #include <QShortcut>
@@ -40,6 +41,11 @@
 extern void configureNedQtChrome(void *nsWindow, float opacity, bool blurEnabled);
 extern void applyNedQtWindowColor(void *nsWindow, float r, float g, float b);
 extern void nedQtChromeWatch(void *winId);
+#endif
+#ifdef _WIN32
+// Defined in windows_chrome.cpp.
+extern void configureNedQtChromeWindows(void *hwnd);
+extern void applyNedQtWindowColorWindows(void *hwnd, float r, float g, float b);
 #endif
 
 namespace {
@@ -156,8 +162,7 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 	// parity: terminal is a split, not a dockable window).
 #if NED_QT_TERMINAL
 	terminalPanel = new TerminalPanel(this);
-	terminalPanel->setThemeBackground(NedQtTheme::background(settings));
-	terminalPanel->applyFont(NedQtFonts::profileMonoFont(settings));
+	rethemeTerminal();
 	terminalPanel->setProjectRoot(workspaceRoot);
 	// Welcome-screen state: no file tree, no terminal (even when the
 	// toggle is on) — both appear once a folder is opened.
@@ -195,6 +200,20 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 		settings.keybinds.checkKeybindsFile();
 	});
 	keybindsWatch->start();
+
+	// Notification toast (ImGui SettingsView::renderNotification parity):
+	// Settings::showNotification sets text + countdown from anywhere
+	// (keybinds load errors, settings apply messages); without this the
+	// Qt host swallows them silently.
+	toast = new QLabel(this);
+	toast->setObjectName(QStringLiteral("NedToast"));
+	toast->setWordWrap(true);
+	toast->setMaximumWidth(420);
+	toast->hide();
+	toastTick = new QTimer(this);
+	toastTick->setInterval(100);
+	connect(toastTick, &QTimer::timeout, this, &AppHost::tickNotificationToast);
+	toastTick->start();
 
 	installAppShortcuts(*this);
 
@@ -251,6 +270,34 @@ void AppHost::toggleTerminalPanel()
 #endif
 }
 
+void AppHost::tickNotificationToast()
+{
+	if (settings.notificationRemaining() <= 0.0f)
+	{
+		toast->hide();
+		return;
+	}
+	if (!toast->isVisible() || toast->text() != settings.notificationMessage().c_str())
+	{
+		const QColor bg = NedQtTheme::background(settings);
+		toast->setText(settings.notificationMessage().c_str());
+		// rgba() needs the theme background baked in (stylesheet has no
+		// access to NedQtTheme).
+		toast->setStyleSheet(QString("QLabel#NedToast { background: rgba(%1,%2,%3,230);"
+									 " color: white; border: 1px solid white;"
+									 " border-radius: 8px; padding: 12px; }")
+								 .arg(bg.red())
+								 .arg(bg.green())
+								 .arg(bg.blue()));
+		toast->adjustSize();
+	}
+	// Bottom-left overlay, above every child (docks, splits, terminal).
+	toast->move(20, height() - toast->height() - 20);
+	toast->raise();
+	toast->show();
+	settings.decayNotification(0.1f); // tick interval, in seconds
+}
+
 void AppHost::showEvent(QShowEvent *event)
 {
 	QMainWindow::showEvent(event);
@@ -305,7 +352,7 @@ void AppHost::ensureLsp(EditorFrame &editor)
 	if (lspClient)
 		return;
 	lspClient = std::make_unique<LSPClient>(editor, settings);
-	lspView = std::make_unique<LspView>(
+	lspView = std::make_unique<LSPView>(
 		*lspClient,
 		settings,
 		this,
@@ -357,14 +404,7 @@ void AppHost::openPath(const QString &path, bool focus)
 		}
 		// Re-open on an existing tab keeps sync parity with the ImGui
 		// DidOpenDocument path (LSPDocumentSync turns it into didChange).
-		if (lspClient && !path.isEmpty())
-		{
-			lspClient->init(path.toStdString());
-			lspClient->didOpen(path.toStdString(),
-							   existing->documentText(),
-							   existing->documentVersion(),
-							   existing->languageId());
-		}
+		notifyLspOpen(existing, path);
 		return;
 	}
 
@@ -389,15 +429,33 @@ void AppHost::openPath(const QString &path, bool focus)
 	editor->setDiagnostics(&lspClient->diagnostics());
 	wireLspDocumentSync(lspClient.get(), editor);
 	lspView->editorOpened(*editor);
-	if (!path.isEmpty())
+	notifyLspOpen(editor, path);
+}
+
+// init + the 4-arg didOpen notification for one editor's current document
+// (re-opened tab, fresh tab, and the post-workspace retry send the same pair).
+void AppHost::notifyLspOpen(EditorFrame *view, const QString &path)
+{
+	if (!lspClient || path.isEmpty())
+		return;
+	lspClient->init(path.toStdString());
+	lspClient->didOpen(path.toStdString(),
+					   view->documentText(),
+					   view->documentVersion(),
+					   view->languageId());
+}
+
+// Terminal background + mono font from the profile (construction and every
+// later re-apply run the identical pair).
+void AppHost::rethemeTerminal()
+{
+#if NED_QT_TERMINAL
+	if (terminalPanel)
 	{
-		const std::string path8 = path.toStdString();
-		lspClient->init(path8);
-		lspClient->didOpen(path8,
-						   editor->documentText(),
-						   editor->documentVersion(),
-						   editor->languageId());
+		terminalPanel->setThemeBackground(NedQtTheme::background(settings));
+		terminalPanel->applyFont(NedQtFonts::terminalFont(settings));
 	}
+#endif
 }
 
 // One place for the app-wide font/palette/stylesheet application — the
@@ -414,7 +472,8 @@ void AppHost::applyAppFontAndPalette()
 	// redundant re-polish of the same string mid-dialog has crashed in
 	// updateObjects (sidebar-toggle segfault). Toggles that don't touch a
 	// theme/font token now skip the storm entirely.
-	const QString sheet = NedQtTheme::appStyleSheet(settings, appFont.pointSize());
+	const QString sheet = NedQtTheme::appStyleSheet(
+		settings, appFont.pointSize(), NedQtFonts::terminalFont(settings).pointSize());
 	if (sheet != qApp->styleSheet())
 	{
 		// Two-step swap (clear, then install): a direct swap has hit a
@@ -435,16 +494,15 @@ void AppHost::applyProfileAppWide()
 		if (QGuiApplication::platformName() == QLatin1String("cocoa"))
 			applyNedQtWindowColor(
 				reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+#ifdef _WIN32
+		// windows_chrome.cpp: recolor the native caption to the new theme.
+		applyNedQtWindowColorWindows(
+			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+#endif
 	}
 	sidebar->refreshIconScale();
 	workbench->refreshTabChrome(); // tab ✕ at the new chrome scale
-#if NED_QT_TERMINAL
-	if (terminalPanel)
-	{
-		terminalPanel->setThemeBackground(NedQtTheme::background(settings));
-		terminalPanel->applyFont(NedQtFonts::profileMonoFont(settings));
-	}
-#endif
+	rethemeTerminal();
 	// Settings popup is open during live edits: re-fit it so the pickers
 	// grow with the new app font (adjustSize + recenter — the dialog was
 	// sized for the font in effect when it opened).
@@ -608,15 +666,8 @@ void AppHost::openWorkspace(const QString &root)
 	if (lspClient)
 	{
 		lspClient->setWorkspace(root.toStdString());
-		if (EditorFrame *view = workbench->activeView();
-			view && !view->filePath().isEmpty())
-		{
-			lspClient->init(view->filePath().toStdString());
-			lspClient->didOpen(view->filePath().toStdString(),
-							   view->documentText(),
-							   view->documentVersion(),
-							   view->languageId());
-		}
+		if (EditorFrame *view = workbench->activeView())
+			notifyLspOpen(view, view->filePath());
 	}
 }
 
@@ -660,5 +711,15 @@ void AppHost::applyNativeChrome()
 			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
 	}
 	nedQtChromeWatch(reinterpret_cast<void *>(winId()));
+#endif
+#ifdef _WIN32
+	// windows_chrome.cpp: dark caption + rounded corners + profile-colored
+	// frame (DWM attributes, same as the GLFW host's windows_window).
+	configureNedQtChromeWindows(reinterpret_cast<void *>(winId()));
+	{
+		const QColor bg = NedQtTheme::background(settings);
+		applyNedQtWindowColorWindows(
+			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+	}
 #endif
 }

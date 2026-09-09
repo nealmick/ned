@@ -20,7 +20,7 @@ void installAppShortcuts(AppHost &host)
 	{
 		auto *tabShortcut = new QShortcut(QKeySequence(QString("Ctrl+%1").arg(i)), &host);
 		QObject::connect(tabShortcut, &QShortcut::activated, &host, [&host, i] {
-			host.workbench->activateTabIndex(i - 1);
+			host.workbench->activateTab(i - 1);
 		});
 	}
 	auto *closeShortcut = new QShortcut(QKeySequence("Ctrl+W"), &host);
@@ -69,6 +69,9 @@ void installAppShortcuts(AppHost &host)
 		if (host.workspaceRoot.isEmpty())
 			return;
 		auto *finder = new FileFinderView(host.workspaceRoot, &host);
+		// accept()/reject() only HIDE a Qt::Popup dialog — free it once
+		// it's finished or every Ctrl+P would leak another finder.
+		QObject::connect(finder, &QDialog::finished, finder, &QObject::deleteLater);
 		QObject::connect(
 			finder, &FileFinderView::fileSelected, &host, [&host](const QString &path) {
 				host.openPath(path, true);

@@ -29,6 +29,7 @@ bool NedEmbed::initialize() { return workbench.initialize(WorkbenchHostMode::Flo
 
 void NedEmbed::render() { workbench.render(); }
 
+// Shell drives the needsApply poll + profile re-apply (Qt applied() parity).
 void NedEmbed::applySettingsChanges() { workbench.applySettings(); }
 
 void NedEmbed::cleanup() { workbench.cleanup(); }

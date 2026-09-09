@@ -307,8 +307,6 @@ TerminalPanel::~TerminalPanel() = default;
 
 void TerminalPanel::setProjectRoot(const QString &root) { impl_->projectRoot = root; }
 
-bool TerminalPanel::visible() const { return !isHidden(); }
-
 void TerminalPanel::setVisible(bool on)
 {
 	QWidget::setVisible(on);
@@ -323,8 +321,6 @@ void TerminalPanel::setVisible(bool on)
 	if (QTermWidget *term = impl_->termAt(impl_->tabs->currentIndex()))
 		term->setFocus();
 }
-
-void TerminalPanel::toggle() { setVisible(!isVisible()); }
 
 void TerminalPanel::setThemeBackground(const QColor &color)
 {
@@ -353,8 +349,3 @@ void TerminalPanel::applyFont(const QFont &font)
 }
 
 void TerminalPanel::addSession() { impl_->addSession(); }
-
-int TerminalPanel::sessionCount() const
-{
-	return static_cast<int>(impl_->sessions.size());
-}

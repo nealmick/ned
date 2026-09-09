@@ -37,7 +37,7 @@
 
 AppHost::AppHost()
 #if NED_ENABLE_SHADERS
-	: shaderManager(workbench.settings, fb, accum, quad)
+	: shaderManager(settings, fb, accum, quad)
 #endif
 {
 }
@@ -52,7 +52,7 @@ bool AppHost::initialize()
 {
 	if (!glfwInit())
 	{
-		std::cerr << "Failed to init GLFW\n";
+		std::cerr << "[Host] Failed to init GLFW\n";
 		return false;
 	}
 	if (!createWindow())
@@ -70,8 +70,8 @@ bool AppHost::initialize()
 
 #ifdef __APPLE__
 	{
-		float opacity = workbench.settings.settings.value("mac_background_opacity", 0.5f);
-		bool blurEnabled = workbench.settings.settings.value("mac_blur_enabled", true);
+		float opacity = settings.settings.value("mac_background_opacity", 0.5f);
+		bool blurEnabled = settings.settings.value("mac_blur_enabled", true);
 		setupMacOSApplicationDelegate();
 		::configureMacOSWindow(window_, opacity, blurEnabled);
 	}
@@ -86,8 +86,7 @@ bool AppHost::initialize()
 
 #if NED_ENABLE_SHADERS
 	quad.initialize();
-	shaderManager.setShaderEnabled(
-		workbench.settings.settings.value("shader_toggle", true));
+	shaderManager.setShaderEnabled(settings.settings.value("shader_toggle", true));
 #endif
 
 	glfwSetWindowUserPointer(window_, this);
@@ -121,6 +120,11 @@ void AppHost::handleScrollAccumulators()
 		scrollYAccumulator_ = 0.0;
 	}
 }
+
+// Qt parity: the shell owns the settings re-apply path (Qt: applied() signal →
+// applyProfileAppWide). Here the frame loop polls it each tick, before NewFrame
+// so font atlas rebuilds never happen mid-draw.
+void AppHost::applySettings() { workbench.applySettings(); }
 
 bool AppHost::initializeImGui()
 {
@@ -304,7 +308,7 @@ bool AppHost::initializeGLEW()
 	glewExperimental = GL_TRUE;
 	if (GLenum err = glewInit(); GLEW_OK != err)
 	{
-		std::cerr << "🔴 GLEW initialization failed: " << glewGetErrorString(err)
+		std::cerr << "[Host] GLEW initialization failed: " << glewGetErrorString(err)
 				  << std::endl;
 		glfwTerminate();
 		return false;
@@ -316,7 +320,7 @@ void AppHost::run()
 {
 	if (!initialized_)
 	{
-		std::cerr << "Cannot run: Not initialized" << std::endl;
+		std::cerr << "[Host] Cannot run: Not initialized" << std::endl;
 		return;
 	}
 
@@ -350,11 +354,10 @@ void AppHost::run()
 #endif
 		// Font atlas rebuilds must happen *before* NewFrame (never mid-draw).
 		// FontScaleDpi is already current so the terminal gets the scaled px.
-		workbench.applySettings();
+		applySettings();
 
 #if NED_ENABLE_SHADERS
-		shaderManager.setShaderEnabled(
-			workbench.settings.settings.value("shader_toggle", true));
+		shaderManager.setShaderEnabled(settings.settings.value("shader_toggle", true));
 #endif
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -383,7 +386,7 @@ void AppHost::run()
 		// Pace to fps_target (focused) / fps_target_unfocused. Wait for events
 		// for the remainder of the frame budget so input stays snappy without
 		// busy-spinning. fps_toggle false or absurd targets = uncapped.
-		const auto &s = workbench.settings.settings;
+		const auto &s = settings.settings;
 		const bool fpsToggle = s.value("fps_toggle", true);
 		float fpsTarget = windowFocused_ ? s.value("fps_target", 60.0f)
 										 : s.value("fps_target_unfocused", 30.0f);
@@ -410,7 +413,7 @@ void AppHost::renderFrame()
 	int display_w = 0, display_h = 0;
 	glfwGetFramebufferSize(window_, &display_w, &display_h);
 
-	auto &bg = workbench.settings.settings["backgroundColor"];
+	auto &bg = settings.settings["backgroundColor"];
 
 #if NED_ENABLE_SHADERS
 	const bool shaderEnabled = shaderManager.isShaderEnabled();

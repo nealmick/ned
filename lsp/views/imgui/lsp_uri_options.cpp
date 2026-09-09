@@ -1,5 +1,7 @@
 #include "lsp_uri_options.h"
 #include "../../../editor/editor_api.h"
+#include "../../../editor/util/doc_path.h"
+#include "../../../editor/views/imgui/editor_surface.h"
 #include "../../../files/files.h"
 #include "../../../lsp/lsp_goto.h"
 #include "../../../lsp/lsp_includes.h"
@@ -8,17 +10,18 @@
 #include <algorithm>
 
 LSPUriOptions::LSPUriOptions(EditorApi &api,
+							 EditorSurface &surface,
 							 FileExplorer &fileExplorer,
 							 Settings &settings)
-	: api(&api), fileExplorer(&fileExplorer), settings(&settings)
+	: api(&api), surface(&surface), fileExplorer(&fileExplorer), settings(&settings)
 {
 }
 
 LSPUriOptions::~LSPUriOptions() {}
 
-void LSPUriOptions::render(const std::string &title,
-						   const std::vector<LSPLocation> &options,
-						   bool &show)
+void LSPUriOptions::present(const std::string &title,
+							const std::vector<LSPLocation> &options,
+							bool &show)
 {
 	if (!show || !api || !fileExplorer || !settings)
 	{
@@ -59,8 +62,8 @@ void LSPUriOptions::render(const std::string &title,
 	ImVec2 windowPos;
 	if (settings && settings->isEmbedded)
 	{
-		const NedVec2 panePos = api->layout().panePos;
-		const NedVec2 paneSize = api->layout().paneSize;
+		const NedVec2 panePos = (surface ? surface->layout().panePos : NedVec2{});
+		const NedVec2 paneSize = (surface ? surface->layout().paneSize : NedVec2{});
 
 		windowPos = ImVec2(panePos.x + paneSize.x * 0.5f - windowSize.x * 0.5f,
 						   panePos.y + paneSize.y * 0.35f - windowSize.y * 0.5f);
@@ -92,11 +95,19 @@ void LSPUriOptions::render(const std::string &title,
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(fs * 0.4f, fs * 0.4f));
 
-	// Theme colors from settings
-	ImVec4 windowBg = ImVec4(settings->settings["backgroundColor"][0].get<float>() * 0.8f,
-							 settings->settings["backgroundColor"][1].get<float>() * 0.8f,
-							 settings->settings["backgroundColor"][2].get<float>() * 0.8f,
-							 1.0f);
+	// Theme colors from settings (guarded like the dashboard: a profile
+	// without backgroundColor must not throw every frame).
+	ImVec4 windowBg = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+	if (settings->settings.contains("backgroundColor") &&
+		settings->settings["backgroundColor"].is_array() &&
+		settings->settings["backgroundColor"].size() >= 3)
+	{
+		const auto &bg = settings->settings["backgroundColor"];
+		windowBg = ImVec4(bg[0].get<float>() * 0.8f,
+						  bg[1].get<float>() * 0.8f,
+						  bg[2].get<float>() * 0.8f,
+						  1.0f);
+	}
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, windowBg);
 	ImGui::PushStyleColor(ImGuiCol_ChildBg,
 						  windowBg); // Match child background to window background
@@ -178,14 +189,7 @@ void LSPUriOptions::render(const std::string &title,
 				bool is_selected = (selectedIndex == i);
 
 				// Format filename
-				std::string filename = option.file;
-				size_t lastSlash = filename.find_last_of("/\\");
-				if (lastSlash != std::string::npos)
-				{
-					filename = filename.substr(lastSlash + 1);
-				}
-				std::string label = filename + ":" + std::to_string(option.line + 1) +
-									":" + std::to_string(option.character + 1);
+				std::string label = lsp_locations::locationLabel(option);
 
 				// For selected items, override hover color to maintain selection visibility
 				if (is_selected)
@@ -212,7 +216,7 @@ void LSPUriOptions::render(const std::string &title,
 					selectedIndex = i;
 					if (ImGui::IsMouseDoubleClicked(0))
 					{
-						handleSelection();
+						commit();
 						show = false;
 						api->setBlockInput(false);
 					}
@@ -246,7 +250,7 @@ void LSPUriOptions::render(const std::string &title,
 			 ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) &&
 			!options.empty())
 		{
-			handleSelection();
+			commit();
 			show = false;
 			api->setBlockInput(false);
 		}
@@ -273,7 +277,7 @@ void LSPUriOptions::render(const std::string &title,
 	}
 }
 
-void LSPUriOptions::handleSelection()
+void LSPUriOptions::commit()
 {
 	if (selectedIndex >= currentOptions.size())
 		return;
@@ -284,7 +288,10 @@ void LSPUriOptions::handleSelection()
 	// is loaded, so the UTF-16 column converts against its buffer.
 	auto jump = [this, selected]() { lspJumpToLocation(*api, selected); };
 
-	if (selected.file != api->path())
+	// clangd canonicalizes paths; the open editor may hold a different
+	// spelling of the same file — normalize before deciding "same document"
+	// (a mismatch would open a duplicate tab instead of jumping).
+	if (DocPath::normalize(selected.file) != DocPath::normalize(api->path()))
 	{
 		fileExplorer->loadFileContent(selected.file, jump);
 	} else

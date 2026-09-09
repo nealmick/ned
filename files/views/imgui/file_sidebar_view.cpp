@@ -1,6 +1,6 @@
 #include "file_sidebar_view.h"
+#include "../../../../host/imgui/imgui_icons.h"
 #include "../../../files/files.h"
-#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 
@@ -36,7 +36,7 @@ void renderFileSidebar(FileExplorer &fx, float explorerWidth)
 					  ImGuiChildFlags_None,
 					  ImGuiWindowFlags_NoScrollbar);
 	if (!fx.projectRoot.empty())
-		renderFileTree(fx.fileTree, fx.fileTree.rootNode);
+		populateFileTree(fx.fileTree, fx.fileTree.rootNode);
 	ImGui::EndChild();
 
 	if (barH > 0.0f)

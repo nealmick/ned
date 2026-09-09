@@ -2,7 +2,6 @@
 #include "../editor/editor_api.h"
 #include "../editor/util/text_columns.h"
 #include "../files/files.h"
-#include "../util/imgui_icons.h"
 #include "../util/settings.h"
 #include <algorithm>
 #include <iostream>
@@ -53,8 +52,8 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 		}
 	} catch (const fs::filesystem_error &e)
 	{
-		std::cerr << "Error accessing directory " << path << ": " << e.what()
-				  << std::endl;
+		std::cerr << "[FileTree] Error accessing directory " << path << ": "
+				  << e.what() << std::endl;
 	}
 
 	// Directories first, then alphabetical.
@@ -66,6 +65,15 @@ void FileTree::buildFileTree(const fs::path &path, FileNode &node)
 		});
 
 	node.children = std::move(newChildren);
+}
+
+void FileTree::setOpenAndBuild(FileNode &node, bool open)
+{
+	if (node.isOpen == open)
+		return;
+	node.isOpen = open;
+	if (open)
+		buildFileTree(node.fullPath, node);
 }
 
 void FileTree::refreshFileTree()

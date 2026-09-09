@@ -8,9 +8,9 @@
 class EditorApi;
 class FileExplorer;
 class Settings;
-class LspView;
+class LSPView;
 
 bool handleAppKeyboardShortcuts(EditorApi &api,
 								FileExplorer &files,
 								Settings &settings,
-								LspView &lsp);
+								LSPView &lsp);

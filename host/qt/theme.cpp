@@ -103,7 +103,7 @@ QPalette palette(const Settings &s)
 	return p;
 }
 
-QString appStyleSheet(const Settings &s, int fontPt)
+QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 {
 	const QString raised = NedQtTheme::raised(background(s)).name();
 	const QString ink = text(s).name();
@@ -126,6 +126,13 @@ QString appStyleSheet(const Settings &s, int fontPt)
 	// sidebar font lagged behind on every zoom).
 	return QStringLiteral(R"(
 		* { font-size: %6pt; }
+		/* The universal font-size rule above also hits the terminal's
+		   QTermWidget children: Qt resolves the stylesheet font OVER the
+		   setTerminalFont font, so glyphs render at the app font size while
+		   qtermwidget computes its cell width from the terminal font — the
+		   cursor then sits left of the typed glyphs. Pin the terminal
+		   subtree to the terminal font's own size. */
+		#terminalTabs, #terminalTabs * { font-size: %14pt; }
 		QTabWidget::pane { border: none; border-top: 1px solid rgba(255,255,255,0.09); }
 		/* Terminal panel: the splitter handle is the border — the pane's
 		   hairline would double it (dark line on light themes). */
@@ -247,7 +254,9 @@ QString appStyleSheet(const Settings &s, int fontPt)
 		.arg(tabMTop)
 		.arg(tabMSide)
 		.arg(tabMBot)
-		.arg(tabR);
+		.arg(tabR)
+		// %14: terminal font size (see the #terminalTabs rule above).
+		.arg(monoPt);
 }
 
 } // namespace NedQtTheme

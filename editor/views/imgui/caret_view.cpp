@@ -1,9 +1,9 @@
 #include "caret_view.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
-#include "../../util/editor_utils.h"
 #include "../view_layout.h"
 #include "../wrap_layout.h"
+#include "editor_utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,11 +11,11 @@
 
 float CaretView::caretScreenX(const NedVec2 &textPos) const
 {
-	return std::floor(EditorUtils::LineColumnX(
+	return std::floor(EditorUtils::lineColumnX(
 		viewState->document().line(viewState->row), viewState->column, textPos.x));
 }
 
-void CaretView::draw() const
+void CaretView::paint() const
 {
 	if (!viewState || !layout)
 		return;
@@ -27,10 +27,10 @@ void CaretView::draw() const
 	const bool rainbowMode = layout->rainbowMode;
 	const float blink_alpha = (sinf(viewState->cursorBlinkTime * 4.0f) + 1.0f) * 0.5f;
 	const ImU32 primaryColor =
-		rainbowMode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor())
+		rainbowMode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::getRainbowColor())
 					: IM_COL32(255, 255, 255, (int)(blink_alpha * 255));
 	const ImU32 secondaryColor =
-		rainbowMode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor())
+		rainbowMode ? ImGui::ColorConvertFloat4ToU32(EditorUtils::getRainbowColor())
 					: IM_COL32(255, 255, 255, 160);
 
 	const EditorState &doc = viewState->document();
@@ -52,7 +52,7 @@ void CaretView::draw() const
 			visualLine = layout->wrap->rowStartVisualLine(sel.headRow) + seg;
 		} else
 			x = std::floor(
-				EditorUtils::LineColumnX(line, sel.headColumn, layout->textPos.x));
+				EditorUtils::lineColumnX(line, sel.headColumn, layout->textPos.x));
 		const float y0 = std::floor(layout->textPos.y +
 									static_cast<float>(visualLine) * layout->lineHeight);
 		const float half = thickness * 0.5f;

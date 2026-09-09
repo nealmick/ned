@@ -11,11 +11,11 @@
 #include "files/views/imgui/file_finder_view.h"
 #include "files/views/imgui/file_sidebar_view.h"
 #include "fonts.h"
+#include "imgui_icons.h"
 #include "lsp/lsp_client.h"
 #include "lsp/views/imgui/lsp_view.h"
 #include "settings_view.h"
 #include "terminal_panel.h"
-#include "util/imgui_icons.h"
 #include "util/project_undo.h"
 #include "util/settings.h"
 #include "welcome.h"
@@ -38,6 +38,10 @@ class Workbench
 	Workbench();
 	~Workbench();
 
+	// The shell (AppHost / NedEmbed — Qt parity: AppHost) owns Settings, the
+	// Font facility and SettingsView. Workbench consumes them by reference.
+	Workbench(Settings &hostSettings, Font &hostFont, SettingsView &hostSettingsView);
+
 	// Requires an ImGui context (and for Fullscreen, host already created backends).
 	bool initialize(WorkbenchHostMode mode);
 	void tick();		  // disk watches + file tree refresh
@@ -45,12 +49,13 @@ class Workbench
 	void render();
 	void cleanup();
 
-	Editor *activeEditor();
+	Editor *activeView();
 	EditorApi *activeApi();
+	EditorSurface *activeSurface();
 
-	Settings settings;
-	Font font;
-	SettingsView settingsView{settings, font};
+	Settings &settings;
+	Font &font;
+	SettingsView &settingsView;
 	std::string projectRoot;
 	Icons icons;
 	// Shared across all tabs — single JSON writer for the project.
@@ -58,7 +63,7 @@ class Workbench
 
 	std::unique_ptr<FileExplorer> fileExplorer;
 	std::unique_ptr<LSPClient> lspClient;
-	std::unique_ptr<LspView> lspView;
+	std::unique_ptr<LSPView> lspView;
 	std::unique_ptr<WelcomePage> welcome;
 	TerminalPanel terminal;
 
@@ -69,8 +74,9 @@ class Workbench
   private:
 	struct Tab
 	{
-		std::string path; // absolute; empty = unused/untitled bootstrap
-		std::unique_ptr<Editor> editor;
+		std::string path;				// absolute; empty = unused/untitled bootstrap
+		std::unique_ptr<Editor> editor; // core document (toolkit-neutral)
+		std::unique_ptr<EditorSurface> surface; // ImGui presentation for it
 		bool wantFocus = false;
 		// Unique window id (###ned_tab_N) — never reuse, so ImGui won't restore a
 		// closed split pane's dock slot onto a brand-new tab.
@@ -117,16 +123,16 @@ class Workbench
 	void openOrFocus(const std::string &path, std::function<void()> after = nullptr);
 	void closeTab(int index);
 	void ensureBootstrapTab();
-	void wireTabEditor(Editor &ed);
+	void wireTabEditor(Editor &ed, EditorSurface &surface);
 	void setActiveIndex(int index);
 	void syncActiveBindings();
-	void switchToTab(int index);
+	void activateTab(int index);
 	void handleTabSwitchShortcuts();
 	bool beginRootChrome();
 	void endRootChrome();
 	void renderOverlays(EditorApi &api);
 #ifdef _WIN32
-	void drawWindowsTitlebar();
+	void renderWindowsTitlebar();
 #endif
 	std::string tabWindowTitle(const Tab &tab) const;
 	Tab makeTab(const std::string &path = {});

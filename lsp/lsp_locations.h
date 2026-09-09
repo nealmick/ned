@@ -15,6 +15,34 @@ struct LSPLocation
 
 namespace lsp_locations {
 
+// "basename:line+1:character+1" — the picker row label both backends show
+// (wire values are 0-based).
+inline std::string locationLabel(const LSPLocation &loc)
+{
+	std::string filename = loc.file;
+	const size_t lastSlash = filename.find_last_of("/\\");
+	if (lastSlash != std::string::npos)
+		filename = filename.substr(lastSlash + 1);
+	return filename + ":" + std::to_string(loc.line + 1) + ":" +
+		   std::to_string(loc.character + 1);
+}
+
+// Content signature — lets a picker no-op while the (async) result set is
+// unchanged instead of rebuilding the visible list on every poll tick.
+inline std::string locationSignature(const std::string &title,
+									 const std::vector<LSPLocation> &options)
+{
+	std::string sig = title + "/" + std::to_string(options.size());
+	for (const LSPLocation &loc : options)
+	{
+		sig += ";";
+		sig += loc.file;
+		sig += ":" + std::to_string(loc.line);
+		sig += ":" + std::to_string(loc.character);
+	}
+	return sig;
+}
+
 inline LSPLocation fromLocation(const lsp::Location &loc)
 {
 	LSPLocation entry;

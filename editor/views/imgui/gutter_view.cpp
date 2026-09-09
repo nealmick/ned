@@ -3,17 +3,17 @@
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/git/git_service.h"
-#include "../../util/editor_utils.h"
 #include "../view_layout.h"
 #include "../wrap_layout.h"
 #include "diagnostic_style.h"
+#include "editor_utils.h"
 #include "hover_tooltip.h"
 
 #include <algorithm>
 #include <cstdio>
 #include <string>
 
-void GutterView::renderLineNumbers() const
+void GutterView::paint() const
 {
 	if (!state || !viewState || !git || !layout)
 		return;
@@ -39,7 +39,7 @@ void GutterView::renderLineNumbers() const
 	const bool rainbowMode = layout->rainbowMode;
 	ImU32 rainbow_color = CURRENT_LINE_COLOR;
 	if (rainbowMode)
-		rainbow_color = ImGui::ColorConvertFloat4ToU32(EditorUtils::GetRainbowColor());
+		rainbow_color = ImGui::ColorConvertFloat4ToU32(EditorUtils::getRainbowColor());
 
 	int selectionStartLine = 0;
 	int selectionEndLine = 0;
@@ -103,7 +103,7 @@ void GutterView::renderLineNumbers() const
 	if (diagnostics && !state->path.empty() && tooltipArbiter && hoverInfo &&
 		hoverInfo->active && hoverInfo->zone == HoverTrigger::Zone::Gutter)
 	{
-		RenderDiagnosticTooltip(diagnostics->forLine(state->path, hoverInfo->row),
+		renderDiagnosticTooltip(diagnostics->forLine(state->path, hoverInfo->row),
 								*tooltipArbiter);
 	}
 }
@@ -115,7 +115,7 @@ float GutterView::diagnosticColumnWidth() const
 	return std::max(6.0f, ImGui::GetFontSize() * 0.55f);
 }
 
-float GutterView::calculateRequiredLineNumberWidth() const
+float GutterView::updateWidth() const
 {
 	int max_line_number = state->lineCount();
 	int min_digits_reference = 999;
@@ -134,7 +134,7 @@ ImVec2 GutterView::createLineNumbersPanel()
 	ImGui::BeginGroup();
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
 
-	float dynamic_width = calculateRequiredLineNumberWidth();
+	float dynamic_width = updateWidth();
 	lineNumberWidth = dynamic_width;
 
 	ImGui::BeginChild("LineNumbers",

@@ -99,7 +99,7 @@ void LSPDocumentSync::sendDidOpen(const std::string &key,
 								 << " bytes=" << content.size());
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Failed to send didOpen: " << e.what() << std::endl;
+		std::cerr << "[LSP] Failed to send didOpen: " << e.what() << std::endl;
 	}
 }
 
@@ -240,7 +240,7 @@ void LSPDocumentSync::didChange(const std::string &filePath,
 								   << (incremental ? " (incr)" : " (full)"));
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Failed to send didChange: " << e.what() << std::endl;
+		std::cerr << "[LSP] Failed to send didChange: " << e.what() << std::endl;
 	}
 }
 
@@ -263,7 +263,7 @@ void LSPDocumentSync::didSave(const std::string &filePath,
 			std::move(params));
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Failed to send didSave: " << e.what() << std::endl;
+		std::cerr << "[LSP] Failed to send didSave: " << e.what() << std::endl;
 	}
 }
 
@@ -285,7 +285,7 @@ void LSPDocumentSync::didClose(const std::string &filePath)
 		NED_LSP_TRACE("didClose " << key);
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Failed to send didClose: " << e.what() << std::endl;
+		std::cerr << "[LSP] Failed to send didClose: " << e.what() << std::endl;
 		// Drop tracking so we can re-open later even if the notify failed.
 	}
 	{

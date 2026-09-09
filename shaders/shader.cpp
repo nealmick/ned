@@ -47,7 +47,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 			finalVertexShaderPath = packagedPath;
 		} else
 		{
-			std::cerr << "🔴 ERROR: Cannot find vertex shader. Tried:\n"
+			std::cerr << "[Shader] Cannot find vertex shader. Tried:\n"
 					  << "  1. Relative/Dev path: " << vertexShaderRelativePath << "\n"
 					  << "  2. Debian package path: " << packagedPath << std::endl;
 			return false;
@@ -66,7 +66,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 			finalFragmentShaderPath = packagedPath;
 		} else
 		{
-			std::cerr << "🔴 ERROR: Cannot find fragment shader. Tried:\n"
+			std::cerr << "[Shader] Cannot find fragment shader. Tried:\n"
 					  << "  1. Relative/Dev path: " << fragmentShaderRelativePath << "\n"
 					  << "  2. Debian package path: " << packagedPath << std::endl;
 			return false;
@@ -78,7 +78,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	std::ifstream vertexShaderFile(finalVertexShaderPath);
 	if (!vertexShaderFile.is_open())
 	{
-		std::cerr << "🔴 ERROR: Cannot open resolved vertex shader file: "
+		std::cerr << "[Shader] Cannot open resolved vertex shader file: "
 				  << finalVertexShaderPath << std::endl;
 		return false;
 	}
@@ -91,7 +91,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	std::ifstream fragmentShaderFile(finalFragmentShaderPath);
 	if (!fragmentShaderFile.is_open())
 	{
-		std::cerr << "🔴 ERROR: Cannot open resolved fragment shader file: "
+		std::cerr << "[Shader] Cannot open resolved fragment shader file: "
 				  << finalFragmentShaderPath << std::endl;
 		return false;
 	}
@@ -112,7 +112,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	if (!success)
 	{
 		glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Vertex shader compilation failed: " << infoLog
+		std::cerr << "[Shader] Vertex shader compilation failed: " << infoLog
 				  << std::endl;
 		glDeleteShader(vertexShader);
 		return false;
@@ -129,7 +129,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	if (!success)
 	{
 		glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Fragment shader compilation failed: " << infoLog
+		std::cerr << "[Shader] Fragment shader compilation failed: " << infoLog
 				  << std::endl;
 		glDeleteShader(vertexShader);
 		glDeleteShader(fragmentShader);
@@ -147,7 +147,7 @@ bool Shader::loadShader(const std::string &vertexShaderRelativePath,
 	if (!success)
 	{
 		glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-		std::cerr << "🔴 ERROR: Shader program linking failed: " << infoLog << std::endl;
+		std::cerr << "[Shader] Shader program linking failed: " << infoLog << std::endl;
 		glDeleteShader(vertexShader);
 		glDeleteShader(fragmentShader);
 		glDeleteProgram(shaderProgram);
@@ -175,7 +175,7 @@ void Shader::setFloat(const std::string &name, float value)
 		// Only warn once per uniform name per session
 		if (warnedUniforms.find(name) == warnedUniforms.end())
 		{
-			std::cerr << "⚠️  Warning: Uniform '" << name
+			std::cerr << "[Shader] Warning: Uniform '" << name
 					  << "' not found in shader program" << std::endl;
 			warnedUniforms.insert(name);
 		}
@@ -193,7 +193,7 @@ void Shader::setInt(const std::string &name, int value)
 		// Only warn once per uniform name per session
 		if (warnedUniforms.find(name) == warnedUniforms.end())
 		{
-			std::cerr << "⚠️  Warning: Uniform '" << name
+			std::cerr << "[Shader] Warning: Uniform '" << name
 					  << "' not found in shader program" << std::endl;
 			warnedUniforms.insert(name);
 		}
@@ -211,7 +211,7 @@ void Shader::setMatrix4fv(const std::string &name, const float *matrix)
 		// Only warn once per uniform name per session
 		if (warnedUniforms.find(name) == warnedUniforms.end())
 		{
-			std::cerr << "⚠️  Warning: Uniform '" << name
+			std::cerr << "[Shader] Warning: Uniform '" << name
 					  << "' not found in shader program" << std::endl;
 			warnedUniforms.insert(name);
 		}

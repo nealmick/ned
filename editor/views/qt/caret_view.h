@@ -34,7 +34,7 @@ class CaretView
 	// Pixel position of the primary caret (widget coords); LSP hover
 	// anchors its tooltip here (ImGui caretScreenX parity).
 	QPoint caretWidgetPos() const;
-	void paint(QPainter &painter, int firstRow, int rows, qreal yBase, qreal textX0);
+	void paint(QPainter &painter, int firstRow, int rows, qreal yBase);
 
   private:
 	EditorFrame *frame;

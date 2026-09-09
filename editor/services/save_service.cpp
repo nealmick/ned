@@ -31,7 +31,7 @@ void EditorSave::save()
 			state->copyBytes(0, n, prefix.data());
 		if (prefix.find(kTruncatedMarker) != std::string::npos)
 		{
-			std::cerr << "Cannot save truncated file content" << std::endl;
+			std::cerr << "[Save] Cannot save truncated file content" << std::endl;
 			return;
 		}
 	}
@@ -39,7 +39,7 @@ void EditorSave::save()
 	std::ofstream file(state->path, std::ios::binary);
 	if (!file)
 	{
-		std::cerr << "Unable to save file: " << state->path << std::endl;
+		std::cerr << "[Save] Unable to save file: " << state->path << std::endl;
 		return;
 	}
 

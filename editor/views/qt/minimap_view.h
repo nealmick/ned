@@ -11,10 +11,12 @@
 #pragma once
 
 #include <QColor>
+#include <QPointF>
 #include <QString>
 
 #include <vector>
 
+class EditorFrame;
 class EditorHighlight;
 class EditorState;
 class QPainter;
@@ -64,7 +66,21 @@ class MinimapView
 
 	const std::vector<Run> &runs() const { return runs_; }
 
+	// --- EditorFrame seam (ImGui MinimapView parity: paint + interact) ---
+	// paint draws the strip inside the editor view (called from
+	// EditorFrame::paintEvent). interact entry points take widget-space
+	// positions; press returns true when the click landed in the strip and
+	// was consumed, move only acts while a strip drag is active.
+	void paint(QPainter &painter, EditorFrame &frame);
+	bool press(EditorFrame &frame, const QPointF &pos);
+	void move(EditorFrame &frame, const QPointF &pos);
+	void release();
+	bool dragging() const { return dragging_; }
+
   private:
+	void scrollTo(EditorFrame &frame, qreal y);
+
 	QString key;
 	std::vector<Run> runs_;
+	bool dragging_ = false;
 };

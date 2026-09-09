@@ -23,7 +23,7 @@ class FindBar : public QWidget
 	explicit FindBar(EditorFrame *editor, QWidget *parent = nullptr);
 
 	void open(); // show, focus input, keep last term
-	void closeBar();
+	void dismiss();
 
   Q_SIGNALS:
 	// Wrap state changed — the bar's height changed with it, so the view

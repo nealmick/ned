@@ -23,3 +23,34 @@ struct LSPServerInfo
 // client's live state. UI-thread call (synchronous fs probe, a handful of
 // servers).
 std::vector<LSPServerInfo> probeLspServers(LSPClient &client);
+
+// Toolkit-neutral status color roles — each backend maps them to its own
+// palette (they are NOT colors).
+enum class LSPStatusColorRole {
+	Positive, // server found / running
+	Negative, // server missing
+	Muted,	  // found but not running
+	Dim		  // not applicable
+};
+
+struct LSPServerStatus
+{
+	const char *text = "";
+	LSPStatusColorRole color = LSPStatusColorRole::Dim;
+};
+
+// "● Found" / "● Missing" for the executable probe column.
+inline LSPServerStatus lspFoundStatus(const LSPServerInfo &server)
+{
+	return server.isFound ? LSPServerStatus{"● Found", LSPStatusColorRole::Positive}
+						  : LSPServerStatus{"● Missing", LSPStatusColorRole::Negative};
+}
+
+// "● Active" / "● Inactive" / "N/A" for the running-state column.
+inline LSPServerStatus lspActiveStatus(const LSPServerInfo &server)
+{
+	if (!server.isFound)
+		return LSPServerStatus{"N/A", LSPStatusColorRole::Dim};
+	return server.isActive ? LSPServerStatus{"● Active", LSPStatusColorRole::Positive}
+						   : LSPServerStatus{"● Inactive", LSPStatusColorRole::Muted};
+}

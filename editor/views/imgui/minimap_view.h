@@ -28,7 +28,7 @@ class MinimapView
 	}
 
 	void interact(EditorViewState &view);
-	void draw(const EditorViewState &view) const;
+	void paint(const EditorViewState &view) const;
 
   private:
 	// Merged same-color span, positions relative to strip top-left.
@@ -69,7 +69,7 @@ class MinimapView
 	bool dragging_ = false;
 	float dragY0_ = 0.0f, dragScroll0_ = 0.0f, dragRatio_ = 0.0f;
 
-	// draw() is const (view API); cache is an implementation detail.
+	// paint() is const (view API); cache is an implementation detail.
 	mutable CacheKey cacheKey_{};
 	mutable std::vector<Run> cacheRuns_;
 };

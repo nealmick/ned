@@ -1,34 +1,18 @@
 #include "editor_frame.h"
 
-#include "../../services/diagnostics/diagnostic_colors.h"
-#include "../../util/text_columns.h"
-#include "../../util/utf8.h"
-
 #include "../../../util/settings.h"
 #include "find_bar.h"
-#include "hover_tooltip.h"
 #include "line_jump.h"
 #include "ned_color.h"
 
-#include <QMenu>
-#include <QShortcut>
-
 #include "host/qt/fonts.h"
-#include "host/qt/theme.h"
-#include "util/qt_icons.h"
-#include <QApplication>
 #include <QFontMetrics>
-#include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
 #include <QTimer>
-#include <QWheelEvent>
 
-#include <cmath>
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 
 namespace {
@@ -83,9 +67,9 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 
 	scrollBar = new QScrollBar(Qt::Vertical, this);
 	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int v) {
-		// The bar moves in whole lines; internal sync drives scrollPx.
+		// The bar moves in whole lines; internal sync drives viewState.scrollPx.
 		if (!syncingScroll)
-			scrollPx = v * lineHeightPx;
+			viewState.scrollPx = v * lineHeightPx;
 		update();
 	});
 
@@ -169,16 +153,13 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 			return;
 		findBarPx = findBar->sizeHint().height();
 		findBar->setGeometry(0, titleBarPx, width(), findBarPx);
-		setScrollPixels(scrollPx); // fewer visible lines — re-clamp
+		setScrollPixels(viewState.scrollPx); // fewer visible lines — re-clamp
 		update();
 	});
 	// NOTE: no per-view Ctrl+F / Ctrl+; QShortcuts here — one per view
 	// means two live views (background tab, split) make the sequence
 	// ambiguous and Qt fires NOTHING. The host owns the single shortcuts
 	// and routes them to the active view (see AppHost's keybinds).
-	// live views (background tab, split) make the sequence ambiguous and
-	// Qt fires NOTHING. The host owns the single shortcut and routes it
-	// to the active view (see AppHost's keybinds).
 }
 
 EditorFrame::~EditorFrame() = default;
@@ -189,7 +170,7 @@ void EditorFrame::openWorkspaceRoot(const std::string &root)
 	git.init();
 }
 
-// --- LspEditor seam ---------------------------------------------------------
+// --- LSPEditor seam ---------------------------------------------------------
 
 void EditorFrame::getCaret(int &row, int &column) const
 {
@@ -256,10 +237,11 @@ void EditorFrame::setFontFromSettings()
 	// Keep the viewport anchored when the line height changes (font zoom).
 	if (oldLineHeight > 0)
 	{
-		scrollPx = scrollPx * lineHeightPx / oldLineHeight;
-		// The rescale can push scrollPx past the (shrunk) range — clamp or
+		viewState.scrollPx = viewState.scrollPx * lineHeightPx / oldLineHeight;
+		// The rescale can push viewState.scrollPx past the (shrunk) range — clamp or
 		// the first wheel-ups dead-clamp back to the bottom.
-		scrollPx = std::clamp(scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
+		viewState.scrollPx =
+			std::clamp(viewState.scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
 	}
 }
 
@@ -300,7 +282,7 @@ void EditorFrame::openFile(const QString &path)
 	// New document: reset both axes and rebuild the longest-line cache
 	// (refreshWrap re-ensures the wrap layout + scrollbars after it).
 	widthDirty = true;
-	scrollPxX = 0.0;
+	viewState.scrollPxX = 0.0;
 	refreshWrap();
 	git.init();
 	git.onDocumentOpened();
@@ -345,13 +327,14 @@ void EditorFrame::refreshWrap()
 	if (wordWrapEnabled())
 	{
 		ensureWrapFresh();
-		scrollPxX = 0.0; // no horizontal scroll in wrap mode
+		viewState.scrollPxX = 0.0; // no horizontal scroll in wrap mode
 	} else
 		wrap.invalidate();
-	// Re-clamp: the scroll range can shrink (font zoom rescales scrollPx
-	// unclamped, wrap re-measures, deletions) — a scrollPx past the max
+	// Re-clamp: the scroll range can shrink (font zoom rescales viewState.scrollPx
+	// unclamped, wrap re-measures, deletions) — a viewState.scrollPx past the max
 	// makes the first wheel-ups clamp straight back to the bottom.
-	scrollPx = std::clamp(scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
+	viewState.scrollPx =
+		std::clamp(viewState.scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
 	scrollBar->setRange(0, maxScrollLine());
 	syncHScrollBar();
 }
@@ -362,9 +345,6 @@ void EditorFrame::refreshWrap()
 // span; keep the old max as a safe overestimate when the longest row
 // shrank (avoids an O(n) rescan per keystroke).
 
-// Diagnostic: scroll via minimap at the very bottom; report resulting
-// position vs the maximum (interact test).
-
 void EditorFrame::forceColorUpdate()
 {
 	highlight.forceColorUpdate();
@@ -372,17 +352,9 @@ void EditorFrame::forceColorUpdate()
 }
 
 // Keep the caret inside the viewport after edits/navigation (ImGui:
-// EditorViewState::revealCursor). Wrap-aware via visual lines; wrap-off
-// also reveals horizontally (ImGui revealCursor's x axis).
+// EditorViewState::revealCaret). Wrap-aware via visual lines; wrap-off
+// also reveals horizontally (revealCaret's x axis).
 
-// --- Diagnostics painting ---------------------------------------------------
-
-// --- Hover trigger (shared with LSP symbol hover) -----------------------------
-
-// Paint orchestration: title strip, gutter, text, squiggles, selections,
-// minimap. Each pass is a private paint* helper above.
-// Paint orchestration: title strip, gutter, text, squiggles, selections,
-// minimap. Each pass is a private paint* helper above.
 void EditorFrame::paintEvent(QPaintEvent *)
 {
 	QPainter painter(this);
@@ -424,16 +396,16 @@ void EditorFrame::paintEvent(QPaintEvent *)
 	gutterView.paint(
 		painter, firstRow, rows, yBase, diagSeverity, gutterView.diagColumnWidth());
 
-	const qreal textX0 = textView.paint(painter, firstRow, rows, yBase);
+	textView.paint(painter, firstRow, rows, yBase);
 
 	// LSP diagnostics: squiggle underlines over the same coordinate space.
-	textView.paintDiagnosticSquiggles(painter, firstRow, rows, yBase, textX0);
+	textView.paintDiagnosticSquiggles(painter, firstRow, rows, yBase);
 
-	caretView.paint(painter, firstRow, rows, yBase, textX0);
+	caretView.paint(painter, firstRow, rows, yBase);
 
 	// The minimap strip spans the full height (over the title area).
 	painter.setClipRect(0, 0, width(), height());
-	paintMinimap(painter);
+	minimapView.paint(painter, *this);
 }
 
 void EditorFrame::afterEdit()
@@ -469,15 +441,15 @@ void EditorFrame::toggleFindBar()
 	findBarPx = findBar->sizeHint().height();
 	findBar->setGeometry(0, titleBarPx, width(), findBarPx);
 	findBar->open();
-	setScrollPixels(scrollPx); // fewer visible lines — re-clamp
+	setScrollPixels(viewState.scrollPx); // fewer visible lines — re-clamp
 	update();
 }
 
 void EditorFrame::closeFindBar()
 {
 	findBarPx = 0;
-	findBar->closeBar(); // hides + refocuses the editor
-	setScrollPixels(scrollPx);
+	findBar->dismiss(); // hides + refocuses the editor
+	setScrollPixels(viewState.scrollPx);
 	update();
 }
 

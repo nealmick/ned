@@ -1,9 +1,9 @@
 /*
 	File: views/qt/editor_view_scroll.cpp
-	Description: EditorFrame viewport methods that touch Qt scroll state
-	(pixel scroll sync, reveal, h-scroll range, caret blink). Counterpart
-	of views/imgui/editor_view_scroll.cpp (the ImGui-scroll part of the
-	shared EditorViewState).
+	Description: Pixel-scroll half of the shared EditorViewState (clamp,
+	reveal, wheel-remainder state — same class the ImGui editor_view_scroll
+	.cpp extends) plus the EditorFrame widget glue that mirrors the state
+	into the QScrollBars and triggers repaints.
 */
 
 #include "editor_frame.h"
@@ -12,6 +12,45 @@
 #include <QScrollBar>
 
 #include <algorithm>
+
+// --- EditorViewState pixel-scroll operations (Qt backend) -------------------
+
+void EditorViewState::setScrollPx(double px, double maxPx)
+{
+	scrollPx = std::clamp(px, 0.0, maxPx);
+}
+
+void EditorViewState::setScrollXPx(double px, double maxPx)
+{
+	scrollPxX = std::clamp(px, 0.0, maxPx);
+}
+
+void EditorViewState::revealCaretPixels(int v,
+										int visible,
+										double lineHeight,
+										double maxPx)
+{
+	const int first = firstScrollVisualLine(lineHeight);
+	if (v < first)
+		setScrollPx(static_cast<double>(v) * lineHeight, maxPx);
+	else if (v >= first + visible - 1)
+		setScrollPx(static_cast<double>(v - visible + 2) * lineHeight, maxPx);
+}
+
+void EditorViewState::revealCaretXPixels(double caretX,
+										 double charWidth,
+										 double areaWidth,
+										 double maxPx)
+{
+	const double pad = charWidth * 2.0;
+	const double right = scrollPxX + areaWidth;
+	if (caretX > right - pad)
+		setScrollXPx(caretX - areaWidth + pad, maxPx);
+	else if (caretX < scrollPxX + pad)
+		setScrollXPx(std::max(0.0, caretX - pad), maxPx);
+}
+
+// --- EditorFrame widget glue (bar sync + repaint) ----------------------------
 
 bool EditorFrame::caretActive() const
 {
@@ -42,22 +81,24 @@ int EditorFrame::maxScrollPx() const { return maxScrollLine() * lineHeightPx; }
 
 int EditorFrame::firstVisualLine() const
 {
-	return std::max(0, static_cast<int>(scrollPx / lineHeightPx));
+	return viewState.firstScrollVisualLine(static_cast<double>(lineHeightPx));
 }
 
 // Screen y of the first painted visual line. With fractional scroll the
 // top row slides up under the top inset (paint clips there).
 qreal EditorFrame::rowYBase() const
 {
-	return static_cast<qreal>(topInset()) - (scrollPx - firstVisualLine() * lineHeightPx);
+	return static_cast<qreal>(topInset()) -
+		   (viewState.scrollPx - firstVisualLine() * lineHeightPx);
 }
 
 void EditorFrame::setScrollPixels(qreal px)
 {
-	scrollPx = std::clamp(px, 0.0, static_cast<qreal>(maxScrollPx()));
+	// Clamp lives in EditorViewState; the bar mirror is widget glue.
+	viewState.setScrollPx(px, static_cast<qreal>(maxScrollPx()));
 	syncingScroll = true;
-	scrollBar->setValue(
-		std::clamp(static_cast<int>(scrollPx / lineHeightPx + 0.5), 0, maxScrollLine()));
+	scrollBar->setValue(std::clamp(
+		static_cast<int>(viewState.scrollPx / lineHeightPx + 0.5), 0, maxScrollLine()));
 	syncingScroll = false;
 	update();
 }
@@ -71,7 +112,7 @@ qreal EditorFrame::maxScrollPxX()
 
 void EditorFrame::setScrollXPixels(qreal px)
 {
-	scrollPxX = std::clamp(px, 0.0, maxScrollPxX());
+	viewState.setScrollXPx(px, maxScrollPxX());
 	syncHScrollBar();
 	update();
 }
@@ -85,7 +126,7 @@ void EditorFrame::syncHScrollBar()
 	syncingScrollX = true;
 	hScrollBar->setRange(0, maxPx);
 	hScrollBar->setPageStep(std::max(1, textAreaWidth()));
-	hScrollBar->setValue(static_cast<int>(scrollPxX));
+	hScrollBar->setValue(static_cast<int>(viewState.scrollPxX));
 	syncingScrollX = false;
 }
 
@@ -109,9 +150,10 @@ void EditorFrame::refreshLongestLine(int lo, int hi)
 	for (int r = lo; r <= hi && r < state.lineCount(); ++r)
 	{
 		// Painted width = tab-expanded CELLS * cell width (the monospace
-		// grid paintTextRow draws on) — visualCount counts glyphs, so an
-		// astral-plane char is one cell, not two UTF-16 units.
-		const qreal w = expandRow(r).visualCount() * charWidthF();
+		// grid paintTextRow draws on). countVisualCells counts glyphs
+		// without building an expansion — this scan covers the whole
+		// document on open, so it must stay allocation-free.
+		const qreal w = static_cast<qreal>(countVisualCells(lineRef(r))) * charWidthF();
 		if (w > localMax)
 		{
 			localMax = w;
@@ -133,28 +175,34 @@ void EditorFrame::refreshLongestLine(int lo, int hi)
 }
 
 // Keep the caret inside the viewport after edits/navigation (ImGui:
-// EditorViewState::revealCursor). Wrap-aware via visual lines; wrap-off
-// also reveals horizontally (ImGui revealCursor's x axis).
+// EditorViewState::revealCaret). Wrap-aware via visual lines; wrap-off
+// also reveals horizontally. The clamp/reveal math is EditorViewState's
+// (revealCaretPixels/revealCaretXPixels); this computes the widget
+// metrics (wrap visual line, caret x) and re-syncs the scrollbars.
 void EditorFrame::revealCaret()
 {
 	ensureWrapFresh(); // callers can arrive between an edit and the paint
 	const Selection &caret = viewState.selections[viewState.primaryIndex];
-	const int v = visualLineOf(caret.headRow, caret.headColumn);
-	const int first = firstVisualLine();
-	const int visible = visibleLines();
-	if (v < first)
-		setScrollPixels(v * lineHeightPx);
-	else if (v >= first + visible - 1)
-		setScrollPixels((v - visible + 2) * lineHeightPx);
+	viewState.revealCaretPixels(visualLineOf(caret.headRow, caret.headColumn),
+								visibleLines(),
+								static_cast<double>(lineHeightPx),
+								static_cast<double>(maxScrollPx()));
 
 	if (!wordWrapEnabled())
 	{
-		const qreal caretX = xAtByteColumn(caret.headRow, caret.headColumn);
-		const qreal pad = charWidthF() * 2.0;
-		const qreal right = scrollPxX + textAreaWidth();
-		if (caretX > right - pad)
-			setScrollXPixels(caretX - textAreaWidth() + pad);
-		else if (caretX < scrollPxX + pad)
-			setScrollXPixels(std::max<qreal>(0.0, caretX - pad));
+		// Exact x even when the caret sits far outside the viewport window
+		// (a jump to a distant column must scroll TO it, not a viewport
+		// over) — the counting walk is O(column), no expansion built.
+		const qreal caretX = static_cast<qreal>(countVisualCells(lineRef(caret.headRow),
+																 caret.headColumn)) *
+							 charWidthF();
+		viewState.revealCaretXPixels(static_cast<double>(caretX),
+									 static_cast<double>(charWidthF()),
+									 static_cast<double>(textAreaWidth()),
+									 static_cast<double>(maxScrollPxX()));
 	}
+	// The view state moved without the bar-syncing wrappers — re-sync.
+	setScrollPixels(viewState.scrollPx);
+	if (!wordWrapEnabled())
+		setScrollXPixels(viewState.scrollPxX);
 }

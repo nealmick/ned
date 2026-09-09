@@ -49,5 +49,8 @@ class EditorInput
 	void hideHoverTooltips();
 
   private:
+	// Font zoom helper — member so EditorFrame friendship covers it.
+	static void zoomFont(EditorFrame *frame, int delta);
+
 	EditorFrame *frame;
 };

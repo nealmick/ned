@@ -379,19 +379,17 @@ std::vector<std::string> Settings::listProfiles() const
 	return profiles;
 }
 
-void Settings::toggleSidebar()
+// Shared toggle shape: flip the flag, persist it, save.
+void Settings::toggleFlag(bool &flag, const char *key)
 {
-	sidebarVisible = !sidebarVisible;
-	settings["sidebar_visible"] = sidebarVisible;
+	flag = !flag;
+	settings[key] = flag;
 	saveSettings();
 }
 
-void Settings::toggleTerminal()
-{
-	terminalVisible = !terminalVisible;
-	settings["terminal_visible"] = terminalVisible;
-	saveSettings();
-}
+void Settings::toggleSidebar() { toggleFlag(sidebarVisible, "sidebar_visible"); }
+
+void Settings::toggleTerminal() { toggleFlag(terminalVisible, "terminal_visible"); }
 
 // ---- UI ----
 

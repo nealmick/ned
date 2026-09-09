@@ -57,7 +57,9 @@ QString popoverCardSheet(int radius = 11);
 QPalette palette(const Settings &s);
 
 // Rounded styling throughout; all tabs keep identical geometry (the
-// active tab changes color, never size).
-QString appStyleSheet(const Settings &s, int fontPt);
+// active tab changes color, never size). monoPt = terminal font size —
+// pinned inside #terminalTabs so the universal font-size rule can't
+// desync the terminal's cell metrics from its rendered glyphs.
+QString appStyleSheet(const Settings &s, int fontPt, int monoPt);
 
 } // namespace NedQtTheme

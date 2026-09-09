@@ -5,13 +5,13 @@
 	Kept out of icons.cpp so backends without the GL atlas can link it.
 */
 
-#include "imgui_icons.h"
+#include "icon_keys.h"
 
 #include <filesystem>
 
 namespace fs = std::filesystem;
 
-std::string Icons::iconKeyForFile(const std::string &filename)
+std::string iconKeyForFile(const std::string &filename)
 {
 	const std::string name = fs::path(filename).filename().string();
 

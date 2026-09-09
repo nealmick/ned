@@ -18,6 +18,7 @@
 
 class QDialog;
 class QEvent;
+class QLabel;
 class QResizeEvent;
 class QSplitter;
 class TerminalPanel;
@@ -64,6 +65,11 @@ class AppHost : public QMainWindow
 
 	void refreshTabTitle(EditorFrame *editor);
 	void applyProfileAppWide();
+	// init + didOpen for one editor's current document (shared by the
+	// re-open, fresh-tab, and post-workspace-retry paths).
+	void notifyLspOpen(EditorFrame *view, const QString &path);
+	// Terminal background + mono font from the profile (initial + re-apply).
+	void rethemeTerminal();
 
   private:
 	// In-window settings popup (no second OS window — ImGui parity).
@@ -74,6 +80,9 @@ class AppHost : public QMainWindow
 	void applyAppFontAndPalette();
 	// One path for every toggle surface (Ctrl+T, title-bar button).
 	void toggleTerminalPanel();
+	// Settings::showNotification parity: a bottom-left toast driven by
+	// notificationTimer (ImGui decrements it in its render loop; we tick).
+	void tickNotificationToast();
 
 	Settings settings;
 	Workbench *workbench = nullptr;
@@ -83,8 +92,10 @@ class AppHost : public QMainWindow
 	QDialog *settingsPopup = nullptr;
 	QWidget *settingsScrim = nullptr;
 	std::unique_ptr<LSPClient> lspClient;
-	std::unique_ptr<LspView> lspView;
+	std::unique_ptr<LSPView> lspView;
 	QTimer *keybindsWatch = nullptr; // keybinds.json live reload (ImGui tick parity)
+	QTimer *toastTick = nullptr;	 // settings notification countdown
+	QLabel *toast = nullptr;
 	QString workspaceRoot;
 	bool chromeApplied = false;
 	int untitledCounter = 1;

@@ -4,11 +4,11 @@
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/highlight/highlight_service.h"
-#include "../../util/editor_utils.h"
 #include "../../util/utf8.h"
 #include "../view_layout.h"
 #include "../wrap_layout.h"
 #include "diagnostic_style.h"
+#include "editor_utils.h"
 #include "hover_tooltip.h"
 #include "ned_color.h"
 #include "row_text.h"
@@ -64,16 +64,16 @@ bool TextView::isSelected(int row, int col) const
 	return viewState->isPositionSelected(row, col);
 }
 
-void TextView::draw() const
+void TextView::paint() const
 {
 	if (!state || !viewState || !highlight || !layout)
 		return;
-	renderCurrentLineHighlight();
-	renderVisibleLines();
-	renderDiagnosticMarks();
+	paintCurrentLineHighlight();
+	paintVisibleLines();
+	paintDiagnosticMarks();
 }
 
-void TextView::renderCurrentLineHighlight() const
+void TextView::paintCurrentLineHighlight() const
 {
 	if (layout->lineHeight <= 0.0f || state->lineCount() <= 0)
 		return;
@@ -104,7 +104,7 @@ void TextView::renderCurrentLineHighlight() const
 		ImGui::ColorConvertFloat4ToU32(CURRENT_LINE_COLOR));
 }
 
-void TextView::renderVisibleLines() const
+void TextView::paintVisibleLines() const
 {
 	if (layout->lineHeight <= 0.0f || state->lineCount() <= 0)
 		return;
@@ -121,7 +121,7 @@ void TextView::renderVisibleLines() const
 	const ImVec4 defaultColor = toImVec4(highlight->defaultTextColor());
 	const float originX = layout->textPos.x;
 	const float lineH = layout->lineHeight;
-	const float spaceWidth = EditorUtils::SpaceWidth();
+	const float spaceWidth = EditorUtils::spaceWidth();
 	const ImVec2 winPos = ImGui::GetWindowPos();
 	const float clipL = winPos.x;
 	const float clipR = winPos.x + ImGui::GetWindowWidth();
@@ -257,7 +257,7 @@ void TextView::renderVisibleLines() const
 	}
 }
 
-void TextView::renderDiagnosticMarks() const
+void TextView::paintDiagnosticMarks() const
 {
 	if (!diagnostics || !state || state->path.empty() || layout->lineHeight <= 0.0f)
 		return;
@@ -344,11 +344,11 @@ void TextView::renderDiagnosticMarks() const
 										 : static_cast<int>(text.size());
 					if (endCol <= sStart || startCol >= sEnd)
 						continue;
-					// ColumnsToX: tab stops restart at the segment start.
+					// columnsToX: tab stops restart at the segment start.
 					const float x0 =
 						originX +
-						EditorUtils::ColumnsToX(text, sStart, std::max(startCol, sStart));
-					float x1 = originX + EditorUtils::ColumnsToX(
+						EditorUtils::columnsToX(text, sStart, std::max(startCol, sStart));
+					float x1 = originX + EditorUtils::columnsToX(
 											 text, sStart, std::min(endCol, sEnd));
 					if (x1 - x0 < 4.0f)
 						x1 = x0 + kSquiggleFallbackWidth;
@@ -358,8 +358,8 @@ void TextView::renderDiagnosticMarks() const
 				}
 			} else
 			{
-				const float x0 = EditorUtils::LineColumnX(text, startCol, originX);
-				float x1 = EditorUtils::LineColumnX(text, endCol, originX);
+				const float x0 = EditorUtils::lineColumnX(text, startCol, originX);
+				float x1 = EditorUtils::lineColumnX(text, endCol, originX);
 				if (x1 - x0 < 4.0f)
 					x1 = x0 + kSquiggleFallbackWidth;
 				const float y = rowY + lineH - kSquiggleBaselineLift;
@@ -379,7 +379,7 @@ void TextView::renderDiagnosticMarks() const
 		for (const auto &d : items)
 			if (DiagnosticContains(d, hoverInfo->row, utf16))
 			{
-				RenderDiagnosticTooltip(items, *tooltipArbiter);
+				renderDiagnosticTooltip(items, *tooltipArbiter);
 				break;
 			}
 	}

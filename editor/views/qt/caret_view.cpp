@@ -2,33 +2,7 @@
 
 #include "editor_frame.h"
 
-#include "../../services/diagnostics/diagnostic_colors.h"
-#include "../../util/text_columns.h"
-#include "../../util/utf8.h"
-
-#include "../../../util/settings.h"
-#include "find_bar.h"
-#include "hover_tooltip.h"
-#include "line_jump.h"
-#include "ned_color.h"
-
-#include "host/qt/fonts.h"
-#include "host/qt/theme.h"
-#include "util/qt_icons.h"
-#include <QApplication>
-#include <QFontMetrics>
-#include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
-#include <QScrollBar>
-#include <QTimer>
-#include <QWheelEvent>
-
-#include <cmath>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <sstream>
 
 QPoint CaretView::caretWidgetPos() const
 {
@@ -36,9 +10,9 @@ QPoint CaretView::caretWidgetPos() const
 	const bool wrapping = frame->wordWrapEnabled();
 	const int segment =
 		wrapping ? frame->caretSegmentStart(caret.headRow, caret.headColumn) : 0;
-	const qreal x = frame->gutterWidthPx +
-					frame->xAtByteColumn(caret.headRow, caret.headColumn, segment) -
-					(wrapping ? 0.0 : frame->scrollPxX);
+	// xAtByteColumn already returns widget-space x (gutter + absolute
+	// column, horizontal scroll applied inside).
+	const qreal x = frame->xAtByteColumn(caret.headRow, caret.headColumn, segment);
 	const qreal y =
 		frame->rowYBase() +
 		static_cast<qreal>(frame->visualLineOf(caret.headRow, caret.headColumn) -
@@ -49,7 +23,7 @@ QPoint CaretView::caretWidgetPos() const
 
 // Selection rects (wrap-aware, per-segment) + carets on the shared
 // tab-expanded coordinate space.
-void CaretView::paint(QPainter &painter, int firstRow, int rows, qreal yBase, qreal textX0)
+void CaretView::paint(QPainter &painter, int firstRow, int rows, qreal yBase)
 {
 	const bool wrapping = frame->wordWrapEnabled();
 	// Selection + carets on the shared tab-expanded coordinate space.
@@ -90,8 +64,8 @@ void CaretView::paint(QPainter &painter, int firstRow, int rows, qreal yBase, qr
 				const int toB = (v == vEnd && row == er) ? std::min(ec, segEnd) : segEnd;
 				if (toB <= fromB)
 					continue;
-				const qreal x0 = textX0 + frame->xAtByteColumn(row, fromB, segBase);
-				const qreal x1 = textX0 + frame->xAtByteColumn(row, toB, segBase);
+				const qreal x0 = frame->xAtByteColumn(row, fromB, segBase);
+				const qreal x1 = frame->xAtByteColumn(row, toB, segBase);
 				painter.drawRect(QRectF(
 					x0, yBase + i * frame->lineHeightPx, x1 - x0, frame->lineHeightPx));
 			}
@@ -109,8 +83,7 @@ void CaretView::paint(QPainter &painter, int firstRow, int rows, qreal yBase, qr
 				continue;
 			const int seg =
 				wrapping ? frame->caretSegmentStart(sel.headRow, sel.headColumn) : 0;
-			const qreal x =
-				textX0 + frame->xAtByteColumn(sel.headRow, sel.headColumn, seg);
+			const qreal x = frame->xAtByteColumn(sel.headRow, sel.headColumn, seg);
 			painter.drawLine(QPointF(x, yBase + i * frame->lineHeightPx + 2),
 							 QPointF(x, yBase + (i + 1) * frame->lineHeightPx - 2));
 		}

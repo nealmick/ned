@@ -30,7 +30,7 @@ void TerminalPanel::setVisible(bool, bool) {}
 
 void TerminalPanel::renderPanel() {}
 
-void TerminalPanel::reloadTerminalFonts(float) {}
+void TerminalPanel::applyFont(float) {}
 float TerminalPanel::configuredFontPx() const { return 0.0f; }
 
 bool TerminalPanel::consumeNeedsFontResync() { return false; }

@@ -312,7 +312,7 @@ void ProjectUndo::FileStack::fromJson(const nlohmann::json &j)
 			load(j["redoStack"], redoStack);
 	} catch (const std::exception &e)
 	{
-		std::cerr << "Error loading undo stack: " << e.what() << '\n';
+		std::cerr << "[ProjectUndo] Error loading undo stack: " << e.what() << '\n';
 		undoStack.clear();
 		redoStack.clear();
 		hasPending = false;
@@ -460,8 +460,8 @@ void ProjectUndo::saveProject(const std::string &folder)
 				hasChanges = true;
 			} catch (const std::exception &e)
 			{
-				std::cerr << "Error serializing undo for " << path << ": " << e.what()
-						  << '\n';
+				std::cerr << "[ProjectUndo] Error serializing undo for " << path
+						  << ": " << e.what() << '\n';
 			}
 		}
 
@@ -474,7 +474,7 @@ void ProjectUndo::saveProject(const std::string &folder)
 		dirty = false;
 	} catch (const std::exception &e)
 	{
-		std::cerr << "Error saving undo state: " << e.what() << '\n';
+		std::cerr << "[ProjectUndo] Error saving undo state: " << e.what() << '\n';
 	}
 }
 
@@ -506,12 +506,13 @@ void ProjectUndo::loadProject(const std::string &folder)
 				stacks[key].fromJson(value);
 			} catch (const std::exception &e)
 			{
-				std::cerr << "Error loading undo for " << key << ": " << e.what() << '\n';
+				std::cerr << "[ProjectUndo] Error loading undo for " << key << ": "
+						  << e.what() << '\n';
 			}
 		}
 	} catch (const std::exception &e)
 	{
-		std::cerr << "Error loading undo state: " << e.what() << '\n';
+		std::cerr << "[ProjectUndo] Error loading undo state: " << e.what() << '\n';
 		std::error_code ec;
 		fs::remove(undoPath, ec);
 		stacks.clear();

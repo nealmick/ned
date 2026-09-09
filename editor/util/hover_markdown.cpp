@@ -4,7 +4,7 @@
 #include <cctype>
 #include <string_view>
 
-std::vector<std::string> SplitHoverLines(std::string_view s)
+std::vector<std::string> splitHoverLines(std::string_view s)
 {
 	std::vector<std::string> lines;
 	while (true)
@@ -21,7 +21,7 @@ std::vector<std::string> SplitHoverLines(std::string_view s)
 	return lines;
 }
 
-std::vector<HoverMdBlock> ParseHoverMarkdown(const std::string &src)
+std::vector<HoverMdBlock> parseHoverMarkdown(const std::string &src)
 {
 	auto isFence = [](std::string_view line, std::string *langOut) {
 		size_t i = 0;
@@ -51,7 +51,7 @@ std::vector<HoverMdBlock> ParseHoverMarkdown(const std::string &src)
 	HoverMdBlock cur;
 	bool inFence = false;
 
-	for (const std::string &lineStr : SplitHoverLines(src))
+	for (const std::string &lineStr : splitHoverLines(src))
 	{
 		const std::string_view line = lineStr;
 		std::string lang;

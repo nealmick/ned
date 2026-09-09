@@ -7,9 +7,9 @@
 #include "../../editor_commands.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
-#include "../../util/editor_utils.h"
 #include "../view_layout.h"
 #include "../wrap_layout.h"
+#include "editor_utils.h"
 #include "util/project_undo.h"
 
 #include <algorithm>
@@ -173,7 +173,7 @@ void EditorInput::processCharacterInput()
 		// Skip C0 controls and DEL; printable ASCII and all non-ASCII codepoints pass.
 		if (cp < 32 || cp == 127)
 			continue;
-		EditorUtils::AppendUtf8Codepoint(inputText, cp);
+		EditorUtils::appendUtf8Codepoint(inputText, cp);
 	}
 	io.InputQueueCharacters.clear();
 	if (inputText.empty())
@@ -297,7 +297,7 @@ void EditorInput::renderContextMenu()
 
 void EditorInput::handleMouseClick(int row, int column)
 {
-	column = EditorUtils::SnapToUtf8CharBoundary(state->line(row), column);
+	column = EditorUtils::snapToUtf8CharBoundary(state->line(row), column);
 
 	if (ImGui::GetIO().KeyShift)
 	{
@@ -326,7 +326,7 @@ void EditorInput::handleMouseClick(int row, int column)
 
 void EditorInput::handleMouseDrag(int row, int column)
 {
-	column = EditorUtils::SnapToUtf8CharBoundary(state->line(row), column);
+	column = EditorUtils::snapToUtf8CharBoundary(state->line(row), column);
 
 	if (anchorRow < 0)
 	{
@@ -358,7 +358,7 @@ std::pair<int, int> EditorInput::rowColFromMouse() const
 		const std::string wline = state->line(clicked_row);
 		if (wline.empty())
 			return {clicked_row, 0};
-		const int column = EditorUtils::SnapToUtf8CharBoundary(
+		const int column = EditorUtils::snapToUtf8CharBoundary(
 			wline,
 			layout->wrap->columnAt(
 				wline, clicked_row, hit.segment, mouse_pos.x - layout->textPos.x));
@@ -375,5 +375,5 @@ std::pair<int, int> EditorInput::rowColFromMouse() const
 		return {clicked_row, 0};
 
 	const float click_x = mouse_pos.x - layout->textPos.x;
-	return {clicked_row, EditorUtils::ColumnAtX(line, click_x)};
+	return {clicked_row, EditorUtils::columnAtX(line, click_x)};
 }

@@ -3,7 +3,7 @@
 	Description: Title bar rendering (path, git changes).
 */
 #include "title_bar_view.h"
-#include "../../../util/imgui_icons.h"
+#include "../../../../host/imgui/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "../../services/git/git_service.h"
 #include "imgui.h"
@@ -122,7 +122,7 @@ std::string TitleBarView::truncateFilePath(const std::string &path, float maxWid
 	return normalizePathForDisplay(root + "...");
 }
 
-void TitleBarView::render(ImFont *font, const std::string &filePath, bool showGitChanges)
+void TitleBarView::paint(ImFont *font, const std::string &filePath, bool showGitChanges)
 {
 	// Light horizontal inset only — parent WindowPadding is 0 so we sit flush
 	// under the ImGui dock tab bar (no extra top gap).

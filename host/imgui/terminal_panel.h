@@ -50,11 +50,11 @@ class TerminalPanel
 	// fonts at `desiredPx` on every live session. Pass the on-screen size
 	// (settings font * FontScaleDpi) — the widget draws at this px as-is.
 	// Caller must then re-merge host editor fonts with Font::load(false).
-	void reloadTerminalFonts(float desiredPx);
+	void applyFont(float desiredPx);
 	float configuredFontPx() const;
 
 	// True after shell init (default 16px fonts) until the host applies
-	// editor font size via reloadTerminalFonts + Font::load(false).
+	// editor font size via applyFont + Font::load(false).
 	bool consumeNeedsFontResync();
 
   private:

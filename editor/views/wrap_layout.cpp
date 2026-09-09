@@ -13,15 +13,6 @@
 
 namespace {
 
-// UTF-8 glyph boundaries (mirrors TextView::advanceUtf8).
-size_t advanceUtf8(const std::string &text, size_t index)
-{
-	++index;
-	while (index < text.size() && (static_cast<unsigned char>(text[index]) & 0xC0) == 0x80)
-		++index;
-	return index;
-}
-
 } // namespace
 
 void WrapLayout::noteEdit(int lo, int hi)
@@ -94,15 +85,9 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 	const float spaceW = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
 	auto glyphWidthAt = [&](size_t pos, float drawX) {
 		const char *s = &line[pos];
-		const char *e = s + 1;
 		if (*s == '\t')
-			return EditorUtils::TabAdvanceWidth(spaceW, static_cast<int>(drawX / spaceW));
-		if ((static_cast<unsigned char>(*s) & 0x80) != 0)
-		{
-			while (e < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
-				++e;
-		}
+			return EditorUtils::tabAdvanceWidth(spaceW, static_cast<int>(drawX / spaceW));
+		const char *e = line.data() + EditorUtils::nextCharEnd(line, pos);
 		return glyphWidth ? glyphWidth(s, e) : spaceW;
 	};
 
@@ -122,7 +107,7 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 			for (size_t j = static_cast<size_t>(brk); j < i;)
 			{
 				x += glyphWidthAt(j, x);
-				j = advanceUtf8(line, j);
+				j = EditorUtils::nextCharEnd(line, j);
 			}
 			lastBreak = -1;
 			continue; // re-process the overflowing glyph in the new segment
@@ -130,7 +115,7 @@ void WrapLayout::wrapRow(const std::string &line, float limit, std::vector<int> 
 		if (line[i] == ' ')
 			lastBreak = static_cast<int>(i) + 1;
 		x += w;
-		i = advanceUtf8(line, i);
+		i = EditorUtils::nextCharEnd(line, i);
 	}
 }
 
@@ -185,12 +170,7 @@ WrapLayout::Hit WrapLayout::yToRow(float visualLine) const
 	return hit;
 }
 
-int WrapLayout::segmentCount(int row) const
-{
-	if (row < 0 || row >= lines)
-		return 1;
-	return 1 + static_cast<int>(breaks[static_cast<size_t>(row)].size());
-}
+int WrapLayout::segmentCount(int row) const { return visualLineCount(row); }
 
 int WrapLayout::segmentStartColumn(int row, int segment) const
 {
@@ -211,8 +191,8 @@ int WrapLayout::segmentOf(int row, int column) const
 }
 
 // x of a byte column inside its segment. Measured from the segment start with
-// tab stops restarting there (EditorUtils::ColumnsToX) — matches how wrapRow
-// and TextView measure/render segments. Never a LineColumnX difference:
+// tab stops restarting there (EditorUtils::columnsToX) — matches how wrapRow
+// and TextView measure/render segments. Never a lineColumnX difference:
 // absolute tab stops from column 0 would misplace tab-indented segments.
 float WrapLayout::columnX(const std::string &line, int row, int column) const
 {
@@ -226,7 +206,6 @@ float WrapLayout::columnX(const std::string &line, int row, int column) const
 	for (int i = start; i < column && i < static_cast<int>(line.size());)
 	{
 		const char *s = &line[static_cast<size_t>(i)];
-		const char *e = s + 1;
 		if (*s == '\t')
 		{
 			const int next = (visual / EditorUtils::kTabSize + 1) * EditorUtils::kTabSize;
@@ -235,10 +214,8 @@ float WrapLayout::columnX(const std::string &line, int row, int column) const
 			++i;
 			continue;
 		}
-		if ((static_cast<unsigned char>(*s) & 0x80) != 0)
-			while (e < line.data() + line.size() &&
-				   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
-				++e;
+		const char *e =
+			line.data() + EditorUtils::nextCharEnd(line, static_cast<size_t>(i));
 		x += glyphWidth ? glyphWidth(s, e) : spaceW;
 		++visual;
 		i += static_cast<int>(e - s);
@@ -254,7 +231,7 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 	if (line.empty() || start >= static_cast<int>(line.size()))
 		return start;
 
-	// Nearest-glyph match within the segment (same rule as ColumnAtX, but with
+	// Nearest-glyph match within the segment (same rule as columnAtX, but with
 	// tab stops restarting at the segment start).
 	const float spaceW = spaceWidth ? spaceWidth(" ", " ") : 8.0f;
 	int best = start;
@@ -269,15 +246,11 @@ int WrapLayout::columnAt(const std::string &line, int row, int segment, float xR
 			// Tabs expand to the next kTabSize stop (the same rule wrapRow
 			// and columnX measure with) — counting one cell per tab skewed
 			// click columns by several cells on tab-indented rows.
-			x += EditorUtils::TabAdvanceWidth(spaceW, static_cast<int>(x / spaceW));
+			x += EditorUtils::tabAdvanceWidth(spaceW, static_cast<int>(x / spaceW));
 		} else
 		{
-			if ((static_cast<unsigned char>(*s) & 0x80) != 0)
-			{
-				while (e < line.data() + line.size() &&
-					   (static_cast<unsigned char>(*e) & 0xC0) == 0x80)
-					++e;
-			}
+			const char *e =
+				line.data() + EditorUtils::nextCharEnd(line, static_cast<size_t>(i));
 			x += glyphWidth ? glyphWidth(s, e) : spaceW;
 		}
 		const int next = static_cast<int>(e - line.data());

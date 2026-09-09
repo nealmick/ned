@@ -264,7 +264,7 @@ void TerminalPanel::renderPanel()
 
 float TerminalPanel::configuredFontPx() const { return impl_->fontPx; }
 
-void TerminalPanel::reloadTerminalFonts(float desiredPx)
+void TerminalPanel::applyFont(float desiredPx)
 {
 	if (desiredPx < 6.0f)
 		desiredPx = 16.0f;

@@ -23,13 +23,13 @@ class LSPDashboard
 		show = visible;
 		if (visible)
 		{
-			refreshServerInfo();
+			refresh();
 		}
 	}
 	bool isVisible() const { return show; }
 
 	// Update server information
-	void refreshServerInfo();
+	void refresh();
 
   private:
 	bool show = false;

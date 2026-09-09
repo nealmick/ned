@@ -20,14 +20,33 @@ struct FileEntry
 	std::string filenameLower;	   // for dotfile skip rule
 };
 
+// Core-owned scan cap — ONE limit shared by every UI backend (the Qt finder
+// used to carry its own private 20000-file cap; the imgui finder had none).
+constexpr size_t kMaxFinderFiles = 20000;
+
+// One toolkit-neutral workspace scan: recursive walk honoring
+// FileFinderMatch::shouldSkipDir, stopped early when `stop` flips, capped
+// at maxFiles entries. Used by FileFinder's background thread AND by the
+// Qt finder view — the single implementation of directory walking.
+std::vector<FileEntry> scanWorkspaceFiles(const std::string &projectDir,
+										  const std::atomic<bool> &stop,
+										  size_t maxFiles = kMaxFinderFiles);
+
 // Fuzzy-ish project file picker (Ctrl+P): background scan + filter.
 // Opens the selected file only on Enter (no live preview — embed multi-tab
 // would otherwise spawn a tab per arrow key).
+struct ViewLayout;
+
 class FileFinder
 {
   public:
 	FileExplorer *fileExplorer = nullptr;
 	Settings *settings = nullptr;
+
+	// Active editor pane metrics, set by the host each frame before the
+	// finder renders (embedded mode centers on the editor pane). Null when
+	// no editor has laid out yet. Neutral: pointer only, owned by the view.
+	const ViewLayout *editorLayout = nullptr;
 
 	bool showFFWindow = false;
 

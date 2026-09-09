@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-class LspEditor;
+class LSPEditor;
 class Settings;
 
 // Structure to hold language server information (used by settings UI when ON)
@@ -51,13 +51,15 @@ class Stream;
 class LSPClient
 {
   public:
-	LSPClient(LspEditor &api, Settings &settings);
+	LSPClient(LSPEditor &api, Settings &settings);
 	~LSPClient();
 
 	// Goto-definition/references + hover requests (results rendered by the
-	// UI layer).
+	// UI layer). Both goto kinds share one arbiter so they arbitrate picker
+	// ownership (a second result clears the first's show flag).
 	LSPGoto gotoDef;
 	LSPGoto gotoRef;
+	LSPGotoArbiter gotoArbiter;
 	LSPHover hover;
 
 	// Core LSP functionality
@@ -74,8 +76,6 @@ class LSPClient
 	{
 		return languageServers;
 	}
-	std::vector<std::string> getSupportedLanguages() const;
-
 	// Document management. Delegates to LSPDocumentSync — see that header for
 	// open/close balance and lazy full-text semantics.
 	using FullTextProvider = LSPDocumentSync::FullTextProvider;
@@ -96,7 +96,7 @@ class LSPClient
 
 	// Point goto/hover requests at a different editor (multi-tab embed).
 	// Null is valid: no focused editor (all tabs closed).
-	void bindEditorApi(LspEditor *api);
+	void bindEditorApi(LSPEditor *api);
 
 	// Keybind lookup for the UI layer (ImGui/Qt views poll their own keys).
 	const class KeybindsManager &settingsKeybinds() const;
@@ -174,7 +174,7 @@ class LSPClient
 class LSPClient
 {
   public:
-	LSPClient(LspEditor &api, Settings &settings);
+	LSPClient(LSPEditor &api, Settings &settings);
 	~LSPClient();
 
 	void setWorkspace(const std::string &workspacePath);
@@ -184,7 +184,6 @@ class LSPClient
 	std::string getCurrentLanguage() const;
 
 	const std::vector<LanguageServerInfo> &getLanguageServers() const;
-	std::vector<std::string> getSupportedLanguages() const;
 
 	using FullTextProvider = std::function<std::string()>;
 	void didOpen(const std::string &filePath,
@@ -202,7 +201,7 @@ class LSPClient
 	LSPDiagnostics &diagnostics();
 	const LSPDiagnostics &diagnostics() const;
 
-	void bindEditorApi(LspEditor *api);
+	void bindEditorApi(LSPEditor *api);
 	const class KeybindsManager &settingsKeybinds() const;
 
 	bool startServer(const std::string &language, const std::string &serverPath);

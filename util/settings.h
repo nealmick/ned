@@ -18,7 +18,7 @@
 
 class EditorApi;
 class FileExplorer;
-class LspView;
+class LSPView;
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -67,6 +67,11 @@ class Settings
 		notificationText = message;
 		notificationTimer = duration;
 	}
+	// Read/tick access for backends whose view is not a SettingsView friend
+	// (the Qt host draws the toast from its own timer loop).
+	const std::string &notificationMessage() const { return notificationText; }
+	float notificationRemaining() const { return notificationTimer; }
+	void decayNotification(float seconds) { notificationTimer -= seconds; }
 	void toggleSidebar();
 	void toggleTerminal();
 	void switchToProfile(const std::string &profileName);
@@ -86,6 +91,7 @@ class Settings
 	fs::file_time_type diskTime = fs::file_time_type::min();
 
 	void touchDiskTime();
+	void toggleFlag(bool &flag, const char *key);
 	static bool loadBundledProfile(json &out, std::string &outPath);
 	static std::string primaryPath(); // ~/ned/config/ned.json (points at active profile)
 };

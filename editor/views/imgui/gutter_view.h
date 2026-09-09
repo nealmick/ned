@@ -29,7 +29,8 @@ class GutterView
 	{
 	}
 
-	void renderLineNumbers() const;
+	void paint() const;
+	float updateWidth() const;
 	ImVec2 createLineNumbersPanel();
 	void setDiagnostics(const LSPDiagnostics *store) { diagnostics = store; }
 	void setTooltipArbiter(TooltipArbiter *arbiter) { tooltipArbiter = arbiter; }
@@ -51,6 +52,5 @@ class GutterView
 
 	void calculateSelectionLines(int &selectionStartLine, int &selectionEndLine) const;
 	float calculateTextRightAlignedPosition(const char *text, float lineNumberWidth) const;
-	float calculateRequiredLineNumberWidth() const;
 	float diagnosticColumnWidth() const;
 };

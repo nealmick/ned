@@ -33,14 +33,16 @@ bool ShaderManager::initializeShaders()
 	// Load CRT shader (main effects)
 	if (!crtShader.loadShader(vert, frag))
 	{
-		std::cerr << "Failed to load CRT shader from " << shaderDir << std::endl;
+		std::cerr << "[ShaderManager] Failed to load CRT shader from " << shaderDir
+				  << std::endl;
 		return false;
 	}
 
 	// Load burn-in shader (accumulation effect)
 	if (!burnInShader.loadShader(vert, burn))
 	{
-		std::cerr << "Failed to load burn-in shader from " << shaderDir << std::endl;
+		std::cerr << "[ShaderManager] Failed to load burn-in shader from " << shaderDir
+				  << std::endl;
 		return false;
 	}
 
@@ -84,7 +86,7 @@ void ShaderManager::initializeFramebuffers(int width, int height)
 		// Check completeness
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		{
-			std::cerr << "🔴 Framebuffer not complete!" << std::endl;
+			std::cerr << "[ShaderManager] Framebuffer not complete!" << std::endl;
 		}
 
 		fb.lastDisplayW = w;
@@ -110,7 +112,7 @@ void ShaderManager::initializeFramebuffers(int width, int height)
 	glBindFramebuffer(GL_FRAMEBUFFER, accum.accum[0].framebuffer);
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	{
-		std::cerr << "🔴 Accumulation buffer 0 incomplete!" << std::endl;
+		std::cerr << "[ShaderManager] Accumulation buffer 0 incomplete!" << std::endl;
 	}
 }
 

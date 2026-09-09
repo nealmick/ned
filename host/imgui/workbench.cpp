@@ -13,6 +13,7 @@
 #include "workbench.h"
 
 #include "editor/editor_events.h"
+#include "editor/views/imgui/editor_surface.h"
 #include "files/file_explorer_events.h"
 #include "util/keybinds.h"
 #include "util/macos_window.h"
@@ -63,7 +64,8 @@ Workbench::Tab Workbench::makeTab(const std::string &path)
 	Tab tab;
 	tab.path = path;
 	tab.windowId = nextTabWindowId_++;
-	tab.editor = std::make_unique<Editor>(settings, projectRoot, icons, projectUndo);
+	tab.editor = std::make_unique<Editor>(settings, projectRoot, projectUndo);
+	tab.surface = std::make_unique<EditorSurface>(*tab.editor, icons);
 	// Open into the group that currently has focus (VS Code–style).
 	tab.preferredDockNodeId =
 		activeEditorDockNodeId_ != 0 ? activeEditorDockNodeId_ : editorDockNodeId_;
@@ -75,7 +77,13 @@ Workbench::Tab Workbench::makeTab(const std::string &path)
 // Lifetime
 // ---------------------------------------------------------------------------
 
-Workbench::Workbench() : projectUndo(projectRoot)
+Workbench::Workbench(Settings &hostSettings,
+					 Font &hostFont,
+					 SettingsView &hostSettingsView)
+	: settings(hostSettings),
+	  font(hostFont),
+	  settingsView(hostSettingsView),
+	  projectUndo(projectRoot)
 {
 	EditorHighlight::startBackgroundPrewarm();
 
@@ -84,8 +92,8 @@ Workbench::Workbench() : projectUndo(projectRoot)
 	// initialize() also wires event subscriptions — bootstrap must exist first.
 	Tab bootstrap;
 	bootstrap.windowId = nextTabWindowId_++;
-	bootstrap.editor =
-		std::make_unique<Editor>(settings, projectRoot, icons, projectUndo);
+	bootstrap.editor = std::make_unique<Editor>(settings, projectRoot, projectUndo);
+	bootstrap.surface = std::make_unique<EditorSurface>(*bootstrap.editor, icons);
 	// forceDock once layout exists (editorDockNodeId_ set in ensureEditorDockLayout).
 	bootstrap.forceDock = true;
 	tabs_.push_back(std::move(bootstrap));
@@ -94,8 +102,8 @@ Workbench::Workbench() : projectUndo(projectRoot)
 	fileExplorer = std::make_unique<FileExplorer>(
 		tabs_[0].editor->api, settings, projectRoot, icons);
 	lspClient = std::make_unique<LSPClient>(tabs_[0].editor->api, settings);
-	lspView = std::make_unique<LspView>(
-		*lspClient, tabs_[0].editor->api, *fileExplorer, settings);
+	lspView = std::make_unique<LSPView>(
+		*lspClient, tabs_[0].editor->api, *tabs_[0].surface, *fileExplorer, settings);
 	welcome = std::make_unique<WelcomePage>(settings, *fileExplorer);
 
 	fileExplorer->openOverride = [this](const std::string &path,
@@ -111,7 +119,7 @@ Workbench::Workbench() : projectUndo(projectRoot)
 
 Workbench::~Workbench() { cleanup(); }
 
-Editor *Workbench::activeEditor()
+Editor *Workbench::activeView()
 {
 	if (activeIndex_ < 0 || activeIndex_ >= static_cast<int>(tabs_.size()))
 		return nullptr;
@@ -120,8 +128,15 @@ Editor *Workbench::activeEditor()
 
 EditorApi *Workbench::activeApi()
 {
-	Editor *ed = activeEditor();
+	Editor *ed = activeView();
 	return ed ? &ed->api : nullptr;
+}
+
+EditorSurface *Workbench::activeSurface()
+{
+	if (activeIndex_ < 0 || activeIndex_ >= static_cast<int>(tabs_.size()))
+		return nullptr;
+	return tabs_[static_cast<size_t>(activeIndex_)].surface.get();
 }
 
 void Workbench::setActiveIndex(int index)
@@ -142,10 +157,10 @@ void Workbench::syncActiveBindings()
 	fileExplorer->api = api;
 	lspClient->bindEditorApi(api);
 	if (lspView)
-		lspView->bindEditorApi(*api);
+		lspView->rebind(*api, *activeSurface());
 }
 
-void Workbench::switchToTab(int index)
+void Workbench::activateTab(int index)
 {
 	if (index < 0 || index >= static_cast<int>(tabs_.size()))
 		return;
@@ -169,7 +184,7 @@ void Workbench::handleTabSwitchShortcuts()
 	{
 		if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(ImGuiKey_1 + i), false))
 		{
-			switchToTab(i);
+			activateTab(i);
 			return;
 		}
 	}
@@ -202,7 +217,7 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 	mode_ = mode;
 	settings.isEmbedded = (mode == WorkbenchHostMode::Floating);
 
-	wireTabEditor(*tabs_[0].editor);
+	wireTabEditor(*tabs_[0].editor, *tabs_[0].surface);
 
 	fileExplorer->events.subscribeDidOpenProject(
 		[this](const FileExplorerEvents::DidOpenProject &e) {
@@ -246,7 +261,7 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 	ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly = true;
 
 	if (!settings.keybinds.loadKeybinds())
-		std::cerr << "Failed to load keybinds\n";
+		std::cerr << "[Workbench] Failed to load keybinds\n";
 
 	settingsView.apply(true, tabs_[0].editor->api);
 	icons.load();
@@ -281,10 +296,11 @@ bool Workbench::initialize(WorkbenchHostMode mode)
 // Open / focus / close tabs
 // ---------------------------------------------------------------------------
 
-void Workbench::wireTabEditor(Editor &ed)
+void Workbench::wireTabEditor(Editor &ed, EditorSurface &surface)
 {
+	(void)ed;
 	if (lspClient)
-		ed.api.bindDiagnostics(&lspClient->diagnostics());
+		surface.setDiagnostics(&lspClient->diagnostics());
 
 	ed.api.events().subscribeDidRequestExclusiveOverlay(
 		[this](const EditorEvents::DidRequestExclusiveOverlay &e) {
@@ -313,7 +329,7 @@ void Workbench::ensureBootstrapTab()
 	if (!tabs_.empty())
 		return;
 	Tab tab = makeTab();
-	wireTabEditor(*tab.editor);
+	wireTabEditor(*tab.editor, *tab.surface);
 	if (!projectRoot.empty())
 		tab.editor->api.onProjectOpened(projectRoot);
 	tabs_.push_back(std::move(tab));
@@ -398,7 +414,7 @@ void Workbench::openOrFocus(const std::string &path, std::function<void()> after
 	} else
 	{
 		Tab tab = makeTab();
-		wireTabEditor(*tab.editor);
+		wireTabEditor(*tab.editor, *tab.surface);
 		if (!projectRoot.empty())
 			tab.editor->api.onProjectOpened(projectRoot);
 		tabs_.push_back(std::move(tab));
@@ -753,7 +769,7 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 				++tab.undockedFrames;
 			}
 
-			tab.editor->renderEditor(font, /*fill*/ -1.0f);
+			tab.surface->render(font, /*fill*/ -1.0f);
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
@@ -782,7 +798,7 @@ void Workbench::renderDockedWorkspace(ImFont *font)
 // ---------------------------------------------------------------------------
 
 #ifdef _WIN32
-void Workbench::drawWindowsTitlebar()
+void Workbench::renderWindowsTitlebar()
 {
 	const float fs = ImGui::GetFontSize();
 	const float h = std::max(fs * 1.7f, 28.0f);
@@ -1014,7 +1030,7 @@ void Workbench::endRootChrome()
 void Workbench::renderOverlays(EditorApi &api)
 {
 	settingsView.renderSettingsWindow(api, *fileExplorer, *lspView);
-	lspView->dashboard.render();
+	lspView->dashboard().render();
 	settingsView.renderNotification();
 }
 
@@ -1073,10 +1089,10 @@ void Workbench::applySettings()
 	if (!terminal.isStarted())
 	{
 		if (sizeChanged)
-			terminal.reloadTerminalFonts(termPx);
+			terminal.applyFont(termPx);
 	} else if (settingsApplied || resync || sizeChanged)
 	{
-		terminal.reloadTerminalFonts(termPx);
+		terminal.applyFont(termPx);
 		font.load(/*clearAtlas=*/false);
 	}
 }
@@ -1108,7 +1124,7 @@ void Workbench::render()
 
 #ifdef _WIN32
 	if (mode_ == WorkbenchHostMode::Fullscreen)
-		drawWindowsTitlebar();
+		renderWindowsTitlebar();
 #endif
 
 	if (showWelcome || fileExplorer->showWelcomeScreen)
@@ -1148,13 +1164,21 @@ void Workbench::render()
 	// differ from the focused editor the keybind ui is bound to.
 	if (lspView)
 	{
-		Editor *hovered =
+		Tab *hoveredTab =
 			hoveredIndex_ >= 0 && hoveredIndex_ < static_cast<int>(tabs_.size())
-				? tabs_[static_cast<size_t>(hoveredIndex_)].editor.get()
+				? &tabs_[static_cast<size_t>(hoveredIndex_)]
 				: nullptr;
-		lspView->setHoverApi(hovered ? hovered->api : *api);
-		lspView->render();
+		Editor *hovered = hoveredTab ? hoveredTab->editor.get() : activeView();
+		EditorSurface *hoveredSurface =
+			hoveredTab ? hoveredTab->surface.get() : activeSurface();
+		if (hovered && hoveredSurface)
+			lspView->setHoverApi(hovered->api, *hoveredSurface);
+		lspView->poll();
 	}
+	// Finder (embedded) centers on the active editor pane — feed it this
+	// frame's layout before it renders.
+	fileExplorer->fileFinder.editorLayout =
+		activeSurface() ? &activeSurface()->layout() : nullptr;
 	renderFileFinder(fileExplorer->fileFinder);
 	renderOverlays(*api);
 

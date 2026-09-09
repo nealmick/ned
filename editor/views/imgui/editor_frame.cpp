@@ -4,15 +4,15 @@
 */
 
 #include "editor_frame.h"
-#include "../../../util/imgui_icons.h"
+#include "../../../../host/imgui/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/git/git_service.h"
 #include "../../services/highlight/highlight_service.h"
-#include "../../util/editor_utils.h"
 #include "editor_input.h"
+#include "editor_utils.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -28,33 +28,33 @@ EditorFrame::EditorFrame(EditorState &document,
 	  input(&editorInput),
 	  state(&document),
 	  settings(&appSettings),
-	  titleBar(gitService, iconSet, appSettings),
+	  titleBarView(gitService, iconSet, appSettings),
 	  textView(document, view, hl, layout),
-	  gutter(document, view, gitService, layout),
-	  minimap(document, hl, layout),
-	  caret(view, layout)
+	  gutterView(document, view, gitService, layout),
+	  minimapView(document, hl, layout),
+	  caretView(view, layout)
 {
 	// Frame owns layout; input needs it for hit-testing.
 	editorInput.setLayout(layout);
 	textView.setTooltipArbiter(&tooltipArbiter);
-	gutter.setTooltipArbiter(&tooltipArbiter);
+	gutterView.setTooltipArbiter(&tooltipArbiter);
 	textView.setHoverInfo(&hoverTrigger.info());
-	gutter.setHoverInfo(&hoverTrigger.info());
+	gutterView.setHoverInfo(&hoverTrigger.info());
 }
 
 void EditorFrame::setDiagnostics(const LSPDiagnostics *store)
 {
 	textView.setDiagnostics(store);
-	gutter.setDiagnostics(store);
+	gutterView.setDiagnostics(store);
 }
 
-void EditorFrame::drawTitleBar(ImFont *font)
+void EditorFrame::renderTitleBar(ImFont *font)
 {
 	// No document path → no chrome ("Editor - No file selected" was noise).
 	if (!state || state->path.empty())
 		return;
 	const bool showGitChanges = layout.paneSize.x >= ImGui::GetFontSize() * 12.5f;
-	titleBar.render(font, state->path, showGitChanges);
+	titleBarView.paint(font, state->path, showGitChanges);
 }
 
 void EditorFrame::recomputeWidthPad()
@@ -244,7 +244,8 @@ void EditorFrame::updateLayoutMetrics()
 
 	layout.size = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
 	const float fs = ImGui::GetFontSize();
-	gutter.lineNumberWidth = ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
+	gutterView.lineNumberWidth =
+		ImGui::CalcTextSize("0").x * LINE_NUMBER_DIGITS + fs * 0.4f;
 	layout.lineHeight = ImGui::GetTextLineHeight();
 	layout.editorTopMargin = fs * 0.1f;
 	layout.textLeftMargin = fs * 0.35f;
@@ -280,11 +281,11 @@ void EditorFrame::beginDocumentChild()
 		layout.minimapMin = layout.minimapMax = NedVec2(0, 0);
 	}
 
-	gutter.lineNumbersPos = gutter.createLineNumbersPanel();
+	gutterView.lineNumbersPos = gutterView.createLineNumbersPanel();
 
 	const int lineCount = state->lineCount();
 	const float remaining_width =
-		std::max(1.0f, layout.size.x - gutter.lineNumberWidth - layout.minimapWidth);
+		std::max(1.0f, layout.size.x - gutterView.lineNumberWidth - layout.minimapWidth);
 
 	// Wrap width: child inner width minus the vertical scrollbar and margins.
 	// Computed before BeginChild so the wrapped height drives the content size
@@ -388,11 +389,11 @@ void EditorFrame::updateFocusPolicy()
 	}
 }
 
-void EditorFrame::drawDocument()
+void EditorFrame::renderDocument()
 {
-	textView.draw();
+	textView.paint();
 	if (editorFocused)
-		caret.draw();
+		caretView.paint();
 
 	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + layout.totalHeight +
 						 layout.editorTopMargin);
@@ -407,15 +408,15 @@ void EditorFrame::drawDocument()
 	if (layout.minimapVisible())
 	{
 		ImGui::SameLine(0.0f, 0.0f);
-		minimap.draw(*viewState);
+		minimapView.paint(*viewState);
 	}
 
 	ImGui::PushClipRect(
-		gutter.lineNumbersPos,
-		ImVec2(gutter.lineNumbersPos.x + gutter.lineNumberWidth,
-			   gutter.lineNumbersPos.y + layout.size.y - layout.editorTopMargin),
+		gutterView.lineNumbersPos,
+		ImVec2(gutterView.lineNumbersPos.x + gutterView.lineNumberWidth,
+			   gutterView.lineNumbersPos.y + layout.size.y - layout.editorTopMargin),
 		true);
-	gutter.renderLineNumbers();
+	gutterView.paint();
 	ImGui::PopClipRect();
 
 	ImGui::EndGroup();
@@ -430,17 +431,17 @@ void EditorFrame::run(ImFont *font)
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-	drawTitleBar(font);
+	renderTitleBar(font);
 	updateLayoutMetrics();
 	beginDocumentChild();
 	input->process();
 	// Interact uses this-frame layout.minimap* rect; requestScroll applied below.
 	if (layout.minimapVisible())
-		minimap.interact(*viewState);
+		minimapView.interact(*viewState);
 	viewState->updateScroll(layout);
 
 	updateHoverTrigger();
-	drawDocument();
+	renderDocument();
 
 	ImGui::PopStyleVar();
 }
@@ -458,20 +459,20 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 
 	// Gutter zone: the line-number column left of the text pane. The gutter
 	// child does not scroll; rows are drawn at lineNumbersPos.y + row*lineH -
-	// scrollY (GutterView::renderLineNumbers), so the inverse mapping uses the
+	// scrollY (GutterView::paint), so the inverse mapping uses the
 	// gutter's own origin — NOT layout.textPos, which is already
 	// scroll-adjusted (mixing the two double-counts scrollY).
-	if (mouse.x >= gutter.lineNumbersPos.x &&
-		mouse.x < gutter.lineNumbersPos.x + gutter.lineNumberWidth &&
-		mouse.y >= gutter.lineNumbersPos.y && mouse.y < l.panePos.y + l.paneSize.y)
+	if (mouse.x >= gutterView.lineNumbersPos.x &&
+		mouse.x < gutterView.lineNumbersPos.x + gutterView.lineNumberWidth &&
+		mouse.y >= gutterView.lineNumbersPos.y && mouse.y < l.panePos.y + l.paneSize.y)
 	{
 		const float scrollY = viewState->getScrollPosition().y;
 		const int row =
 			l.wrap ? l.wrap
-						 ->yToRow((mouse.y - gutter.lineNumbersPos.y + scrollY) /
+						 ->yToRow((mouse.y - gutterView.lineNumbersPos.y + scrollY) /
 								  l.lineHeight)
 						 .row
-				   : static_cast<int>((mouse.y - gutter.lineNumbersPos.y + scrollY) /
+				   : static_cast<int>((mouse.y - gutterView.lineNumbersPos.y + scrollY) /
 									  l.lineHeight);
 		if (row >= 0 && row < state->lineCount())
 		{
@@ -481,7 +482,7 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 		return hit;
 	}
 
-	// Text zone: pane minus minimap.
+	// Text zone: pane minus minimapView.
 	if (l.minimapVisible() && mouse.x >= l.minimapMin.x && mouse.x <= l.minimapMax.x &&
 		mouse.y >= l.minimapMin.y && mouse.y <= l.minimapMax.y)
 		return hit;
@@ -502,7 +503,7 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 		const std::string line = state->line(hitPos.row);
 		int column =
 			l.wrap->columnAt(line, hitPos.row, hitPos.segment, mouse.x - l.textPos.x);
-		column = EditorUtils::SnapToUtf8CharBoundary(line, column);
+		column = EditorUtils::snapToUtf8CharBoundary(line, column);
 		hit.zone = HoverTrigger::Zone::Text;
 		hit.row = hitPos.row;
 		hit.column = column;
@@ -514,8 +515,8 @@ HoverTrigger::Target EditorFrame::hoverHitTest() const
 		return hit;
 
 	const std::string line = state->line(row);
-	int column = EditorUtils::ColumnAtX(line, mouse.x - l.textPos.x);
-	column = EditorUtils::SnapToUtf8CharBoundary(line, column);
+	int column = EditorUtils::columnAtX(line, mouse.x - l.textPos.x);
+	column = EditorUtils::snapToUtf8CharBoundary(line, column);
 	hit.zone = HoverTrigger::Zone::Text;
 	hit.row = row;
 	hit.column = column;

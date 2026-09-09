@@ -17,14 +17,32 @@
 #include "lsp/types.h"
 
 class LSPClient;
-class LspEditor;
+class LSPEditor;
+
+// Picker-ownership arbitration: goto-definition and goto-references share one
+// picker; while one result set is being rendered, a newly rendered set takes
+// ownership and clears the previous owner's show flag so only one keeps
+// rendering (two concurrent requests can not fight over the popup).
+class LSPGotoArbiter
+{
+  public:
+	void render(const std::function<void(const std::string &title,
+										 const std::vector<LSPLocation> &locations,
+										 bool &show)> &renderer,
+				const std::string &title,
+				const std::vector<LSPLocation> &locations,
+				bool &show);
+
+  private:
+	bool *renderedShowFlag = nullptr; // last owner's show flag
+};
 
 class LSPGoto
 {
   public:
 	enum class Kind { Definition, References };
 
-	LSPGoto(LSPClient &client, LspEditor &api, Kind kind);
+	LSPGoto(LSPClient &client, LSPEditor &api, Kind kind);
 	~LSPGoto();
 
 	// Check keybind and trigger if conditions are met
@@ -43,17 +61,22 @@ class LSPGoto
 		const std::string &title, const std::vector<LSPLocation> &locations, bool &show)>
 		resultRenderer;
 
-	void setApi(LspEditor *editorApi) { api = editorApi; }
+	void setApi(LSPEditor *editorApi) { api = editorApi; }
+
+	// Route render() through the shared arbiter (both goto kinds share one
+	// picker per client). Optional — without one, resultRenderer runs direct.
+	void setArbiter(LSPGotoArbiter *a) { arbiter = a; }
 
   private:
 	Kind kind;
 	bool show = false;
 	LSPRequestState<std::vector<LSPLocation>> state;
 	LSPClient *client = nullptr;
-	LspEditor *api = nullptr;
+	LSPEditor *api = nullptr;
+	LSPGotoArbiter *arbiter = nullptr;
 };
 
 // Jump within the document `api` currently shows: UTF-16 -> UTF-8 byte
 // conversion against the DESTINATION line, then deferred center. Backends
 // that must open another file first load it, then call this.
-void lspJumpToLocation(LspEditor &api, const LSPLocation &location);
+void lspJumpToLocation(LSPEditor &api, const LSPLocation &location);

@@ -4,28 +4,38 @@
 #include <vector>
 
 class EditorApi;
+class EditorSurface;
 class FileExplorer;
 class Settings;
 
 class LSPUriOptions
 {
   public:
-	LSPUriOptions(EditorApi &api, FileExplorer &fileExplorer, Settings &settings);
+	LSPUriOptions(EditorApi &api,
+				  EditorSurface &surface,
+				  FileExplorer &fileExplorer,
+				  Settings &settings);
 	~LSPUriOptions();
 
-	void
-	render(const std::string &title, const std::vector<LSPLocation> &options, bool &show);
+	void present(const std::string &title,
+				 const std::vector<LSPLocation> &options,
+				 bool &show);
 
-	void setApi(EditorApi &editorApi) { api = &editorApi; }
+	void setApi(EditorApi &editorApi, EditorSurface &editorSurface)
+	{
+		api = &editorApi;
+		surface = &editorSurface;
+	}
 
   private:
-	void handleSelection();
+	void commit();
 
 	std::string currentTitle;
 	std::vector<LSPLocation> currentOptions;
 	size_t selectedIndex = 0;
 
 	EditorApi *api = nullptr;
+	EditorSurface *surface = nullptr; // presentation (pane layout) queries
 	FileExplorer *fileExplorer = nullptr;
 	Settings *settings = nullptr;
 };

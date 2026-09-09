@@ -1,7 +1,7 @@
 #include "qt_icons.h"
 
-#include "imgui_icons.h"
-#include "settings.h"
+#include "../../util/icon_keys.h"
+#include "../../util/settings.h"
 
 #include <QApplication>
 #include <QFile>
@@ -87,6 +87,5 @@ QIcon QtIconSet::byKey(const QString &key, int px)
 
 QIcon QtIconSet::forFile(const QString &filename, int px)
 {
-	return byKey(QString::fromStdString(Icons::iconKeyForFile(filename.toStdString())),
-				 px);
+	return byKey(QString::fromStdString(iconKeyForFile(filename.toStdString())), px);
 }

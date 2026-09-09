@@ -11,37 +11,6 @@
 
 #include <algorithm>
 
-namespace {
-
-std::string locationLabel(const LSPLocation &loc)
-{
-	// basename:line+1:character+1 (ImGui picker parity; wire values are 0-based).
-	std::string filename = loc.file;
-	const size_t lastSlash = filename.find_last_of("/\\");
-	if (lastSlash != std::string::npos)
-		filename = filename.substr(lastSlash + 1);
-	return filename + ":" + std::to_string(loc.line + 1) + ":" +
-		   std::to_string(loc.character + 1);
-}
-
-// Content signature — lets present() no-op while the (async) result set is
-// unchanged instead of rebuilding the visible list on every poll tick.
-std::string locationSignature(const std::string &title,
-							  const std::vector<LSPLocation> &options)
-{
-	std::string sig = title + "/" + std::to_string(options.size());
-	for (const LSPLocation &loc : options)
-	{
-		sig += ";";
-		sig += loc.file;
-		sig += ":" + std::to_string(loc.line);
-		sig += ":" + std::to_string(loc.character);
-	}
-	return sig;
-}
-
-} // namespace
-
 LSPUriOptions::LSPUriOptions(QWidget *parent) : QDialog(parent, Qt::Popup)
 {
 	setModal(true);
@@ -97,7 +66,8 @@ void LSPUriOptions::present(const std::string &titleTextIn,
 	showFlag = showFlagIn;
 
 	const std::string signature =
-		locationSignature(titleTextIn, optionsIn) + (pending ? "/pending" : "");
+		lsp_locations::locationSignature(titleTextIn, optionsIn) +
+		(pending ? "/pending" : "");
 	if (isVisible() && signature == shownSignature)
 		return; // same request, same results — keep scroll + selection
 	shownSignature = signature;
@@ -122,7 +92,7 @@ void LSPUriOptions::present(const std::string &titleTextIn,
 	} else
 	{
 		for (const LSPLocation &loc : options)
-			list->addItem(QString::fromStdString(locationLabel(loc)));
+			list->addItem(QString::fromStdString(lsp_locations::locationLabel(loc)));
 		// Keep the selection stable across in-place refreshes; a fresh open
 		// starts at the top.
 		list->setCurrentRow(std::clamp(previousRow, 0, list->count() - 1));

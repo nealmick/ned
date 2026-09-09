@@ -9,4 +9,4 @@
 class FileTree;
 struct FileNode;
 
-void renderFileTree(FileTree &tree, FileNode &node, int depth = 0);
+void populateFileTree(FileTree &tree, FileNode &node, int depth = 0);

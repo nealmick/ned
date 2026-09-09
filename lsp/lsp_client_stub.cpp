@@ -5,7 +5,9 @@
 
 #include "lsp_client.h"
 
-LSPClient::LSPClient(LspEditor &, Settings &) {}
+#include "../util/keybinds.h"
+
+LSPClient::LSPClient(LSPEditor &, Settings &) {}
 
 LSPClient::~LSPClient() = default;
 
@@ -22,8 +24,6 @@ const std::vector<LanguageServerInfo> &LSPClient::getLanguageServers() const
 	static const std::vector<LanguageServerInfo> empty;
 	return empty;
 }
-
-std::vector<std::string> LSPClient::getSupportedLanguages() const { return {}; }
 
 void LSPClient::didOpen(const std::string &, const std::string &, int, const std::string &)
 {
@@ -46,7 +46,13 @@ const LSPDiagnostics &LSPClient::diagnostics() const { return diagnostics_; }
 
 bool LSPClient::isDocumentOpen(const std::string &) const { return false; }
 
-void LSPClient::bindEditorApi(LspEditor *) {}
+void LSPClient::bindEditorApi(LSPEditor *) {}
+
+const KeybindsManager &LSPClient::settingsKeybinds() const
+{
+	static const KeybindsManager empty;
+	return empty;
+}
 
 bool LSPClient::startServer(const std::string &, const std::string &) { return false; }
 

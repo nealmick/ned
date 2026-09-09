@@ -122,6 +122,7 @@ class EditorCommands
 	void restoreSelections(const std::vector<SelectionSnapshot> &snaps, int primary);
 
 	void applyHistory(const HistoryEdit &edit, bool isUndo);
+	void undoRedo(bool isUndo);
 
 	void beginSelectGesture(bool select);
 	void endSelectGesture(bool select);

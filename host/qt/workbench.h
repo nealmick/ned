@@ -104,7 +104,7 @@ class Workbench : public QWidget
 	// the next tab switch).
 	void refreshTabChrome();
 	void setTabText(EditorFrame *view, const QString &text);
-	void activateTabIndex(int index); // Ctrl+1..9 within the active group
+	void activateTab(int index); // Ctrl+1..9 within the active group
 	void closeActiveTab();
 	void splitActive(Qt::Orientation orientation);
 
@@ -127,6 +127,8 @@ class Workbench : public QWidget
 	};
 
 	QList<EditorGroup *> groupsInOrder() const;
+	// Active group, else the first group in tree order (null when empty).
+	EditorGroup *effectiveGroup() const;
 	QWidget *treeRoot() const;
 	EditorGroup *makeGroup();
 	QSplitter *makeSplitter(Qt::Orientation o);

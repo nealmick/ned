@@ -5,6 +5,9 @@
 	Friend of Editor — only type that may reach private subsystems.
 	Caret moves and save go through EditorCommands.
 	Document lifecycle is composed here (not on Commands).
+	Toolkit-neutral: presentation queries (layout, caret pixel position,
+	tooltip arbitration, hover trigger, diagnostics binding) live on the
+	per-backend surfaces (ImGui: views/imgui/editor_surface.h).
 */
 
 #pragma once
@@ -13,13 +16,11 @@
 #include "platform/lsp_editor.h"
 #include "platform/ned_types.h"
 #include "services/highlight/capture_map.h"
-#include "util/hover_trigger.h"
-#include "views/view_layout.h"
 #include <string>
 
 class Editor;
 
-class EditorApi : public LspEditor
+class EditorApi : public LSPEditor
 {
   public:
 	explicit EditorApi(Editor &editor);
@@ -31,13 +32,11 @@ class EditorApi : public LspEditor
 	void openDocument(const std::string &path, const std::string &raw);
 	// Failed open: show message, clear path, clear highlight colors.
 	void failOpen(const std::string &message);
-	// Replace buffer only (no path). Prefer openDocument for real files.
-	void setContent(const std::string &raw);
 	// Per-editor project hooks (git). Undo load is ProjectUndo at the shell.
 	void onProjectOpened(const std::string &root);
 
 	// --- Document / caret queries (const reads) ---
-	// The six below override the LspEditor seam (lsp core path), as does
+	// The six below override the LSPEditor seam (lsp core path), as does
 	// requestCursorCenter further down.
 	const std::string &path() const override;
 	bool hasPath() const;
@@ -51,8 +50,6 @@ class EditorApi : public LspEditor
 
 	// --- Navigation actions (via Commands) ---
 	void resetCaret();
-	void restoreCaret(int row, int column);
-	void centerOn(int row, int column);
 	void requestEnsureVisible();
 	// Deferred center after layout exists (e.g. post file-load). View schedule, not setCursor.
 	void requestCursorCenter(int row, int column) override;
@@ -62,9 +59,8 @@ class EditorApi : public LspEditor
 	void requestFocus();
 	void setBlockInput(bool blocked);
 	bool isBlockInput() const;
-	void dismissLineJump();
-	void dismissFinder();
-	// Mutual exclusion: emit so root closes shell overlays; dismiss editor siblings.
+	// Mutual exclusion: emit so root closes shell overlays; the backend
+	// surface dismisses the editor-owned siblings (line-jump / find).
 	// keep == None closes every overlay.
 	void requestExclusiveOverlay(EditorEvents::DidRequestExclusiveOverlay::Keep keep);
 	void closeAllOverlays();
@@ -73,25 +69,6 @@ class EditorApi : public LspEditor
 	void save();
 	void forceColorUpdate();
 	bool isFileModified(const std::string &filePath) const;
-
-	// --- Layout (LSP UI / embedded popups) ---
-	const ViewLayout &layout() const;
-	float caretScreenX() const;
-
-	// Optional workspace diagnostics (owned by LSPClient). Null is fine.
-	void bindDiagnostics(const class LSPDiagnostics *store);
-
-	// --- Tooltip arbitration ---
-	// ImGui has one shared tooltip window per frame. Symbol hover must claim it
-	// before rendering, or skip if gutter/squiggle diagnostics already own it.
-	bool claimTooltip() const;
-
-	// --- Transient hover trigger (VSCode-style; updated by the frame) ---
-	// True when a hover may show this frame, with the frozen target cell.
-	HoverTrigger::Info hoverInfo() const;
-	// True when this frame carried a dismissal signal (key/click/scroll/block).
-	// Popup owners must honor it even while being sticky.
-	bool hoverDismissed() const;
 
 	// --- Events (composition root subscribes) ---
 	EditorEvents &events();

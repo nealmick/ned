@@ -152,6 +152,20 @@ void configureNedQtChrome(void *qtWinId, float opacity, bool blurEnabled)
 // bits while leaving our accessory subviews in place — producing the
 // "default gray bar with our buttons" look. This watcher re-asserts the
 // chrome periodically, cheaply and idempotently.
+// The full chrome-reassert sequence (style bits, effect view, transparency,
+// title-bar tint) shared by the resize observer and the 0.25s timer.
+static void nedReassertChrome(NSWindow *w)
+{
+	if (!(w.styleMask & NSWindowStyleMaskFullSizeContentView))
+		w.styleMask |= NSWindowStyleMaskFullSizeContentView;
+	w.titlebarAppearsTransparent = YES;
+	w.titleVisibility = NSWindowTitleHidden;
+	nedEnsureEffectView(w);
+	nedAssertTransparency(w);
+	if (gNedWindowColor)
+		nedQtApplyTitlebarColor(w, gNedWindowColor);
+}
+
 void nedQtChromeWatch(void *qtWinId)
 {
 	static BOOL installed = NO;
@@ -177,21 +191,13 @@ void nedQtChromeWatch(void *qtWinId)
 		addObserverForName:NSWindowDidResizeNotification
 		              object:watched
 		               queue:nil
-		          usingBlock:^(NSNotification *note) {
-		              NSWindow *w = note.object;
-		              if (![w isKindOfClass:[NSWindow class]])
-		                  return;
-		              if (!(w.styleMask & NSWindowStyleMaskFullSizeContentView))
-		              {
-		                  w.styleMask |= NSWindowStyleMaskFullSizeContentView;
-		                  w.titlebarAppearsTransparent = YES;
-		                  w.titleVisibility = NSWindowTitleHidden;
-		                  nedEnsureEffectView(w);
-		                  nedAssertTransparency(w);
-		                  if (gNedWindowColor)
-		                      nedQtApplyTitlebarColor(w, gNedWindowColor);
-		              }
-		          }];
+	          usingBlock:^(NSNotification *note) {
+	              NSWindow *w = note.object;
+	              if (![w isKindOfClass:[NSWindow class]])
+	                  return;
+	              if (!(w.styleMask & NSWindowStyleMaskFullSizeContentView))
+	                  nedReassertChrome(w);
+	          }];
 
 	NSTimer *timer = [NSTimer timerWithTimeInterval:0.25
 	                                              repeats:YES
@@ -216,16 +222,7 @@ void nedQtChromeWatch(void *qtWinId)
 	                                              // WA_TranslucentBackground makes Qt recompute the
 	                                              // style mask at show time WITHOUT our
 	                                              // full-size-content bit — re-assert it.
-	                                              if (!(w.styleMask &
-	                                                    NSWindowStyleMaskFullSizeContentView))
-	                                                  w.styleMask |=
-	                                                    NSWindowStyleMaskFullSizeContentView;
-	                                              w.titlebarAppearsTransparent = YES;
-	                                              w.titleVisibility = NSWindowTitleHidden;
-	                                              nedEnsureEffectView(w);
-	                                              nedAssertTransparency(w);
-	                                              if (gNedWindowColor)
-	                                                  nedQtApplyTitlebarColor(w, gNedWindowColor);
+	                                              nedReassertChrome(w);
 	                                            }];
 	[[NSRunLoop mainRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
 }

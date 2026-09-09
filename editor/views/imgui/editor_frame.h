@@ -32,11 +32,11 @@ class EditorFrame
 	// Per-frame metrics; consumers hold const ViewLayout*.
 	ViewLayout layout;
 
-	TitleBarView titleBar;
+	TitleBarView titleBarView;
 	TextView textView;
-	GutterView gutter;
-	MinimapView minimap;
-	CaretView caret;
+	GutterView gutterView;
+	MinimapView minimapView;
+	CaretView caretView;
 
 	EditorFrame(EditorState &document,
 				EditorViewState &view,
@@ -58,7 +58,7 @@ class EditorFrame
 	// True when this frame carried a dismissal signal (key/click/scroll/block).
 	bool hoverDismissed() const { return frameDismissed; }
 
-	// Full document pass: title bar → layout → focus → input → scroll → draw.
+	// Full document pass: title bar → layout → focus → input → scroll → paint.
 	void run(ImFont *font);
 
 	// Longest-line scroll width (view cache). Composition root only.
@@ -79,11 +79,11 @@ class EditorFrame
 	static constexpr int LINE_NUMBER_DIGITS = 4;
 	static constexpr float SCROLL_WIDTH_FONT_MUL = 10.0f;
 
-	void drawTitleBar(ImFont *font);
+	void renderTitleBar(ImFont *font);
 	void updateLayoutMetrics();
 	void beginDocumentChild();
 	void updateFocusPolicy();
-	void drawDocument();
+	void renderDocument();
 	// Zone/row/column under the mouse right now (Text or Gutter), for the trigger.
 	HoverTrigger::Target hoverHitTest() const;
 	void updateHoverTrigger();
@@ -106,8 +106,8 @@ class EditorFrame
 	// Per-frame instance (must NOT be static — multi-tab embed has many frames).
 	// Two distinct signals: `wasEditorFocused` is the PREVIOUS frame's focus
 	// (edge detection in updateFocusPolicy); `editorFocused` is this frame's
-	// snapshot, read by drawDocument() to hide docked siblings' carets —
-	// drawDocument therefore runs AFTER updateFocusPolicy in a frame.
+	// snapshot, read by renderDocument() to hide docked siblings' carets —
+	// renderDocument therefore runs AFTER updateFocusPolicy in a frame.
 	bool wasEditorFocused = false;
 	bool editorFocused = true;
 	TooltipArbiter tooltipArbiter;

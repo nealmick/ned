@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../editor/platform/ned_types.h"
+#include "../../editor/platform/ned_types.h"
+#include "../../util/icon_keys.h"
 #include <cstdint>
 #include <map>
 #include <string>
@@ -20,8 +21,12 @@ class Icons
 	NedTextureId getForFile(const std::string &filename) const;
 
 	// Pure resolution: filename -> icon key ("cpp", "cmake", ...). Backends
-	// without the GL texture atlas (Qt) use this + their own renderer.
-	static std::string iconKeyForFile(const std::string &filename);
+	// without the GL texture atlas (Qt) use the free iconKeyForFile() +
+	// their own renderer.
+	static std::string iconKeyForFile(const std::string &filename)
+	{
+		return ::iconKeyForFile(filename);
+	}
 
   private:
 	static constexpr int ICON_SIZE = 32;

@@ -3,6 +3,7 @@
 #include "../../../editor/platform/lsp_editor.h"
 #include "../../../editor/services/highlight/tree_sitter.h"
 #include "../../../editor/util/hover_markdown.h"
+#include "../../../editor/util/hover_runs.h"
 #include "../../../lsp/lsp_client.h"
 #include "editor/views/qt/editor_frame.h"
 #include "editor/views/qt/ned_color.h"
@@ -10,11 +11,8 @@
 
 #include <QCursor>
 #include <QGuiApplication>
-#include <QLabel>
-#include <QScreen>
 
 #include <algorithm>
-#include <iostream>
 
 namespace {
 
@@ -33,50 +31,34 @@ QString colorSpan(const QString &text, const QColor &c)
 	return "<span style=\"color:" + c.name() + "\">" + text + "</span>";
 }
 
-// One code line as colored runs — the same span walk the ImGui tooltip
-// (drawCodeLine) and the editor's own text painter use. Span offsets are
-// byte offsets into the line.
+// One code line as colored runs — the shared span walk (HoverCodeRuns) that
+// the ImGui tooltip and the editor's own text painter also use. Span offsets
+// are byte offsets into the line.
 QString
-codeLineToHtml(const std::string &line, const LineColorSpans &spans, LspEditor &doc)
+codeLineToHtml(const std::string &line, const LineColorSpans &spans, LSPEditor &doc)
 {
 	const QColor fallback = toQColor(doc.defaultTextColor());
 	QString html;
-	size_t spanIdx = 0;
-	int i = 0;
-	const int n = static_cast<int>(line.size());
-	while (i < n)
+	for (const HoverCodeRun &run : HoverCodeRuns(line, spans))
 	{
-		while (spanIdx < spans.size() && spans[spanIdx].end <= i)
-			++spanIdx;
-
-		QColor color = fallback;
-		int runEnd = n;
-		if (spanIdx < spans.size() && spans[spanIdx].start <= i)
-		{
-			color = toQColor(doc.syntaxColor(spans[spanIdx].slot));
-			runEnd = std::min(n, spans[spanIdx].end);
-		} else if (spanIdx < spans.size())
-		{
-			runEnd = std::min(n, spans[spanIdx].start);
-		}
-
 		html += colorSpan(
-			QString::fromStdString(line.substr(i, runEnd - i)).toHtmlEscaped(), color);
-		i = runEnd;
+			QString::fromUtf8(run.text.data(), static_cast<qsizetype>(run.text.size()))
+				.toHtmlEscaped(),
+			run.themed ? toQColor(doc.syntaxColor(run.slot)) : fallback);
 	}
 	return html;
 }
 
 // Fenced block: tree-sitter snippet highlight with the editor's theme
 // colors (ImGui drawCodeBlock parity — no background tint, colored runs).
-QString codeBlockToHtml(const HoverMdBlock &block, LspEditor &doc)
+QString codeBlockToHtml(const HoverMdBlock &block, LSPEditor &doc)
 {
 	std::string lang = block.language.empty() ? doc.languageId() : block.language;
 	ColorRangeMap colors;
 	if (!lang.empty())
 		colors = TreeSitter::highlightSnippet(lang, block.text);
 
-	std::vector<std::string> lines = SplitHoverLines(block.text);
+	std::vector<std::string> lines = splitHoverLines(block.text);
 	if (lines.empty())
 		lines.emplace_back("");
 
@@ -92,82 +74,44 @@ QString codeBlockToHtml(const HoverMdBlock &block, LspEditor &doc)
 	return html;
 }
 
-// Prose inline subset — ImGui drawProseLine parity: `code` colored as the
-// theme's String slot, **bold** brightened, links as plain text.
-QString proseLineToHtml(const std::string &line, LspEditor &doc)
+// Prose inline subset — shared run walk (HoverProseRuns): `code` colored as
+// the theme's String slot, **bold** brightened, links as plain text.
+QString proseLineToHtml(const std::string &line, LSPEditor &doc)
 {
 	const QColor text = toQColor(doc.defaultTextColor());
 	const QColor code = toQColor(doc.syntaxColor(ThemeSlot::String));
-	const QString src = QString::fromStdString(line);
 
 	QString html;
-	for (int i = 0; i < src.size();)
+	for (const HoverRun &run : HoverProseRuns(line))
 	{
-		if (src[i] == '`')
+		const QString piece =
+			QString::fromUtf8(run.text.data(), static_cast<qsizetype>(run.text.size()))
+				.toHtmlEscaped();
+		switch (run.style)
 		{
-			const int end = src.indexOf('`', i + 1);
-			if (end > i)
-			{
-				html += colorSpan(src.mid(i + 1, end - i - 1).toHtmlEscaped(), code);
-				i = end + 1;
-				continue;
-			}
+		case HoverRunStyle::Code:
+			html += colorSpan(piece, code);
+			break;
+		case HoverRunStyle::Bold:
+			html += "<b>" + colorSpan(piece, boosted(text)) + "</b>";
+			break;
+		default: // Text / Link: label text in the default color
+			html += colorSpan(piece, text);
+			break;
 		}
-		if (src[i] == '*' && i + 1 < src.size() && src[i + 1] == '*')
-		{
-			const int end = src.indexOf("**", i + 2);
-			if (end > i)
-			{
-				html += "<b>" +
-						colorSpan(src.mid(i + 2, end - i - 2).toHtmlEscaped(),
-								  boosted(text)) +
-						"</b>";
-				i = end + 2;
-				continue;
-			}
-		}
-		if (src[i] == '[')
-		{
-			const int textEnd = src.indexOf(']', i + 1);
-			if (textEnd > i && textEnd + 1 < src.size() && src[textEnd + 1] == '(')
-			{
-				const int urlEnd = src.indexOf(')', textEnd + 2);
-				if (urlEnd > textEnd)
-				{
-					html +=
-						colorSpan(src.mid(i + 1, textEnd - i - 1).toHtmlEscaped(), text);
-					i = urlEnd + 1;
-					continue;
-				}
-			}
-		}
-
-		// Plain run up to the next inline marker.
-		int next = src.size();
-		for (int j = i + 1; j < src.size(); ++j)
-		{
-			if (src[j] == '`' || src[j] == '[' ||
-				(j + 1 < src.size() && src[j] == '*' && src[j + 1] == '*'))
-			{
-				next = j;
-				break;
-			}
-		}
-		html += colorSpan(src.mid(i, next - i).toHtmlEscaped(), text);
-		i = next;
 	}
 	return html;
 }
 
-// The same block pipeline the ImGui renderer runs (ParseHoverMarkdown →
+// The same block pipeline the ImGui renderer runs (parseHoverMarkdown →
 // code/rules/prose), emitted as rich text instead of draw calls. Blocks
 // join with <br> and spans only — no <p>: Qt's default paragraph margins
 // double the line spacing.
-QString hoverMarkdownToHtml(const std::string &markdown, LspEditor &doc)
+QString hoverMarkdownToHtml(const std::string &markdown, LSPEditor &doc)
 {
 	QString html;
 	bool firstBlock = true;
-	for (const HoverMdBlock &block : ParseHoverMarkdown(markdown))
+	for (const HoverMdBlock &block : parseHoverMarkdown(markdown))
 	{
 		if (!firstBlock)
 			html += "<br>";
@@ -182,7 +126,7 @@ QString hoverMarkdownToHtml(const std::string &markdown, LspEditor &doc)
 		} else if (!block.text.empty())
 		{
 			bool firstLine = true;
-			for (const std::string &line : SplitHoverLines(block.text))
+			for (const std::string &line : splitHoverLines(block.text))
 			{
 				if (!firstLine)
 					html += "<br>";

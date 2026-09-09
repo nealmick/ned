@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetricsF>
+#include <QtMath>
 
 namespace NedQtFonts {
 
@@ -67,6 +69,37 @@ QFont profileMonoFont(const Settings &settings)
 	font.setStyleHint(QFont::Monospace);
 	font.setFixedPitch(true);
 	font.setPointSize(static_cast<int>(settings.settings.value("fontSize", 13)));
+	return font;
+}
+
+QFont terminalFont(const Settings &settings)
+{
+	// qtermwidget measures its cell width as an INTEGER (qRound of the
+	// average advance) but paints glyphs at sub-pixel advances: at point
+	// sizes whose advance is fractional (e.g. Source Code Pro 19pt =
+	// 11.39px -> cell 11px) every glyph paints ~0.4px wider than its cell
+	// and the cursor drifts LEFT of the typed text, accumulating per
+	// column. Kerning off + snapping the point size to the nearest size
+	// with an INTEGRAL advance makes painted advance == measured cell
+	// exactly, with no change to the vendored widget.
+	QFont font = profileMonoFont(settings);
+	font.setKerning(false);
+
+	const int want = font.pointSize();
+	for (int off : {0, 1, -1, 2, -2})
+	{
+		const int pt = want + off;
+		if (pt < 8 || pt > 40)
+			continue;
+		QFont probe = font;
+		probe.setPointSize(pt);
+		const qreal adv = QFontMetricsF(probe).horizontalAdvance(QLatin1Char('M'));
+		if (qAbs(adv - qRound(adv)) < 0.05)
+		{
+			font.setPointSize(pt);
+			break;
+		}
+	}
 	return font;
 }
 

@@ -22,7 +22,7 @@ class TitleBarView
 	{
 	}
 
-	void render(ImFont *font, const std::string &filePath, bool showGitChanges);
+	void paint(ImFont *font, const std::string &filePath, bool showGitChanges);
 
   private:
 	const EditorGit *git;

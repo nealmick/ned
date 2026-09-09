@@ -5,7 +5,7 @@
 
 namespace monaco {
 
-// Local SnapToUtf8CharBoundary — avoids pulling ImGui
+// Local snapToUtf8CharBoundary — avoids pulling ImGui
 // into the headless model test binary via editor_utils.h.
 static int snapUtf8(const std::string &str, int idx)
 {

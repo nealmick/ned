@@ -43,7 +43,7 @@ class LSPUriOptions : public QDialog
 	// Every close path (Escape, outside click, accept/reject) hides the
 	// popup — one hook clears the request's show flag.
 	void hideEvent(QHideEvent *event) override;
-	// This dialog is long-lived (built once with LspView), so its card
+	// This dialog is long-lived (built once with LSPView), so its card
 	// stylesheet can't snapshot the popover color at construction — the
 	// theme may change many times before the next open. Re-derive it from
 	// the live palette here (finder/line-jump are rebuilt per use and

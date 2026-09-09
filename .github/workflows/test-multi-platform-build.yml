@@ -1,4 +1,4 @@
-name: Test Multi-Platform Build
+name: Test Multi-Platform Build (ImGui)
 on:
   workflow_dispatch:
 

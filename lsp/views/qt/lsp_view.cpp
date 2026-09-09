@@ -17,7 +17,7 @@
 #include <QKeyEvent>
 #include <QTimer>
 
-LspView::LspView(LSPClient &clientIn,
+LSPView::LSPView(LSPClient &clientIn,
 				 Settings &settingsIn,
 				 QWidget *hostWindowIn,
 				 OpenFileFn opener)
@@ -43,15 +43,11 @@ LspView::LspView(LSPClient &clientIn,
 		hostWindow);
 	symbolInfo = new LSPSymbolInfo(client, settings, this);
 
-	// Shared picker for both goto requests (ImGui parity). A picker that is
-	// already showing another request's results hands ownership over: the
-	// previous request's show flag is cleared so only one keeps rendering.
+	// Shared picker for both goto requests (ImGui parity). Picker-ownership
+	// arbitration lives in the LSP core (LSPGotoArbiter via LSPClient).
 	auto renderThroughPicker = [this](const std::string &title,
 									  const std::vector<LSPLocation> &locations,
 									  bool &show) {
-		if (renderedShowFlag && renderedShowFlag != &show)
-			*renderedShowFlag = false;
-		renderedShowFlag = &show;
 		picker->present(title,
 						locations,
 						&show,
@@ -70,9 +66,9 @@ LspView::LspView(LSPClient &clientIn,
 	qApp->installEventFilter(this);
 }
 
-LspView::~LspView() { qApp->removeEventFilter(this); }
+LSPView::~LSPView() { qApp->removeEventFilter(this); }
 
-void LspView::editorOpened(EditorFrame &view)
+void LSPView::editorOpened(EditorFrame &view)
 {
 	// The editor owns its hover trigger; the LSP layer observes it and
 	// targets the hovered document (splits differ from the focused tab).
@@ -86,14 +82,14 @@ void LspView::editorOpened(EditorFrame &view)
 	rebind(&view);
 }
 
-void LspView::rebind(EditorFrame *view)
+void LSPView::rebind(EditorFrame *view)
 {
 	active = view;
 	client.bindEditorApi(view);
 	symbolInfo->setEditor(view);
 }
 
-bool LspView::eventFilter(QObject *watched, QEvent *event)
+bool LSPView::eventFilter(QObject *watched, QEvent *event)
 {
 	const QEvent::Type type = event->type();
 
@@ -144,7 +140,7 @@ bool LspView::eventFilter(QObject *watched, QEvent *event)
 	return handleKeybinds(*view, key);
 }
 
-bool LspView::handleKeybinds(EditorFrame &view, QKeyEvent *event)
+bool LSPView::handleKeybinds(EditorFrame &view, QKeyEvent *event)
 {
 	if (!client.isInitialized())
 		return false;
@@ -175,7 +171,7 @@ bool LspView::handleKeybinds(EditorFrame &view, QKeyEvent *event)
 	return false;
 }
 
-void LspView::jumpTo(const LSPLocation &location)
+void LSPView::jumpTo(const LSPLocation &location)
 {
 	EditorFrame *target = active;
 	if (!target)
@@ -190,7 +186,7 @@ void LspView::jumpTo(const LSPLocation &location)
 		lspJumpToLocation(*target, location);
 }
 
-void LspView::poll()
+void LSPView::poll()
 {
 	client.gotoDef.render();
 	client.gotoRef.render();

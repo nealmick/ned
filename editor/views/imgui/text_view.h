@@ -28,7 +28,7 @@ class TextView
 	{
 	}
 
-	void draw() const;
+	void paint() const;
 	void setDiagnostics(const LSPDiagnostics *store) { diagnostics = store; }
 	void setTooltipArbiter(TooltipArbiter *arbiter) { tooltipArbiter = arbiter; }
 	// Frame's transient hover target (tooltip visibility is trigger-driven).
@@ -53,8 +53,8 @@ class TextView
 
 	void getVisibleLineRange(int &start_line, int &end_line) const;
 	bool isSelected(int row, int col) const;
-	void renderCurrentLineHighlight() const;
-	void renderDiagnosticMarks() const;
+	void paintCurrentLineHighlight() const;
+	void paintDiagnosticMarks() const;
 	// One rope copy per visible row: indent guides + glyphs + selection.
-	void renderVisibleLines() const;
+	void paintVisibleLines() const;
 };

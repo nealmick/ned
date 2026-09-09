@@ -68,14 +68,14 @@ void LSPDashboard::render()
 		// Refresh button
 		if (ImGui::Button("Refresh Server Status"))
 		{
-			refreshServerInfo();
+			refresh();
 		}
 
 		ImGui::SameLine();
 		if (ImGui::Button("Reload LSP.json"))
 		{
 			client->initializeLanguageServers();
-			refreshServerInfo();
+			refresh();
 
 			// Show notification with server count
 			std::string message = "LSP Servers: " + std::to_string(serverInfos.size());
@@ -172,32 +172,28 @@ void LSPDashboard::renderServerEntry(const LSPServerInfo &serverInfo)
 
 	// Found status with green dot
 	ImGui::TableSetColumnIndex(2);
-	if (serverInfo.isFound)
+	switch (lspFoundStatus(serverInfo).color)
 	{
+	case LSPStatusColorRole::Positive:
 		ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "● Found");
-	} else
-	{
+		break;
+	default:
 		ImGui::TextColored(ImVec4(0.8f, 0.2f, 0.2f, 1.0f), "● Missing");
+		break;
 	}
 
 	// Active status
 	ImGui::TableSetColumnIndex(3);
-	if (serverInfo.isFound)
-	{
-		if (serverInfo.isActive)
-		{
-			ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "● Active");
-		} else
-		{
-			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "● Inactive");
-		}
-	} else
-	{
-		ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "N/A");
-	}
+	const LSPServerStatus status = lspActiveStatus(serverInfo);
+	ImVec4 statusColor(0.5f, 0.5f, 0.5f, 1.0f);
+	if (status.color == LSPStatusColorRole::Positive)
+		statusColor = ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+	else if (status.color == LSPStatusColorRole::Muted)
+		statusColor = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+	ImGui::TextColored(statusColor, "%s", status.text);
 }
 
-void LSPDashboard::refreshServerInfo()
+void LSPDashboard::refresh()
 {
 	if (!client)
 	{

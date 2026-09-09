@@ -33,7 +33,6 @@ class GutterView
 
 	void updateWidth();
 	int diagColumnWidth() const;
-	int gitDirtyLineCount() const;
 	void paint(QPainter &painter,
 			   int firstRow,
 			   int rows,

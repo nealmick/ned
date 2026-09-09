@@ -100,21 +100,17 @@ void LSPDashboard::refresh()
 		auto *pathItem = new QTableWidgetItem(QString::fromStdString(server.serverPath));
 		pathItem->setToolTip(QString::fromStdString(server.serverPath));
 
-		auto *foundItem = new QTableWidgetItem(
-			server.isFound ? QStringLiteral("● Found") : QStringLiteral("● Missing"));
-		foundItem->setForeground(server.isFound ? QColor(0x47, 0xcc, 0x47)
-												: QColor(0xcc, 0x47, 0x47));
+		const LSPServerStatus found = lspFoundStatus(server);
+		auto *foundItem = new QTableWidgetItem(QString::fromUtf8(found.text));
+		foundItem->setForeground(found.color == LSPStatusColorRole::Positive
+									 ? QColor(0x47, 0xcc, 0x47)
+									 : QColor(0xcc, 0x47, 0x47));
 
-		QString statusText = QStringLiteral("N/A");
+		const LSPServerStatus status = lspActiveStatus(server);
 		QColor statusColor(0x99, 0x99, 0x99);
-		if (server.isFound)
-		{
-			statusText = server.isActive ? QStringLiteral("● Active")
-										 : QStringLiteral("● Inactive");
-			if (server.isActive)
-				statusColor = QColor(0x47, 0xcc, 0x47);
-		}
-		auto *statusItem = new QTableWidgetItem(statusText);
+		if (status.color == LSPStatusColorRole::Positive)
+			statusColor = QColor(0x47, 0xcc, 0x47);
+		auto *statusItem = new QTableWidgetItem(QString::fromUtf8(status.text));
 		statusItem->setForeground(statusColor);
 
 		table->setItem(row, 0, languageItem);

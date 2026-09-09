@@ -9,12 +9,14 @@
 #pragma once
 
 #include <QDialog>
-#include <QStringList>
 
+#include "../../file_finder.h"
 #include "../../file_finder_match.h"
 
 #include <atomic>
+#include <memory>
 #include <thread>
+#include <vector>
 
 class QLineEdit;
 class QListWidget;
@@ -41,7 +43,9 @@ class FileFinderView : public QDialog
 	QString workspace;
 	std::atomic<bool> stopScan{false};
 	std::thread scanThread;
-	QStringList allFiles; // guarded by scan completion flag
+	// Core scan results (scanWorkspaceFiles) — handed off via shared_ptr so
+	// early dialog destruction can't dangle the worker's output.
+	std::shared_ptr<std::vector<FileEntry>> allFiles;
 	std::atomic<bool> scanDone{false};
 
 	QLineEdit *input = nullptr;

@@ -123,7 +123,6 @@ class EditorViewState
 	// Sync row/column/preferred from primary head.
 	void syncPrimaryMirrors();
 	// Push row/column/preferred into primary head (and anchor if empty).
-	void applyMirrorsToPrimary();
 
 	void clampAll();
 	void mergeSelections();
@@ -135,16 +134,7 @@ class EditorViewState
 
 	// --- Caret movement (document-aware, per selection) ---
 
-	void clamp();
-	void calculateVisualColumn();
 	void calculateVisualColumn(Selection &sel);
-
-	void cursorLeft();
-	void cursorRight();
-	void cursorUp();
-	void cursorDown();
-	void moveWordForward();
-	void moveWordBackward();
 
 	void cursorLeft(Selection &sel);
 	void cursorRight(Selection &sel);
@@ -172,6 +162,35 @@ class EditorViewState
 	// Wheel while hovered over the editor child.
 	void processMouseWheelScrolling(const ViewLayout &layout);
 
+	// --- Pixel scroll (Qt backend) ---
+	// Vertical/horizontal scroll in pixels with sub-line / sub-cell
+	// precision; the Qt QScrollBars mirror these for display. The ImGui
+	// backend uses the float scrollPosition above instead.
+	double scrollPx = 0.0;
+	double scrollPxX = 0.0;
+	// Fractional wheel pixels not yet applied (trackpad micro-deltas).
+	double wheelCarry = 0.0;
+	double wheelCarryX = 0.0;
+
+	// Clamp + store (max comes from the widget's current scroll range).
+	void setScrollPx(double px, double maxPx);
+	void setScrollXPx(double px, double maxPx);
+	// First visual line under fractional pixel scroll.
+	int firstScrollVisualLine(double lineHeight) const
+	{
+		return scrollPx <= 0.0 ? 0 : static_cast<int>(scrollPx / lineHeight);
+	}
+	// Pixel form of revealCaret (Qt): clamp the caret's visual line / x
+	// position into the pixel viewport. Metrics come from the widget.
+	void revealCaretPixels(int caretVisualLine,
+						   int visibleLines,
+						   double lineHeight,
+						   double maxPx);
+	void revealCaretXPixels(double caretX,
+							double charWidth,
+							double textAreaWidth,
+							double maxPx);
+
 	// True if any selection covers byte col on row (for paint).
 	bool isPositionSelected(int row, int col) const;
 	// Union of selection line spans for gutter highlight [start, end).
@@ -198,7 +217,7 @@ class EditorViewState
 	// Visual line of the primary caret (wrap-aware; plain row when not wrapping).
 	int caretVisualLine(const ViewLayout &layout) const;
 	void centerCursorVertically(const ViewLayout &layout);
-	void revealCursor(const ViewLayout &layout, bool horizontal, bool vertical);
+	void revealCaret(const ViewLayout &layout, bool horizontal, bool vertical);
 	void animateScrollTo(const NedVec2 &target);
 	void updateScrollAnimation();
 	// Clamp against ImGui scroll max; falls back to layout when max is unset.

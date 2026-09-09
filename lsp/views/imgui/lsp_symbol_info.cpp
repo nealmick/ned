@@ -1,5 +1,6 @@
 #include "lsp_symbol_info.h"
 #include "../../../editor/editor_api.h"
+#include "../../../editor/views/imgui/editor_surface.h"
 #include "../../../lsp/lsp_client.h"
 #include "../../editor/views/imgui/hover_tooltip.h"
 
@@ -12,14 +13,14 @@ constexpr float kPopupStickyPadding = 12.0f;
 
 } // namespace
 
-LSPSymbolInfo::LSPSymbolInfo(LSPClient &client, EditorApi &api)
-	: client(&client), api(&api)
+LSPSymbolInfo::LSPSymbolInfo(LSPClient &client, EditorApi &api, EditorSurface &surface)
+	: client(&client), api(&api), surface(&surface)
 {
 }
 
 LSPSymbolInfo::~LSPSymbolInfo() = default;
 
-void LSPSymbolInfo::get()
+void LSPSymbolInfo::triggerAtCaret()
 {
 	if (!client || !api || !client->isInitialized())
 		return;
@@ -48,7 +49,7 @@ void LSPSymbolInfo::updateMouseHover()
 	// dismissal signal (key/click/scroll) retires it.
 	if (atCaret)
 	{
-		if (api->hoverDismissed())
+		if (surface->hoverDismissed())
 		{
 			atCaret = false;
 			client->hover.cancel();
@@ -57,6 +58,7 @@ void LSPSymbolInfo::updateMouseHover()
 	}
 
 	EditorApi *const hover = hoverApi ? hoverApi : api;
+	EditorSurface *const hoverView = hoverSurface ? hoverSurface : surface;
 
 	// Sticky popup: moving onto/inside the rendered tooltip keeps it (VSCode
 	// sticky-hover) — but a dismissal signal (key/click/scroll) still wins.
@@ -68,7 +70,7 @@ void LSPSymbolInfo::updateMouseHover()
 						   mouse.x <= popupMax.x + kPopupStickyPadding &&
 						   mouse.y >= popupMin.y - kPopupStickyPadding &&
 						   mouse.y <= popupMax.y + kPopupStickyPadding;
-	if (hover->hoverDismissed())
+	if (hoverView->hoverDismissed())
 	{
 		hideMouseHover();
 		return;
@@ -80,7 +82,7 @@ void LSPSymbolInfo::updateMouseHover()
 	// The frame's trigger owns all VSCode-style logic: armed by real mouse
 	// moves only, dismissed by keys/clicks/scroll/shifted content, target
 	// frozen while showing.
-	const HoverTrigger::Info info = hover->hoverInfo();
+	const HoverTrigger::Info info = hoverView->hoverInfo();
 	if (!info.active || info.zone != HoverTrigger::Zone::Text || hover->path().empty() ||
 		!client->isDocumentOpen(hover->path()))
 	{
@@ -100,7 +102,7 @@ void LSPSymbolInfo::updateMouseHover()
 		requestedForCell = client->hover.requestAt(info.row, info.column, hover);
 }
 
-void LSPSymbolInfo::render()
+void LSPSymbolInfo::poll()
 {
 	updateMouseHover();
 
@@ -113,11 +115,11 @@ void LSPSymbolInfo::render()
 	if (atCaret)
 	{
 		// Anchor just below the caret cell; dismissal retires it.
-		const ViewLayout &layout = api->layout();
+		const ViewLayout &layout = surface->layout();
 		int row = 0, col = 0;
 		api->getCaret(row, col);
 		const float fs = ImGui::GetFontSize();
-		const ImVec2 anchor(api->caretScreenX() + fs * 0.25f,
+		const ImVec2 anchor(surface->caretScreenX() + fs * 0.25f,
 							layout.textPos.y +
 								static_cast<float>(row + 1) * layout.lineHeight +
 								fs * 0.25f);
@@ -130,7 +132,7 @@ void LSPSymbolInfo::render()
 
 void LSPSymbolInfo::renderMouseTooltip(const std::string &markdown, const ImVec2 *anchor)
 {
-	if (!api || !api->claimTooltip())
+	if (!api || !surface || !surface->claimTooltip())
 		return;
 
 	const float fs = ImGui::GetFontSize();
@@ -142,7 +144,7 @@ void LSPSymbolInfo::renderMouseTooltip(const std::string &markdown, const ImVec2
 	if (ImGui::BeginTooltip())
 	{
 		EditorApi &hover = anchor ? *api : (hoverApi ? *hoverApi : *api);
-		RenderHoverMarkdown(markdown, hover, hover.languageId());
+		renderHoverMarkdown(markdown, hover, hover.languageId());
 		if (!anchor)
 		{
 			// Mouse mode: remember the rect for sticky-popup handling.

@@ -2,7 +2,6 @@
 #include "settings.h"
 #include <algorithm>
 #include <cctype>
-#include <iostream>
 
 KeybindsManager::KeybindsManager(Settings &settings) : settings(settings) {}
 
@@ -30,6 +29,23 @@ void KeybindsManager::ensureFileExists()
 	if (fs::exists(file))
 		return;
 
+	// keybinds.json is strict JSON. Notes formerly carried as trailing //
+	// comments inside that file:
+	//   while holding down ctrl or cmd
+	//   press the key specified for the action
+	//   if the file is corrupted or invalid
+	//   the default file will be loaded instead
+	//
+	//   Standard kebinds (can not be edited):
+	//   cmd/ctrl + 1-9 : switch to tab 1-9
+	//   cmd/ctrl + w : close active tab
+	//   cmd + up/down : jump 5 lines up/down
+	//   cmd + left/right : jump to line start end
+	//   option + up/down : swap line up/down
+	//   option + left/right : move 1 word left/right
+	//   cmd + f : open finder window
+	//   finder cmd enter search, spawn mulit cursors
+	//   cmd+option up/down : spawn multi cursor above/below
 	const fs::path bundled =
 		fs::path(Settings::getAppResourcesPath()) / "resources/config/keybinds.json";
 	if (fs::exists(bundled))

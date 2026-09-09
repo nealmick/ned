@@ -61,7 +61,7 @@ class FindBar
 	// Off (default): match regardless of case. On: exact-case matches only.
 	bool caseSensitive = false;
 	bool shouldFocus = false;
-	// Set each frame in draw() — Enter in the replace box replaces, not steps.
+	// Set each frame in paint() — Enter in the replace box replaces, not steps.
 	bool replaceFieldFocused = false;
 	// True when search/replace/button held focus last frame — Tab between the
 	// boxes must not be overridden by the search box focus re-grab.
@@ -87,7 +87,7 @@ class FindBar
 	void close();
 	void syncInputBlock();
 	void pollOpenCloseKeys();
-	void draw();
+	void paint();
 
 	void setQuery(const std::string &query);
 	void rebuildMatches();

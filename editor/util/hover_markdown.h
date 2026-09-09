@@ -17,8 +17,8 @@ struct HoverMdBlock
 
 // Split hover markdown into blocks. Fenced code carries its language; prose
 // paragraphs are trimmed; `---` becomes a rule block ("---" text).
-std::vector<HoverMdBlock> ParseHoverMarkdown(const std::string &src);
+std::vector<HoverMdBlock> parseHoverMarkdown(const std::string &src);
 
 // Split into lines (no terminators; trailing '\r' dropped). Shared by the
 // parser and the renderer's per-line walkers.
-std::vector<std::string> SplitHoverLines(std::string_view s);
+std::vector<std::string> splitHoverLines(std::string_view s);

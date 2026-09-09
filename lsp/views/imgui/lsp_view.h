@@ -19,33 +19,37 @@
 #include "lsp_uri_options.h"
 
 class EditorApi;
+class EditorSurface;
 class FileExplorer;
 class LSPClient;
 
-class LspView
+class LSPView
 {
   public:
-	LspView(LSPClient &client,
+	LSPView(LSPClient &client,
 			EditorApi &api,
+			EditorSurface &surface,
 			FileExplorer &fileExplorer,
 			Settings &settings);
 
 	// Handle all LSP keybinds (Ctrl-modified goto/symbol-info shortcuts).
-	bool keybinds();
+	bool handleKeybinds();
 
 	// Point goto/hover/uri UI at a different editor (multi-tab embed).
-	void bindEditorApi(EditorApi &api);
+	void rebind(EditorApi &api, EditorSurface &surface);
 	// Mouse-hover tooltip targets the editor under the mouse (splits differ
 	// from the focused editor).
-	void setHoverApi(EditorApi &api);
+	void setHoverApi(EditorApi &api, EditorSurface &surface);
 
-	// Render all LSP UI elements (symbol info, goto results, picker).
-	void render();
+	// Poll async LSP results and render all LSP UI elements (symbol info,
+	// goto results, picker).
+	void poll();
 
-	LSPDashboard dashboard;
+	LSPDashboard &dashboard();
 
   private:
 	LSPClient &client;
+	LSPDashboard dashboard_;
 	LSPSymbolInfo symbolInfo;
 	// Shared URI-options picker
 	LSPUriOptions uriOptions;
@@ -54,7 +58,7 @@ class LspView
 #else // !NED_ENABLE_LSP
 
 // Minimal stand-in so keybinds/settings/workbench compile without lsp-framework.
-class LspView
+class LSPView
 {
   public:
 	struct DashboardStub
@@ -63,22 +67,33 @@ class LspView
 		void setShow(bool) {}
 	};
 
-	LspView(class LSPClient &client,
+	LSPView(class LSPClient &client,
 			class EditorApi &api,
+			class EditorSurface &surface,
 			class FileExplorer &fileExplorer,
 			Settings &settings)
 	{
 		(void)client;
 		(void)api;
+		(void)surface;
 		(void)fileExplorer;
 	}
 
-	DashboardStub dashboard;
+	DashboardStub dashboard_;
+	DashboardStub &dashboard() { return dashboard_; }
 
-	bool keybinds() { return false; }
-	void bindEditorApi(class EditorApi &api) { (void)api; }
-	void setHoverApi(class EditorApi &api) { (void)api; }
-	void render() {}
+	bool handleKeybinds() { return false; }
+	void rebind(class EditorApi &api, class EditorSurface &surface)
+	{
+		(void)api;
+		(void)surface;
+	}
+	void setHoverApi(class EditorApi &api, class EditorSurface &surface)
+	{
+		(void)api;
+		(void)surface;
+	}
+	void poll() {}
 };
 
 #endif // NED_ENABLE_LSP

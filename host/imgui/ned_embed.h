@@ -18,9 +18,12 @@ class NedEmbed
 	void applySettingsChanges();
 	void cleanup();
 
-	// Shared workbench (hosts may read settings / active editor via these).
-	Workbench workbench;
+	// Shell-owned settings trio (Qt AppHost parity) + shared workbench.
+	Settings settings;
+	Font font;
+	SettingsView settingsView{settings, font};
+	Workbench workbench{settings, font, settingsView};
 
-	Editor *activeEditor() { return workbench.activeEditor(); }
+	Editor *activeView() { return workbench.activeView(); }
 	EditorApi *activeApi() { return workbench.activeApi(); }
 };

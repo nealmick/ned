@@ -2,7 +2,6 @@
 
 #include "host/qt/theme.h"
 
-#include <QDir>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -10,15 +9,11 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-#include <algorithm>
-#include <cctype>
-#include <filesystem>
 #include <memory>
 
-namespace fs = std::filesystem;
-
-// Scan rules + fuzzy matching: the shared backend-neutral model
-// (files/file_finder_match.h) — same behavior as the ImGui finder.
+// Scan + matching: the shared backend-neutral core (files/file_finder.cpp
+// scanWorkspaceFiles + files/file_finder_match.h) — same behavior as the
+// ImGui finder.
 
 FileFinderView::FileFinderView(const QString &root, QWidget *parent)
 	: QDialog(parent, Qt::Popup), workspace(root)
@@ -87,38 +82,16 @@ void FileFinderView::restartScan()
 	stopScan = false;
 	scanDone = false;
 
+	// Scan runs in the CORE (scanWorkspaceFiles in files/file_finder.cpp):
+	// skip list, file cap and entry format are shared with the ImGui
+	// finder. This view only owns the thread handle + result handoff.
 	// shared_ptr: the worker fills it, the UI-thread poller consumes it —
 	// if the dialog is destroyed before the scan finishes, whichever side
 	// unwinds last still frees it (a raw new here leaked on early close).
-	auto collected = std::make_shared<QStringList>();
-	QString rootDir = workspace;
+	auto collected = std::make_shared<std::vector<FileEntry>>();
+	std::string rootDir = workspace.toStdString();
 	std::thread worker([this, collected, rootDir] {
-		QStringList local;
-		std::error_code ec;
-		fs::recursive_directory_iterator it(
-			rootDir.toStdString(), fs::directory_options::skip_permission_denied, ec);
-		fs::recursive_directory_iterator end;
-		while (!stopScan && it != end)
-		{
-			const fs::path p = it->path();
-			if (it->is_directory(ec))
-			{
-				if (FileFinderMatch::shouldSkipDir(p.filename().string()))
-				{
-					it.disable_recursion_pending();
-				}
-			} else if (it->is_regular_file(ec) && local.size() < 20000)
-			{
-				const QString rel = QString::fromStdString(
-					fs::relative(p, rootDir.toStdString(), ec).string());
-				if (!rel.isEmpty())
-					local.append(rel);
-			}
-			it.increment(ec);
-			if (ec)
-				break;
-		}
-		*collected = std::move(local);
+		*collected = scanWorkspaceFiles(rootDir, stopScan);
 		scanDone = true;
 	});
 	scanThread = std::move(worker);
@@ -129,7 +102,7 @@ void FileFinderView::restartScan()
 	connect(timer, &QTimer::timeout, this, [this, collected, poller, timer] {
 		if (!scanDone.load())
 			return;
-		allFiles = *collected;
+		allFiles = collected;
 		timer->stop();
 		poller->deleteLater();
 		refilter();
@@ -142,32 +115,19 @@ void FileFinderView::refilter()
 	results->clear();
 	const std::string query = input->text().toLower().toStdString();
 
+	if (!allFiles)
+		return;
+
 	// Rank through the shared matcher (files/file_finder_match.h) so the
 	// Qt and ImGui finders return the same results for the same query.
-	std::vector<FileEntry> entries;
-	entries.reserve(static_cast<size_t>(allFiles.size()));
-	const auto lowerOf = [](std::string s) {
-		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-			return static_cast<char>(std::tolower(c));
-		});
-		return s;
-	};
-	for (const QString &rel : allFiles)
-	{
-		std::string path = rel.toStdString();
-		// filenameLower drives the dotfile-hide rule — the FILE name, not
-		// the whole path ("src/.env" is a dotfile too).
-		entries.push_back(FileEntry{
-			path, path, lowerOf(path), lowerOf(rel.section('/', -1).toStdString())});
-	}
-
-	for (const FileEntry &file : FileFinderMatch::filterFiles(entries, query, 50))
+	for (const FileEntry &file : FileFinderMatch::filterFiles(*allFiles, query, 50))
 	{
 		const QString rel = QString::fromStdString(file.relativePath);
 		auto *item = new QListWidgetItem(rel.section('/', -1) + "  —  " + rel);
-		// cleanPath: workspace may carry a trailing slash — the raw concat
-		// would miss openPath's existing-tab dedup (exact string compare).
-		item->setData(Qt::UserRole, QDir::cleanPath(workspace + "/" + rel));
+		// fullPath from the core scan — workspace may carry a trailing
+		// slash, so the raw concat would miss openPath's existing-tab dedup
+		// (exact string compare).
+		item->setData(Qt::UserRole, QString::fromStdString(file.fullPath));
 		item->setToolTip(rel);
 		results->addItem(item);
 		if (results->count() == 1)
@@ -183,6 +143,8 @@ bool FileFinderView::eventFilter(QObject *watched, QEvent *event)
 		auto *key = static_cast<QKeyEvent *>(event);
 		if (key->key() == Qt::Key_Down || key->key() == Qt::Key_Up)
 		{
+			if (results->count() == 0)
+				return true;
 			const int dir = key->key() == Qt::Key_Down ? 1 : -1;
 			results->setCurrentRow(
 				std::clamp(results->currentRow() + dir, 0, results->count() - 1));

@@ -23,6 +23,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -47,24 +48,38 @@ class QueuedStreamWriter : public lsp::io::Stream
 	// failure the connection is marked dead and later writes are dropped.
 	void write(const char *buffer, std::size_t size) override;
 
-	// Bounded drain before a deliberate server shutdown: waits until the
-	// queue is empty (or the stream failed, or the timeout passes) so the
-	// shutdown/exit notifications actually reach the process.
+	// Bounded drain before a deliberate server shutdown: waits until every
+	// enqueued byte has actually been written to the stream (not merely
+	// dequeued), or the stream failed, or the timeout passes — so the
+	// shutdown/exit notifications really reached the process.
 	void flushFor(std::chrono::milliseconds timeout);
 
 	// True once a write has failed — callers may skip further sends.
 	bool failed() const;
 
   private:
-	void run();
+	// Shared between this object and the writer thread so teardown can
+	// detach a wedged writer without freeing state under it (see dtor).
+	struct State
+	{
+		explicit State(lsp::io::Stream &inner) : inner(inner) {}
 
-	lsp::io::Stream &inner;
+		lsp::io::Stream &inner;
 
-	mutable std::mutex mu;
-	std::condition_variable cv;
-	std::deque<std::vector<char>> queue;
-	bool stopped = false;
-	bool dead = false;
+		mutable std::mutex mu;
+		std::condition_variable cv;
+		std::deque<std::vector<char>> queue;
+		bool stopped = false;
+		bool dead = false;
+		bool finished = false;
+		// Watermark: flushFor waits for written == enqueued, i.e. bytes
+		// handed to the OS, not just popped off the queue.
+		unsigned long long enqueued = 0;
+		unsigned long long written = 0;
+	};
 
+	void run(std::shared_ptr<State> state);
+
+	std::shared_ptr<State> state;
 	std::thread writer;
 };

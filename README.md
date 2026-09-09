@@ -114,3 +114,7 @@ Syntax highlighting uses Tree-sitter with query files for the languages above. M
 Standalone Ned and `NedEmbed` share one `Workbench` (docked multi-tab explorer + editors). Standalone draws it fullscreen with optional CRT shaders; embed draws it in a moveable ImGui window. Platforms tested: macOS ARM64, Windows x64, and Debian. Windows builds use vcpkg via the build script.
 
 If you have questions or issues, feel free to reach out.
+
+
+# Qt Host (Experimental)
+Ned recently gained a native Qt host alongside the ImGui app — a retained-mode UI that unlocks better text rendering, window compositing, and power efficiency, built on the same editor core, themes, and LSP. Build and run it on macOS with `./scripts/build.sh --qt`.

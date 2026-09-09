@@ -14,10 +14,10 @@
 
 #include <string>
 
-class LspEditor
+class LSPEditor
 {
   public:
-	virtual ~LspEditor() = default;
+	virtual ~LSPEditor() = default;
 
 	virtual void getCaret(int &row, int &column) const = 0;
 	virtual std::string line(int row) const = 0;

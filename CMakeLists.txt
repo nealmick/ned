@@ -422,7 +422,8 @@ set(NED_UTIL_SOURCES
   util/settings.cpp
   util/icon_keys.cpp
   util/keybinds.cpp
-  util/imgui_icons.cpp
+  # GL icon atlas lives with the imgui host now (backend icon file).
+  host/imgui/imgui_icons.cpp
   util/project_undo.cpp
 )
 if(NED_ENABLE_TERMINAL)
@@ -794,6 +795,8 @@ endif()
 # ================
 set(NED_CORE_SOURCES
   editor/buffer/text_buffer.cpp
+  editor/editor.cpp
+  editor/editor_api.cpp
   editor/editor_state.cpp
   editor/editor_operations.cpp
   editor/editor_commands.cpp
@@ -808,7 +811,9 @@ set(NED_CORE_SOURCES
   editor/services/highlight/span_map.cpp
   editor/services/highlight/tree_sitter.cpp
   editor/util/hover_markdown.cpp
+  editor/util/hover_runs.cpp
   files/file_explorer_events.cpp
+  files/file_finder_scan.cpp
   files/file_tree.cpp
   util/icon_keys.cpp
   util/keybinds.cpp
@@ -867,8 +872,12 @@ if(NED_BUILD_QT)
     # Its own CMakeLists needs lxqt-build-tools; compile the lib sources
     # directly instead (same list, minus translations/install). Pinned tag
     # 2.1.0 (Qt6).
+    # NOT WIN32: the vendored kpty/Pty layers are POSIX-only (forkpty,
+    # termios) and do not compile under MSVC. Windows needs a ConPTY-based
+    # terminal; until then the Qt host builds there with NED_QT_TERMINAL=0
+    # (the terminal panel degrades the same way as a missing submodule).
     set(QTERMWIDGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/qtermwidget/lib)
-    if(EXISTS ${QTERMWIDGET_DIR}/qtermwidget.cpp)
+    if(EXISTS ${QTERMWIDGET_DIR}/qtermwidget.cpp AND NOT WIN32)
       set(QTERMWIDGET_VERSION_MAJOR 2)
       set(QTERMWIDGET_VERSION_MINOR 1)
       set(QTERMWIDGET_VERSION_PATCH 0)
@@ -956,7 +965,7 @@ if(NED_BUILD_QT)
       editor/views/qt/minimap_view.cpp
       editor/views/qt/row_text.cpp
       editor/views/qt/line_jump.cpp
-      util/qt_icons.cpp
+      host/qt/qt_icons.cpp
       host/qt/settings_view.cpp
       files/views/qt/file_finder_view.cpp
       files/views/qt/file_sidebar_view.cpp
@@ -975,8 +984,18 @@ if(NED_BUILD_QT)
     if(APPLE)
       target_sources(ned_qt PRIVATE host/qt/mac_chrome.mm)
     endif()
+    if(WIN32)
+      # Native-frame theming (DWM dark caption / colors / rounded corners).
+      target_sources(ned_qt PRIVATE host/qt/windows_chrome.cpp)
+      target_link_libraries(ned_qt PRIVATE dwmapi)
+    endif()
+    if(WIN32)
+      # GUI subsystem (no console window); Qt6's CMake links the WinMain
+      # entry point automatically for WIN32_EXECUTABLE targets.
+      set_target_properties(ned_qt PROPERTIES WIN32_EXECUTABLE TRUE)
+    endif()
     set_target_properties(ned_qt PROPERTIES
-      MACOSX_BUNDLE_BUNDLE_GUILENTIFIER "com.ned.ned-qt"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "com.ned.ned-qt"
       MACOSX_BUNDLE_BUNDLE_NAME "Ned"
     )
     ned_apply_feature_defs(ned_qt)

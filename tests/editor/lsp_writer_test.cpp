@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -147,4 +148,30 @@ TEST_CASE("QueuedStreamWriter marks dead and drops after a failure", "[ned][lsp]
 	writer.write("more", 4);
 	writer.flushFor(std::chrono::milliseconds(100));
 	REQUIRE(writer.failed());
+}
+
+// Teardown must be bounded even while the inner stream is still parked
+// mid-write: the destructor detaches after a short grace window instead of
+// joining forever (the wedged-server shutdown freeze).
+TEST_CASE("QueuedStreamWriter destructor does not block on a stuck stream", "[ned][lsp]")
+{
+	GatedStream gated;
+	{
+		auto writer = std::make_unique<QueuedStreamWriter>(gated);
+		writer->write("wedged", 6);
+		gated.waitForBlockedWrite(); // writer thread parked inside write()
+
+		const auto start = std::chrono::steady_clock::now();
+		writer.reset(); // destructor: bounded detach, never a blocking join
+		const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now() - start);
+		// Grace window is 250ms; 2s means the join blocked (CI jitter slack).
+		REQUIRE(elapsed.count() < 2000);
+	}
+	// Release the gate, then wait for the detached writer to finish its
+	// write so it no longer touches the stream before it is destroyed.
+	gated.release();
+	for (int i = 0; i < 100 && gated.data() != "wedged"; ++i)
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	REQUIRE(gated.data() == "wedged");
 }

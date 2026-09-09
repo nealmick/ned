@@ -7,9 +7,9 @@
 
 #include "../../editor_state.h"
 #include "../../editor_view_state.h"
-#include "../../util/editor_utils.h"
 #include "../../views/view_layout.h"
 #include "../wrap_layout.h"
+#include "editor_utils.h"
 
 #include "imgui.h"
 
@@ -76,7 +76,7 @@ void EditorViewState::updateScroll(const ViewLayout &layout)
 		centerCursorVertical = false;
 	} else if (ensureCursorVisible.horizontal || ensureCursorVisible.vertical)
 	{
-		revealCursor(layout, ensureCursorVisible.horizontal, ensureCursorVisible.vertical);
+		revealCaret(layout, ensureCursorVisible.horizontal, ensureCursorVisible.vertical);
 		ensureCursorVisible.horizontal = false;
 		ensureCursorVisible.vertical = false;
 		// Find/line-jump focus an InputText, so multi-frame anim would be killed
@@ -151,12 +151,10 @@ float EditorViewState::cursorScreenX() const
 	if (row < 0 || row >= state->lineCount())
 		return 0.0f;
 
-	return EditorUtils::LineColumnX(state->line(row), column);
+	return EditorUtils::lineColumnX(state->line(row), column);
 }
 
-void EditorViewState::revealCursor(const ViewLayout &layout,
-								   bool horizontal,
-								   bool vertical)
+void EditorViewState::revealCaret(const ViewLayout &layout, bool horizontal, bool vertical)
 {
 	NedVec2 target = scrollPosition;
 	const float viewportWidth = ImGui::GetWindowWidth() - ImGui::GetStyle().ScrollbarSize;

@@ -1,8 +1,8 @@
 #include "file_finder_view.h"
+#include "../../../../host/imgui/imgui_icons.h"
 #include "../../../editor/editor_api.h"
 #include "../../../editor/views/imgui/ned_key.h"
 #include "../../../files/file_finder.h"
-#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 
@@ -46,9 +46,7 @@ void renderFileFinderHeader(FileFinder &f)
 	ImVec2 windowPos;
 
 	// Embedded: center on editor pane (ViewLayout metrics — no duplicated rect).
-	const ViewLayout *layout = (f.fileExplorer && f.fileExplorer->api)
-								   ? &f.fileExplorer->api->layout()
-								   : nullptr;
+	const ViewLayout *layout = f.editorLayout;
 	if (f.settings && f.settings->isEmbedded && layout &&
 		(layout->paneSize.x > 0.0f || layout->paneSize.y > 0.0f))
 	{

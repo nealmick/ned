@@ -44,4 +44,13 @@ QString resolveStem(const QString &family);
 // proportional family would draw glyphs over each other.
 QFont profileMonoFont(const Settings &settings);
 
+// Terminal panel font: profileMonoFont + integer metrics. qtermwidget
+// measures cell width with QFontMetrics (rounded-to-integer advances)
+// but paints with sub-pixel advances — glyphs then render wider than
+// the computed cells and the cursor drifts LEFT of the typed glyphs.
+// Kerning off + ForceIntegerMetrics makes painted advance match the
+// measured one (classic terminal cell fix), without touching the
+// qtermwidget submodule.
+QFont terminalFont(const Settings &settings);
+
 } // namespace NedQtFonts

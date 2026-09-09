@@ -19,7 +19,7 @@ class CaretView
 	{
 	}
 
-	void draw() const;
+	void paint() const;
 
 	// Screen X of caret given layout text origin (used by LSP hover placement).
 	float caretScreenX(const NedVec2 &textPos) const;

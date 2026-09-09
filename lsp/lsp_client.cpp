@@ -42,7 +42,7 @@ lsp::Array<lsp::WorkspaceFolder> workspaceFoldersFor(const std::string &workspac
 
 } // namespace
 
-LSPClient::LSPClient(LspEditor &api, Settings &settings)
+LSPClient::LSPClient(LSPEditor &api, Settings &settings)
 	: gotoDef(*this, api, LSPGoto::Kind::Definition),
 	  gotoRef(*this, api, LSPGoto::Kind::References),
 	  hover(*this, api),
@@ -52,12 +52,14 @@ LSPClient::LSPClient(LspEditor &api, Settings &settings)
 	  sync(diagnostics_,
 		   [this](const std::string &path) { return detectLanguageFromFile(path); })
 {
+	gotoDef.setArbiter(&gotoArbiter);
+	gotoRef.setArbiter(&gotoArbiter);
 	initializeLanguageServers();
 }
 
 LSPClient::~LSPClient() { shutdown(); }
 
-void LSPClient::bindEditorApi(LspEditor *api)
+void LSPClient::bindEditorApi(LSPEditor *api)
 {
 	gotoDef.setApi(api);
 	gotoRef.setApi(api);
@@ -83,7 +85,7 @@ bool LSPClient::init(const std::string &filePath)
 
 	if (workspacePath.empty())
 	{
-		std::cout << "LSP: No workspace set, cannot initialize" << std::endl;
+		std::cout << "[LSP] No workspace set, cannot initialize" << std::endl;
 		return false;
 	}
 
@@ -100,7 +102,7 @@ bool LSPClient::init(const std::string &filePath)
 	if (startServer(detectedLanguage, ""))
 		return true;
 
-	std::cout << "LSP: Failed to start server for " << detectedLanguage << std::endl;
+	std::cout << "[LSP] Failed to start server for " << detectedLanguage << std::endl;
 	return false;
 }
 
@@ -171,31 +173,32 @@ std::string LSPClient::findServerPath(const std::string &language) const
 
 	if (!serverInfo)
 	{
-		std::cout << "LSP: No server configuration found for " << language << std::endl;
+		std::cout << "[LSP] No server configuration found for " << language << std::endl;
 		return "";
 	}
 
-	// Check if any of the paths exist and are executable
+	// Check if any of the paths exist and are regular files
 	for (const auto &path : serverInfo->serverPaths)
 	{
-		std::string expandedPath = expandEnvironmentVariables(path);
+		const std::string expandedPath = expandEnvironmentVariables(path);
 		if (std::filesystem::exists(expandedPath))
 		{
 			if (std::filesystem::is_regular_file(expandedPath))
 			{
-				std::cout << " - FOUND!" << std::endl;
+				std::cout << "[LSP] server found: " << expandedPath << std::endl;
 				return expandedPath;
 			} else
 			{
-				std::cout << " - exists but not a file" << std::endl;
+				std::cout << "[LSP] candidate exists but is not a file: "
+						  << expandedPath << std::endl;
 			}
 		} else
 		{
-			std::cout << " - not found" << std::endl;
+			std::cout << "[LSP] candidate not found: " << expandedPath << std::endl;
 		}
 	}
 
-	std::cout << "LSP: No server found for " << language << std::endl;
+	std::cout << "[LSP] No server found for " << language << std::endl;
 	return "";
 }
 
@@ -215,7 +218,8 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	if (actualServerPath.empty())
 	{
-		std::cerr << "LSP: Could not find server for language: " << language << std::endl;
+		std::cerr << "[LSP] Could not find server for language: " << language
+				  << std::endl;
 		return false;
 	}
 
@@ -254,7 +258,7 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 		if (!sendLSPInitialize())
 		{
-			std::cerr << "LSP: Failed to send initialize request" << std::endl;
+			std::cerr << "[LSP] Failed to send initialize request" << std::endl;
 			return false;
 		}
 
@@ -265,7 +269,7 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Failed to start server: " << e.what() << std::endl;
+		std::cerr << "[LSP] Failed to start server: " << e.what() << std::endl;
 		return false;
 	}
 }
@@ -274,7 +278,7 @@ void LSPClient::shutdown()
 {
 	if (initialized)
 	{
-		std::cout << "LSP: Beginning shutdown sequence..." << std::endl;
+		std::cout << "[LSP] Beginning shutdown sequence..." << std::endl;
 
 		// First send proper LSP shutdown to server
 		stopServer();
@@ -285,12 +289,12 @@ void LSPClient::shutdown()
 		// Give thread a chance to exit gracefully, but don't wait forever on Windows
 		if (processingThread.joinable())
 		{
-			std::cout << "LSP: Waiting for message processing thread to exit..."
+			std::cout << "[LSP] Waiting for message processing thread to exit..."
 					  << std::endl;
 
 #ifdef _WIN32
 			// On Windows, just detach immediately to avoid hanging
-			std::cout << "LSP: Detaching thread on Windows to prevent hang..."
+			std::cout << "[LSP] Detaching thread on Windows to prevent hang..."
 					  << std::endl;
 			processingThread.detach();
 #else
@@ -305,7 +309,7 @@ void LSPClient::shutdown()
 			if (future.wait_for(std::chrono::milliseconds(1000)) ==
 				std::future_status::timeout)
 			{
-				std::cout << "LSP: Thread didn't exit gracefully, detaching..."
+				std::cout << "[LSP] Thread didn't exit gracefully, detaching..."
 						  << std::endl;
 				if (processingThread.joinable())
 				{
@@ -318,7 +322,7 @@ void LSPClient::shutdown()
 		initialized = false;
 		sync.disconnect();
 		diagnostics_.clearAll();
-		std::cout << "LSP: Shutdown complete" << std::endl;
+		std::cout << "[LSP] Shutdown complete" << std::endl;
 	} else
 	{
 		// Mid-session server death already reset initialized/running and
@@ -339,7 +343,7 @@ void LSPClient::stopServer()
 	{
 		try
 		{
-			std::cout << "LSP: Sending shutdown request..." << std::endl;
+			std::cout << "[LSP] Sending shutdown request..." << std::endl;
 
 			// Send LSP shutdown request (shutdown request has no parameters)
 			auto shutdownResponse =
@@ -349,20 +353,20 @@ void LSPClient::stopServer()
 			try
 			{
 				shutdownResponse.result.wait_for(std::chrono::milliseconds(500));
-				std::cout << "LSP: Shutdown request completed" << std::endl;
+				std::cout << "[LSP] Shutdown request completed" << std::endl;
 			} catch (...)
 			{
-				std::cout << "LSP: Shutdown request timed out, proceeding anyway"
+				std::cout << "[LSP] Shutdown request timed out, proceeding anyway"
 						  << std::endl;
 			}
 
 			// Send exit notification
 			messageHandler->sendNotification<lsp::notifications::Exit>();
-			std::cout << "LSP: Exit notification sent" << std::endl;
+			std::cout << "[LSP] Exit notification sent" << std::endl;
 
 		} catch (const std::exception &e)
 		{
-			std::cout << "LSP: Error during shutdown: " << e.what() << std::endl;
+			std::cout << "[LSP] Error during shutdown: " << e.what() << std::endl;
 		}
 	}
 
@@ -380,7 +384,7 @@ void LSPClient::stopServer()
 	// Force terminate server process if it's still running
 	if (serverProcess)
 	{
-		std::cout << "LSP: Terminating server process" << std::endl;
+		std::cout << "[LSP] Terminating server process" << std::endl;
 		serverProcess.reset();
 	}
 
@@ -501,13 +505,13 @@ bool LSPClient::sendLSPInitialize()
 				sync.markHandshakeReady();
 			},
 			[](const lsp::ResponseError &error) {
-				std::cerr << "LSP: Initialize failed: " << error.message() << std::endl;
+				std::cerr << "[LSP] Initialize failed: " << error.message() << std::endl;
 			});
 
 		return true;
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: Initialize request failed: " << e.what() << std::endl;
+		std::cerr << "[LSP] Initialize request failed: " << e.what() << std::endl;
 		return false;
 	}
 }
@@ -576,19 +580,19 @@ void LSPClient::stderrDrainLoop()
 				for (std::size_t nl;
 					 (nl = pending.find('\n', consumed)) != std::string::npos;)
 				{
-					std::cerr << "LSP server: " << pending.substr(consumed, nl - consumed)
-							  << '\n';
+					std::cerr << "[LSP] server: "
+							  << pending.substr(consumed, nl - consumed) << '\n';
 					consumed = nl + 1;
 				}
 				pending.erase(0, consumed);
 				if (pending.size() > 8192) // pathological unterminated spam
 				{
-					std::cerr << "LSP server: " << pending << '\n';
+					std::cerr << "[LSP] server: " << pending << '\n';
 					pending.clear();
 				}
 			} catch (const std::exception &e)
 			{
-				std::cerr << "LSP: stderr drain stopped: " << e.what() << std::endl;
+				std::cerr << "[LSP] stderr drain stopped: " << e.what() << std::endl;
 				drainingStderr = false; // allow a restart to spawn a new loop
 				return;
 			}
@@ -629,16 +633,16 @@ void LSPClient::messageProcessingThread()
 			failures = 0;
 		} catch (const lsp::ConnectionError &)
 		{
-			std::cerr << "LSP: Server connection lost" << std::endl;
+			std::cerr << "[LSP] Server connection lost" << std::endl;
 			connectionLost = true;
 			break;
 		} catch (const std::exception &e)
 		{
-			std::cerr << "LSP: Ignoring malformed server message: " << e.what()
+			std::cerr << "[LSP] Ignoring malformed server message: " << e.what()
 					  << std::endl;
 			if (++failures >= kMaxConsecutiveFailures)
 			{
-				std::cerr << "LSP: Connection unusable, stopping message loop"
+				std::cerr << "[LSP] Connection unusable, stopping message loop"
 						  << std::endl;
 				connectionLost = true;
 				break;
@@ -718,14 +722,4 @@ void LSPClient::initializeLanguageServers()
 
 	std::cout << "[LSP] Loaded " << languageServers.size()
 			  << " language servers from lsp.json" << std::endl;
-}
-
-std::vector<std::string> LSPClient::getSupportedLanguages() const
-{
-	std::vector<std::string> languages;
-	for (const auto &server : languageServers)
-	{
-		languages.push_back(server.language);
-	}
-	return languages;
 }

@@ -7,25 +7,26 @@
 	fenced at the source (lsp_symbol_info), so no code-sniffing here.
 */
 
+#include "../../platform/lsp_editor.h"
 #include "../../util/hover_markdown.h"
 
 #include "imgui.h"
 
-class EditorApi;
 struct DiagnosticItem;
 
 // Render parsed hover markdown (fences highlighted via tree-sitter snippets).
-void RenderHoverMarkdown(const std::string &markdown,
-						 EditorApi &api,
+// Colors come through the LSPEditor seam — works for any backend.
+void renderHoverMarkdown(const std::string &markdown,
+						 LSPEditor &editor,
 						 const std::string &fallbackLanguageId);
 
-void RenderDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
+void renderDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
 							 class TooltipArbiter &arbiter);
 
 // ImGui has one shared tooltip window per frame. The arbiter gives it a single
 // explicit owner per frame — gutter marks, squiggle hover, or symbol hover —
 // first claim wins, regardless of draw order. Owned by EditorFrame; exposed to
-// the shell via EditorApi::claimTooltip().
+// the shell via the backend surface (EditorSurface::claimTooltip).
 class TooltipArbiter
 {
   public:

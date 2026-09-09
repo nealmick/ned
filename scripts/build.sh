@@ -32,9 +32,9 @@ for arg in "$@"; do
 	--no-lsp) ENABLE_LSP=0 ;;
 	--no-shaders) ENABLE_SHADERS=0 ;;
 	--qt)
-		# Build the Qt host (ned_qt) alongside the ImGui host. Qt6 required.
+		# Build the Qt host (ned_qt) from the SAME .build dir — one build
+		# tree, both hosts (NED_BUILD_QT only adds the target).
 		BUILD_QT=1
-		BUILD_DIR=".build-qt"
 		;;
 	--minimal)
 		# Editor core only: no terminal, git, LSP, or CRT shaders.
@@ -53,7 +53,7 @@ for arg in "$@"; do
 		echo "  --no-lsp        Disable language server client"
 		echo "  --no-shaders    Disable CRT/burn-in postprocess"
 		echo "  --minimal       All of --no-terminal --no-git --no-lsp --no-shaders"
-		echo "  --qt            Also build the Qt host (ned_qt; requires Qt6, uses .build-qt)"
+		echo "  --qt            Build + launch the Qt host (ned_qt) from the same .build dir"
 		echo "  CI=true         Implies --no-run (and skips format if clang-format missing)"
 		echo ""
 		echo "Examples:"
@@ -147,7 +147,7 @@ if [ -f "$BUILD_DIR/compile_commands.json" ]; then
 	echo -e "${GREEN}Linked compile_commands.json${NC}"
 fi
 
-if [ ! -f "$BUILD_DIR/ned" ] && [ ! -f "$BUILD_DIR/Release/ned" ]; then
+if [ "$BUILD_QT" -eq 0 ] && [ ! -f "$BUILD_DIR/ned" ] && [ ! -f "$BUILD_DIR/Release/ned" ]; then
 	# Some generators nest the binary
 	if ! find "$BUILD_DIR" -name ned -type f | head -1 | grep -q .; then
 		echo -e "${RED}ned binary not found under ${BUILD_DIR}${NC}"

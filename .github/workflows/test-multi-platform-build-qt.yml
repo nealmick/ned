@@ -1,0 +1,124 @@
+name: Test Multi-Platform Build (Qt)
+on:
+  workflow_dispatch:
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      timestamp: ${{ steps.tag.outputs.timestamp }}
+    steps:
+      - name: Generate timestamp
+        id: tag
+        run: |
+          TS=$(date -u +'%Y.%m.%d.%H%M%S')
+          echo "timestamp=v${TS}"
+          echo "timestamp=v${TS}" >> $GITHUB_OUTPUT
+
+  macos-arm:
+    runs-on: macos-14
+    needs: create-tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: brew install cmake llvm glfw glew pkg-config freetype fontconfig curl qt
+      - name: Build Qt host
+        run: ./scripts/build.sh --qt --no-run --skip-format
+        env:
+          CI: true
+      - name: Test
+        run: ./scripts/test.sh
+        env:
+          CI: true
+      - name: Upload macOS ARM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NedQt-macOS-ARM64-${{ needs.create-tag.outputs.timestamp }}
+          path: .build/ned_qt
+          if-no-files-found: error
+
+  debian:
+    runs-on: ubuntu-22.04
+    needs: create-tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build pkg-config clang \
+            libglfw3-dev libglew-dev libgtk-3-dev \
+            libcurl4-openssl-dev libfreetype6-dev libfontconfig1-dev \
+            libssl-dev zlib1g-dev \
+            mesa-utils dpkg-dev \
+            qt6-base-dev qt6-svg-dev
+      - name: Build Qt host
+        run: |
+          export CC=clang
+          export CXX=clang++
+          ./scripts/build.sh --qt --no-run --skip-format
+        env:
+          CI: true
+      - name: Test
+        run: ./scripts/test.sh
+        env:
+          CI: true
+      - name: Upload Debian Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NedQt-Debian-${{ needs.create-tag.outputs.timestamp }}
+          path: .build/ned_qt
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    needs: create-tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Install Qt (aqtinstall)
+        shell: pwsh
+        run: |
+          pip install aqtinstall
+          aqt-qt windows desktop 6.7.3 win64_msvc2022_64 -O C:\Qt
+          echo "QT_PREFIX=C:\Qt\6.7.3\msvc2019_64" >> $env:GITHUB_ENV
+      - name: Install dependencies and build
+        run: .\scripts\build-win-ci.bat
+        env:
+          CI: true
+      - name: Configure, build Qt host, and run tests
+        shell: pwsh
+        run: |
+          $vcpkg = Join-Path $PWD "vcpkg"
+          $toolchain = Join-Path $vcpkg "scripts/buildsystems/vcpkg.cmake"
+          if (-not (Test-Path "build")) { New-Item -ItemType Directory -Path "build" | Out-Null }
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_PREFIX_PATH="$env:QT_PREFIX" `
+            -DNED_BUILD_TESTS=ON -DNED_BUILD_QT=ON
+          cmake --build build --config Release --target ned_qt --parallel
+          cmake --build build --config Release --target ned_tests --parallel
+          $bin = Get-ChildItem -Path build -Recurse -Filter ned_tests.exe | Select-Object -First 1
+          if (-not $bin) { throw "ned_tests.exe not found" }
+          & $bin.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Deploy Qt runtime (windeployqt)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter ned_qt.exe | Select-Object -First 1
+          if (-not $exe) { throw "ned_qt.exe not found" }
+          & "$env:QT_PREFIX\bin\windeployqt.exe" --release $exe.FullName
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NedQt-Windows-x64-${{ needs.create-tag.outputs.timestamp }}
+          path: build/**/Release/
+          if-no-files-found: error

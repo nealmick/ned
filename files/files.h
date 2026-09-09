@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "../util/imgui_icons.h"
 #include "file_explorer_events.h"
 #include "file_finder.h"
 #include "file_tree.h"
@@ -17,6 +16,7 @@
 namespace fs = std::filesystem;
 
 class EditorApi;
+class Icons;
 class Settings;
 
 class FileExplorer

@@ -247,7 +247,7 @@ void MinimapView::interact(EditorViewState &view)
 	}
 }
 
-void MinimapView::draw(const EditorViewState &view) const
+void MinimapView::paint(const EditorViewState &view) const
 {
 	if (!state || !highlight || !layout || !layout->minimapVisible())
 		return;

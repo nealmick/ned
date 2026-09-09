@@ -44,8 +44,7 @@ FileSidebarView::FileSidebarView(QWidget *parent) : QTreeWidget(parent)
 		{
 			if (!node->isOpen)
 			{
-				node->isOpen = true;
-				tree.buildFileTree(node->fullPath, *node);
+				tree.setOpenAndBuild(*node, true);
 				item->takeChildren();
 				populateFileTree(item, *node, iconSize().width());
 			}

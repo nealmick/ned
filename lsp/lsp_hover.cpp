@@ -67,7 +67,7 @@ std::string formatHoverContents(
 
 } // namespace
 
-LSPHover::LSPHover(LSPClient &client, LspEditor &api) : client(&client), api(&api) {}
+LSPHover::LSPHover(LSPClient &client, LSPEditor &api) : client(&client), api(&api) {}
 
 LSPHover::~LSPHover() = default;
 
@@ -81,9 +81,9 @@ void LSPHover::get()
 	requestAt(row, column);
 }
 
-bool LSPHover::requestAt(int row, int utf8Column, LspEditor *target)
+bool LSPHover::requestAt(int row, int utf8Column, LSPEditor *target)
 {
-	LspEditor *const doc = target ? target : api;
+	LSPEditor *const doc = target ? target : api;
 	if (!doc || !client || !client->getMessageHandler())
 		return false;
 
@@ -120,7 +120,7 @@ bool LSPHover::requestAt(int row, int utf8Column, LspEditor *target)
 			});
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: hover request failed: " << e.what() << std::endl;
+		std::cerr << "[LSP] hover request failed: " << e.what() << std::endl;
 		state.deliver(ticket, std::nullopt);
 	}
 	return true;

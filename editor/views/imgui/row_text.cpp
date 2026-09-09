@@ -1,6 +1,6 @@
 #include "row_text.h"
 
-#include "../../util/editor_utils.h"
+#include "editor_utils.h"
 
 namespace {
 constexpr int TAB_SIZE = 4;
@@ -22,6 +22,6 @@ float measureGlyphWidth(const char *start,
 						float draw_x,
 						float text_origin_x)
 {
-	return EditorUtils::MeasureGlyphWidth(start, end, draw_x, text_origin_x, TAB_SIZE);
+	return EditorUtils::measureGlyphWidth(start, end, draw_x, text_origin_x, TAB_SIZE);
 }
 } // namespace RowText

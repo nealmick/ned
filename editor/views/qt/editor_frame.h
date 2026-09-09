@@ -12,12 +12,10 @@
 
 #include <QElapsedTimer>
 #include <QIcon>
-#include <QPixmap>
 #include <QString>
 #include <QWidget>
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <vector>
 
 class QPainter;
@@ -50,7 +48,7 @@ class QTimer;
 class FindBar;
 class HoverTooltip;
 
-class EditorFrame : public QWidget, public LspEditor
+class EditorFrame : public QWidget, public LSPEditor
 {
 	Q_OBJECT
 
@@ -58,7 +56,7 @@ class EditorFrame : public QWidget, public LspEditor
 	explicit EditorFrame(Settings &appSettings, QWidget *parent = nullptr);
 	~EditorFrame() override;
 
-	// --- LspEditor seam (lsp core queries/jumps through this; ImGui's
+	// --- LSPEditor seam (lsp core queries/jumps through this; ImGui's
 	// counterpart is EditorApi) ------------------------------------------
 	void getCaret(int &row, int &column) const override;
 	std::string line(int row) const override;
@@ -88,7 +86,6 @@ class EditorFrame : public QWidget, public LspEditor
 	int caretLineHeight() const { return lineHeightPx; }
 
 	// Git gutter + status (shared service).
-	int gitDirtyLineCount() const { return gutterView.gitDirtyLineCount(); }
 	std::string gitChangesSummary() const { return titleBarView.gitSummary(); }
 
 	void openWorkspaceRoot(const std::string &root);
@@ -106,8 +103,6 @@ class EditorFrame : public QWidget, public LspEditor
 		update();
 	}
 
-	// Test hooks.
-
 	// Host-facing queries (tab titles, dedup by path).
 	EditorState &document() { return state; }
 	EditorViewState &viewport() { return viewState; }
@@ -116,7 +111,7 @@ class EditorFrame : public QWidget, public LspEditor
 	// Repaint after programmatic edits (find/replace).
 	void repaintAndFollow();
 
-	// Keep the caret inside the viewport (ImGui: revealCursor).
+	// Keep the caret inside the viewport (ImGui: EditorViewState::revealCaret).
 	void revealCaret();
 	void showContextMenu(const QPoint &pos);
 
@@ -253,7 +248,8 @@ class EditorFrame : public QWidget, public LspEditor
 	friend class CaretView;
 	friend class TitleBarView;
 	friend class EditorInput;
-	MinimapView minimap; // density-run cache + strip geometry (minimap_view.h)
+	friend class MinimapView;
+	MinimapView minimapView; // paint + interact + run cache (minimap_view.h)
 	FindBar *findBar = nullptr;
 	// Height of the open find bar (0 when closed) — the text area starts
 	// at topInset() = titleBarPx + findBarPx below it.
@@ -272,22 +268,21 @@ class EditorFrame : public QWidget, public LspEditor
 	int titleBarPx = 26;
 	QIcon fileIcon;
 	bool dragging = false;
-	bool minimapDragging = false;
-	// Vertical scroll in pixels — sub-line precision (trackpad feel).
-	// Authoritative; the line-unit QScrollBar mirrors it for display.
-	qreal scrollPx = 0.0;
-	// Fractional wheel pixels not yet applied (trackpad micro-deltas).
-	qreal wheelCarry = 0.0;
+	// Pixel scroll state (scrollPx/scrollPxX + wheel remainders) lives in
+	// the shared EditorViewState; the syncing flags guard the QScrollBar
+	// mirrors below against feedback loops.
 	bool syncingScroll = false;
-
-	// Horizontal scroll (wrap off): pixels, sub-cell precision.
-	qreal scrollPxX = 0.0;
-	qreal wheelCarryX = 0.0;
 	bool syncingScrollX = false;
-	// Longest-line cache backing the horizontal scroll range.
+	// Longest-line cache backing the horizontal scroll range (stays here:
+	// measured in the widget's monospace cell width, rebuilt on font zoom).
 	qreal widthMaxPx = 0.0;
 	int widthLongestRow = -1;
 	bool widthDirty = true;
+
+	// lineRef scratch (mutable: fetched from const paint/hit-test paths).
+	mutable std::string scratchLine;
+	mutable int scratchRow = -1;
+	mutable uint64_t scratchGen = 0;
 
 	// Diagnostics (LSP publish; painted as squiggles + gutter marks).
 	const LSPDiagnostics *diagStore = nullptr;
@@ -311,8 +306,25 @@ class EditorFrame : public QWidget, public LspEditor
 	// Tabs expand to kTabSize (4) monospace cells. Text, caret, selection
 	// and hit-testing all read the same cell maps (no drift);
 	// segmentStart rebases tab stops at a wrap-segment edge.
+	//
+	// Only a WINDOW of a line is ever expanded — the viewport's columns
+	// (wrap off) or one wrap segment — so a multi-megabyte single-line
+	// file costs O(window) per paint/hit-test, never O(line).
 
-	RowText expandRow(int row, int segmentStart = 0) const;
+	// The row's text through a one-entry cache — state.line() returns by
+	// value and the paint/hit-test paths re-fetch the same row several
+	// times per frame. Keep at most ONE reference live at a time.
+	const std::string &lineRef(int row) const;
+	// Byte window the coordinate helpers work in: the wrap segment
+	// containing segmentStart (wrap on), else the viewport's columns.
+	struct TextWindow
+	{
+		int from = 0;
+		int to = 0;
+		int visualBase = 0;
+	};
+	TextWindow textWindow(int row, int segmentStart = 0) const;
+	RowText expandWindow(int row, int fromByte, int toByte, int visualBase) const;
 	// Pixel x (from the row's text origin) of a byte column.
 	qreal xAtByteColumn(int row, int byteColumn, int segmentStart = 0) const;
 	// Inverse for mouse hit-testing (segmentStart for wrapped rows).
@@ -321,7 +333,4 @@ class EditorFrame : public QWidget, public LspEditor
 	int visualLineOf(int row, int column) const;
 	// Byte column where the caret's wrap segment starts (tab rebase point).
 	int caretSegmentStart(int row, int column) const;
-
-	void paintMinimap(QPainter &painter);
-	void minimapScrollTo(int y);
 };

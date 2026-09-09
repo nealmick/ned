@@ -20,5 +20,5 @@ inline bool enabled()
 	do                                                                                   \
 	{                                                                                    \
 		if (lsptrace::enabled())                                                         \
-			std::cerr << "LSPTRACE: " << msg << std::endl;                               \
+			std::cerr << "[LSPTrace] " << msg << std::endl;                              \
 	} while (0)

@@ -2,33 +2,10 @@
 
 #include "editor_frame.h"
 
-#include "../../services/diagnostics/diagnostic_colors.h"
-#include "../../util/text_columns.h"
-#include "../../util/utf8.h"
-
-#include "../../../util/settings.h"
-#include "find_bar.h"
-#include "hover_tooltip.h"
-#include "line_jump.h"
-#include "ned_color.h"
-
-#include "host/qt/fonts.h"
+#include "../../../../host/qt/qt_icons.h"
 #include "host/qt/theme.h"
-#include "util/qt_icons.h"
-#include <QApplication>
 #include <QFontMetrics>
-#include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
-#include <QScrollBar>
-#include <QTimer>
-#include <QWheelEvent>
-
-#include <cmath>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <sstream>
 
 std::string TitleBarView::gitSummary() const { return frame->git.currentGitChanges; }
 

@@ -3,9 +3,12 @@
 	Description: Thin composition root — owns subsystems; all edges ctor-bound.
 	Outside code talks only through EditorApi (friend). Guts stay private.
 	Undo history lives in ProjectUndo (app/project service), not here.
+	Purely core: state, events, operations, viewState, save, highlight, git,
+	commands, api. Presentation lives in the per-backend views/ wrappers
+	(ImGui: views/imgui/editor_surface.h).
 */
+
 #pragma once
-#include "imgui.h"
 
 #include "editor_api.h"
 #include "editor_commands.h"
@@ -16,27 +19,19 @@
 #include "services/git/git_service.h"
 #include "services/highlight/highlight_service.h"
 #include "services/save_service.h"
-#include "views/imgui/editor_frame.h"
-#include "views/imgui/editor_input.h"
-#include "views/imgui/find_bar.h"
-#include "views/imgui/line_jump.h"
 
 #include <string>
 
-class Icons;
 class ProjectUndo;
 class Settings;
 
 class Editor
 {
 	friend class EditorApi;
+	friend class EditorSurface; // ImGui presentation wrapper (views/imgui)
 
   public:
-	Editor(Settings &settings,
-		   std::string &projectRoot,
-		   Icons &icons,
-		   ProjectUndo &projectUndo);
-	void renderEditor(ImFont *font, float editorWidth);
+	Editor(Settings &settings, std::string &projectRoot, ProjectUndo &projectUndo);
 
 	// Public interface for the shell (ned, embed, file explorer).
 	EditorApi api;
@@ -47,7 +42,6 @@ class Editor
 	// Shell refs (declaration order = init order)
 	Settings &settings;
 	std::string &projectRoot;
-	Icons &icons;
 	ProjectUndo &projectUndo;
 
 	// Document core
@@ -61,10 +55,6 @@ class Editor
 	EditorHighlight highlight;
 	EditorGit git;
 
-	// Interaction / presentation
+	// Interaction
 	EditorCommands commands;
-	EditorInput input;
-	EditorFrame frame;
-	LineJump lineJump;
-	FindBar finder;
 };

@@ -72,17 +72,7 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 	families.removeDuplicates();
 	fontBox->addItem("System Default");
 	fontBox->addItems(families);
-	{
-		// The profile may store a bundled file stem ("SourceCodePro-Regular",
-		// the ImGui default) — resolve it to the real family for display.
-		const QString stored = QString::fromStdString(
-			appSettings.settings.value("font", std::string("System Default")));
-		QString family = NedQtFonts::resolveFamily(stored);
-		if (family.isEmpty())
-			family = stored;
-		fontBox->setCurrentText(fontBox->findText(family) >= 0 ? family
-															   : "System Default");
-	}
+	selectStoredFont();
 	form->addRow("Font", fontBox);
 
 	// Font size: slider like the ImGui window (4–64), spinbox as readout.
@@ -110,10 +100,7 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 	// Background color: swatch opens a picker; applies on pick (live).
 	// Same fallback the theme uses, so a profile without the key swatches
 	// what the app actually renders.
-	pendingBg = NedQtTheme::colorFromJson(appSettings.settings.contains("backgroundColor")
-											  ? &appSettings.settings["backgroundColor"]
-											  : nullptr,
-										  NedQtTheme::defaultBackground());
+	pendingBg = readPendingBg();
 	bgButton = makeColorSwatch(pendingBg);
 	connect(bgButton, &QPushButton::clicked, this, [this] {
 		const QColor picked = QColorDialog::getColor(
@@ -251,9 +238,7 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 	layout->addWidget(buttons);
 
 	// Wire live commits last, after the initial values are in place.
-	syncing = true;
-	syncFromSettings();
-	syncing = false;
+	resyncFromSettings();
 	connect(themeBox, &QComboBox::currentTextChanged, this, [this](const QString &) {
 		if (!syncing)
 			onProfileChanged();
@@ -309,6 +294,36 @@ QWidget *SettingsView::makeSection(const QString &title)
 	line->setStyleSheet("background: rgba(128,128,128,80); border: none;");
 	column->addWidget(line);
 	return section;
+}
+
+// Background from the profile (same fallback the theme uses, so a profile
+// without the key picks up what the app actually renders).
+QColor SettingsView::readPendingBg() const
+{
+	return NedQtTheme::colorFromJson(appSettings.settings.contains("backgroundColor")
+										 ? &appSettings.settings["backgroundColor"]
+										 : nullptr,
+									 NedQtTheme::defaultBackground());
+}
+
+// The profile may store a bundled file stem ("SourceCodePro-Regular", the
+// ImGui default) — resolve it to the real family for display.
+void SettingsView::selectStoredFont()
+{
+	const QString stored = QString::fromStdString(
+		appSettings.settings.value("font", std::string("System Default")));
+	QString family = NedQtFonts::resolveFamily(stored);
+	if (family.isEmpty())
+		family = stored;
+	fontBox->setCurrentText(fontBox->findText(family) >= 0 ? family : "System Default");
+}
+
+// Resync every control from `settings` with change signals suppressed.
+void SettingsView::resyncFromSettings()
+{
+	syncing = true;
+	syncFromSettings();
+	syncing = false;
 }
 
 QPushButton *SettingsView::makeColorSwatch(const QColor &color)
@@ -372,19 +387,11 @@ void SettingsView::syncFromSettings()
 	themeBox->setCurrentText(QString::fromStdString(appSettings.activeProfileFile()));
 	stagedProfileFile = appSettings.activeProfileFile();
 	// Font: the profile may store a bundled file stem — resolve to family.
-	const QString stored = QString::fromStdString(
-		appSettings.settings.value("font", std::string("System Default")));
-	QString family = NedQtFonts::resolveFamily(stored);
-	if (family.isEmpty())
-		family = stored;
-	fontBox->setCurrentText(fontBox->findText(family) >= 0 ? family : "System Default");
+	selectStoredFont();
 	const int size = static_cast<int>(appSettings.settings.value("fontSize", 13));
 	fontSizeSlider->setValue(size);
 	fontSizeBox->setValue(size);
-	pendingBg = NedQtTheme::colorFromJson(appSettings.settings.contains("backgroundColor")
-											  ? &appSettings.settings["backgroundColor"]
-											  : nullptr,
-										  NedQtTheme::defaultBackground());
+	pendingBg = readPendingBg();
 	paintSwatch(bgButton, pendingBg);
 #ifdef __APPLE__
 	opacitySlider->setValue(static_cast<int>(
@@ -405,9 +412,7 @@ void SettingsView::onProfileChanged()
 	// control from it so the dialog now shows (and future commits write)
 	// the new theme's values.
 	appSettings.switchToProfile(themeBox->currentText().toStdString());
-	syncing = true;
-	syncFromSettings();
-	syncing = false;
+	resyncFromSettings();
 	appSettings.saveSettings();
 	appSettings.requestApply();
 	Q_EMIT applied();

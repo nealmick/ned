@@ -28,7 +28,12 @@ class AppHost
 	void run();
 	void cleanup();
 
-	Workbench workbench;
+	// Shell-owned settings (Qt AppHost parity): profile state, font facility
+	// and the ImGui settings window view. Workbench consumes them.
+	Settings settings;
+	Font font;
+	SettingsView settingsView{settings, font};
+	Workbench workbench{settings, font, settingsView};
 #if NED_ENABLE_SHADERS
 	FramebufferState fb;
 	ShaderQuad quad;
@@ -48,6 +53,7 @@ class AppHost
 	bool initializeGLEW();
 	bool initializeImGui();
 	void handleScrollAccumulators();
+	void applySettings(); // needsApply poll + profile re-apply (Qt applied() parity)
 	void renderFrame();
 
 	static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);

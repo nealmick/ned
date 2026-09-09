@@ -71,7 +71,7 @@ void FindBar::update()
 		return;
 	}
 
-	draw();
+	paint();
 	handleEnterShortcuts();
 }
 
@@ -388,7 +388,7 @@ void FindBar::handleEnterShortcuts()
 	}
 }
 
-void FindBar::draw()
+void FindBar::paint()
 {
 	if (!settings)
 		return;

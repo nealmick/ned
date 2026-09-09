@@ -1,5 +1,5 @@
 #include "imgui_icons.h"
-#include "settings.h"
+#include "../../util/settings.h"
 
 #include <GL/glew.h>
 #include <filesystem>
@@ -279,7 +279,7 @@ bool Icons::loadSvg(const std::string &iconFile)
 	NSVGimage *image = nsvgParseFromFile(path.c_str(), "px", SVG_DPI);
 	if (!image)
 	{
-		std::cerr << "Error loading SVG: " << path << std::endl;
+		std::cerr << "[Icons] Error loading SVG: " << path << std::endl;
 		return false;
 	}
 

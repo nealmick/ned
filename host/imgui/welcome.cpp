@@ -72,7 +72,7 @@ bool WelcomePage::loadNedLogo()
 	}
 	if (!data)
 	{
-		std::cerr << "Failed to load ned.png logo" << std::endl;
+		std::cerr << "[Welcome] Failed to load ned.png logo" << std::endl;
 		return false;
 	}
 
@@ -108,7 +108,8 @@ bool WelcomePage::loadWelcomeImages()
 				welcomeImages[i].filename.c_str(), &width, &height, &channels, 4);
 		if (!data)
 		{
-			std::cerr << "Failed to load " << welcomeImages[i].filename << std::endl;
+			std::cerr << "[Welcome] Failed to load " << welcomeImages[i].filename
+					  << std::endl;
 			allLoaded = false;
 			continue;
 		}
@@ -342,8 +343,6 @@ void WelcomePage::render()
 			ImVec2(contentX, afterTitle + ImGui::GetTextLineHeight() * 0.35f));
 		if (drawOpenFolderButton(settings, btnSize))
 		{
-			std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
-					  << std::endl;
 			fileExplorer.showFileDialog = true;
 		}
 		const float afterButton = ImGui::GetCursorPosY();
@@ -407,8 +406,6 @@ void WelcomePage::render()
 		ImGui::SetCursorPos(ImVec2((windowWidth - btnSize.x) * 0.5f, currentY));
 		if (drawOpenFolderButton(settings, btnSize))
 		{
-			std::cout << "\033[32mMain:\033[0m Welcome screen - Open Folder clicked"
-					  << std::endl;
 			fileExplorer.showFileDialog = true;
 		}
 		currentY = ImGui::GetCursorPosY() + fs * 2.0f;

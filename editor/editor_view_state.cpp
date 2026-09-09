@@ -108,18 +108,6 @@ void EditorViewState::syncPrimaryMirrors()
 	cursorColumnPreferred = p.preferredColumn;
 }
 
-void EditorViewState::applyMirrorsToPrimary()
-{
-	ensureSelections();
-	Selection &p = primary();
-	const bool wasEmpty = p.empty();
-	p.headRow = row;
-	p.headColumn = column;
-	p.preferredColumn = cursorColumnPreferred;
-	if (wasEmpty)
-		p.collapseToHead();
-}
-
 void EditorViewState::ensureSelections()
 {
 	if (selections.empty())
@@ -142,8 +130,8 @@ void EditorViewState::clampSelection(Selection &sel)
 	sel.headColumn = std::clamp(sel.headColumn, 0, static_cast<int>(headLine.size()));
 	sel.anchorColumn =
 		std::clamp(sel.anchorColumn, 0, static_cast<int>(anchorLine.size()));
-	sel.headColumn = EditorUtils::SnapToUtf8CharBoundary(headLine, sel.headColumn);
-	sel.anchorColumn = EditorUtils::SnapToUtf8CharBoundary(anchorLine, sel.anchorColumn);
+	sel.headColumn = EditorUtils::snapToUtf8CharBoundary(headLine, sel.headColumn);
+	sel.anchorColumn = EditorUtils::snapToUtf8CharBoundary(anchorLine, sel.anchorColumn);
 }
 
 void EditorViewState::clampAll()
@@ -302,14 +290,6 @@ void EditorViewState::selectionLineSpan(int &startLine, int &endLineExclusive) c
 // Clamp / visual column
 // ---------------------------------------------------------------------------
 
-void EditorViewState::clamp() { clampAll(); }
-
-void EditorViewState::calculateVisualColumn()
-{
-	calculateVisualColumn(primary());
-	syncPrimaryMirrors();
-}
-
 void EditorViewState::calculateVisualColumn(Selection &sel)
 {
 	if (!state)
@@ -364,7 +344,7 @@ void EditorViewState::cursorLeft(Selection &sel)
 	{
 		std::string line = state->line(sel.headRow);
 		auto it = line.begin() + sel.headColumn;
-		EditorUtils::MoveToPrevUtf8Char(it);
+		EditorUtils::moveToPrevUtf8Char(it);
 		sel.headColumn = static_cast<int>(std::distance(line.begin(), it));
 	} else if (sel.headRow > 0)
 	{
@@ -382,7 +362,7 @@ void EditorViewState::cursorRight(Selection &sel)
 	{
 		auto it = line.begin() + sel.headColumn;
 		if (it != line.end())
-			EditorUtils::MoveToNextUtf8Char(it);
+			EditorUtils::moveToNextUtf8Char(it);
 		sel.headColumn = static_cast<int>(std::distance(line.begin(), it));
 	} else if (sel.headRow + 1 < state->lineCount())
 	{
@@ -431,9 +411,9 @@ void EditorViewState::moveWordForward(Selection &sel)
 
 	if (pos < len)
 	{
-		while (pos < len && !EditorUtils::IsWordChar(line[pos]))
+		while (pos < len && !EditorUtils::isWordChar(line[pos]))
 			++pos;
-		while (pos < len && EditorUtils::IsWordChar(line[pos]))
+		while (pos < len && EditorUtils::isWordChar(line[pos]))
 			++pos;
 	} else if (sel.headRow + 1 < state->lineCount())
 	{
@@ -457,9 +437,9 @@ void EditorViewState::moveWordBackward(Selection &sel)
 
 	if (pos > 0)
 	{
-		while (pos > 0 && !EditorUtils::IsWordChar(line[pos - 1]))
+		while (pos > 0 && !EditorUtils::isWordChar(line[pos - 1]))
 			--pos;
-		while (pos > 0 && EditorUtils::IsWordChar(line[pos - 1]))
+		while (pos > 0 && EditorUtils::isWordChar(line[pos - 1]))
 			--pos;
 	} else if (sel.headRow > 0)
 	{
@@ -474,35 +454,4 @@ void EditorViewState::moveWordBackward(Selection &sel)
 		sel.headColumn = pos;
 		calculateVisualColumn(sel);
 	}
-}
-
-void EditorViewState::cursorLeft()
-{
-	cursorLeft(primary());
-	syncPrimaryMirrors();
-}
-void EditorViewState::cursorRight()
-{
-	cursorRight(primary());
-	syncPrimaryMirrors();
-}
-void EditorViewState::cursorUp()
-{
-	cursorUp(primary());
-	syncPrimaryMirrors();
-}
-void EditorViewState::cursorDown()
-{
-	cursorDown(primary());
-	syncPrimaryMirrors();
-}
-void EditorViewState::moveWordForward()
-{
-	moveWordForward(primary());
-	syncPrimaryMirrors();
-}
-void EditorViewState::moveWordBackward()
-{
-	moveWordBackward(primary());
-	syncPrimaryMirrors();
 }

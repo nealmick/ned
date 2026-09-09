@@ -1,8 +1,9 @@
 #include "hover_tooltip.h"
-#include "../../editor_api.h"
+#include "../../platform/lsp_editor.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/highlight/tree_sitter.h"
 #include "../../util/hover_markdown.h"
+#include "../../util/hover_runs.h"
 #include "diagnostic_style.h"
 #include "ned_color.h"
 
@@ -21,7 +22,7 @@ constexpr float kDiagnosticWrapWidthFs = 28.0f; // diagnostic message wrap
 constexpr float kBlockGapFs = 0.15f;			// gap between markdown blocks
 constexpr float kBoldBoost = 1.15f;				// **bold** brightness multiplier
 
-float drawCodeLine(const std::string &line, const LineColorSpans &spans, EditorApi &api)
+float drawCodeLine(const std::string &line, const LineColorSpans &spans, LSPEditor &editor)
 {
 	const float h = ImGui::GetTextLineHeight();
 	ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -32,40 +33,26 @@ float drawCodeLine(const std::string &line, const LineColorSpans &spans, EditorA
 	}
 
 	ImDrawList *dl = ImGui::GetWindowDrawList();
-	const ImVec4 fallback = toImVec4(api.defaultTextColor());
+	const ImVec4 fallback = toImVec4(editor.defaultTextColor());
 	float x = pos.x;
-	size_t spanIdx = 0;
-	int i = 0;
-	const int n = static_cast<int>(line.size());
-	while (i < n)
+	for (const HoverCodeRun &run : HoverCodeRuns(line, spans))
 	{
-		while (spanIdx < spans.size() && spans[spanIdx].end <= i)
-			++spanIdx;
-
-		ImVec4 color = fallback;
-		int runEnd = n;
-		if (spanIdx < spans.size() && spans[spanIdx].start <= i)
-		{
-			color = toImVec4(api.syntaxColor(spans[spanIdx].slot));
-			runEnd = std::min(n, spans[spanIdx].end);
-		} else if (spanIdx < spans.size() && spans[spanIdx].start > i)
-		{
-			runEnd = std::min(n, spans[spanIdx].start);
-		}
-
-		const char *a = line.c_str() + i;
-		const char *b = line.c_str() + runEnd;
+		const ImVec4 color =
+			run.themed ? toImVec4(editor.syntaxColor(run.slot)) : fallback;
+		const char *a = run.text.data();
+		const char *b = run.text.data() + run.text.size();
 		dl->AddText(ImVec2(x, pos.y), ImGui::ColorConvertFloat4ToU32(color), a, b);
 		x += ImGui::CalcTextSize(a, b).x;
-		i = runEnd;
 	}
 	ImGui::Dummy(ImVec2(std::max(1.0f, x - pos.x), h));
 	return x - pos.x;
 }
 
-void drawCodeBlock(const HoverMdBlock &block, const ColorRangeMap &colors, EditorApi &api)
+void drawCodeBlock(const HoverMdBlock &block,
+				   const ColorRangeMap &colors,
+				   LSPEditor &editor)
 {
-	std::vector<std::string> lines = SplitHoverLines(block.text);
+	std::vector<std::string> lines = splitHoverLines(block.text);
 	if (lines.empty())
 		lines.emplace_back("");
 
@@ -79,21 +66,18 @@ void drawCodeBlock(const HoverMdBlock &block, const ColorRangeMap &colors, Edito
 		const LineColorSpans *spans = &kEmpty;
 		if (row < static_cast<int>(colors.size()))
 			spans = &colors[static_cast<size_t>(row)];
-		drawCodeLine(lines[static_cast<size_t>(row)], *spans, api);
+		drawCodeLine(lines[static_cast<size_t>(row)], *spans, editor);
 	}
 	ImGui::PopStyleVar();
-	// Block-to-block spacing is owned by RenderHoverMarkdown.
+	// Block-to-block spacing is owned by renderHoverMarkdown.
 }
 
-void drawProseLine(const std::string &line, EditorApi &api)
+void drawProseLine(const std::string &line, LSPEditor &editor)
 {
-	const ImVec4 text = toImVec4(api.defaultTextColor());
-	const ImVec4 code = toImVec4(api.syntaxColor(ThemeSlot::String));
-
-	std::string_view s = line;
+	const ImVec4 text = toImVec4(editor.defaultTextColor());
+	const ImVec4 code = toImVec4(editor.syntaxColor(ThemeSlot::String));
 
 	bool first = true;
-	size_t i = 0;
 	auto emit = [&](std::string_view piece, ImVec4 color, bool bold) {
 		if (piece.empty())
 			return;
@@ -113,56 +97,20 @@ void drawProseLine(const std::string &line, EditorApi &api)
 		ImGui::PopStyleColor();
 	};
 
-	while (i < s.size())
+	for (const HoverRun &run : HoverProseRuns(line))
 	{
-		if (s[i] == '`')
+		switch (run.style)
 		{
-			const size_t end = s.find('`', i + 1);
-			if (end != std::string_view::npos)
-			{
-				emit(s.substr(i + 1, end - i - 1), code, false);
-				i = end + 1;
-				continue;
-			}
+		case HoverRunStyle::Code:
+			emit(run.text, code, false);
+			break;
+		case HoverRunStyle::Bold:
+			emit(run.text, text, true);
+			break;
+		default: // Text / Link: label text in the default color
+			emit(run.text, text, false);
+			break;
 		}
-		if (i + 1 < s.size() && s[i] == '*' && s[i + 1] == '*')
-		{
-			const size_t end = s.find("**", i + 2);
-			if (end != std::string_view::npos)
-			{
-				emit(s.substr(i + 2, end - i - 2), text, true);
-				i = end + 2;
-				continue;
-			}
-		}
-		if (s[i] == '[')
-		{
-			const size_t close = s.find(']', i + 1);
-			if (close != std::string_view::npos && close + 1 < s.size() &&
-				s[close + 1] == '(')
-			{
-				const size_t endParen = s.find(')', close + 2);
-				if (endParen != std::string_view::npos)
-				{
-					emit(s.substr(i + 1, close - i - 1), text, false);
-					i = endParen + 1;
-					continue;
-				}
-			}
-		}
-
-		size_t next = s.size();
-		for (size_t j = i + 1; j < s.size(); ++j)
-		{
-			if (s[j] == '`' || s[j] == '[' ||
-				(j + 1 < s.size() && s[j] == '*' && s[j + 1] == '*'))
-			{
-				next = j;
-				break;
-			}
-		}
-		emit(s.substr(i, next - i), text, false);
-		i = next;
 	}
 	if (first)
 		ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
@@ -179,11 +127,11 @@ bool TooltipArbiter::claim()
 	return true;
 }
 
-void RenderHoverMarkdown(const std::string &markdown,
-						 EditorApi &api,
+void renderHoverMarkdown(const std::string &markdown,
+						 LSPEditor &editor,
 						 const std::string &fallbackLanguageId)
 {
-	const std::vector<HoverMdBlock> blocks = ParseHoverMarkdown(markdown);
+	const std::vector<HoverMdBlock> blocks = parseHoverMarkdown(markdown);
 	const float fs = ImGui::GetFontSize();
 	ImGui::PushTextWrapPos(fs * kProseWrapWidthFs);
 
@@ -207,15 +155,15 @@ void RenderHoverMarkdown(const std::string &markdown,
 			ColorRangeMap colors;
 			if (!lang.empty())
 				colors = TreeSitter::highlightSnippet(lang, block.text);
-			drawCodeBlock(block, colors, api);
+			drawCodeBlock(block, colors, editor);
 			continue;
 		}
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-		for (const std::string &line : SplitHoverLines(block.text))
+		for (const std::string &line : splitHoverLines(block.text))
 		{
 			if (!line.empty())
-				drawProseLine(line, api);
+				drawProseLine(line, editor);
 			else
 				ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight() * 0.35f));
 		}
@@ -225,7 +173,7 @@ void RenderHoverMarkdown(const std::string &markdown,
 	ImGui::PopTextWrapPos();
 }
 
-void RenderDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
+void renderDiagnosticTooltip(const std::vector<DiagnosticItem> &items,
 							 TooltipArbiter &arbiter)
 {
 	if (items.empty() || !arbiter.claim())

@@ -13,6 +13,7 @@
 #include "../lsp/views/imgui/lsp_view.h"
 #include "../util/settings.h"
 #include "fonts.h"
+#include "imgui_icons.h"
 #include "theme.h"
 
 #include "imgui.h"
@@ -40,7 +41,7 @@ bool SettingsView::apply(bool force, EditorApi &api)
 	// Never call .value() on null / non-object (throws type_error.306).
 	if (!s.settings.is_object())
 	{
-		std::cerr << "[Settings] apply: s.settings JSON is not an object; "
+		std::cerr << "[Settings] apply: settings JSON is not an object; "
 					 "loading bundled defaults"
 				  << std::endl;
 		std::string path;
@@ -79,7 +80,7 @@ std::string SettingsView::displayFontName(const std::string &fontFile)
 	return name;
 }
 
-void SettingsView::renderSettingsWindow(EditorApi &api, FileExplorer &files, LspView &lsp)
+void SettingsView::renderSettingsWindow(EditorApi &api, FileExplorer &files, LSPView &lsp)
 {
 	if (!s.showSettingsWindow)
 		return;
@@ -132,7 +133,7 @@ void SettingsView::renderSettingsWindow(EditorApi &api, FileExplorer &files, Lsp
 	ImGui::PopStyleVar(6);
 }
 
-void SettingsView::renderSettingsContent(EditorApi &api, FileExplorer &files, LspView &lsp)
+void SettingsView::renderSettingsContent(EditorApi &api, FileExplorer &files, LSPView &lsp)
 {
 	if (!s.isEmbedded)
 	{
@@ -575,7 +576,7 @@ void SettingsView::renderShaderSlider(const char *label,
 	ImGui::Spacing();
 }
 
-void SettingsView::renderKeybindsSettings(FileExplorer &files, LspView &lsp)
+void SettingsView::renderKeybindsSettings(FileExplorer &files, LSPView &lsp)
 {
 	ImGui::Spacing();
 	ImGui::Separator();
@@ -584,7 +585,7 @@ void SettingsView::renderKeybindsSettings(FileExplorer &files, LspView &lsp)
 	const fs::path configDir = s.getUserConfigDir();
 	const std::string keybindsPath = (configDir / "keybinds.json").string();
 	const std::string defaultKeybindsPath =
-		(configDir / "default-s.keybinds.json").string();
+		(configDir / "default-keybinds.json").string();
 
 	if (ImGui::Button("Open Keybinds File"))
 	{
@@ -603,7 +604,7 @@ void SettingsView::renderKeybindsSettings(FileExplorer &files, LspView &lsp)
 
 	if (fs::exists(defaultKeybindsPath) && !fs::exists(keybindsPath))
 	{
-		ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Using default s.keybinds");
+		ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Using default keybinds");
 		if (ImGui::Button("Restore Default Keybinds"))
 		{
 			try
@@ -614,7 +615,7 @@ void SettingsView::renderKeybindsSettings(FileExplorer &files, LspView &lsp)
 				s.keybinds.loadKeybinds();
 			} catch (const fs::filesystem_error &e)
 			{
-				std::cerr << "[Settings] Error restoring s.keybinds: " << e.what()
+				std::cerr << "[Settings] Error restoring keybinds: " << e.what()
 						  << std::endl;
 			}
 		}
@@ -628,7 +629,7 @@ void SettingsView::renderKeybindsSettings(FileExplorer &files, LspView &lsp)
 	ImGui::Spacing();
 	if (ImGui::Button("LSP Dashboard"))
 	{
-		lsp.dashboard.setShow(true);
+		lsp.dashboard().setShow(true);
 		s.showSettingsWindow = false;
 	}
 	ImGui::SameLine();

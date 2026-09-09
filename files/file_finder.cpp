@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <system_error>
 
 namespace {
 
@@ -21,17 +22,6 @@ std::string toLower(std::string s)
 		return static_cast<char>(std::tolower(c));
 	});
 	return s;
-}
-
-// Path → UTF-8 std::string (Windows-safe).
-std::string pathToUtf8(const fs::path &p)
-{
-#ifdef PLATFORM_WINDOWS
-	auto u8 = p.u8string();
-	return std::string(u8.begin(), u8.end());
-#else
-	return p.string();
-#endif
 }
 
 } // namespace
@@ -87,51 +77,10 @@ void FileFinder::backgroundRefresh()
 
 void FileFinder::refreshFileListBackground(const std::string &projectDir)
 {
-	std::vector<FileEntry> newList;
-	try
-	{
-		// Same skip list as the Qt finder (FileFinderMatch::shouldSkipDir):
-		// .git / build dirs / node_modules otherwise dominate every scan.
-		std::error_code ec;
-		for (fs::recursive_directory_iterator
-				 it(projectDir, fs::directory_options::skip_permission_denied, ec),
-			 end;
-			 !ec && it != end;
-			 it.increment(ec))
-		{
-			try
-			{
-				if (it->is_directory(ec))
-				{
-					if (FileFinderMatch::shouldSkipDir(it->path().filename().string()))
-						it.disable_recursion_pending();
-					continue;
-				}
-				if (ec || !it->is_regular_file(ec))
-					continue;
+	std::vector<FileEntry> newList = scanWorkspaceFiles(projectDir, stopThread);
 
-				const fs::path fullPath = it->path();
-				const fs::path relativePath = fs::relative(fullPath, projectDir);
-
-				FileEntry fe;
-				fe.fullPath = pathToUtf8(fullPath);
-				fe.relativePath = pathToUtf8(relativePath);
-				fe.relativePathLower = toLower(fe.relativePath);
-				fe.filenameLower = toLower(pathToUtf8(relativePath.filename()));
-				newList.push_back(std::move(fe));
-			} catch (const std::exception &)
-			{
-				// Skip entries that fail path conversion / access.
-				continue;
-			}
-		}
-
-		std::lock_guard<std::mutex> lock(fileListMutex);
-		fileList = std::move(newList);
-	} catch (const std::exception &)
-	{
-		// Directory gone / permission — leave previous list.
-	}
+	std::lock_guard<std::mutex> lock(fileListMutex);
+	fileList = std::move(newList);
 }
 
 // --- filtering --------------------------------------------------------------

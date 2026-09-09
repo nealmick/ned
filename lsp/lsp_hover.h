@@ -13,12 +13,12 @@
 #include <string>
 
 class LSPClient;
-class LspEditor;
+class LSPEditor;
 
 class LSPHover
 {
   public:
-	LSPHover(LSPClient &client, LspEditor &api);
+	LSPHover(LSPClient &client, LSPEditor &api);
 	~LSPHover();
 
 	// Check keybind-style trigger: hover for the symbol at the caret.
@@ -29,7 +29,7 @@ class LSPHover
 	// editor differs from the focused one. Returns false when no request
 	// was sent (no handler) — callers that dedup per cell should not
 	// consume their request slot in that case.
-	bool requestAt(int row, int utf8Column, LspEditor *target = nullptr);
+	bool requestAt(int row, int utf8Column, LSPEditor *target = nullptr);
 
 	// Dismiss: drops the result and invalidates any in-flight delivery.
 	void cancel() { state.cancel(); }
@@ -39,10 +39,10 @@ class LSPHover
 	std::optional<std::string> snapshot() const { return state.snapshot(); }
 
 	// Point at a different editor (multi-tab focus / split hover).
-	void setApi(LspEditor *editorApi) { api = editorApi; }
+	void setApi(LSPEditor *editorApi) { api = editorApi; }
 
   private:
 	LSPClient *client = nullptr;
-	LspEditor *api = nullptr;
+	LSPEditor *api = nullptr;
 	LSPRequestState<std::string> state;
 };

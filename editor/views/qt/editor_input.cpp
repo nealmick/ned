@@ -13,9 +13,9 @@
 #include "line_jump.h"
 #include "ned_color.h"
 
+#include "../../../../host/qt/qt_icons.h"
 #include "host/qt/fonts.h"
 #include "host/qt/theme.h"
-#include "util/qt_icons.h"
 #include <QApplication>
 #include <QFontMetrics>
 #include <QInputMethodEvent>
@@ -30,8 +30,23 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <sstream>
+
+// Font zoom (Cmd +/-): bump the persisted size, apply, notify, save.
+void EditorInput::zoomFont(EditorFrame *frame, int delta)
+{
+	if (delta >= 0)
+		frame->appSettings.settings["fontSize"] =
+			frame->appSettings.settings.value("fontSize", 13) + delta;
+	else
+		frame->appSettings.settings["fontSize"] =
+			std::max(8.0,
+					 frame->appSettings.settings.value("fontSize", 13) +
+						 static_cast<double>(delta));
+	frame->applyProfileFont();
+	Q_EMIT frame->fontZoomed();
+	frame->appSettings.saveSettings();
+}
 
 void EditorInput::inputMethod(QInputMethodEvent *event)
 {
@@ -76,10 +91,9 @@ HoverTrigger::Target EditorInput::hoverTargetAt(const QPoint &pos) const
 	const int segEnd = seg + 1 < frame->wrap.segmentCount(hit.row)
 						   ? frame->wrap.segmentStartColumn(hit.row, seg + 1)
 						   : frame->state.lineLength(hit.row);
+	// xAtByteColumn is widget-space — compare against the mouse directly.
 	const qreal textEndX = frame->xAtByteColumn(hit.row, segEnd, hit.segmentStart);
-	const qreal textX = pos.x() - frame->gutterWidthPx +
-						(frame->wordWrapEnabled() ? 0.0 : frame->scrollPxX);
-	if (textX > textEndX + frame->charWidthF() * 0.5)
+	if (static_cast<qreal>(pos.x()) > textEndX + frame->charWidthF() * 0.5)
 		return target;
 	target.zone = HoverTrigger::Zone::Text;
 	target.row = hit.row;
@@ -252,22 +266,12 @@ void EditorInput::keyPress(QKeyEvent *event)
 			frame->commands.selectAll();
 			break;
 		case Qt::Key_Plus:
-		case Qt::Key_Equal: {
-			frame->appSettings.settings["fontSize"] =
-				frame->appSettings.settings.value("fontSize", 13) + 2;
-			frame->applyProfileFont();
-			Q_EMIT frame->fontZoomed();
-			frame->appSettings.saveSettings();
+		case Qt::Key_Equal:
+			zoomFont(frame, 2);
 			break;
-		}
-		case Qt::Key_Minus: {
-			frame->appSettings.settings["fontSize"] =
-				std::max(8.0, frame->appSettings.settings.value("fontSize", 13) - 2.0);
-			frame->applyProfileFont();
-			Q_EMIT frame->fontZoomed();
-			frame->appSettings.saveSettings();
+		case Qt::Key_Minus:
+			zoomFont(frame, -2);
 			break;
-		}
 		case Qt::Key_Z:
 			frame->commands.undo();
 			break;
@@ -388,11 +392,11 @@ void EditorInput::wheel(QWheelEvent *event)
 		const int dx = d.x() != 0 ? d.x() : (shift ? d.y() : 0);
 		if (dx != 0)
 		{
-			frame->wheelCarryX -= dx * (3.0 * frame->charWidthF() / 120.0);
-			const int px = static_cast<int>(frame->wheelCarryX);
-			frame->wheelCarryX -= px;
+			frame->viewState.wheelCarryX -= dx * (3.0 * frame->charWidthF() / 120.0);
+			const int px = static_cast<int>(frame->viewState.wheelCarryX);
+			frame->viewState.wheelCarryX -= px;
 			if (px != 0)
-				frame->setScrollXPixels(frame->scrollPxX + px);
+				frame->setScrollXPixels(frame->viewState.scrollPxX + px);
 		}
 	}
 
@@ -401,11 +405,11 @@ void EditorInput::wheel(QWheelEvent *event)
 	// scrolls vertically regardless.
 	if (d.y() != 0 && (!shift || wrapping))
 	{
-		frame->wheelCarry += d.y() * (3.0 * frame->lineHeightPx / 120.0);
-		const int px = static_cast<int>(frame->wheelCarry);
-		frame->wheelCarry -= px;
+		frame->viewState.wheelCarry += d.y() * (3.0 * frame->lineHeightPx / 120.0);
+		const int px = static_cast<int>(frame->viewState.wheelCarry);
+		frame->viewState.wheelCarry -= px;
 		if (px != 0)
-			frame->setScrollPixels(frame->scrollPx - px);
+			frame->setScrollPixels(frame->viewState.scrollPx - px);
 	}
 	// Scrolling shifts content under the mouse — dismiss hover (rule 2).
 	updateHover(false, true, frame->lastHoverPos);
@@ -429,12 +433,8 @@ void EditorInput::mousePress(QMouseEvent *event)
 		showContextMenu(event->pos());
 		return;
 	}
-	if (event->position().x() >= frame->width() - frame->minimapWidth())
-	{
-		frame->minimapDragging = true;
-		frame->minimapScrollTo(static_cast<int>(event->position().y()));
+	if (frame->minimapView.press(*frame, event->position()))
 		return;
-	}
 	if (event->button() != Qt::LeftButton)
 		return;
 	const EditorFrame::EditorFrame::RowHit hit =
@@ -516,17 +516,17 @@ void EditorInput::mouseMove(QMouseEvent *event)
 	// loop, popup, window deactivate): with the left button up there is no
 	// drag. A stuck minimap drag re-pinned the scroll to the pointer on
 	// every move — "stuck at the bottom, can't scroll up".
-	if ((frame->dragging || frame->minimapDragging) &&
+	if ((frame->dragging || frame->minimapView.dragging()) &&
 		!(QGuiApplication::mouseButtons() & Qt::LeftButton))
 	{
 		frame->dragging = false;
-		frame->minimapDragging = false;
+		frame->minimapView.release();
 		return;
 	}
 
-	if (frame->minimapDragging)
+	if (frame->minimapView.dragging())
 	{
-		frame->minimapScrollTo(static_cast<int>(event->position().y()));
+		frame->minimapView.move(*frame, event->position());
 		return;
 	}
 	if (!frame->dragging)
@@ -542,12 +542,12 @@ void EditorInput::mouseMove(QMouseEvent *event)
 void EditorInput::mouseRelease(QMouseEvent *)
 {
 	frame->dragging = false;
-	frame->minimapDragging = false;
+	frame->minimapView.release();
 }
 
 int EditorFrame::rowAtY(int y) const
 {
-	const qreal v = (scrollPx + std::max(0, y - topInset())) / lineHeightPx;
+	const qreal v = (viewState.scrollPx + std::max(0, y - topInset())) / lineHeightPx;
 	if (wordWrapEnabled())
 	{
 		// v is CONTINUOUS (the pointer can be anywhere within a visual
@@ -572,10 +572,10 @@ int EditorFrame::columnAtX(int row, int x, int segmentStart) const
 			return 0;
 		const int seg = wrap.segmentOf(row, segmentStart);
 		const int column = wrap.columnAt(line, row, seg, x - gutterWidthPx);
-		return EditorUtils::SnapToUtf8CharBoundary(line, column);
+		return EditorUtils::snapToUtf8CharBoundary(line, column);
 	}
 	// Wrap off: x is screen space — shift by the horizontal scroll offset.
-	const int textX = x - gutterWidthPx + static_cast<int>(scrollPxX);
+	const int textX = x - gutterWidthPx + static_cast<int>(viewState.scrollPxX);
 	if (textX <= 0)
 		return segmentStart;
 	return std::clamp(
@@ -585,7 +585,7 @@ int EditorFrame::columnAtX(int row, int x, int segmentStart) const
 // y -> document row + wrap-segment start (byte column of the segment).
 EditorFrame::RowHit EditorFrame::hitTestY(int y) const
 {
-	const qreal v = (scrollPx + std::max(0, y - topInset())) / lineHeightPx;
+	const qreal v = (viewState.scrollPx + std::max(0, y - topInset())) / lineHeightPx;
 	if (wordWrapEnabled())
 	{
 		// v is CONTINUOUS (a click lands anywhere within a visual line), so

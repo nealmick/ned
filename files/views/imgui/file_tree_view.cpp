@@ -1,13 +1,13 @@
 #include "file_tree_view.h"
+#include "../../../../host/imgui/imgui_icons.h"
 #include "../../../editor/editor_api.h"
 #include "../../../files/file_tree.h"
-#include "../../../util/imgui_icons.h"
 #include "../../../util/settings.h"
 #include "imgui.h"
 
 #include <algorithm>
 
-#include "../../../editor/util/editor_utils.h"
+#include "../../../editor/views/imgui/editor_utils.h"
 #include "../../../files/files.h"
 
 // Row styling constants (were FileTree privates).
@@ -25,7 +25,7 @@ static void drawNodeLabel(FileTree &tree,
 static ImVec4 themeTextColor(FileTree &tree);
 static ImTextureID folderIcon(FileTree &tree, bool isOpen);
 
-void renderFileTree(FileTree &tree, FileNode &node, int depth)
+void populateFileTree(FileTree &tree, FileNode &node, int depth)
 {
 	const float fs = ImGui::GetFontSize();
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, fs * 0.3f);
@@ -93,7 +93,7 @@ static void drawNodeRow(FileTree &tree, FileNode &node, int depth)
 		if (node.isOpen)
 		{
 			for (auto &child : node.children)
-				renderFileTree(tree, child, depth + 1);
+				populateFileTree(tree, child, depth + 1);
 		}
 	} else
 	{
@@ -121,7 +121,7 @@ static void drawNodeLabel(FileTree &tree,
 	if (isCurrentFile)
 	{
 		if (tree.settings->settings.value("rainbow", true))
-			color = EditorUtils::GetRainbowColor();
+			color = EditorUtils::getRainbowColor();
 	} else if (tree.fileExplorer && tree.fileExplorer->api &&
 			   tree.fileExplorer->api->isFileModified(fullPath))
 	{

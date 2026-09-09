@@ -3,33 +3,8 @@
 #include "diagnostic_style.h"
 #include "editor_frame.h"
 
-#include "../../services/diagnostics/diagnostic_colors.h"
-#include "../../util/text_columns.h"
-#include "../../util/utf8.h"
-
-#include "../../../util/settings.h"
-#include "find_bar.h"
-#include "hover_tooltip.h"
-#include "line_jump.h"
-#include "ned_color.h"
-
-#include "host/qt/fonts.h"
 #include "host/qt/theme.h"
-#include "util/qt_icons.h"
-#include <QApplication>
-#include <QFontMetrics>
-#include <QKeyEvent>
-#include <QMouseEvent>
 #include <QPainter>
-#include <QScrollBar>
-#include <QTimer>
-#include <QWheelEvent>
-
-#include <cmath>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <sstream>
 
 void GutterView::updateWidth()
 {
@@ -50,15 +25,6 @@ int GutterView::diagColumnWidth() const
 	if (!frame->diagStore)
 		return 0;
 	return std::max(6, static_cast<int>(frame->fontMetrics().height() * 0.55));
-}
-
-int GutterView::gitDirtyLineCount() const
-{
-	int n = 0;
-	for (int l = 1; l <= frame->state.lineCount(); ++l)
-		if (frame->git.isLineEdited(frame->state.path, l))
-			++n;
-	return n;
 }
 
 // Gutter + current-line highlight + severity marks. `rows` counts VISUAL

@@ -4,12 +4,38 @@
 
 #include <QHBoxLayout>
 #include <QKeyEvent>
-#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
+
+namespace {
+struct Match
+{
+	int row, col, len;
+};
+
+// Full-document scan for needle (doc coords). Full scan keeps ordering
+// trivially correct for both find navigation and replace-all.
+std::vector<Match> collectMatches(const EditorState &doc, const std::string &needle)
+{
+	std::vector<Match> matches;
+	for (int r = 0; r < doc.lineCount(); ++r)
+	{
+		const std::string line = doc.line(r);
+		for (size_t pos = 0;;)
+		{
+			const size_t hit = line.find(needle, pos);
+			if (hit == std::string::npos)
+				break;
+			matches.push_back({r, static_cast<int>(hit), static_cast<int>(needle.size())});
+			pos = hit + 1;
+		}
+	}
+	return matches;
+}
+} // namespace
 
 FindBar::FindBar(EditorFrame *view, QWidget *parent) : QWidget(parent), editor(view)
 {
@@ -76,7 +102,7 @@ void FindBar::open()
 	}
 }
 
-void FindBar::closeBar()
+void FindBar::dismiss()
 {
 	hide();
 	editor->setFocus();
@@ -85,7 +111,6 @@ void FindBar::closeBar()
 void FindBar::find(bool backwards)
 {
 	const std::string needle = input->text().toStdString();
-	const std::string haystack = editor->document().join();
 	if (needle.empty())
 	{
 		countLabel->setText("0 matches");
@@ -93,27 +118,8 @@ void FindBar::find(bool backwards)
 	}
 
 	// Collect match positions (row/col) around the caret, then pick the
-	// next (or previous) one. Full scan keeps ordering trivially correct.
-	struct Match
-	{
-		int row, col, len;
-	};
-	std::vector<Match> matches;
-	int row = 0, col = 0;
-	for (int r = 0; r < editor->document().lineCount(); ++r)
-	{
-		const std::string line = editor->document().line(r);
-		for (size_t pos = 0;;)
-		{
-			const size_t hit = line.find(needle, pos);
-			if (hit == std::string::npos)
-				break;
-			matches.push_back({r, static_cast<int>(hit), static_cast<int>(needle.size())});
-			pos = hit + 1;
-		}
-	}
-	(void)row;
-	(void)col;
+	// next (or previous) one.
+	const std::vector<Match> matches = collectMatches(editor->document(), needle);
 
 	if (matches.empty())
 	{
@@ -173,23 +179,7 @@ void FindBar::replaceAll()
 
 	// Collect matches once (doc coords), then replace back-to-front so
 	// earlier offsets stay valid.
-	struct Match
-	{
-		int row, col, len;
-	};
-	std::vector<Match> matches;
-	for (int r = 0; r < editor->document().lineCount(); ++r)
-	{
-		const std::string line = editor->document().line(r);
-		for (size_t pos = 0;;)
-		{
-			const size_t hit = line.find(needle, pos);
-			if (hit == std::string::npos)
-				break;
-			matches.push_back({r, static_cast<int>(hit), static_cast<int>(needle.size())});
-			pos = hit + 1;
-		}
-	}
+	const std::vector<Match> matches = collectMatches(editor->document(), needle);
 
 	for (auto it = matches.rbegin(); it != matches.rend(); ++it)
 	{

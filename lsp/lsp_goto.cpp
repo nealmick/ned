@@ -5,7 +5,7 @@
 #include "lsp_includes.h"
 #include "lsp_trace.h"
 
-LSPGoto::LSPGoto(LSPClient &client, LspEditor &api, Kind kind)
+LSPGoto::LSPGoto(LSPClient &client, LSPEditor &api, Kind kind)
 	: kind(kind), client(&client), api(&api)
 {
 }
@@ -43,6 +43,23 @@ void sendGoto(lsp::MessageHandler &handler,
 }
 
 } // namespace
+
+void LSPGotoArbiter::render(
+	const std::function<void(const std::string &title,
+							 const std::vector<LSPLocation> &locations,
+							 bool &show)> &renderer,
+	const std::string &title,
+	const std::vector<LSPLocation> &locations,
+	bool &show)
+{
+	// A picker already showing another request's results hands ownership
+	// over: the previous request's show flag is cleared so only one keeps
+	// rendering.
+	if (renderedShowFlag && renderedShowFlag != &show)
+		*renderedShowFlag = false;
+	renderedShowFlag = &show;
+	renderer(title, locations, show);
+}
 
 void LSPGoto::get()
 {
@@ -91,7 +108,7 @@ void LSPGoto::get()
 		}
 	} catch (const std::exception &e)
 	{
-		std::cerr << "LSP: goto request failed: " << e.what() << std::endl;
+		std::cerr << "[LSP] goto request failed: " << e.what() << std::endl;
 		state.deliver(ticket, {});
 	}
 }
@@ -100,11 +117,15 @@ void LSPGoto::render()
 {
 	if (!client || !show || !resultRenderer)
 		return;
-	resultRenderer(
-		gotoTitle(kind), state.snapshot().value_or(std::vector<LSPLocation>{}), show);
+	const std::vector<LSPLocation> locations =
+		state.snapshot().value_or(std::vector<LSPLocation>{});
+	if (arbiter)
+		arbiter->render(resultRenderer, gotoTitle(kind), locations, show);
+	else
+		resultRenderer(gotoTitle(kind), locations, show);
 }
 
-void lspJumpToLocation(LspEditor &api, const LSPLocation &location)
+void lspJumpToLocation(LSPEditor &api, const LSPLocation &location)
 {
 	// Convert against the destination buffer (the caller loads the file
 	// first when jumping across documents), then request the deferred center.

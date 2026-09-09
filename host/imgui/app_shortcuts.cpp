@@ -20,7 +20,7 @@
 bool handleAppKeyboardShortcuts(EditorApi &api,
 								FileExplorer &files,
 								Settings &settings,
-								LspView &lsp)
+								LSPView &lsp)
 {
 	bool pressed = false;
 	const ImGuiIO &io = ImGui::GetIO();
@@ -92,7 +92,7 @@ bool handleAppKeyboardShortcuts(EditorApi &api,
 		pressed = true;
 	}
 
-	if (lsp.keybinds())
+	if (lsp.handleKeybinds())
 		pressed = true;
 
 	return pressed;

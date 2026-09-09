@@ -40,7 +40,8 @@ void FileExplorer::openFolderDialog()
 	if (result != NFD_OKAY)
 	{
 		if (result != NFD_CANCEL)
-			std::cerr << "Folder dialog error: " << NFD_GetError() << std::endl;
+			std::cerr << "[FileExplorer] Folder dialog error: " << NFD_GetError()
+					  << std::endl;
 		return;
 	}
 

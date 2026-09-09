@@ -30,7 +30,7 @@ class Settings;
 
 #if NED_ENABLE_LSP
 
-class LspView : public QObject
+class LSPView : public QObject
 {
 	Q_OBJECT
 
@@ -39,11 +39,11 @@ class LspView : public QObject
 	// shows it (existing tab focused or a new one).
 	using OpenFileFn = std::function<class EditorFrame *(const std::string &path)>;
 
-	LspView(LSPClient &client,
+	LSPView(LSPClient &client,
 			Settings &settings,
 			QWidget *hostWindow,
 			OpenFileFn openFile);
-	~LspView() override;
+	~LSPView() override;
 
 	// A new editor was opened: install hover wiring + make it the target.
 	void editorOpened(EditorFrame &view);
@@ -72,13 +72,12 @@ class LspView : public QObject
 	LSPDashboard *dashboard_ = nullptr;
 	LSPSymbolInfo *symbolInfo = nullptr;
 	QTimer *pollTimer = nullptr;
-	bool *renderedShowFlag = nullptr; // goto picker ownership arbitration
 };
 
 #else // !NED_ENABLE_LSP
 
 // Minimal stand-in so the Qt host compiles without lsp-framework.
-class LspView
+class LSPView
 {
   public:
 	struct DashboardStub
@@ -90,7 +89,7 @@ class LspView
 	// the host's lambda at the make_unique call site).
 	using OpenFileFn = std::function<class EditorFrame *(const std::string &)>;
 
-	LspView(class LSPClient &, Settings &, QWidget *, OpenFileFn = nullptr) {}
+	LSPView(class LSPClient &, Settings &, QWidget *, OpenFileFn = nullptr) {}
 
 	void editorOpened(EditorFrame &) {}
 	void rebind(EditorFrame *) {}

@@ -48,6 +48,12 @@ class SettingsView : public QDialog
 	void commit();			 // write every control to settings + persist + applied()
 	void syncFromSettings(); // re-read controls from settings (profile switch)
 	void onProfileChanged();
+	// Background color from the profile (theme's own fallback applies).
+	QColor readPendingBg() const;
+	// Resolve the stored font (possibly a bundled file stem) onto fontBox.
+	void selectStoredFont();
+	// syncFromSettings with change signals suppressed.
+	void resyncFromSettings();
 	QWidget *makeSection(const QString &title); // bold header + hairline
 	QPushButton *makeColorSwatch(const QColor &color);
 	void paintSwatch(QPushButton *swatch, const QColor &color);

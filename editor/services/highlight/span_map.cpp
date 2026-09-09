@@ -91,7 +91,7 @@ void SpanMap::insert(int row, int col, const std::string &text, const std::strin
 		lens.resize(static_cast<size_t>(row) + 1, 0);
 	}
 
-	const auto parts = EditorUtils::SplitOnSeparator(text, eol);
+	const auto parts = EditorUtils::splitOnSeparator(text, eol);
 	if (parts.size() == 1)
 	{
 		const int n = static_cast<int>(parts[0].size());
