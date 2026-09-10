@@ -1029,8 +1029,10 @@ if(NED_BUILD_QT)
           PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
       endif()
     if(WIN32)
-      # Native-frame theming (DWM dark caption / colors / rounded corners).
-      target_sources(ned_qt PRIVATE host/qt/windows_chrome.cpp)
+      # Borderless frame + hand-drawn caption strip (ImGui host parity):
+      # windows_chrome strips the native frame via the wndproc, and
+      # NedQtTitleBar paints the title/gear/min/max/close bar.
+      target_sources(ned_qt PRIVATE host/qt/windows_chrome.cpp host/qt/windows_titlebar.cpp)
       target_link_libraries(ned_qt PRIVATE dwmapi)
     endif()
     if(WIN32)

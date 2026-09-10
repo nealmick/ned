@@ -43,9 +43,10 @@ extern void applyNedQtWindowColor(void *nsWindow, float r, float g, float b);
 extern void nedQtChromeWatch(void *winId);
 #endif
 #ifdef _WIN32
+#include "windows_titlebar.h"
+
 // Defined in windows_chrome.cpp.
 extern void configureNedQtChromeWindows(void *hwnd);
-extern void applyNedQtWindowColorWindows(void *hwnd, float r, float g, float b);
 #endif
 
 namespace {
@@ -118,7 +119,13 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 
 	connect(this, &AppHost::sidebarToggleRequested, this, [this] {
 		for (QDockWidget *dock : findChildren<QDockWidget *>())
+		{
+			// The Windows caption strip lives in a dock too — never a
+			// sidebar-toggle target.
+			if (dock->objectName() == QLatin1String("NedTitleDock"))
+				continue;
 			dock->setVisible(!dock->isVisible());
+		}
 	});
 	connect(this, &AppHost::settingsRequested, this, [this] {
 		// Toggle: an open popup closes instead of stacking another.
@@ -154,6 +161,30 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 	dock->setFeatures(QDockWidget::DockWidgetMovable);
 	dock->hide();
 	addDockWidget(Qt::LeftDockWidgetArea, dock);
+
+#ifdef _WIN32
+	// Custom caption strip (ImGui renderWindowsTitlebar parity, see
+	// windows_titlebar.h). Top dock area: QMainWindow lays side docks out
+	// BELOW it, so the strip spans the full window width above the sidebar
+	// like the ImGui caption. Empty dock title bar (same trick as the
+	// sidebar), fixed-height content, nothing dockable/movable.
+	titleBar = new NedQtTitleBar(settings, this);
+	auto *titleDock = new QDockWidget(this);
+	titleDock->setTitleBarWidget(new QWidget(titleDock));
+	titleDock->setWidget(titleBar);
+	titleDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+	titleDock->setObjectName(QStringLiteral("NedTitleDock"));
+	addDockWidget(Qt::TopDockWidgetArea, titleDock);
+	connect(titleBar,
+			&NedQtTitleBar::sidebarToggleRequested,
+			this,
+			&AppHost::sidebarToggleRequested);
+	connect(
+		titleBar, &NedQtTitleBar::settingsRequested, this, &AppHost::settingsRequested);
+	connect(titleBar, &NedQtTitleBar::terminalToggleRequested, this, [this] {
+		toggleTerminalPanel();
+	});
+#endif
 
 	// Workbench (ImGui counterpart): tab groups
 	// in a splitter tree, drag-a-tab-to-split, welcome page when empty.
@@ -487,21 +518,23 @@ void AppHost::applyAppFontAndPalette()
 void AppHost::applyProfileAppWide()
 {
 	applyAppFontAndPalette();
-	{
-		const QColor bg = NedQtTheme::background(settings);
 #ifdef __APPLE__
+	{
 		// Only cocoa hands out real NSView winIds — offscreen test runs
 		// would cast a fake id into objc and crash.
+		const QColor bg = NedQtTheme::background(settings);
 		if (QGuiApplication::platformName() == QLatin1String("cocoa"))
 			applyNedQtWindowColor(
 				reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+	}
 #endif
 #ifdef _WIN32
-		// windows_chrome.cpp: recolor the native caption to the new theme.
-		applyNedQtWindowColorWindows(
-			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
+	// No native caption to recolor (windows_chrome.cpp strips it) — the
+	// hand-drawn bar re-reads the theme on repaint; only its height rule
+	// depends on the (possibly changed) app font.
+	titleBar->syncMetrics();
+	titleBar->update();
 #endif
-	}
 	sidebar->refreshIconScale();
 	workbench->refreshTabChrome(); // tab ✕ at the new chrome scale
 	rethemeTerminal();
@@ -715,13 +748,9 @@ void AppHost::applyNativeChrome()
 	nedQtChromeWatch(reinterpret_cast<void *>(winId()));
 #endif
 #ifdef _WIN32
-	// windows_chrome.cpp: dark caption + rounded corners + profile-colored
-	// frame (DWM attributes, same as the GLFW host's windows_window).
+	// windows_chrome.cpp: borderless client area + DWM shadow/snap with the
+	// hand-drawn NedQtTitleBar caption (same recipe as the GLFW host's
+	// util/windows_window.cpp). Idempotent — safe to re-run on show.
 	configureNedQtChromeWindows(reinterpret_cast<void *>(winId()));
-	{
-		const QColor bg = NedQtTheme::background(settings);
-		applyNedQtWindowColorWindows(
-			reinterpret_cast<void *>(winId()), bg.redF(), bg.greenF(), bg.blueF());
-	}
 #endif
 }

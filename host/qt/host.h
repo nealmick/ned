@@ -27,6 +27,9 @@ class EditorFrame;
 class FileSidebarView;
 class QTimer;
 class QWidget;
+#ifdef _WIN32
+class NedQtTitleBar;
+#endif
 
 class AppHost : public QMainWindow
 {
@@ -89,6 +92,10 @@ class AppHost : public QMainWindow
 	QSplitter *mainSplit = nullptr; // workbench (top) + terminal (bottom)
 	TerminalPanel *terminalPanel = nullptr;
 	FileSidebarView *sidebar = nullptr;
+#ifdef _WIN32
+	// Hand-drawn caption strip (windows_titlebar.h — ImGui parity).
+	NedQtTitleBar *titleBar = nullptr;
+#endif
 	QDialog *settingsPopup = nullptr;
 	QWidget *settingsScrim = nullptr;
 	std::unique_ptr<LSPClient> lspClient;
