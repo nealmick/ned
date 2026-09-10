@@ -65,7 +65,11 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 	// timer restarting the clock raced the sampler and could strand the
 	// caret in the invisible phase permanently.
 
+	// Vertical overlay scrollbar: same treatment as nedHScroll below —
+	// an objectName + #nedVScroll rule in the app sheet, or the global
+	// QScrollBar rule zeroes it and its 14px strip paints as blank space.
 	scrollBar = new QScrollBar(Qt::Vertical, this);
+	scrollBar->setObjectName(QStringLiteral("nedVScroll"));
 	connect(scrollBar, &QScrollBar::valueChanged, this, [this](int v) {
 		// The bar moves in whole lines; internal sync drives viewState.scrollPx.
 		if (!syncingScroll)
@@ -306,8 +310,11 @@ bool EditorFrame::wordWrapEnabled() const
 int EditorFrame::textAreaWidth() const
 {
 	// Minimap-aware: wrapped rows must break BEFORE the minimap strip, or
-	// they would paint underneath it.
-	return std::max(50, width() - gutterWidthPx - minimapWidth() - 14);
+	// they would paint underneath it. The 14px is the overlay scrollbar
+	// strip — reserved ONLY when the bar is actually shown, or short files
+	// get a dead strip on the right edge.
+	const int scrollW = (!minimapEnabled() && maxScrollLine() > 0) ? 14 : 0;
+	return std::max(50, width() - gutterWidthPx - minimapWidth() - scrollW);
 }
 
 int EditorFrame::totalLines() const
@@ -336,6 +343,7 @@ void EditorFrame::refreshWrap()
 	viewState.scrollPx =
 		std::clamp(viewState.scrollPx, 0.0, static_cast<qreal>(maxScrollPx()));
 	scrollBar->setRange(0, maxScrollLine());
+	scrollBar->setVisible(!minimapEnabled() && maxScrollLine() > 0);
 	syncHScrollBar();
 }
 
@@ -413,6 +421,7 @@ void EditorFrame::afterEdit()
 	highlight.poll();
 	refreshWrap();
 	scrollBar->setRange(0, maxScrollLine());
+	scrollBar->setVisible(!minimapEnabled() && maxScrollLine() > 0);
 	revealCaret();
 	caretVisible = true;
 	scheduleBlink();
@@ -476,8 +485,9 @@ void EditorFrame::goToLineDialog()
 void EditorFrame::resizeEvent(QResizeEvent *event)
 {
 	QWidget::resizeEvent(event);
-	// Minimap replaces the scrollbar when enabled (ImGui parity).
-	scrollBar->setVisible(!minimapEnabled());
+	// Minimap replaces the scrollbar when enabled; no overflow = no bar
+	// (an idle overlay renders as a blank strip down the right edge).
+	scrollBar->setVisible(!minimapEnabled() && maxScrollLine() > 0);
 	refreshWrap();
 	// Geometry is kept current even while hidden so the first open() has
 	// the right position without waiting for a resize (findBar is created
@@ -486,6 +496,7 @@ void EditorFrame::resizeEvent(QResizeEvent *event)
 	scrollBar->setGeometry(width() - 14, 0, 14, height());
 	scrollBar->setPageStep(std::max(1, visibleLines() - 1));
 	scrollBar->setRange(0, maxScrollLine());
+	scrollBar->setVisible(!minimapEnabled() && maxScrollLine() > 0);
 	// Horizontal strip spans the text area only (gutter to minimap), laid
 	// over the bottom edge like the vertical bar overlays the right one.
 	hScrollBar->setGeometry(

@@ -250,6 +250,16 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 
 	// Force native window creation now so the titlebar chrome is in place
 	// before the first paint (no layout flash at open).
+#ifdef _WIN32
+	// Frameless in Qt's eyes too: windows_chrome.cpp keeps the
+	// WS_OVERLAPPEDWINDOW styles but strips the frame via WM_NCCALCSIZE,
+	// so the CLIENT is the whole window rect. Without this hint Qt still
+	// assumes a standard frame: it sizes the window to requested-client +
+	// frame (~26x71px at 200% DPI) and lays out only for the smaller
+	// client — leaving dead background strips on the right/bottom (the
+	// launch-time gap that a maximize/restore cycle appeared to fix).
+	setWindowFlag(Qt::FramelessWindowHint, true);
+#endif
 	(void)winId();
 	applyNativeChrome();
 	chromeApplied = true;

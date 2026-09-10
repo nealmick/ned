@@ -110,14 +110,13 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 	const QString accent = QStringLiteral("#a9aeb6");
 	// Tab chrome scales with the app font (13pt = base profile size):
 	// px-fixed pills clip their label once the font zooms past them.
-	// Compact pills: tight padding, height just above the text.
 	const qreal z = fontPt / 13.0;
-	const int tabH = std::max(16, qRound(18 * z));
-	const int tabPadV = std::max(0, qRound(1 * z));
-	const int tabPadH = std::max(4, qRound(6 * z));
-	const int tabMTop = std::max(2, qRound(2 * z));
+	const int tabH = std::max(22, qRound(26 * z));
+	const int tabPadV = std::max(2, qRound(3 * z));
+	const int tabPadH = std::max(6, qRound(9 * z));
+	const int tabMTop = std::max(3, qRound(4 * z));
 	const int tabMSide = std::max(1, qRound(1 * z));
-	const int tabMBot = std::max(1, qRound(1 * z));
+	const int tabMBot = std::max(3, qRound(4 * z));
 	const int tabR = std::max(4, qRound(5 * z));
 	// Modern flat macOS styling: pill tabs with FIXED geometry (the
 	// selected tab changes color only), hairline borders, no bevels.
@@ -233,6 +232,18 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 		#nedHScroll::handle:horizontal:pressed { background: rgba(255,255,255,0.6); }
 		#nedHScroll::add-line:horizontal, #nedHScroll::sub-line:horizontal { width: 0; height: 0; }
 		#nedHScroll::add-page:horizontal, #nedHScroll::sub-page:horizontal { background: transparent; }
+		/* Editor vertical overlay bar (used when the minimap is off).
+		   Without an id rule the global zeroing above blanks its 14px
+		   strip entirely — the "empty scrollbar gap" on the right edge. */
+		#nedVScroll { background: transparent; width: 10px; margin: 0; }
+		#nedVScroll::handle:vertical {
+			background: rgba(255,255,255,0.28); border-radius: 4px; min-height: 28px;
+			margin: 1px 2px;
+		}
+		#nedVScroll::handle:vertical:hover { background: rgba(255,255,255,0.45); }
+		#nedVScroll::handle:vertical:pressed { background: rgba(255,255,255,0.6); }
+		#nedVScroll::add-line:vertical, #nedVScroll::sub-line:vertical { width: 0; height: 0; }
+		#nedVScroll::add-page:vertical, #nedVScroll::sub-page:vertical { background: transparent; }
 		/* Split handles and the dock separator are NOT styled here:
 		   stylesheet backgrounds never render on them in the translucent
 		   macOS window, which is why the 1px handles vanished. They are

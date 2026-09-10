@@ -37,6 +37,19 @@ extern void nedQtSetChromeNotify(void (*fn)(void *), void *ctx);
 #define HTCLOSE 20
 #endif
 
+// ImGui GetFontSize() parity: the em size in logical px. QFontMetrics::
+// height() is the whole line box (ascent + descent + internal leading,
+// ~1.35x the em at typical DPIs) — deriving the bar from it inflated
+// EVERY metric (height, hover rects, glyph strokes, the gear) at once,
+// which is why all the buttons looked oversized together.
+static float emFontSize(const QWidget *w)
+{
+	const QFont f = w->font();
+	const qreal px =
+		f.pixelSize() > 0 ? qreal(f.pixelSize()) : f.pointSizeF() * 96.0 / 72.0;
+	return float(std::max(px, 9.0));
+}
+
 NedQtTitleBar::NedQtTitleBar(const Settings &settings, QWidget *parent)
 	: QWidget(parent), m_settings(&settings)
 {
@@ -64,7 +77,7 @@ void NedQtTitleBar::refreshChrome()
 // Same height rule as renderWindowsTitlebar: max(fs * 1.7, 28).
 void NedQtTitleBar::syncMetrics()
 {
-	const float fs = fontMetrics().height();
+	const float fs = emFontSize(this);
 	const int h = qRound(std::max(fs * 1.7f, 28.0f));
 	if (h != minimumHeight() || h != maximumHeight())
 		setFixedHeight(h);
@@ -72,8 +85,11 @@ void NedQtTitleBar::syncMetrics()
 
 QList<NedQtTitleBar::Btn> NedQtTitleBar::layoutButtons() const
 {
-	const float fs = fontMetrics().height();
+	const float fs = emFontSize(this);
 	const float h = height();
+	// ImGui workbench.cpp parity: caption cluster wider (fs * 2.15) than
+	// the action buttons (fs * 1.7) — the previous "match them up" shrink
+	// was compensating for the wrong fs (line box vs em), not real widths.
 	const float btnW = std::max(fs * 2.15f, 36.0f);
 	const float actW = std::max(fs * 1.7f, 28.0f);
 
@@ -115,7 +131,7 @@ void NedQtTitleBar::paintEvent(QPaintEvent *)
 {
 	syncMetrics();
 
-	const float fs = fontMetrics().height();
+	const float fs = emFontSize(this);
 	const float h = height();
 	const QList<Btn> btns = layoutButtons();
 

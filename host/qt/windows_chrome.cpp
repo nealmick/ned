@@ -107,6 +107,12 @@ LRESULT CALLBACK nedQtWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_NCCALCSIZE:
 		if (wParam == TRUE)
 		{
+			// Strip the frame in BOTH states. Falling through to
+			// DefWindowProc when windowed insets the client by the
+			// resize borders — the transparent gap on the right/bottom
+			// edges and the reason the caption didn't span the window.
+			// Zoomed: clamp to the work area so the taskbar stays clear
+			// (the stripped frame would otherwise cover it).
 			auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(lParam);
 			if (IsZoomed(hwnd))
 			{
@@ -247,6 +253,18 @@ void configureNedQtChromeWindows(void *hwndVoid)
 
 	const BOOL dark = TRUE;
 	DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
+	// DWM draws a translucent system border INSIDE the window rect of a
+	// frameless window (~1px logical, 3px at 200% DPI). It reads as a
+	// "clear strip" along the edges on top of the fully-painted client.
+	// Drop it — the DWM shadow already outlines the window.
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_COLOR_NONE
+#define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
+	const COLORREF noBorder = (COLORREF)DWMWA_COLOR_NONE;
+	DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &noBorder, sizeof(noBorder));
 	applyCornerPref(hwnd, IsZoomed(hwnd) != 0);
 
 	gPrevProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)nedQtWndProc);
