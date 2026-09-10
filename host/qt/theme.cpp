@@ -110,13 +110,23 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 	const QString accent = QStringLiteral("#a9aeb6");
 	// Tab chrome scales with the app font (13pt = base profile size):
 	// px-fixed pills clip their label once the font zooms past them.
+	// Platform split: macOS keeps the original compact pills; Windows
+	// (custom title bar) uses the taller pills with real padding.
 	const qreal z = fontPt / 13.0;
+#ifdef __APPLE__
+	const int tabH = std::max(16, qRound(18 * z));
+	const int tabPadV = std::max(0, qRound(1 * z));
+	const int tabPadH = std::max(4, qRound(6 * z));
+	const int tabMTop = std::max(2, qRound(2 * z));
+	const int tabMBot = std::max(1, qRound(1 * z));
+#else
 	const int tabH = std::max(22, qRound(26 * z));
 	const int tabPadV = std::max(2, qRound(3 * z));
 	const int tabPadH = std::max(6, qRound(9 * z));
 	const int tabMTop = std::max(3, qRound(4 * z));
-	const int tabMSide = std::max(1, qRound(1 * z));
 	const int tabMBot = std::max(3, qRound(4 * z));
+#endif
+	const int tabMSide = std::max(1, qRound(1 * z));
 	const int tabR = std::max(4, qRound(5 * z));
 	// Modern flat macOS styling: pill tabs with FIXED geometry (the
 	// selected tab changes color only), hairline borders, no bevels.

@@ -1088,6 +1088,20 @@ if(NED_BUILD_QT)
         COMMENT "Staging resources next to ned_qt.exe"
         VERBATIM)
     endif()
+    if(UNIX AND NOT APPLE)
+      # Same portable layout for the plain Linux binary — the release
+      # tarball ships ned_qt + resources + queries together; without the
+      # queries, highlighting silently no-ops (see the APPLE block).
+      add_custom_command(TARGET ned_qt POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/resources
+                $<TARGET_FILE_DIR:ned_qt>/resources
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/editor/services/highlight/queries
+                $<TARGET_FILE_DIR:ned_qt>/queries
+        COMMENT "Staging resources next to ned_qt"
+        VERBATIM)
+    endif()
     ned_apply_feature_defs(ned_qt)
     target_include_directories(ned_qt PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
