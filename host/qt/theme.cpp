@@ -259,6 +259,11 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 		   macOS window, which is why the 1px handles vanished. They are
 		   painted in C++ — NedSplitterHandle (workbench) and the
 		   PM_DockWidgetSeparatorExtent override in NedChromeStyle. */
+		/* Bottom status bar (VSCode-style). The strip fill + hairline are
+		   painted in NedStatusBar::paintEvent (QSS backgrounds never
+		   render on a plain QWidget in the translucent macOS window). */
+		#NedStatusBar QLabel { color: #a9aeb6; padding: 0 8px; }
+		#NedStatusBar QLabel[tight="true"] { padding: 0 3px; }
 		QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
 	)")
 		// NOTE: the template no longer uses %1 — pass only %2..%5 in order,

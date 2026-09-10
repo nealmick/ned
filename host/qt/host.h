@@ -27,6 +27,7 @@ class EditorFrame;
 class FileSidebarView;
 class QTimer;
 class QWidget;
+class NedStatusBar;
 #ifdef _WIN32
 class NedQtTitleBar;
 #endif
@@ -92,6 +93,8 @@ class AppHost : public QMainWindow
 	QSplitter *mainSplit = nullptr; // workbench (top) + terminal (bottom)
 	TerminalPanel *terminalPanel = nullptr;
 	FileSidebarView *sidebar = nullptr;
+	NedStatusBar *statusBar = nullptr; // VSCode-style bottom strip
+	QDockWidget *statusDock = nullptr; // hidden until a workspace opens
 #ifdef _WIN32
 	// Hand-drawn caption strip (windows_titlebar.h — ImGui parity).
 	NedQtTitleBar *titleBar = nullptr;

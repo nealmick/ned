@@ -1006,6 +1006,7 @@ if(NED_BUILD_QT)
       editor/views/qt/line_jump.cpp
       host/qt/qt_icons.cpp
       host/qt/settings_view.cpp
+      host/qt/status_bar.cpp
       files/views/qt/file_finder_view.cpp
       files/views/qt/file_sidebar_view.cpp
       files/views/qt/file_tree_view.cpp

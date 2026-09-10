@@ -13,6 +13,7 @@
 #include "lsp/views/qt/lsp_dashboard.h"
 #include "lsp/views/qt/lsp_view.h"
 #include "settings_view.h"
+#include "status_bar.h"
 #include "terminal_panel.h"
 #include "theme.h"
 #include "util/macos_window.h"
@@ -120,9 +121,11 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 	connect(this, &AppHost::sidebarToggleRequested, this, [this] {
 		for (QDockWidget *dock : findChildren<QDockWidget *>())
 		{
-			// The Windows caption strip lives in a dock too — never a
-			// sidebar-toggle target.
-			if (dock->objectName() == QLatin1String("NedTitleDock"))
+			// The Windows caption strip and the status bar live in docks
+			// too — never sidebar-toggle targets.
+			const QString name = dock->objectName();
+			if (name == QLatin1String("NedTitleDock") ||
+				name == QLatin1String("NedStatusDock"))
 				continue;
 			dock->setVisible(!dock->isVisible());
 		}
@@ -211,6 +214,21 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 #else
 	setCentralWidget(workbench);
 #endif
+	// VSCode-style status bar across the FULL window bottom. A bottom DOCK
+	// (not a row inside the central widget — that only spans beside the
+	// sidebar): QMainWindow lays side docks out above the bottom area, so
+	// the strip runs edge to edge like the title bar does at the top.
+	statusBar = new NedStatusBar(workbench, settings, this);
+	statusBar->setWorkspaceRoot(workspaceRoot);
+	statusDock = new QDockWidget(this);
+	statusDock->setObjectName(QStringLiteral("NedStatusDock"));
+	statusDock->setTitleBarWidget(new QWidget(statusDock));
+	statusDock->setWidget(statusBar);
+	statusDock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+	addDockWidget(Qt::BottomDockWidgetArea, statusDock);
+	// Welcome-screen state: no folder, no status bar (it appears with the
+	// workspace, like the sidebar and terminal do).
+	statusDock->setVisible(!workspaceRoot.isEmpty());
 	connect(sidebar, &FileSidebarView::fileActivated, this, [this](const QString &path) {
 		openPath(path, true);
 	});
@@ -545,6 +563,8 @@ void AppHost::applyProfileAppWide()
 	titleBar->syncMetrics();
 	titleBar->update();
 #endif
+	if (statusBar)
+		statusBar->syncFont();
 	sidebar->refreshIconScale();
 	workbench->refreshTabChrome(); // tab ✕ at the new chrome scale
 	rethemeTerminal();
@@ -689,6 +709,14 @@ void AppHost::repositionSettingsPopup()
 void AppHost::openWorkspace(const QString &root)
 {
 	workspaceRoot = root;
+	if (statusBar)
+	{
+		statusBar->setWorkspaceRoot(root);
+		// Welcome screen is done for good once a folder opens — the bar
+		// joins the workspace surfaces (sidebar/terminal).
+		if (statusDock)
+			statusDock->show();
+	}
 	// Folder opened: the welcome page is done for good — the editor
 	// area is the surface even with no documents open.
 	workbench->setWorkspaceActive(true);
