@@ -30,6 +30,7 @@ class Settings;
 #include "../../platform/lsp_editor.h"
 #include "../../services/diagnostics/diagnostics_store.h"
 #include "../../services/git/git_service.h"
+#include "../../services/git/line_diff.h"
 #include "../../services/highlight/highlight_service.h"
 #include "../../services/save_service.h"
 #include "../../util/hover_trigger.h"
@@ -161,6 +162,21 @@ class EditorFrame : public QWidget, public LSPEditor
 	// Load a file into the document (empty path = untitled buffer).
 	void openFile(const QString &path);
 
+	// --- Diff view (git staged/unstaged) ----------------------------------
+	// Loads a read-only GitHub-style unified diff of old vs new lines.
+	// The buffer is untitled (state.path stays empty): no tab dedup against
+	// the real file, no LSP didOpen, no ProjectUndo key. languageId comes
+	// from displayPath so tree-sitter highlighting still runs.
+	enum class DiffSide { Staged, Unstaged };
+	void openDiff(const QString &displayPath,
+				  DiffSide side,
+				  const std::vector<std::string> &oldLines,
+				  const std::vector<std::string> &newLines);
+	bool isDiffView() const { return diffActive; }
+	const QString &diffTargetPath() const { return diffTarget; }
+	DiffSide diffTargetSide() const { return diffSideValue; }
+	bool readOnly() const { return diffActive; }
+
 	// Re-fetch the title icon at the current icon scale.
 	void reloadFileIcon() { titleBarView.reloadIcon(); }
 
@@ -290,6 +306,14 @@ class EditorFrame : public QWidget, public LSPEditor
 
 	// Diagnostic hover card (shared styled tooltip).
 	HoverTooltip *diagTip = nullptr;
+
+	// Diff view: per-buffer-row classification parallel to the document
+	// (row i of the buffer ↔ diffRows[i]); empty when not a diff view.
+	std::vector<DiffOp> diffRows;
+	bool diffActive = false;
+	QString diffTarget;
+	DiffSide diffSideValue = DiffSide::Unstaged;
+	void paintDiffBackgrounds(QPainter &painter, int firstRow, int rows, qreal yBase);
 
 	// Hover trigger + observer (see setHoverObserver).
 	HoverTrigger hoverTrigger;

@@ -1007,6 +1007,9 @@ if(NED_BUILD_QT)
       host/qt/qt_icons.cpp
       host/qt/settings_view.cpp
       host/qt/status_bar.cpp
+      host/qt/activity_bar.cpp
+      host/qt/git_panel.cpp
+      host/qt/git_graph_view.cpp
       files/views/qt/file_finder_view.cpp
       files/views/qt/file_sidebar_view.cpp
       files/views/qt/file_tree_view.cpp

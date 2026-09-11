@@ -52,7 +52,7 @@ void EditorInput::inputMethod(QInputMethodEvent *event)
 {
 	// IME preedit renders inline as hollow text; commit goes through the
 	// normal typing path (CJK input, dead keys, dictation).
-	if (!event->commitString().isEmpty())
+	if (!event->commitString().isEmpty() && !frame->readOnly())
 	{
 		frame->commands.typeText(event->commitString().toUtf8().constData());
 		frame->afterEdit();
@@ -223,6 +223,32 @@ void EditorInput::keyPress(QKeyEvent *event)
 	const bool meta = event->modifiers() & Qt::MetaModifier; // Cmd
 	const bool alt = event->modifiers() & Qt::AltModifier;	 // Option
 	const bool primary = ctrl || meta;
+
+	// Diff views are read-only: navigation and copy/select still work;
+	// every mutating keystroke is swallowed. (Selection/caret movement is
+	// harmless — there is no way to dirty the buffer from here.)
+	if (frame->readOnly())
+	{
+		switch (event->key())
+		{
+		case Qt::Key_Left:
+		case Qt::Key_Right:
+		case Qt::Key_Up:
+		case Qt::Key_Down:
+		case Qt::Key_Home:
+		case Qt::Key_End:
+		case Qt::Key_PageUp:
+		case Qt::Key_PageDown:
+			break; // fall through to the normal handling below
+		case Qt::Key_A:
+		case Qt::Key_C:
+			if (primary)
+				break;
+			return;
+		default:
+			return;
+		}
+	}
 
 	// Any keystroke dismisses hover popups (HoverTrigger rule 2).
 	updateHover(false, true, frame->lastHoverPos);

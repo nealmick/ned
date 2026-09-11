@@ -27,7 +27,9 @@ class EditorFrame;
 class FileSidebarView;
 class QTimer;
 class QWidget;
+class NedActivityBar;
 class NedStatusBar;
+class GitPanel;
 #ifdef _WIN32
 class NedQtTitleBar;
 #endif
@@ -45,6 +47,8 @@ class AppHost : public QMainWindow
 
 	// Host-facing surface.
 	void openPath(const QString &path, bool focus);
+	// Git panel change list → read-only diff tab (see git_panel.h).
+	void openDiffView(const QString &repoRelative, bool staged);
 	void openWorkspace(const QString &root);
 	void showWelcome();
 	// Check modes read/restore persisted settings (e.g. the font-zoom
@@ -93,8 +97,10 @@ class AppHost : public QMainWindow
 	QSplitter *mainSplit = nullptr; // workbench (top) + terminal (bottom)
 	TerminalPanel *terminalPanel = nullptr;
 	FileSidebarView *sidebar = nullptr;
-	NedStatusBar *statusBar = nullptr; // VSCode-style bottom strip
-	QDockWidget *statusDock = nullptr; // hidden until a workspace opens
+	NedActivityBar *activityBar = nullptr; // panel-icon strip left of the tree
+	GitPanel *gitPanel = nullptr;		   // activity bar's Source Control page
+	NedStatusBar *statusBar = nullptr;	   // VSCode-style bottom strip
+	QDockWidget *statusDock = nullptr;	   // hidden until a workspace opens
 #ifdef _WIN32
 	// Hand-drawn caption strip (windows_titlebar.h — ImGui parity).
 	NedQtTitleBar *titleBar = nullptr;

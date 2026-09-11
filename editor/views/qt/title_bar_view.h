@@ -36,5 +36,9 @@ class TitleBarView
 	void reloadIcon();
 
   private:
+	// Path the strip shows: the diff view's target file (its buffer is
+	// deliberately untitled — see EditorFrame::openDiff) or the document.
+	static std::string displayPathFor(const EditorFrame *frame);
+
 	EditorFrame *frame;
 };

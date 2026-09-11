@@ -115,6 +115,47 @@ TEST_CASE("GitRepo headLines then line_diff sees buffer edits", "[ned][git]")
 	fs::remove_all(dir);
 }
 
+TEST_CASE("alignLines ordered ops", "[ned][git]")
+{
+	// Replace block: b..d -> X..Y plus tail insert.
+	const std::vector<std::string> a{"h", "b", "c", "d", "t"};
+	const std::vector<std::string> b{"h", "X", "Y", "d", "t", "z"};
+	const std::vector<DiffOp> ops = alignLines(a, b);
+
+	struct R
+	{
+		DiffOp::Kind k;
+		int o, n;
+	};
+	std::vector<R> got;
+	for (const DiffOp &op : ops)
+		got.push_back({op.kind, op.oldLine, op.newLine});
+
+	// Expected alignment (1-based; delete block precedes its adds).
+	const std::vector<R> want{
+		{DiffOp::Kind::Keep, 1, 1},	  // h
+		{DiffOp::Kind::Delete, 2, 0}, // b
+		{DiffOp::Kind::Delete, 3, 0}, // c
+		{DiffOp::Kind::Add, 0, 2},	  // X
+		{DiffOp::Kind::Add, 0, 3},	  // Y
+		{DiffOp::Kind::Keep, 4, 4},	  // d
+		{DiffOp::Kind::Keep, 5, 5},	  // t
+		{DiffOp::Kind::Add, 0, 6},	  // z
+	};
+	REQUIRE(got.size() == want.size());
+	for (size_t i = 0; i < want.size(); ++i)
+	{
+		REQUIRE(got[i].k == want[i].k);
+		REQUIRE(got[i].o == want[i].o);
+		REQUIRE(got[i].n == want[i].n);
+	}
+
+	// diffLines stays consistent with the alignment.
+	const LineDiff d = diffLines(a, b);
+	REQUIRE(d.additions == 3);
+	REQUIRE(d.deletions == 2);
+}
+
 TEST_CASE("diffLines pure unit", "[ned][git]")
 {
 	const std::vector<std::string> a{"a", "b", "c"};

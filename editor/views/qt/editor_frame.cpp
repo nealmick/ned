@@ -297,6 +297,108 @@ void EditorFrame::openFile(const QString &path)
 
 QSize EditorFrame::sizeHint() const { return QSize(800, 600); }
 
+void EditorFrame::openDiff(const QString &displayPath,
+						   DiffSide side,
+						   const std::vector<std::string> &oldLines,
+						   const std::vector<std::string> &newLines)
+{
+	diffActive = true;
+	diffTarget = displayPath;
+	diffSideValue = side;
+	reloadFileIcon(); // title strip icon comes from the diff target
+
+	// Regroup the alignment into GitHub's unified order: within each
+	// change block, all deletions first, then all additions (the LCS
+	// backtrack can interleave them).
+	std::vector<DiffOp> raw = alignLines(oldLines, newLines);
+	std::vector<DiffOp> ordered;
+	ordered.reserve(raw.size());
+	for (size_t i = 0; i < raw.size();)
+	{
+		if (raw[i].kind == DiffOp::Kind::Keep)
+		{
+			ordered.push_back(raw[i]);
+			++i;
+			continue;
+		}
+		size_t j = i;
+		while (j < raw.size() && raw[j].kind != DiffOp::Kind::Keep)
+			++j;
+		for (size_t k = i; k < j; ++k)
+			if (raw[k].kind == DiffOp::Kind::Delete)
+				ordered.push_back(raw[k]);
+		for (size_t k = i; k < j; ++k)
+			if (raw[k].kind == DiffOp::Kind::Add)
+				ordered.push_back(raw[k]);
+		i = j;
+	}
+	diffRows = std::move(ordered);
+
+	// Interleaved buffer: deletions carry the OLD line, keeps/additions
+	// the NEW one.
+	std::string joined;
+	for (const DiffOp &op : diffRows)
+	{
+		const std::string &line = op.kind == DiffOp::Kind::Delete
+									  ? oldLines[size_t(op.oldLine - 1)]
+									  : newLines[size_t(op.newLine - 1)];
+		joined += line;
+		joined += '\n';
+	}
+	state.path.clear(); // untitled: no dedup/LSP/undo collisions (see header)
+	state.languageId = EditorState::languageIdFromPath(displayPath.toStdString());
+	state.setFromString(joined);
+	gutterView.updateWidth();
+	ops.clearPending();
+	ops.bumpGeneration();
+	viewState.setBoth(0, 0);
+	highlight.resetForDocument(static_cast<size_t>(state.lineCount()));
+	highlight.highlightContent();
+	widthDirty = true;
+	viewState.scrollPxX = 0.0;
+	refreshWrap();
+	lastVisualGen = highlight.visualGeneration();
+	setScrollPixels(0);
+
+	// Open centered on the first changed row (VSCode diff opens on the
+	// first change, not the file header). requestCursorCenter needs valid
+	// layout, so run it after the reset pipeline above.
+	for (size_t i = 0; i < diffRows.size(); ++i)
+		if (diffRows[i].kind != DiffOp::Kind::Keep)
+		{
+			const int row = static_cast<int>(i);
+			viewState.setBoth(row, 0);
+			requestCursorCenter(row, 0);
+			break;
+		}
+	update();
+}
+
+// Full-width translucent red/green row fills — the first paint pass under
+// the gutter and text (same visual-line iteration the gutter uses, so wrap
+// continuation segments carry the row's color too).
+void EditorFrame::paintDiffBackgrounds(QPainter &painter,
+									   int firstRow,
+									   int rows,
+									   qreal yBase)
+{
+	const bool wrapping = wordWrapEnabled();
+	for (int i = 0; i < rows; ++i)
+	{
+		int row = firstRow + i;
+		if (wrapping)
+			row = wrap.yToRow(firstRow + i + 0.5f).row;
+		if (row < 0 || row >= static_cast<int>(diffRows.size()))
+			continue;
+		const QColor fill = diffRows[size_t(row)].kind == DiffOp::Kind::Add
+								? QColor(46, 160, 67, 28)  // added (GitHub green)
+								: QColor(248, 81, 73, 28); // removed (GitHub red)
+		if (diffRows[size_t(row)].kind == DiffOp::Kind::Keep)
+			continue;
+		painter.fillRect(QRectF(0, yBase + i * lineHeightPx, width(), lineHeightPx), fill);
+	}
+}
+
 // Screen y of the first painted visual line. With fractional scroll the
 // top row slides up under the top inset (paint clips there).
 
@@ -401,6 +503,12 @@ void EditorFrame::paintEvent(QPaintEvent *)
 		diagStore && !state.path.empty()
 			? diagStore->maxSeverityByLine(state.path, state.lineCount())
 			: std::vector<int>();
+	// Diff row backgrounds go FIRST: numbers and text paint on top of the
+	// red/green fills (the gutter's own current-line fill only covers
+	// non-diff rows meaningfully).
+	if (diffActive)
+		paintDiffBackgrounds(painter, firstRow, rows, yBase);
+
 	gutterView.paint(
 		painter, firstRow, rows, yBase, diagSeverity, gutterView.diagColumnWidth());
 

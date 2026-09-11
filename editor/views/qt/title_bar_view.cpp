@@ -9,13 +9,19 @@
 
 std::string TitleBarView::gitSummary() const { return frame->git.currentGitChanges; }
 
+std::string TitleBarView::displayPathFor(const EditorFrame *f)
+{
+	return f->isDiffView() ? f->diffTargetPath().toStdString() : f->state.path;
+}
+
 void TitleBarView::reloadIcon()
 {
-	if (frame->state.path.empty())
+	const std::string path = displayPathFor(frame);
+	if (path.empty())
 		return;
 	const QFontMetrics fm(frame->font());
 	const int px = std::max(11, fm.height() - 2);
-	frame->fileIcon = QtIconSet::forFile(QString::fromStdString(frame->state.path), px);
+	frame->fileIcon = QtIconSet::forFile(QString::fromStdString(path), px);
 }
 
 // Editor title strip: file icon, full path, git ±N (ImGui title-bar
@@ -23,7 +29,8 @@ void TitleBarView::reloadIcon()
 void TitleBarView::paint(QPainter &painter)
 {
 	// Editor title bar: file icon, full path, git ±N (ImGui title-bar parity).
-	if (!frame->state.path.empty())
+	const std::string displayPath = displayPathFor(frame);
+	if (!displayPath.empty())
 	{
 		painter.setPen(NedQtTheme::text(frame->appSettings).darker(130));
 		QFont small = frame->font();
@@ -51,7 +58,7 @@ void TitleBarView::paint(QPainter &painter)
 		const int changesW =
 			changesText.isEmpty() ? 0 : fm.horizontalAdvance(changesText);
 		const QString shownPath =
-			fm.elidedText(QString::fromStdString(frame->state.path),
+			fm.elidedText(QString::fromStdString(displayPath),
 						  Qt::ElideMiddle,
 						  std::max(40, avail - (changesW ? changesW + gap : 0)));
 		const int pathW = fm.horizontalAdvance(shownPath);

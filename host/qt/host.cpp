@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "activity_bar.h"
 #include "app_shortcuts.h"
 
 #include "editor/platform/clipboard.h"
@@ -9,6 +10,7 @@
 #include "files/views/qt/file_finder_view.h"
 #include "files/views/qt/file_sidebar_view.h"
 #include "fonts.h"
+#include "git_panel.h"
 #include "lsp/lsp_client.h"
 #include "lsp/views/qt/lsp_dashboard.h"
 #include "lsp/views/qt/lsp_view.h"
@@ -19,6 +21,9 @@
 #include "util/macos_window.h"
 #include "welcome.h"
 #include "workbench.h"
+
+#include <fstream>
+#include <sstream>
 
 #include <QApplication>
 #include <QComboBox>
@@ -32,6 +37,7 @@
 #include <QProxyStyle>
 #include <QShortcut>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStyleFactory>
 #include <QTimer>
 #include <QUrl>
@@ -157,10 +163,36 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 	// name is what activates it.
 	sidebar = new FileSidebarView(this);
 	sidebar->setObjectName(QStringLiteral("FileSidebar"));
+	// VSCode layout: activity bar (panel icons) left of a stacked panel —
+	// page 0 the file tree, page 1 the git browser (placeholder for now).
+	activityBar = new NedActivityBar(settings, this);
+	auto *sidebarStack = new QStackedWidget(this);
+	sidebarStack->addWidget(sidebar); // NedActivityBar::PanelFiles
+	gitPanel = new GitPanel(settings, this);
+	sidebarStack->addWidget(gitPanel); // NedActivityBar::PanelGit
+	auto *sidebarWithActivity = new QWidget(this);
+	{
+		auto *swaLay = new QHBoxLayout(sidebarWithActivity);
+		swaLay->setContentsMargins(0, 0, 0, 0);
+		swaLay->setSpacing(0);
+		swaLay->addWidget(activityBar);
+		swaLay->addWidget(sidebarStack, 1);
+	}
+	connect(activityBar,
+			&NedActivityBar::panelRequested,
+			this,
+			[this, sidebarStack](int page) {
+				activityBar->setActivePanel(page);
+				sidebarStack->setCurrentIndex(page);
+			});
+	connect(gitPanel,
+			&GitPanel::diffRequested,
+			this,
+			[this](const QString &rel, bool staged) { openDiffView(rel, staged); });
 	auto *dock = new QDockWidget("Files", this);
 	// No dock title bar ("Files" strip) — tree flush like the ImGui sidebar.
 	dock->setTitleBarWidget(new QWidget(dock));
-	dock->setWidget(sidebar);
+	dock->setWidget(sidebarWithActivity);
 	dock->setFeatures(QDockWidget::DockWidgetMovable);
 	dock->hide();
 	addDockWidget(Qt::LeftDockWidgetArea, dock);
@@ -491,6 +523,66 @@ void AppHost::openPath(const QString &path, bool focus)
 	notifyLspOpen(editor, path);
 }
 
+// Git change list → diff tab (EditorFrame::openDiff). Baselines come from
+// one short-lived GitRepo (single-blob reads, cheap on click — unlike the
+// status scan). Untracked files diff against an empty baseline.
+void AppHost::openDiffView(const QString &repoRelative, bool staged)
+{
+	if (workspaceRoot.isEmpty() || repoRelative.isEmpty())
+		return;
+	const std::string rel = repoRelative.toStdString();
+
+	GitRepo repo;
+	if (!repo.open(workspaceRoot.toStdString()))
+		return;
+	std::vector<std::string> oldLines, newLines;
+	if (staged)
+	{
+		repo.headLines(rel, oldLines);	// HEAD
+		repo.indexLines(rel, newLines); // staged content
+	} else
+	{
+		repo.indexLines(rel, oldLines); // empty when untracked
+		std::string raw;
+		std::ifstream file(workspaceRoot.toStdString() + "/" + rel, std::ios::binary);
+		if (file.is_open())
+		{
+			std::stringstream buffer;
+			buffer << file.rdbuf();
+			raw = buffer.str();
+		}
+		auto split = EditorState::splitLines(raw);
+		newLines = std::move(split.first);
+	}
+
+	const QString absPath = workspaceRoot + "/" + repoRelative;
+	const auto side =
+		staged ? EditorFrame::DiffSide::Staged : EditorFrame::DiffSide::Unstaged;
+
+	// One diff tab per (file, side) — focus it wherever it lives (same
+	// mechanism as openPath's one-tab-per-file dedup).
+	for (EditorFrame *view : workbench->views())
+		if (view->isDiffView() && view->diffTargetPath() == absPath &&
+			view->diffTargetSide() == side)
+		{
+			if (EditorGroup *group = workbench->groupForView(view))
+			{
+				group->setCurrentIndex(group->indexOf(view));
+				view->setFocus(Qt::OtherFocusReason);
+			}
+			return;
+		}
+
+	auto *editor = new EditorFrame(settings, this);
+	editor->openDiff(absPath, side, oldLines, newLines);
+	editor->setFocusPolicy(Qt::StrongFocus);
+	const QString tabName =
+		QFileInfo(absPath).fileName() +
+		(staged ? QStringLiteral(" (staged)") : QStringLiteral(" (unstaged)"));
+	connect(editor, &EditorFrame::fontZoomed, this, &AppHost::applyProfileAppWide);
+	workbench->addEditor(editor, tabName, true);
+}
+
 // init + the 4-arg didOpen notification for one editor's current document
 // (re-opened tab, fresh tab, and the post-workspace retry send the same pair).
 void AppHost::notifyLspOpen(EditorFrame *view, const QString &path)
@@ -709,6 +801,8 @@ void AppHost::repositionSettingsPopup()
 void AppHost::openWorkspace(const QString &root)
 {
 	workspaceRoot = root;
+	if (gitPanel)
+		gitPanel->setWorkspaceRoot(root);
 	if (statusBar)
 	{
 		statusBar->setWorkspaceRoot(root);

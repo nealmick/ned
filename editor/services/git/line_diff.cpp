@@ -5,43 +5,44 @@
 
 namespace {
 
-// LCS on a[a0,a1) vs b[b0,b1). Emits 1-based indices into full `b` for additions.
-LineDiff diffSlice(const std::vector<std::string> &a,
-				   int a0,
-				   int a1,
-				   const std::vector<std::string> &b,
-				   int b0,
-				   int b1)
+// LCS on a[a0,a1) vs b[b0,b1). Backtracks emitting ops (reversed), caller
+// reverses. Ops carry 1-based indices into the FULL arrays.
+void diffSlice(const std::vector<std::string> &a,
+			   int a0,
+			   int a1,
+			   const std::vector<std::string> &b,
+			   int b0,
+			   int b1,
+			   std::vector<DiffOp> &out)
 {
-	LineDiff out;
 	const int n = a1 - a0;
 	const int m = b1 - b0;
 	if (n <= 0 && m <= 0)
-		return out;
+		return;
 	if (n <= 0)
 	{
-		out.additions = m;
 		for (int j = 0; j < m; ++j)
-			out.addedLines.insert(b0 + j + 1);
-		return out;
+			out.push_back(DiffOp{DiffOp::Kind::Add, 0, b0 + j + 1});
+		return;
 	}
 	if (m <= 0)
 	{
-		out.deletions = n;
-		return out;
+		for (int i = 0; i < n; ++i)
+			out.push_back(DiffOp{DiffOp::Kind::Delete, a0 + i + 1, 0});
+		return;
 	}
 
 	constexpr long kMaxCells = 4'000'000;
 	if (static_cast<long>(n) * static_cast<long>(m) > kMaxCells)
 	{
-		// Middle still huge (e.g. massive replace). Mark only this slice of `b`
-		// as added — never fall back to full-file index alignment (that marks
-		// every line after a single insert as dirty).
-		out.additions = m;
-		out.deletions = n;
+		// Middle still huge (e.g. massive replace). Mark the whole slice
+		// replaced — never fall back to full-file index alignment (that
+		// marks every line after a single insert as dirty).
+		for (int i = 0; i < n; ++i)
+			out.push_back(DiffOp{DiffOp::Kind::Delete, a0 + i + 1, 0});
 		for (int j = 0; j < m; ++j)
-			out.addedLines.insert(b0 + j + 1);
-		return out;
+			out.push_back(DiffOp{DiffOp::Kind::Add, 0, b0 + j + 1});
+		return;
 	}
 
 	const int cols = m + 1;
@@ -62,63 +63,47 @@ LineDiff diffSlice(const std::vector<std::string> &a,
 		}
 	}
 
+	// Backtrack (reversed order; same tie-break as the historical diffLines
+	// so the gutter's marks don't shift).
+	std::vector<DiffOp> rev;
 	int i = n;
 	int j = m;
 	while (i > 0 && j > 0)
 	{
 		if (a[static_cast<size_t>(a0 + i - 1)] == b[static_cast<size_t>(b0 + j - 1)])
 		{
+			rev.push_back(DiffOp{DiffOp::Kind::Keep, a0 + i, b0 + j});
 			--i;
 			--j;
 		} else if (at(i, j - 1) >= at(i - 1, j))
 		{
-			// insertion of b[b0 + j - 1] → 1-based index in full document
-			out.addedLines.insert(b0 + j);
-			out.additions++;
+			rev.push_back(DiffOp{DiffOp::Kind::Add, 0, b0 + j});
 			--j;
 		} else
 		{
-			out.deletions++;
+			rev.push_back(DiffOp{DiffOp::Kind::Delete, a0 + i, 0});
 			--i;
 		}
 	}
 	while (j > 0)
 	{
-		out.addedLines.insert(b0 + j);
-		out.additions++;
+		rev.push_back(DiffOp{DiffOp::Kind::Add, 0, b0 + j});
 		--j;
 	}
-	out.deletions += i;
-	return out;
+	while (i > 0)
+	{
+		rev.push_back(DiffOp{DiffOp::Kind::Delete, a0 + i, 0});
+		--i;
+	}
+	out.insert(out.end(), rev.rbegin(), rev.rend());
 }
 
-} // namespace
-
-// Line-array diff for the git gutter. Real `git diff` aligns the byte stream;
-// this only needs which lines in `b` are not in the LCS (shown as edited).
-//
-// Always strip common prefix/suffix first so a single insert in a large file
-// leaves a tiny middle for LCS — never O(n) false positives from index align.
-LineDiff diffLines(const std::vector<std::string> &a, const std::vector<std::string> &b)
+std::vector<DiffOp> alignInternal(const std::vector<std::string> &a,
+								  const std::vector<std::string> &b)
 {
-	LineDiff out;
-	int n = static_cast<int>(a.size());
-	int m = static_cast<int>(b.size());
-	if (n == 0 && m == 0)
-		return out;
-
-	if (n == 0)
-	{
-		out.additions = m;
-		for (int i = 1; i <= m; ++i)
-			out.addedLines.insert(i);
-		return out;
-	}
-	if (m == 0)
-	{
-		out.deletions = n;
-		return out;
-	}
+	std::vector<DiffOp> ops;
+	const int n = static_cast<int>(a.size());
+	const int m = static_cast<int>(b.size());
 
 	// Common prefix of equal lines.
 	int pre = 0;
@@ -136,6 +121,34 @@ LineDiff diffLines(const std::vector<std::string> &a, const std::vector<std::str
 		--bs;
 	}
 
-	// Unchanged prefix/suffix: only the middle can contribute adds/deletes.
-	return diffSlice(a, pre, as, b, pre, bs);
+	for (int i = 0; i < pre; ++i)
+		ops.push_back(DiffOp{DiffOp::Kind::Keep, i + 1, i + 1});
+	diffSlice(a, pre, as, b, pre, bs, ops);
+	for (int i = as; i < n; ++i)
+		ops.push_back(DiffOp{DiffOp::Kind::Keep, i + 1, bs + (i - as) + 1});
+	return ops;
+}
+
+} // namespace
+
+std::vector<DiffOp> alignLines(const std::vector<std::string> &oldLines,
+							   const std::vector<std::string> &newLines)
+{
+	return alignInternal(oldLines, newLines);
+}
+
+LineDiff diffLines(const std::vector<std::string> &oldLines,
+				   const std::vector<std::string> &newLines)
+{
+	LineDiff out;
+	for (const DiffOp &op : alignInternal(oldLines, newLines))
+	{
+		if (op.kind == DiffOp::Kind::Add)
+		{
+			out.addedLines.insert(op.newLine);
+			out.additions++;
+		} else if (op.kind == DiffOp::Kind::Delete)
+			out.deletions++;
+	}
+	return out;
 }

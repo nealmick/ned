@@ -202,6 +202,9 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 		QTreeView::branch:hover,
 		QTreeView::branch:selected,
 		QTreeView::branch:has-children:hover { background: transparent; border: none; }
+		/* Git change lists: row hover like the graph (flat items, no
+		   rounded-cell split risk — that note applies to the file tree). */
+		QTreeWidget#GitChangeList::item:hover { background: rgba(255,255,255,0.07); }
 		QListWidget::item { border-radius: 5px; padding: 3px 6px; }
 		QListWidget::item:selected { background: rgba(169,174,182,0.32); }
 		QPushButton {
@@ -263,6 +266,10 @@ QString appStyleSheet(const Settings &s, int fontPt, int monoPt)
 		   painted in NedStatusBar::paintEvent (QSS backgrounds never
 		   render on a plain QWidget in the translucent macOS window). */
 		#NedStatusBar QLabel { color: #a9aeb6; padding: 0 8px; }
+		/* Git browser section headers (small-caps look via weight + size). */
+		#GitPanel QLabel#GitSectionHeader {
+			color: %5; font-weight: 600; padding: 4px 10px 2px 10px;
+		}
 		#NedStatusBar QLabel[tight="true"] { padding: 0 3px; }
 		QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
 	)")

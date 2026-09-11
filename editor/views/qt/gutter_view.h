@@ -33,6 +33,7 @@ class GutterView
 
 	void updateWidth();
 	int diagColumnWidth() const;
+	int diffColumnWidth() const; // +/- marker column (diff views only)
 	void paint(QPainter &painter,
 			   int firstRow,
 			   int rows,

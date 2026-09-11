@@ -14,10 +14,20 @@ void GutterView::updateWidth()
 	// 12px pad on the right and 4px of breathing room at the left edge.
 	// With diagnostics bound, a severity-mark column (ImGui parity) sits
 	// in front of the numbers.
-	const int reference = std::max(999, frame->state.lineCount() + 1);
+	// Diff views number rows by the OLD/NEW side (both columns' max digits
+	// apply) and add a +/- marker column in front, mirroring the severity
+	// column's sizing.
+	int reference = std::max(999, frame->state.lineCount() + 1);
+	if (frame->diffActive)
+	{
+		int maxLine = 0;
+		for (const DiffOp &op : frame->diffRows)
+			maxLine = std::max(maxLine, std::max(op.oldLine, op.newLine));
+		reference = std::max(reference, maxLine + 1);
+	}
 	frame->gutterWidthPx =
 		frame->fontMetrics().horizontalAdvance(QString::number(reference)) + 12 + 4 +
-		diagColumnWidth();
+		diagColumnWidth() + diffColumnWidth();
 }
 
 int GutterView::diagColumnWidth() const
@@ -25,6 +35,13 @@ int GutterView::diagColumnWidth() const
 	if (!frame->diagStore)
 		return 0;
 	return std::max(6, static_cast<int>(frame->fontMetrics().height() * 0.55));
+}
+
+int GutterView::diffColumnWidth() const
+{
+	if (!frame->diffActive)
+		return 0;
+	return std::max(10, static_cast<int>(frame->fontMetrics().height() * 0.7));
 }
 
 // Gutter + current-line highlight + severity marks. `rows` counts VISUAL
@@ -81,6 +98,40 @@ void GutterView::paint(QPainter &painter,
 				2.0,
 				2.0);
 			painter.setBrush(Qt::NoBrush);
+		}
+		// Diff views: +/- marker column, then the side-appropriate number
+		// (new-side for context/added rows, dim old-side for removed rows).
+		if (frame->diffActive)
+		{
+			const int diffColW = diffColumnWidth();
+			if (row >= static_cast<int>(frame->diffRows.size()))
+				continue;
+			const DiffOp &op = frame->diffRows[size_t(row)];
+			const int number = op.kind == DiffOp::Kind::Delete ? op.oldLine : op.newLine;
+			if (op.kind == DiffOp::Kind::Add)
+			{
+				painter.setPen(QColor(0x3f, 0xb9, 0x50));
+				painter.drawText(QRectF(diagColW, y, diffColW, frame->lineHeightPx),
+								 Qt::AlignVCenter | Qt::AlignHCenter,
+								 QStringLiteral("+"));
+			} else if (op.kind == DiffOp::Kind::Delete)
+			{
+				painter.setPen(QColor(0xf8, 0x51, 0x49));
+				painter.drawText(QRectF(diagColW, y, diffColW, frame->lineHeightPx),
+								 Qt::AlignVCenter | Qt::AlignHCenter,
+								 QStringLiteral("\u2212"));
+			}
+			painter.setPen(op.kind == DiffOp::Kind::Delete ? QColor(0x98, 0x6b, 0x6b)
+														   : QColor(0x88, 0x88, 0x88));
+			if (op.kind == DiffOp::Kind::Add)
+				painter.setPen(QColor(255, 255, 255));
+			painter.drawText(QRectF(diagColW + diffColW,
+									y,
+									frame->gutterWidthPx - 12 - diagColW - diffColW,
+									frame->lineHeightPx),
+							 Qt::AlignVCenter | Qt::AlignRight,
+							 QString::number(number));
+			continue;
 		}
 		// Line numbers match the ImGui gutter: current + edited lines are
 		// white, everything else gray. No bars/marks.
