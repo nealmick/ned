@@ -23,6 +23,7 @@ class QTimer;
 class QWidget;
 class EditorFrame;
 class LSPDashboard;
+class LSPCompletionView;
 class LSPUriOptions;
 class LSPSymbolInfo;
 struct LSPLocation;
@@ -71,6 +72,7 @@ class LSPView : public QObject
 	LSPUriOptions *picker = nullptr;
 	LSPDashboard *dashboard_ = nullptr;
 	LSPSymbolInfo *symbolInfo = nullptr;
+	LSPCompletionView *completion = nullptr;
 	QTimer *pollTimer = nullptr;
 };
 

@@ -92,6 +92,11 @@ class EditorCommands
 	void redo();
 	void save();
 
+	// Group several edits into ONE undo step (public for the Qt frame's
+	// completion accept: delete typed word + insert candidate as one step).
+	void beginBatch();
+	void endBatch();
+
   private:
 	void addCursorVertical(int lineDelta);
 
@@ -113,8 +118,6 @@ class EditorCommands
 	bool applyUserEdit(const TextOp &op);
 	bool applyUserEdit(const TextOp &op, ApplyOptions opt);
 
-	void beginBatch();
-	void endBatch();
 	void finishUserEdit();
 	void commitUndoGroup();
 	void captureSelectionsBeforeIfNeeded();

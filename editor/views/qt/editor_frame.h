@@ -86,6 +86,12 @@ class EditorFrame : public QWidget, public LSPEditor
 	QPoint caretWidgetPos() const { return caretView.caretWidgetPos(); }
 	int caretLineHeight() const { return lineHeightPx; }
 
+	// Accept a completion: replace the byte span [fromCol, toCol) of `row`
+	// with `text` as ONE undoable edit (delete + insert batched) and run the
+	// post-edit fan-out. Columns are UTF-8 byte columns, like the rest of
+	// the session API.
+	void applyCompletion(int row, int fromCol, int toCol, const std::string &text);
+
 	// Git gutter + status (shared service).
 	std::string gitChangesSummary() const { return titleBarView.gitSummary(); }
 

@@ -46,6 +46,7 @@ LSPClient::LSPClient(LSPEditor &api, Settings &settings)
 	: gotoDef(*this, api, LSPGoto::Kind::Definition),
 	  gotoRef(*this, api, LSPGoto::Kind::References),
 	  hover(*this, api),
+	  completion(*this, api),
 	  initialized(false),
 	  running(false),
 	  settings(&settings),
@@ -64,6 +65,7 @@ void LSPClient::bindEditorApi(LSPEditor *api)
 	gotoDef.setApi(api);
 	gotoRef.setApi(api);
 	hover.setApi(api);
+	completion.setApi(api);
 }
 
 const KeybindsManager &LSPClient::settingsKeybinds() const { return settings->keybinds; }
@@ -454,6 +456,13 @@ void LSPClient::registerServerHandlers()
 void LSPClient::applyInitializeResult(const lsp::InitializeResult &result)
 {
 	sync.applyCapabilities(result);
+	if (result.capabilities.completionProvider)
+	{
+		std::vector<std::string> chars;
+		if (result.capabilities.completionProvider->triggerCharacters)
+			chars = *result.capabilities.completionProvider->triggerCharacters;
+		completion.setTriggerCharacters(chars);
+	}
 }
 
 bool LSPClient::sendLSPInitialize()
@@ -484,6 +493,16 @@ bool LSPClient::sendLSPInitialize()
 		td.synchronization = lsp::TextDocumentSyncClientCapabilities{};
 		td.synchronization->didSave = true;
 		td.hover = lsp::HoverClientCapabilities{};
+		td.completion = lsp::CompletionClientCapabilities{};
+		td.completion->completionItem = lsp::ClientCompletionItemOptions{};
+		// Plain text only: no snippet engine yet, so servers must not send
+		// snippet inserts (normalizeItem also guards against ones that do).
+		td.completion->completionItem->snippetSupport = false;
+		td.completion->completionItem->documentationFormat = {lsp::MarkupKind::PlainText};
+		td.completion->completionItem->deprecatedSupport = true;
+		// Lets the server see triggerKind/triggerCharacter (the typing
+		// triggers re-request with Incomplete while a list is open).
+		td.completion->contextSupport = true;
 		td.definition = lsp::DefinitionClientCapabilities{};
 		td.definition->linkSupport = true;
 		td.references = lsp::ReferenceClientCapabilities{};

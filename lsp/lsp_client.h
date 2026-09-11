@@ -29,6 +29,7 @@ struct LanguageServerInfo
 
 #include "../editor/editor_events.h"
 #include "../editor/services/diagnostics/diagnostics_store.h"
+#include "lsp_completion.h"
 #include "lsp_document_sync.h"
 #include "lsp_goto.h"
 #include "lsp_hover.h"
@@ -61,6 +62,7 @@ class LSPClient
 	LSPGoto gotoRef;
 	LSPGotoArbiter gotoArbiter;
 	LSPHover hover;
+	LSPCompletion completion;
 
 	// Core LSP functionality
 	void setWorkspace(const std::string &workspacePath);

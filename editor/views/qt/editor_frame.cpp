@@ -537,6 +537,24 @@ void EditorFrame::afterEdit()
 	Q_EMIT documentEdited();
 }
 
+void EditorFrame::applyCompletion(int row, int fromCol, int toCol, const std::string &text)
+{
+	if (diffActive)
+		return;
+	commands.beginBatch();
+	if (toCol > fromCol)
+	{
+		// Replace the typed word: select the span, delete, then insert —
+		// batched so undo collapses accept into a single step.
+		commands.setSelection(row, fromCol, row, toCol);
+		commands.deleteSelection();
+	}
+	if (!text.empty())
+		commands.typeText(text);
+	commands.endBatch();
+	afterEdit();
+}
+
 void EditorFrame::repaintAndFollow()
 {
 	highlight.poll();

@@ -6,6 +6,8 @@
 #include "../../../lsp/lsp_client.h"
 #include "../../../lsp/lsp_goto.h"
 #include "../../../util/keybinds.h"
+#include "lsp_completion_popup.h"
+#include "lsp_completion_view.h"
 #include "lsp_dashboard.h"
 #include "lsp_symbol_info.h"
 #include "lsp_uri_options.h"
@@ -42,6 +44,7 @@ LSPView::LSPView(LSPClient &clientIn,
 		},
 		hostWindow);
 	symbolInfo = new LSPSymbolInfo(client, settings, this);
+	completion = new LSPCompletionView(client, settings, this);
 
 	// Shared picker for both goto requests (ImGui parity). Picker-ownership
 	// arbitration lives in the LSP core (LSPGotoArbiter via LSPClient).
@@ -79,6 +82,8 @@ void LSPView::editorOpened(EditorFrame &view)
 		else
 			symbolInfo->dismiss();
 	});
+	// Typing in the editor feeds the completion trigger (debounced).
+	completion->editorOpened(view);
 	rebind(&view);
 }
 
@@ -87,6 +92,7 @@ void LSPView::rebind(EditorFrame *view)
 	active = view;
 	client.bindEditorApi(view);
 	symbolInfo->setEditor(view);
+	completion->setEditor(view);
 }
 
 bool LSPView::eventFilter(QObject *watched, QEvent *event)
@@ -111,13 +117,18 @@ bool LSPView::eventFilter(QObject *watched, QEvent *event)
 		return false;
 	}
 
-	// Any click or wheel dismisses a visible tooltip. Editor presses used
+	// Any click or wheel dismisses a visible tooltip (and the completion
+	// popup when it didn't own the press). Editor presses used
 	// to be exempt (their hover observer dismisses) — but the caret-anchored
 	// (keybind) tip bypasses the hover trigger, so a click with a parked
 	// mouse never reached it; dismiss is idempotent for the hover path.
-	if ((type == QEvent::MouseButtonPress || type == QEvent::Wheel) &&
-		symbolInfo->isVisible() && watched != symbolInfo)
-		symbolInfo->dismiss();
+	if (type == QEvent::MouseButtonPress || type == QEvent::Wheel)
+	{
+		if (symbolInfo->isVisible() && watched != symbolInfo)
+			symbolInfo->dismiss();
+		if (completion->isLive() && !qobject_cast<LSPCompletionPopup *>(watched))
+			completion->dismiss();
+	}
 
 	// Mouse movement over an editor closes a visible tooltip at once. The
 	// caret-anchored (keybind) tip needs this path: it bypasses the hover
@@ -133,6 +144,12 @@ bool LSPView::eventFilter(QObject *watched, QEvent *event)
 	auto *view = qobject_cast<EditorFrame *>(watched);
 	if (!view)
 		return false;
+
+	// Completion navigation/accept runs before anything else (the popup is
+	// focusless — the editor is about to receive these keys) and before the
+	// anchored-hover dismiss below, so Enter/Tab accept rather than insert.
+	if (completion->handleKey(key))
+		return true;
 
 	// A keybind consumed here never reaches the editor — retire any anchored
 	// (caret) hover first, exactly like ImGui's hoverDismissed.
@@ -168,6 +185,12 @@ bool LSPView::handleKeybinds(EditorFrame &view, QKeyEvent *event)
 		client.gotoRef.get();
 		return true;
 	}
+	if (event->key() == qtKeyFromNed(keybinds.getActionKey("lsp_completion")))
+	{
+		rebind(&view);
+		completion->triggerAtCaret();
+		return true;
+	}
 	return false;
 }
 
@@ -191,6 +214,7 @@ void LSPView::poll()
 	client.gotoDef.render();
 	client.gotoRef.render();
 	symbolInfo->poll();
+	completion->poll();
 }
 
 #endif // NED_ENABLE_LSP

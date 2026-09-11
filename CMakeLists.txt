@@ -307,6 +307,7 @@ if(NED_ENABLE_LSP)
   # per-target doubled build time and could drift on feature defines.
   add_library(ned_lsp_core STATIC
     lsp/lsp_client.cpp
+    lsp/lsp_completion.cpp
     lsp/lsp_document_sync.cpp
     lsp/lsp_goto.cpp
     lsp/lsp_hover.cpp
@@ -1119,6 +1120,8 @@ if(NED_BUILD_QT)
         lsp/views/qt/lsp_view.cpp
         lsp/views/qt/lsp_uri_options.cpp
         lsp/views/qt/lsp_symbol_info.cpp
+        lsp/views/qt/lsp_completion_popup.cpp
+        lsp/views/qt/lsp_completion_view.cpp
         lsp/views/qt/lsp_dashboard.cpp
       )
       target_link_libraries(ned_qt PRIVATE ned_lsp_core)

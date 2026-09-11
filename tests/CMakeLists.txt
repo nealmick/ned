@@ -153,6 +153,7 @@ set(NED_TEST_SOURCES
   editor/diagnostics_store_test.cpp
   editor/hover_markdown_test.cpp
   editor/hover_trigger_test.cpp
+  editor/lsp_completion_model_test.cpp
   editor/lsp_request_state_test.cpp
   editor/lsp_writer_test.cpp
   ${CMAKE_SOURCE_DIR}/lsp/lsp_writer.cpp
