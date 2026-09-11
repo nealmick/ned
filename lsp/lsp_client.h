@@ -70,6 +70,9 @@ class LSPClient
 	void shutdown();
 	bool isInitialized() const { return sync.isReady(); }
 	std::string getCurrentLanguage() const { return currentLanguage; }
+	// Display name of the RUNNING server ("clangd", "pyright"); empty when
+	// none — drives the status bar's LSP indicator.
+	std::string serverDisplayName() const { return serverName; }
 	LSPDiagnostics &diagnostics() { return diagnostics_; }
 	const LSPDiagnostics &diagnostics() const { return diagnostics_; }
 
@@ -137,6 +140,7 @@ class LSPClient
 	Settings *settings = nullptr;
 	std::string workspacePath;
 	std::string currentLanguage;
+	std::string serverName; // basename of the running server executable
 	std::string serverArgs = "";
 
 	LSPDiagnostics diagnostics_;
@@ -184,6 +188,7 @@ class LSPClient
 	void shutdown();
 	bool isInitialized() const { return false; }
 	std::string getCurrentLanguage() const;
+	std::string serverDisplayName() const { return {}; }
 
 	const std::vector<LanguageServerInfo> &getLanguageServers() const;
 

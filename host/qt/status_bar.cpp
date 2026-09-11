@@ -8,6 +8,7 @@
 #include "status_bar.h"
 
 #include "editor/views/qt/editor_frame.h"
+#include "lsp/lsp_client.h"
 #include "theme.h"
 #include "workbench.h"
 
@@ -97,6 +98,30 @@ class ElidedLabel : public QLabel
 	}
 };
 
+// Small fixed-size green dot for the LSP indicator segment — painted, not
+// a glyph, so it stays crisp at every bar height.
+class StatusDot : public QWidget
+{
+  public:
+	explicit StatusDot(QWidget *parent) : QWidget(parent)
+	{
+		setFixedSize(10, 10);
+		setAttribute(Qt::WA_TransparentForMouseEvents, true);
+	}
+
+  protected:
+	void paintEvent(QPaintEvent *) override
+	{
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setPen(Qt::NoPen);
+		p.setBrush(QColor(0x3f, 0xb9, 0x50)); // running-state green
+		p.drawEllipse(QPointF(width() / 2.0, height() / 2.0),
+					  width() / 2.0 - 0.5,
+					  height() / 2.0 - 0.5);
+	}
+};
+
 } // namespace
 
 NedStatusBar::NedStatusBar(Workbench *workbench, const Settings &settings, QWidget *parent)
@@ -107,6 +132,21 @@ NedStatusBar::NedStatusBar(Workbench *workbench, const Settings &settings, QWidg
 	auto *lay = new QHBoxLayout(this);
 	lay->setContentsMargins(0, 0, 0, 0);
 	lay->setSpacing(0);
+
+	// LSP server indicator (bottom-left, before the branch): green dot +
+	// server name, only while a server is initialized — otherwise fully
+	// hidden.
+	m_lspBox = new QWidget(this);
+	auto *lspLay = new QHBoxLayout(m_lspBox);
+	lspLay->setContentsMargins(10, 0, 8, 0);
+	lspLay->setSpacing(5);
+	m_lspBox->layout()->addWidget(new StatusDot(m_lspBox));
+	m_lsp = new ElidedLabel(m_lspBox);
+	m_lsp->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+	m_lsp->setToolTip(QObject::tr("Language server"));
+	m_lspBox->layout()->addWidget(m_lsp);
+	m_lspBox->hide();
+	lay->addWidget(m_lspBox);
 
 	// Branch (left). Room for the painted glyph; hidden until a repo is
 	// known so the stretch then just pushes the right group to the edge.
@@ -197,8 +237,17 @@ void NedStatusBar::setWorkspaceRoot(const QString &root)
 	refreshBranch();
 }
 
+void NedStatusBar::setLspClient(LSPClient *client) { m_lspClient = client; }
+
 void NedStatusBar::refresh()
 {
+	// LSP indicator: dot + server name only while one is running.
+	const QString server = (m_lspClient && m_lspClient->isInitialized())
+							   ? QString::fromStdString(m_lspClient->serverDisplayName())
+							   : QString();
+	m_lspBox->setVisible(!server.isEmpty());
+	m_lsp->setText(server);
+
 	EditorFrame *view = m_workbench ? m_workbench->activeView() : nullptr;
 	if (!view)
 	{

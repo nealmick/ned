@@ -456,6 +456,9 @@ void AppHost::ensureLsp(EditorFrame &editor)
 		});
 	if (!workspaceRoot.isEmpty())
 		lspClient->setWorkspace(workspaceRoot.toStdString());
+	// Status bar LSP indicator follows the (lazily created) client.
+	if (statusBar)
+		statusBar->setLspClient(lspClient.get());
 }
 
 // LSP document-sync notifications for one editor (ImGui wireTabEditor

@@ -1,10 +1,11 @@
 /*
 	File: host/qt/status_bar.h
-	Description: VSCode-style bottom status bar for the Qt host — git
-	branch bottom-left; Ln/Col, indent, line ending and language name on
-	the right. Purely a reader: it polls the active editor and the repo's
-	HEAD file on timers (no new signals through Workbench/EditorFrame),
-	so it can't disturb the editor surface.
+	Description: VSCode-style bottom status bar for the Qt host — the
+	active LSP server (green dot + name) and the git branch bottom-left;
+	Ln/Col, indent, line ending and language name on the right. Purely a
+	reader: it polls the active editor, the repo's HEAD file and the LSP
+	client on timers (no new signals through Workbench/EditorFrame), so it
+	can't disturb the editor surface.
 */
 
 #pragma once
@@ -16,6 +17,7 @@
 class QLabel;
 class QTimer;
 class Workbench;
+class LSPClient;
 
 class NedStatusBar : public QWidget
 {
@@ -29,6 +31,9 @@ class NedStatusBar : public QWidget
 
 	// Branch segment follows the open workspace (empty = no repo).
 	void setWorkspaceRoot(const QString &root);
+	// LSP indicator source (null/none = segment hidden). The client is
+	// created lazily on first eligible file open; AppHost re-points this.
+	void setLspClient(LSPClient *client);
 	// Re-apply the scaled bar font (initial + profile font changes).
 	void syncFont();
 
@@ -43,9 +48,12 @@ class NedStatusBar : public QWidget
 	Workbench *m_workbench;
 	const Settings *m_settings;
 	QString m_root;
+	LSPClient *m_lspClient = nullptr;
 
 	QWidget *m_branchBox = nullptr;
 	QLabel *m_branch = nullptr;
+	QWidget *m_lspBox = nullptr;
+	QLabel *m_lsp = nullptr;
 	QLabel *m_ln = nullptr;
 	QLabel *m_col = nullptr;
 	QLabel *m_indent = nullptr;

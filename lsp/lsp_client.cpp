@@ -225,6 +225,11 @@ bool LSPClient::startServer(const std::string &language, const std::string &serv
 		return false;
 	}
 
+	// Display name for status indicators (basename, extension stripped):
+	// "/usr/local/bin/clangd" -> "clangd". Set before anything can fail
+	// below; stopServer() clears it with the rest of the session state.
+	serverName = std::filesystem::path(actualServerPath).stem().string();
+
 	// Create server process with appropriate arguments
 	std::vector<std::string> args;
 
@@ -391,6 +396,7 @@ void LSPClient::stopServer()
 	}
 
 	currentLanguage.clear();
+	serverName.clear();
 }
 
 void LSPClient::registerServerHandlers()
