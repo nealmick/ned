@@ -310,21 +310,22 @@ void Settings::saveSettings()
 		touchDiskTime();
 }
 
-void Settings::checkSettingsFile()
+bool Settings::checkSettingsFile()
 {
 	if (settingsPath.empty())
-		return;
+		return false;
 
 	std::error_code ec;
 	const auto modified = fs::last_write_time(settingsPath, ec);
 	if (ec || modified <= diskTime)
-		return;
+		return false;
 
 	if (!readJson(settingsPath, settings))
-		return;
+		return false;
 
 	diskTime = modified;
 	needsApply = true;
+	return true;
 }
 
 void Settings::switchToProfile(const std::string &profileName)

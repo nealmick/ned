@@ -42,7 +42,11 @@ class Settings
 
 	void loadSettings();
 	void saveSettings();
-	void checkSettingsFile(); // re-read profile if someone edited it on disk
+	// Re-read profile if someone edited it on disk (mtime vs. diskTime).
+	// Returns true when the file was newer and re-read into `settings`
+	// (the caller should re-apply); a failed/invalid parse keeps the
+	// in-memory values and returns false.
+	bool checkSettingsFile();
 	void requestApply() { needsApply = true; }
 
 	KeybindsManager keybinds;

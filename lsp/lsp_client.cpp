@@ -555,6 +555,14 @@ void LSPClient::didOpen(const std::string &filePath,
 	sync.didOpen(filePath, content, version, languageId);
 }
 
+void LSPClient::didReload(const std::string &filePath,
+						  const std::string &content,
+						  int version,
+						  const std::string &languageId)
+{
+	sync.didReload(filePath, content, version, languageId);
+}
+
 void LSPClient::didChange(const std::string &filePath,
 						  int version,
 						  const std::vector<EditorEvents::DocumentChange> &changes,
@@ -733,14 +741,18 @@ void LSPClient::initializeLanguageServers()
 		serverInfo.fileExtensions = lang["language_file_extensions"];
 		serverInfo.serverPaths = lang["language_server_paths"];
 
-		// Default args based on language
-		if (serverInfo.language == "typescript" || serverInfo.language == "python")
-		{
+		// Optional per-server args ("language_server_args"). Without them:
+		// the ts/py servers speak stdio by protocol convention, everything
+		// else runs bare. clangd gets --background-index-priority=low in the
+		// bundled config so its indexer yields to interactive requests on
+		// big repos (hover/completion latency).
+		if (lang.contains("language_server_args") &&
+			lang["language_server_args"].is_array())
+			serverInfo.serverArgs = lang["language_server_args"];
+		else if (serverInfo.language == "typescript" || serverInfo.language == "python")
 			serverInfo.serverArgs = {"--stdio"};
-		} else
-		{
+		else
 			serverInfo.serverArgs = {};
-		}
 
 		languageServers.push_back(serverInfo);
 	}

@@ -56,6 +56,14 @@ class LSPDocumentSync
 				 const std::string &content,
 				 int version,
 				 const std::string &languageId);
+	// Whole-buffer resync after an out-of-band reload. Unlike didOpen's
+	// version dedup (which would swallow it — a reload resets the document
+	// version to 0, so "not newer" always matches), this always pushes the
+	// current disk content as one full-text change.
+	void didReload(const std::string &filePath,
+				   const std::string &content,
+				   int version,
+				   const std::string &languageId);
 	void didChange(const std::string &filePath,
 				   int version,
 				   const std::vector<EditorEvents::DocumentChange> &changes,

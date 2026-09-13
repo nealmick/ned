@@ -10,7 +10,8 @@
         "/opt/homebrew/bin/clangd",
         "C:/Program Files/LLVM/bin/clangd.exe",
         "C:/Users/%USERNAME%/source/clang+llvm-18.1.8-x86_64-pc-windows-msvc/bin/clangd.exe"
-      ]
+      ],
+      "language_server_args": ["--background-index-priority=low"]
     },
     {
       "language_name": "typescript",

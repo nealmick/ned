@@ -49,6 +49,16 @@ class AppHost : public QMainWindow
 	void openPath(const QString &path, bool focus);
 	// Git panel change list → read-only diff tab (see git_panel.h).
 	void openDiffView(const QString &repoRelative, bool staged);
+	// Diff-tab refresh plumbing: the two git sides for one file, the
+	// in-place rebuild of a stale diff tab, and the file-tab save/reload
+	// fan-out that keeps unstaged diffs current.
+	bool computeDiffSides(const QString &root,
+						  const std::string &rel,
+						  bool staged,
+						  std::vector<std::string> &oldLines,
+						  std::vector<std::string> &newLines);
+	void refreshDiffView(EditorFrame *view);
+	void refreshUnstagedDiffsFor(const QString &absPath);
 	void openWorkspace(const QString &root);
 	void showWelcome();
 	// Check modes read/restore persisted settings (e.g. the font-zoom
@@ -110,6 +120,7 @@ class AppHost : public QMainWindow
 	std::unique_ptr<LSPClient> lspClient;
 	std::unique_ptr<LSPView> lspView;
 	QTimer *keybindsWatch = nullptr; // keybinds.json live reload (ImGui tick parity)
+	QTimer *settingsWatch = nullptr; // profile JSON live reload (ImGui tick parity)
 	QTimer *toastTick = nullptr;	 // settings notification countdown
 	QLabel *toast = nullptr;
 	QString workspaceRoot;

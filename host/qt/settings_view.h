@@ -34,6 +34,10 @@ class SettingsView : public QDialog
 	// "Language Servers…" pressed — the host shows the LSP dashboard
 	// (parity with the ImGui settings window's dashboard button).
 	void lspDashboardRequested();
+	// "Edit JSON…" pressed — open the active profile file in an editor
+	// tab. The path is resolved here (SettingsView is a Settings friend);
+	// external/manual edits re-apply through the host's profile watcher.
+	void editSettingsFileRequested(const QString &path);
 	// File-explorer / terminal panel checkboxes — applied IMMEDIATELY
 	// (ImGui parity: its checkboxes call toggleSidebar/toggleTerminal on
 	// click), unlike the staged color edits that only commit on OK.
@@ -70,9 +74,14 @@ class SettingsView : public QDialog
 	QCheckBox *blurBox = nullptr;
 	QCheckBox *minimapBox = nullptr;
 	QCheckBox *wordWrapBox = nullptr;
+	QCheckBox *autosaveBox = nullptr;
 	QCheckBox *treeSitterBox = nullptr;
 	QCheckBox *gitGutterBox = nullptr;
 	QCheckBox *sidebarBox = nullptr;
 	QCheckBox *terminalBox = nullptr;
+	// LSP feature toggles (live-read by the editor + LSP views).
+	QCheckBox *lspCompleteBox = nullptr;
+	QCheckBox *lspSymbolInfoBox = nullptr;
+	QCheckBox *lspDiagnosticsBox = nullptr;
 	bool syncing = false; // programmatic widget updates must not re-commit
 };

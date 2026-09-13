@@ -171,6 +171,30 @@ void LSPDocumentSync::didOpen(const std::string &filePath,
 	sendDidOpen(key, content, version, languageId);
 }
 
+void LSPDocumentSync::didReload(const std::string &filePath,
+								const std::string &content,
+								int version,
+								const std::string &languageId)
+{
+	if (!handler || filePath.empty())
+		return;
+
+	const std::string key = DocPath::normalize(filePath);
+	if (!handshakeReady)
+	{
+		upsertPendingOpen(key, content, version, languageId);
+		return;
+	}
+	if (trackedOpen(key))
+	{
+		// No version dedup here by design: reloads reset the version to 0,
+		// and the disk content is the truth regardless of numbering.
+		didChange(key, version, {}, [content] { return content; });
+		return;
+	}
+	sendDidOpen(key, content, version, languageId);
+}
+
 void LSPDocumentSync::didChange(const std::string &filePath,
 								int version,
 								const std::vector<EditorEvents::DocumentChange> &changes,

@@ -133,7 +133,7 @@ void EditorInput::fireHover(const HoverTrigger::Info &info)
 
 	// Diagnostics own the tooltip first (ImGui: squiggle/gutter claims win
 	// over symbol hover) — Gutter zones match by row, Text by exact cell.
-	if (frame->diagStore)
+	if (frame->diagStore && frame->diagnosticsEnabled())
 	{
 		std::vector<DiagnosticItem> matched;
 		if (info.zone == HoverTrigger::Zone::Gutter)

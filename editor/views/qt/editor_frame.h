@@ -15,6 +15,7 @@
 #include <QString>
 #include <QWidget>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <vector>
 
@@ -130,6 +131,12 @@ class EditorFrame : public QWidget, public LSPEditor
 	int minimapWidth() const;
 
 	bool wordWrapEnabled() const;
+	// In-editor LSP diagnostics (squiggles, gutter marks, hover tooltips)
+	// — the "lsp_diagnostics" settings toggle, read live per paint/hover.
+	bool diagnosticsEnabled() const;
+	// Idle autosave (EditorSave::poll flushes ~0.5s after the last edit) —
+	// the "auto_save" settings toggle. Explicit Cmd+S always works.
+	bool autosaveEnabled() const;
 	int textAreaWidth() const;
 	// Total scrollable lines (visual lines when wrapping).
 	int totalLines() const;
@@ -178,6 +185,11 @@ class EditorFrame : public QWidget, public LSPEditor
 				  DiffSide side,
 				  const std::vector<std::string> &oldLines,
 				  const std::vector<std::string> &newLines);
+	// Host-driven refresh after the target changed on disk (save or
+	// external edit): rebuilds like openDiff but keeps the viewport —
+	// re-centering on the first change is for opens, not refreshes.
+	void refreshDiff(const std::vector<std::string> &oldLines,
+					 const std::vector<std::string> &newLines);
 	bool isDiffView() const { return diffActive; }
 	const QString &diffTargetPath() const { return diffTarget; }
 	DiffSide diffTargetSide() const { return diffSideValue; }
@@ -194,6 +206,12 @@ class EditorFrame : public QWidget, public LSPEditor
   Q_SIGNALS:
 	void documentEdited();
 	void fontZoomed();
+	// The open file changed on disk and the clean buffer reloaded from
+	// it — the host re-syncs LSP like a re-open.
+	void documentReloaded();
+	// The diff target changed on disk. A diff tab cannot recompute its git
+	// side itself — the host owns GitRepo and answers with refreshDiff().
+	void diffTargetChangedOnDisk();
 
   protected:
 	void paintEvent(QPaintEvent *event) override;
@@ -256,6 +274,13 @@ class EditorFrame : public QWidget, public LSPEditor
 	QScrollBar *hScrollBar = nullptr;
 	QTimer *serviceTimer = nullptr;
 	QElapsedTimer blinkClock;
+	// External-change watch: the open file's mtime, stamped on open and
+	// on our own writes (DidSave) so self-saves never read as external.
+	// The service timer stats the file ~1s; newer + clean buffer => reload.
+	std::filesystem::file_time_type diskMtime = std::filesystem::file_time_type::min();
+	QElapsedTimer diskWatchClock;
+	void stampDiskMtime();
+	void checkDiskFile();
 	WrapLayout wrap;
 	// Paint/input components — bodies live in the *_view.cpp files like the
 	// ImGui backend's view classes (they reach back through friendship).

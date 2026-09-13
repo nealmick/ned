@@ -184,6 +184,13 @@ void LSPSymbolInfo::triggerAtCaret()
 
 void LSPSymbolInfo::hoverTarget(EditorFrame *hovered, const HoverTrigger::Info &info)
 {
+	// The "lsp_symbol_info" settings toggle: off also drops any tooltip
+	// still on screen from before the toggle.
+	if (!settings.settings.value("lsp_symbol_info", true))
+	{
+		dismiss();
+		return;
+	}
 	if (!hovered || !info.active || info.zone != HoverTrigger::Zone::Text)
 		return;
 	anchored = false;
@@ -213,6 +220,11 @@ void LSPSymbolInfo::poll()
 {
 	// Visibility IS the request state: no delivered text, no tooltip (an
 	// empty answer is an answer — deliver clears pending either way).
+	if (!settings.settings.value("lsp_symbol_info", true))
+	{
+		hideTooltip();
+		return;
+	}
 	const auto snap = client.hover.snapshot();
 	if (!snap || snap->empty() || (!view && !hoverView))
 	{

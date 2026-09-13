@@ -856,7 +856,6 @@ void EditorCommands::deleteLeft(bool byWord)
 	for (int idx : order)
 	{
 		Selection &sel = view->selections[static_cast<size_t>(idx)];
-
 		if (byWord)
 		{
 			const int endRow = sel.headRow;

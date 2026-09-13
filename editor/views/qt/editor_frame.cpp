@@ -6,6 +6,7 @@
 #include "ned_color.h"
 
 #include "host/qt/fonts.h"
+#include <QFileInfo>
 #include <QFontMetrics>
 #include <QPainter>
 #include <QScrollBar>
@@ -16,6 +17,11 @@
 #include <sstream>
 
 namespace {
+// External-change poll cadence for open documents. A polling stat, not
+// QFileSystemWatcher, on purpose: watchers break when atomic-save editors
+// (vim, some tooling) replace the file out from under the path.
+constexpr int kDiskCheckIntervalMs = 1000;
+
 // The shared WrapLayout stores its glyph metrics in PROCESS-WIDE statics.
 // A functor capturing a VIEW pointer dangles once that view is closed
 // while other splits keep wrapping — install value-owned copies instead
@@ -95,9 +101,15 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 	serviceTimer = new QTimer(this);
 	serviceTimer->setInterval(30);
 	blinkClock.start();
+	diskWatchClock.start();
 	connect(serviceTimer, &QTimer::timeout, this, [this] {
 		highlight.poll();
 		git.poll();
+		// Idle autosave (ImGui parity — its frame loop polls every frame;
+		// the Qt host never did, which is why edits didn't reach disk).
+		// Explicit Cmd+S bypasses this gate and always saves.
+		if (autosaveEnabled())
+			save.poll();
 		if (highlight.visualGeneration() != lastVisualGen)
 		{
 			lastVisualGen = highlight.visualGeneration();
@@ -130,6 +142,13 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 				update();
 			}
 		}
+		// External file-change watch: stat the open file ~1s (the 30ms tick
+		// only paces highlight/git; the stat is the one disk touch).
+		if (diskWatchClock.elapsed() >= kDiskCheckIntervalMs)
+		{
+			diskWatchClock.restart();
+			checkDiskFile();
+		}
 	});
 	serviceTimer->start();
 
@@ -149,6 +168,9 @@ EditorFrame::EditorFrame(Settings &settings, QWidget *parent)
 		wrap.noteEdit(e.firstRow, e.lastRow);	   // re-wrap dirty span
 		refreshLongestLine(e.firstRow, e.lastRow); // h-scroll range
 	});
+	// Own writes (Cmd+S + autosave) re-stamp the watch baseline so they
+	// never read as external changes.
+	events.subscribeDidSave([this](const EditorEvents::DidSave &) { stampDiskMtime(); });
 
 	findBar = new FindBar(this, this);
 	// Wrap toggles change the bar's height — re-displace the text area.
@@ -271,6 +293,7 @@ void EditorFrame::openFile(const QString &path)
 			raw = buffer.str();
 			state.path = path.toStdString();
 			state.languageId = EditorState::languageIdFromPath(state.path);
+			stampDiskMtime(); // watch baseline: reload only when disk goes newer
 		}
 	} else
 		state.path.clear();
@@ -295,6 +318,74 @@ void EditorFrame::openFile(const QString &path)
 	update();
 }
 
+// External-change watch helpers -------------------------------------------
+
+// Baseline for the ~1s disk poll. Diff tabs clear state.path — they watch
+// their TARGET instead (the file the diff describes).
+void EditorFrame::stampDiskMtime()
+{
+	const std::string watchPath = diffActive ? diffTarget.toStdString() : state.path;
+	if (watchPath.empty())
+	{
+		diskMtime = std::filesystem::file_time_type::min();
+		return;
+	}
+	std::error_code ec;
+	diskMtime = std::filesystem::last_write_time(watchPath, ec);
+	if (ec)
+		diskMtime = std::filesystem::file_time_type::min();
+}
+
+// Auto reload for external edits (VSCode-style): a newer on-disk mtime
+// reloads a CLEAN buffer so the view always shows the disk content —
+// viewport + caret kept (clamped), undo/history reset (the file is the
+// truth now). A dirty buffer keeps its unsaved edits and reports the
+// change once through the notification toast (re-stamping so it does not
+// fire every second). Diff tabs delegate: they cannot recompute their git
+// side, so they only report the change and the host refreshes them.
+void EditorFrame::checkDiskFile()
+{
+	const std::string watchPath = diffActive ? diffTarget.toStdString() : state.path;
+	if (watchPath.empty())
+		return;
+
+	std::error_code ec;
+	const auto mtime = std::filesystem::last_write_time(watchPath, ec);
+	if (ec || mtime <= diskMtime)
+		return; // unchanged, vanished (git ops mid-flight), or clock jitter
+
+	if (diffActive)
+	{
+		diskMtime = mtime;
+		Q_EMIT diffTargetChangedOnDisk();
+		return;
+	}
+
+	if (state.dirty)
+	{
+		const QString name = QFileInfo(QString::fromStdString(state.path)).fileName();
+		appSettings.showNotification(
+			"File changed on disk — keeping your unsaved edits (" + name.toStdString() +
+			")");
+		diskMtime = mtime; // acknowledge this change once
+		return;
+	}
+
+	const qreal scrollY = viewState.scrollPx;
+	const qreal scrollX = viewState.scrollPxX;
+	const Selection &caret = viewState.selections[viewState.primaryIndex];
+	const int caretRow = caret.headRow;
+	const int caretCol = caret.headColumn;
+	openFile(QString::fromStdString(state.path));
+	// Keep the reader's place over the new content (both setters clamp),
+	// then restore the caret clamped to the new bounds — typing after a
+	// reload continues from where the user was.
+	setScrollPixels(scrollY);
+	setScrollXPixels(scrollX);
+	commands.setCursor(caretRow, caretCol, false, EditorCommands::CursorReveal::ensure);
+	Q_EMIT documentReloaded();
+}
+
 QSize EditorFrame::sizeHint() const { return QSize(800, 600); }
 
 void EditorFrame::openDiff(const QString &displayPath,
@@ -305,6 +396,7 @@ void EditorFrame::openDiff(const QString &displayPath,
 	diffActive = true;
 	diffTarget = displayPath;
 	diffSideValue = side;
+	stampDiskMtime(); // watch baseline: refresh when the target moves
 	reloadFileIcon(); // title strip icon comes from the diff target
 
 	// Regroup the alignment into GitHub's unified order: within each
@@ -374,6 +466,16 @@ void EditorFrame::openDiff(const QString &displayPath,
 	update();
 }
 
+// Host-driven refresh (target saved or changed on disk): the full openDiff
+// rebuild, minus the first-change centering — the reader keeps their place.
+void EditorFrame::refreshDiff(const std::vector<std::string> &oldLines,
+							  const std::vector<std::string> &newLines)
+{
+	const qreal scrollY = viewState.scrollPx;
+	openDiff(diffTarget, diffSideValue, oldLines, newLines);
+	setScrollPixels(scrollY);
+}
+
 // Full-width translucent red/green row fills — the first paint pass under
 // the gutter and text (same visual-line iteration the gutter uses, so wrap
 // continuation segments carry the row's color too).
@@ -407,6 +509,16 @@ void EditorFrame::paintDiffBackgrounds(QPainter &painter,
 bool EditorFrame::wordWrapEnabled() const
 {
 	return appSettings.settings.value("word_wrap", false);
+}
+
+bool EditorFrame::diagnosticsEnabled() const
+{
+	return appSettings.settings.value("lsp_diagnostics", true);
+}
+
+bool EditorFrame::autosaveEnabled() const
+{
+	return appSettings.settings.value("auto_save", true);
 }
 
 int EditorFrame::textAreaWidth() const
@@ -498,9 +610,10 @@ void EditorFrame::paintEvent(QPaintEvent *)
 	painter.setClipRect(0, topInset(), width() - minimapWidth(), height() - topInset());
 	painter.setFont(font());
 	// One severity snapshot for the whole gutter pass (per-line queries
-	// copy the full diagnostic set each call — store contract).
+	// copy the full diagnostic set each call — store contract). Empty when
+	// the lsp_diagnostics toggle is off: no gutter marks, no squiggles.
 	const std::vector<int> diagSeverity =
-		diagStore && !state.path.empty()
+		diagnosticsEnabled() && diagStore && !state.path.empty()
 			? diagStore->maxSeverityByLine(state.path, state.lineCount())
 			: std::vector<int>();
 	// Diff row backgrounds go FIRST: numbers and text paint on top of the
@@ -515,7 +628,8 @@ void EditorFrame::paintEvent(QPaintEvent *)
 	textView.paint(painter, firstRow, rows, yBase);
 
 	// LSP diagnostics: squiggle underlines over the same coordinate space.
-	textView.paintDiagnosticSquiggles(painter, firstRow, rows, yBase);
+	if (diagnosticsEnabled())
+		textView.paintDiagnosticSquiggles(painter, firstRow, rows, yBase);
 
 	caretView.paint(painter, firstRow, rows, yBase);
 

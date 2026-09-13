@@ -16,7 +16,11 @@ class EditorEvents;
 class EditorSave
 {
   public:
-	static constexpr int kAutosaveIdleMs = 1000;
+	// Idle debounce before an autosave flush. 500ms: everything downstream
+	// of a write (disk watchers, diff refresh, git status) trails this, so
+	// it defines how "live" the app feels; still long enough that burst
+	// typing coalesces into one write per pause.
+	static constexpr int kAutosaveIdleMs = 500;
 
 	EditorSave(EditorState &document, EditorEvents &ev) : state(&document), events(&ev) {}
 

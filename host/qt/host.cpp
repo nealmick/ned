@@ -28,6 +28,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QDockWidget>
 #include <QEvent>
 #include <QFileDialog>
@@ -282,6 +283,21 @@ AppHost::AppHost(QWidget *parent) : QMainWindow(parent)
 	});
 	keybindsWatch->start();
 
+	// Settings profile live reload (ImGui Workbench::tick parity, same 2s
+	// cadence): an externally edited profile — VSCode, another ned window,
+	// or this app's own "Edit JSON" tab — re-reads and re-applies. Self
+	// writes are invisible here: saveSettings() bumps diskTime itself. The
+	// re-apply is QUEUED like the settings dialog's applied() — never from
+	// inside a timer tick that might interleave with UI state.
+	settingsWatch = new QTimer(this);
+	settingsWatch->setInterval(2000);
+	connect(settingsWatch, &QTimer::timeout, this, [this] {
+		if (settings.checkSettingsFile())
+			QMetaObject::invokeMethod(
+				this, [this] { applyProfileAppWide(); }, Qt::QueuedConnection);
+	});
+	settingsWatch->start();
+
 	// Notification toast (ImGui SettingsView::renderNotification parity):
 	// Settings::showNotification sets text + countdown from anywhere
 	// (keybinds load errors, settings apply messages); without this the
@@ -514,6 +530,25 @@ void AppHost::openPath(const QString &path, bool focus)
 		refreshTabTitle(editor);
 	});
 	connect(editor, &EditorFrame::fontZoomed, this, &AppHost::applyProfileAppWide);
+	// External file change reloaded a clean buffer wholesale — push the
+	// disk content to the LSP session as one full-text resync. didReload,
+	// not didOpen: the reload reset the document version to 0, which
+	// didOpen's "not newer" dedup would swallow.
+	connect(editor, &EditorFrame::documentReloaded, this, [this, editor] {
+		const QString path = editor->filePath();
+		if (lspClient && !path.isEmpty())
+			lspClient->didReload(path.toStdString(),
+								 editor->documentText(),
+								 editor->documentVersion(),
+								 editor->languageId());
+		refreshUnstagedDiffsFor(editor->filePath());
+	});
+	// Saving this tab (Cmd+S or the ~0.5s autosave) keeps any open unstaged
+	// diff of the same file current — disk is the sync point.
+	editor->editorEvents().subscribeDidSave(
+		[this, editor](const EditorEvents::DidSave &e) {
+			refreshUnstagedDiffsFor(QString::fromStdString(e.path));
+		});
 	// Opens into the focused split group (ImGui's preferredDockNodeId).
 	workbench->addEditor(editor, tabName, focus);
 
@@ -526,44 +561,25 @@ void AppHost::openPath(const QString &path, bool focus)
 	notifyLspOpen(editor, path);
 }
 
-// Git change list → diff tab (EditorFrame::openDiff). Baselines come from
-// one short-lived GitRepo (single-blob reads, cheap on click — unlike the
-// status scan). Untracked files diff against an empty baseline.
+// Git change list → diff tab (EditorFrame::openDiff). Untracked files diff
+// against an empty baseline.
 void AppHost::openDiffView(const QString &repoRelative, bool staged)
 {
 	if (workspaceRoot.isEmpty() || repoRelative.isEmpty())
 		return;
 	const std::string rel = repoRelative.toStdString();
 
-	GitRepo repo;
-	if (!repo.open(workspaceRoot.toStdString()))
-		return;
 	std::vector<std::string> oldLines, newLines;
-	if (staged)
-	{
-		repo.headLines(rel, oldLines);	// HEAD
-		repo.indexLines(rel, newLines); // staged content
-	} else
-	{
-		repo.indexLines(rel, oldLines); // empty when untracked
-		std::string raw;
-		std::ifstream file(workspaceRoot.toStdString() + "/" + rel, std::ios::binary);
-		if (file.is_open())
-		{
-			std::stringstream buffer;
-			buffer << file.rdbuf();
-			raw = buffer.str();
-		}
-		auto split = EditorState::splitLines(raw);
-		newLines = std::move(split.first);
-	}
+	if (!computeDiffSides(workspaceRoot, rel, staged, oldLines, newLines))
+		return;
 
 	const QString absPath = workspaceRoot + "/" + repoRelative;
 	const auto side =
 		staged ? EditorFrame::DiffSide::Staged : EditorFrame::DiffSide::Unstaged;
 
 	// One diff tab per (file, side) — focus it wherever it lives (same
-	// mechanism as openPath's one-tab-per-file dedup).
+	// mechanism as openPath's one-tab-per-file dedup). The click also
+	// resyncs a tab that went stale while open.
 	for (EditorFrame *view : workbench->views())
 		if (view->isDiffView() && view->diffTargetPath() == absPath &&
 			view->diffTargetSide() == side)
@@ -573,6 +589,7 @@ void AppHost::openDiffView(const QString &repoRelative, bool staged)
 				group->setCurrentIndex(group->indexOf(view));
 				view->setFocus(Qt::OtherFocusReason);
 			}
+			refreshDiffView(view);
 			return;
 		}
 
@@ -583,7 +600,74 @@ void AppHost::openDiffView(const QString &repoRelative, bool staged)
 		QFileInfo(absPath).fileName() +
 		(staged ? QStringLiteral(" (staged)") : QStringLiteral(" (unstaged)"));
 	connect(editor, &EditorFrame::fontZoomed, this, &AppHost::applyProfileAppWide);
+	// The tab's own ~1s disk watch: target moved on disk (autosave from the
+	// file tab, or an external editor) → recompute both git sides here.
+	connect(editor, &EditorFrame::diffTargetChangedOnDisk, this, [this, editor] {
+		refreshDiffView(editor);
+	});
 	workbench->addEditor(editor, tabName, true);
+}
+
+// The two diff sides from one short-lived GitRepo (single-blob reads, cheap
+// — unlike the status scan): staged = HEAD vs index, unstaged = index vs
+// the worktree file. Shared by openDiffView (fresh tab) and the refresh
+// path (stale tab).
+bool AppHost::computeDiffSides(const QString &root,
+							   const std::string &rel,
+							   bool staged,
+							   std::vector<std::string> &oldLines,
+							   std::vector<std::string> &newLines)
+{
+	GitRepo repo;
+	if (!repo.open(root.toStdString()))
+		return false;
+	if (staged)
+	{
+		repo.headLines(rel, oldLines);	// HEAD
+		repo.indexLines(rel, newLines); // staged content
+	} else
+	{
+		repo.indexLines(rel, oldLines); // empty when untracked
+		std::string raw;
+		std::ifstream file(root.toStdString() + "/" + rel, std::ios::binary);
+		if (file.is_open())
+		{
+			std::stringstream buffer;
+			buffer << file.rdbuf();
+			raw = buffer.str();
+		}
+		auto split = EditorState::splitLines(raw);
+		newLines = std::move(split.first);
+	}
+	return true;
+}
+
+// Recompute one diff tab's sides and rebuild it in place (viewport kept).
+void AppHost::refreshDiffView(EditorFrame *view)
+{
+	if (workspaceRoot.isEmpty() || !view || !view->isDiffView())
+		return;
+	const QString rel = QDir(workspaceRoot).relativeFilePath(view->diffTargetPath());
+	std::vector<std::string> oldLines, newLines;
+	if (!computeDiffSides(workspaceRoot,
+						  rel.toStdString(),
+						  view->diffTargetSide() == EditorFrame::DiffSide::Staged,
+						  oldLines,
+						  newLines))
+		return;
+	view->refreshDiff(oldLines, newLines);
+}
+
+// Saving (or externally reloading) a file tab also refreshes any open
+// UNSTAGED diff of it — worktree writes don't move staged diffs (HEAD vs
+// index), so those only refresh through their own disk watch.
+void AppHost::refreshUnstagedDiffsFor(const QString &absPath)
+{
+	for (EditorFrame *view : workbench->views())
+		if (view->isDiffView() &&
+			view->diffTargetSide() == EditorFrame::DiffSide::Unstaged &&
+			view->diffTargetPath() == absPath)
+			refreshDiffView(view);
 }
 
 // init + the 4-arg didOpen notification for one editor's current document
@@ -742,6 +826,17 @@ void AppHost::showSettingsPopup()
 		if (lspView && lspView->dashboard())
 			lspView->dashboard()->show();
 	});
+	// "Edit JSON…": open the profile in an editor tab. The popup closes
+	// first (it is modal-ish over the workbench); saves from the tab are
+	// picked up by the settingsWatch timer and re-applied live.
+	connect(dialog,
+			&SettingsView::editSettingsFileRequested,
+			this,
+			[this](const QString &path) {
+				closeSettingsPopup();
+				if (!path.isEmpty())
+					openPath(path, true);
+			});
 	// File explorer / terminal checkboxes: persist through the same
 	// Settings::toggle* path the title-bar buttons use, then apply. Live,
 	// not staged (ImGui settings parity). The visibility changes are QUEUED

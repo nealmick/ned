@@ -49,7 +49,19 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 		themeBox->insertItem(0, QString::fromStdString(appSettings.activeProfileFile()));
 	themeBox->setCurrentText(QString::fromStdString(appSettings.activeProfileFile()));
 	stagedProfileFile = appSettings.activeProfileFile();
-	form->addRow("Profile", themeBox);
+	// Profile picker + direct access to the profile JSON: opens in an
+	// editor tab (the host's settings watcher re-applies manual edits).
+	auto *profileRow = new QWidget(this);
+	auto *profileLayout = new QHBoxLayout(profileRow);
+	profileLayout->setContentsMargins(0, 0, 0, 0);
+	profileLayout->setSpacing(8);
+	profileLayout->addWidget(themeBox, 1);
+	auto *editJsonButton = new QPushButton("Edit JSON…", profileRow);
+	connect(editJsonButton, &QPushButton::clicked, this, [this] {
+		Q_EMIT editSettingsFileRequested(QString::fromStdString(appSettings.settingsPath));
+	});
+	profileLayout->addWidget(editJsonButton);
+	form->addRow("Profile", profileRow);
 
 	// Bundled fonts (resources/fonts) registered into QFontDatabase.
 	fontBox = new QComboBox(this);
@@ -179,6 +191,12 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 				  appSettings.settings.value("word_wrap", false),
 				  "Wrap long lines to the window width",
 				  &wordWrapBox);
+		addToggle(3,
+				  0,
+				  "Auto save",
+				  appSettings.settings.value("auto_save", true),
+				  "Save automatically ~0.5s after you stop typing",
+				  &autosaveBox);
 		addToggle(1,
 				  0,
 				  "Tree-sitter highlighting",
@@ -227,6 +245,39 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 		});
 		lspLayout->addWidget(dashboardButton);
 		layout->addWidget(lspRow);
+
+		// LSP feature toggles — read live by the views: completion trigger
+		// (typing + Ctrl/Cmd+L), hover symbol-info tooltip, and in-editor
+		// diagnostics (squiggles, gutter marks, diagnostic hover).
+		auto *lspToggles = new QGridLayout();
+		lspToggles->setHorizontalSpacing(12);
+		auto addLspToggle = [&](int col,
+								const QString &text,
+								bool checked,
+								const QString &hint,
+								QCheckBox **out) {
+			auto *box = new QCheckBox(text, this);
+			box->setChecked(checked);
+			box->setToolTip(hint);
+			*out = box;
+			lspToggles->addWidget(box, 0, col);
+		};
+		addLspToggle(0,
+					 "Auto complete",
+					 appSettings.settings.value("lsp_autocomplete", true),
+					 "Completion popup while typing",
+					 &lspCompleteBox);
+		addLspToggle(1,
+					 "Symbol info on hover",
+					 appSettings.settings.value("lsp_symbol_info", true),
+					 "Hover tooltip with symbol details",
+					 &lspSymbolInfoBox);
+		addLspToggle(2,
+					 "Diagnostics",
+					 appSettings.settings.value("lsp_diagnostics", true),
+					 "Squiggles, gutter marks and diagnostic tooltips",
+					 &lspDiagnosticsBox);
+		layout->addLayout(lspToggles);
 	}
 
 	layout->addStretch(1);
@@ -272,8 +323,16 @@ SettingsView::SettingsView(Settings &settings, QWidget *parent)
 			commit();
 	});
 #endif
-	for (QCheckBox *box :
-		 {minimapBox, wordWrapBox, treeSitterBox, gitGutterBox, sidebarBox, terminalBox})
+	for (QCheckBox *box : {minimapBox,
+						   wordWrapBox,
+						   autosaveBox,
+						   treeSitterBox,
+						   gitGutterBox,
+						   sidebarBox,
+						   terminalBox,
+						   lspCompleteBox,
+						   lspSymbolInfoBox,
+						   lspDiagnosticsBox})
 		connect(box, &QCheckBox::toggled, this, [this](bool) {
 			if (!syncing)
 				commit();
@@ -371,10 +430,14 @@ void SettingsView::commit()
 		pendingBg.redF(), pendingBg.greenF(), pendingBg.blueF(), pendingBg.alphaF()};
 	appSettings.settings["minimap"] = minimapBox->isChecked();
 	appSettings.settings["word_wrap"] = wordWrapBox->isChecked();
+	appSettings.settings["auto_save"] = autosaveBox->isChecked();
 	appSettings.settings["treesitter"] = treeSitterBox->isChecked();
 	appSettings.settings["git_changed_lines"] = gitGutterBox->isChecked();
 	appSettings.settings["sidebar_visible"] = sidebarBox->isChecked();
 	appSettings.settings["terminal_visible"] = terminalBox->isChecked();
+	appSettings.settings["lsp_autocomplete"] = lspCompleteBox->isChecked();
+	appSettings.settings["lsp_symbol_info"] = lspSymbolInfoBox->isChecked();
+	appSettings.settings["lsp_diagnostics"] = lspDiagnosticsBox->isChecked();
 	appSettings.saveSettings();
 	// Views read the profile live (colors via HighlightService, font via
 	// host); the Qt host re-applies on the applied() signal.
@@ -400,10 +463,14 @@ void SettingsView::syncFromSettings()
 #endif
 	minimapBox->setChecked(appSettings.settings.value("minimap", true));
 	wordWrapBox->setChecked(appSettings.settings.value("word_wrap", false));
+	autosaveBox->setChecked(appSettings.settings.value("auto_save", true));
 	treeSitterBox->setChecked(appSettings.settings.value("treesitter", true));
 	gitGutterBox->setChecked(appSettings.settings.value("git_changed_lines", true));
 	sidebarBox->setChecked(appSettings.settings.value("sidebar_visible", true));
 	terminalBox->setChecked(appSettings.settings.value("terminal_visible", true));
+	lspCompleteBox->setChecked(appSettings.settings.value("lsp_autocomplete", true));
+	lspSymbolInfoBox->setChecked(appSettings.settings.value("lsp_symbol_info", true));
+	lspDiagnosticsBox->setChecked(appSettings.settings.value("lsp_diagnostics", true));
 }
 
 void SettingsView::onProfileChanged()

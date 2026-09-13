@@ -58,6 +58,10 @@ void LSPCompletionView::triggerAtCaret()
 {
 	if (!view || !client.isInitialized())
 		return;
+	// The "lsp_autocomplete" settings toggle (explicit keybind included):
+	// off means the feature is off, not just the typing trigger.
+	if (!settings.settings.value("lsp_autocomplete", true))
+		return;
 	int row = 0;
 	const int col = caretColumn(row);
 	caretRow = row;
@@ -71,7 +75,8 @@ void LSPCompletionView::scheduleTrigger() { debounce->start(); }
 
 void LSPCompletionView::evaluate()
 {
-	if (!view || !client.isInitialized())
+	if (!view || !client.isInitialized() ||
+		!settings.settings.value("lsp_autocomplete", true))
 	{
 		dismiss();
 		return;
@@ -273,6 +278,13 @@ void LSPCompletionView::dismiss()
 
 void LSPCompletionView::poll()
 {
+	// Toggled off mid-session (popup open or request in flight): kill it.
+	if (!settings.settings.value("lsp_autocomplete", true))
+	{
+		if (session)
+			dismiss();
+		return;
+	}
 	if (!session || !view || client.completion.isPending())
 		return;
 

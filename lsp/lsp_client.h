@@ -88,6 +88,11 @@ class LSPClient
 				 const std::string &content,
 				 int version,
 				 const std::string &languageId);
+	// Post-reload whole-buffer resync (see LSPDocumentSync::didReload).
+	void didReload(const std::string &filePath,
+				   const std::string &content,
+				   int version,
+				   const std::string &languageId);
 	void didChange(const std::string &filePath,
 				   int version,
 				   const std::vector<EditorEvents::DocumentChange> &changes,
@@ -197,6 +202,11 @@ class LSPClient
 				 const std::string &content,
 				 int version,
 				 const std::string &languageId);
+	// Post-reload whole-buffer resync (see LSPDocumentSync::didReload).
+	void didReload(const std::string &filePath,
+				   const std::string &content,
+				   int version,
+				   const std::string &languageId);
 	void didChange(const std::string &filePath,
 				   int version,
 				   const std::vector<EditorEvents::DocumentChange> &changes,

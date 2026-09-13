@@ -29,6 +29,13 @@ void LSPClient::didOpen(const std::string &, const std::string &, int, const std
 {
 }
 
+void LSPClient::didReload(const std::string &,
+						  const std::string &,
+						  int,
+						  const std::string &)
+{
+}
+
 void LSPClient::didChange(const std::string &,
 						  int,
 						  const std::vector<EditorEvents::DocumentChange> &,
