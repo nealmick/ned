@@ -31,7 +31,11 @@ inline const std::string &timestamp()
 			.count() %
 		1000;
 	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &seconds);
+#else
 	localtime_r(&seconds, &tm);
+#endif
 	char buf[16];
 	std::snprintf(buf,
 				  sizeof(buf),
