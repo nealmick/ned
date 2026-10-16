@@ -70,6 +70,12 @@ class LSPClient
 	void shutdown();
 	bool isInitialized() const { return sync.isReady(); }
 	std::string getCurrentLanguage() const { return currentLanguage; }
+	// Whether the running session's language covers this file — i.e. its
+	// extension is listed under the current language in lsp.json. One server
+	// runs per workspace, so documents of any other type (or of no configured
+	// type at all, like .json) must not reach it: servers analyze whatever
+	// didOpen hands them and would publish bogus diagnostics for it.
+	bool handlesFile(const std::string &filePath) const;
 	// Display name of the RUNNING server ("clangd", "pyright"); empty when
 	// none — drives the status bar's LSP indicator.
 	std::string serverDisplayName() const { return serverName; }

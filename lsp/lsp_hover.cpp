@@ -86,6 +86,10 @@ bool LSPHover::requestAt(int row, int utf8Column, LSPEditor *target)
 	LSPEditor *const doc = target ? target : api;
 	if (!doc || !client || !client->getMessageHandler())
 		return false;
+	// Requests are only meaningful for documents the running server's
+	// language covers (see LSPClient::handlesFile).
+	if (!client->handlesFile(doc->path()))
+		return false;
 
 	const int utf16 = EditorUtils::Utf8ByteOffsetToUtf16(doc->line(row), utf8Column);
 	const auto ticket = state.begin();

@@ -65,6 +65,10 @@ void LSPGoto::get()
 {
 	if (!client || !api || !client->isInitialized() || !client->getMessageHandler())
 		return;
+	// Requests are only meaningful for documents the running server's
+	// language covers (see LSPClient::handlesFile).
+	if (!client->handlesFile(api->path()))
+		return;
 
 	int row = 0, column = 0;
 	api->getCaret(row, column);

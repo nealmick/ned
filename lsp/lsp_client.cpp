@@ -131,6 +131,16 @@ std::string LSPClient::detectLanguageFromFile(const std::string &filePath) const
 	return "";
 }
 
+bool LSPClient::handlesFile(const std::string &filePath) const
+{
+	// Same detection init() used to pick the running server — the set of
+	// files that would have started this session is exactly the set it may
+	// sync. Empty currentLanguage = no server; the empty detect result for
+	// unconfigured types must not compare equal to it.
+	return !currentLanguage.empty() &&
+		   detectLanguageFromFile(filePath) == currentLanguage;
+}
+
 std::string LSPClient::expandEnvironmentVariables(const std::string &path) const
 {
 #ifdef _WIN32
@@ -406,6 +416,12 @@ void LSPClient::registerServerHandlers()
 
 	messageHandler->add<lsp::notifications::TextDocument_PublishDiagnostics>(
 		[this](lsp::PublishDiagnosticsParams &&params) {
+			// Second line of defense behind the didOpen gate: a publish for
+			// a path outside the running language (a server sweeping the
+			// whole workspace) must never reach the store, or those
+			// diagnostics render in whatever tab owns the path.
+			if (!handlesFile(std::string(params.uri.fsPath())))
+				return;
 			std::vector<DiagnosticItem> items;
 			items.reserve(params.diagnostics.size());
 			for (const auto &d : params.diagnostics)
@@ -551,7 +567,12 @@ void LSPClient::didOpen(const std::string &filePath,
 						int version,
 						const std::string &languageId)
 {
-	// Gating (handshake state, handler) lives in LSPDocumentSync.
+	// Only documents the running server's language covers may enter the
+	// session — a didOpen for anything else makes the server analyze (and
+	// publish diagnostics for) a file it can't parse. Gating (handshake
+	// state, handler) lives in LSPDocumentSync.
+	if (!handlesFile(filePath))
+		return;
 	sync.didOpen(filePath, content, version, languageId);
 }
 
@@ -560,6 +581,8 @@ void LSPClient::didReload(const std::string &filePath,
 						  int version,
 						  const std::string &languageId)
 {
+	if (!handlesFile(filePath))
+		return;
 	sync.didReload(filePath, content, version, languageId);
 }
 
@@ -568,14 +591,21 @@ void LSPClient::didChange(const std::string &filePath,
 						  const std::vector<EditorEvents::DocumentChange> &changes,
 						  const FullTextProvider &fullText)
 {
+	if (!handlesFile(filePath))
+		return;
 	sync.didChange(filePath, version, changes, fullText);
 }
 
 void LSPClient::didSave(const std::string &filePath, const FullTextProvider &fullText)
 {
+	if (!handlesFile(filePath))
+		return;
 	sync.didSave(filePath, fullText);
 }
 
+// Ungated on purpose: closing a document must always reach the sync layer so
+// tracking and diagnostics for it come down, even if it slipped in before a
+// language switch reset the session.
 void LSPClient::didClose(const std::string &filePath) { sync.didClose(filePath); }
 
 void LSPClient::startStderrDrain()

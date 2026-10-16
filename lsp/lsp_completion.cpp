@@ -93,6 +93,10 @@ bool LSPCompletion::requestAtCaret(Trigger trigger, char triggerCharacter)
 {
 	if (!client || !api || !client->isInitialized() || !client->getMessageHandler())
 		return false;
+	// Requests are only meaningful for documents the running server's
+	// language covers (see LSPClient::handlesFile).
+	if (!client->handlesFile(api->path()))
+		return false;
 
 	int row = 0, column = 0;
 	api->getCaret(row, column);
